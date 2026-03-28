@@ -1,0 +1,798 @@
+import 'package:flutter/material.dart';
+import '../../data/remote/api_service.dart';
+import '../../data/local/database_helper.dart';
+import 'dart:convert';
+import 'package:latlong2/latlong.dart';
+import '../../screens/home/home_page.dart'; // Pour MapFocusTarget + HomePage
+
+class DataListView extends StatefulWidget {
+  final List<Map<String, dynamic>> data;
+  final String entityType;
+  final String dataFilter;
+  final Function(Map<String, dynamic>) onEdit;
+  final Function(int) onDelete;
+  final void Function(Map<String, dynamic> item)? onView;
+  final String? tableName;
+
+  const DataListView({
+    super.key,
+    required this.data,
+    required this.entityType,
+    required this.dataFilter,
+    required this.onEdit,
+    required this.onDelete,
+    this.onView,
+    this.tableName,
+  });
+
+  @override
+  State<DataListView> createState() => _DataListViewState();
+}
+
+class _DataListViewState extends State<DataListView> {
+  late List<Map<String, dynamic>> _filteredData;
+  final TextEditingController _searchController = TextEditingController();
+  final Map<String, String> _dateCache = {};
+
+  late Future<_AdminNames> _adminFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredData = widget.data;
+    _searchController.addListener(_filterData);
+
+    _adminFuture = _loadAdminNames(); // ✅ une seule fois, offline-friendly
+  }
+
+  @override
+  void didUpdateWidget(DataListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _filterData();
+    }
+  }
+
+  Future<_AdminNames> _loadAdminNames() async {
+    // 1) si ApiService déjà rempli (ex: après login)
+    final r1 = ApiService.regionNom?.toString().trim() ?? '';
+    final p1 = ApiService.prefectureNom?.toString().trim() ?? '';
+    final c1 = ApiService.communeNom?.toString().trim() ?? '';
+
+    if (r1.isNotEmpty || p1.isNotEmpty || c1.isNotEmpty) {
+      return _AdminNames(
+        region: r1.isEmpty ? '----' : r1,
+        prefecture: p1.isEmpty ? '----' : p1,
+        commune: c1.isEmpty ? '----' : c1,
+      );
+    }
+
+    // 2) sinon: lire depuis SQLite users (offline)
+    final user = await DatabaseHelper().getCurrentUser();
+    final r2 = (user?['region_nom'] ?? '').toString().trim();
+    final p2 = (user?['prefecture_nom'] ?? '').toString().trim();
+    final c2 = (user?['commune_nom'] ?? '').toString().trim();
+
+    return _AdminNames(
+      region: r2.isEmpty ? '----' : r2,
+      prefecture: p2.isEmpty ? '----' : p2,
+      commune: c2.isEmpty ? '----' : c2,
+    );
+  }
+
+  void _filterData() {
+    final query = _searchController.text.toLowerCase().trim();
+
+    if (query.isEmpty) {
+      setState(() => _filteredData = widget.data);
+    } else {
+      setState(() {
+        _filteredData = widget.data.where((item) {
+          final nom = item['nom']?.toString().toLowerCase() ?? '';
+          final type = item['type']?.toString().toLowerCase() ?? '';
+          final codePiste = item['code_piste']?.toString().toLowerCase() ?? '';
+          return nom.contains(query) || type.contains(query) || codePiste.contains(query);
+        }).toList();
+      });
+    }
+  }
+
+  bool _hasIntersection(Map<String, dynamic> item) {
+    final existence = item['existence_intersection'];
+    if (existence is bool) return existence;
+    if (existence is int) return existence == 1;
+    if (existence is String) return existence == '1' || existence.toLowerCase() == 'true';
+    return false;
+  }
+
+  // ════════════════════════════════════════════
+// APRÈS
+// ════════════════════════════════════════════
+  void _focusOnIntersectionPoint(double? x, double? y, String label) {
+    if (x == null || y == null) return;
+
+    // x = longitude, y = latitude (convention de votre BDD)
+    final point = LatLng(y, x);
+
+    HomePage.pendingFocusTarget = MapFocusTarget.point(
+      point: point,
+      label: 'Intersection: $label',
+      pointStyle: 'intersection', // ⭐⭐⭐ AJOUTÉ : style intersection (orange)
+    );
+
+    // Remonter jusqu'à la HomePage (carte)
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _buildSearchBar(),
+        Expanded(child: _buildDataList()),
+      ],
+    );
+  }
+
+  Widget _buildIntersectionDetailSection(Map<String, dynamic> item) {
+    final nombre = item['nombre_intersections'] ?? 0;
+    final intersectionsRaw = item['intersections_json'];
+    List<dynamic> intersections = [];
+
+    try {
+      if (intersectionsRaw is String && intersectionsRaw.isNotEmpty) {
+        intersections = jsonDecode(intersectionsRaw);
+      } else if (intersectionsRaw is List) {
+        intersections = intersectionsRaw;
+      }
+    } catch (_) {}
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.call_split, size: 16, color: Colors.orange.shade700),
+            const SizedBox(width: 6),
+            Text(
+              'Intersections ($nombre)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange.shade800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...intersections.map((inter) {
+          final code = inter['code_piste']?.toString() ?? '----';
+          final x = inter['x'];
+          final y = inter['y'];
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.compare_arrows, size: 14, color: Colors.orange.shade600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        code,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange.shade900,
+                        ),
+                      ),
+                      if (x != null && y != null)
+                        Text(
+                          'X: ${double.tryParse(x.toString())?.toStringAsFixed(6) ?? x}  •  Y: ${double.tryParse(y.toString())?.toStringAsFixed(6) ?? y}',
+                          style: TextStyle(fontSize: 11, color: Colors.brown.shade700, fontWeight: FontWeight.w500),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Rechercher par nom, type ou code piste...',
+          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.grey),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.blue),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        ),
+        onChanged: (_) => _filterData(),
+      ),
+    );
+  }
+
+  Widget _buildDataList() {
+    if (_filteredData.isEmpty) {
+      return Center(
+        child: Text(
+          _searchController.text.isEmpty ? 'Aucune donnée ${_getFilterText()}' : 'Aucun résultat pour "${_searchController.text}"',
+          style: const TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _filteredData.length,
+      itemBuilder: (context, index) {
+        final item = _filteredData[index];
+        return _buildListItem(item, context);
+      },
+    );
+  }
+
+  /// Construit le badge d'intersection à afficher dans la liste
+  Widget _buildIntersectionBadge(Map<String, dynamic> item) {
+    final nombre = item['nombre_intersections'] ?? 0;
+    final intersectionsRaw = item['intersections_json'];
+    List<dynamic> intersections = [];
+
+    try {
+      if (intersectionsRaw is String && intersectionsRaw.isNotEmpty) {
+        intersections = jsonDecode(intersectionsRaw);
+      } else if (intersectionsRaw is List) {
+        intersections = intersectionsRaw;
+      }
+    } catch (_) {}
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.shade300, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.call_split, size: 14, color: Colors.orange.shade700),
+              const SizedBox(width: 4),
+              Text(
+                '$nombre intersection${nombre > 1 ? 's' : ''}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade800,
+                ),
+              ),
+            ],
+          ),
+          if (intersections.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            ...intersections.take(3).map((inter) {
+              final code = inter['code_piste'] ?? '----';
+              final x = inter['x'];
+              final y = inter['y'];
+              return Padding(
+                padding: const EdgeInsets.only(left: 18, top: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '↗ $code${x != null && y != null ? '  (${double.tryParse(x.toString())?.toStringAsFixed(4) ?? x}, ${double.tryParse(y.toString())?.toStringAsFixed(4) ?? y})' : ''}',
+                        style: TextStyle(fontSize: 11, color: Colors.brown.shade700, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    //  Icône œil — focus sur le point d'intersection
+                    if (x != null && y != null)
+                      GestureDetector(
+                        onTap: () => _focusOnIntersectionPoint(
+                          double.tryParse(x.toString()),
+                          double.tryParse(y.toString()),
+                          code.toString(),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Icon(Icons.visibility, size: 16, color: Colors.orange.shade700),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            if (intersections.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(left: 18, top: 2),
+                child: Text(
+                  '... et ${intersections.length - 3} autre(s)',
+                  style: TextStyle(fontSize: 11, color: Colors.orange.shade600, fontStyle: FontStyle.italic),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _getFilterText() {
+    switch (widget.dataFilter) {
+      case "unsynced":
+        return "enregistrée localement";
+      case "synced":
+        return "synchronisée";
+      case "saved":
+        return "sauvegardée";
+      default:
+        return "";
+    }
+  }
+
+  Widget _buildListItem(Map<String, dynamic> item, BuildContext context) {
+    final hasModification = item['updated_at'] != null && item['updated_at'] != item['created_at'];
+    final isChaussee = widget.entityType == "Chaussées";
+    final titleText = isChaussee ? 'Chaussée – ${(item['type_chaussee'] ?? item['type'] ?? '—')} (#${item['id'] ?? '—'})' : (item['nom'] ?? item['code_piste'] ?? 'Sans nom').toString();
+    return Card(
+      elevation: 0.8, // au lieu de default / gros shadow
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        title: Text(
+          titleText,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (item['code_piste'] != null) Text('Code: ${item['code_piste']}'),
+            if (item['type'] != null) Text('Type: ${item['type']}'),
+
+            if (item['created_at'] != null) Text('Créé: ${_formatDate(item['created_at'])}'),
+
+            if (hasModification)
+              Text(
+                'Modifié: ${_formatDate(item['updated_at'])}',
+                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+              ),
+
+            // (Optionnel) tu peux supprimer cette ligne si tu ne veux plus afficher l'id
+            if (item['commune_id'] != null) Text('Commune ID: ${item['commune_id']}'),
+
+            item['synced'] == 1
+                ? const Text('Status: Synchronisé ✅', style: TextStyle(color: Colors.green))
+                : item['downloaded'] == 1
+                    ? const Text('Status: Téléchargé 📥', style: TextStyle(color: Colors.blue))
+                    : const Text('Status: Non synchronisé ⏳', style: TextStyle(color: Colors.orange)),
+
+            //  INTERSECTION — affiché seulement si existence_intersection > 0
+            if (_hasIntersection(item)) _buildIntersectionBadge(item),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // APRÈS
+            if (widget.onView != null)
+              IconButton(
+                tooltip: 'Voir sur la carte',
+                icon: Icon(Icons.remove_red_eye_outlined, color: Colors.blue.shade700), // ⭐ Couleur BLEUE pour distinguer
+                onPressed: () {
+                  final itemCopy = Map<String, dynamic>.from(item);
+                  //  INJECTER le nom de table pour que _goToMapForItem sache quel type de point c'est
+                  if (widget.tableName != null && itemCopy['source_table'] == null) {
+                    itemCopy['source_table'] = widget.tableName;
+                  }
+                  print('👁️ [DataListView] onView appelé pour ${widget.entityType}, table=${widget.tableName}, id=${itemCopy['id']}');
+                  widget.onView?.call(itemCopy);
+                },
+              ),
+            if (widget.dataFilter == "unsynced") ...[
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.blue),
+                onPressed: () => widget.onEdit(item),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _confirmDelete(item['id'], context),
+              ),
+            ],
+          ],
+        ),
+        onTap: () => _showDetails(item, context),
+      ),
+    );
+  }
+
+  void _confirmDelete(int id, BuildContext context) {
+    widget.onDelete(id);
+  }
+
+  void _showDetails(Map<String, dynamic> item, BuildContext context) {
+    // ✅ Champs techniques à cacher (backend only)
+    const hiddenKeys = {
+      'points_json',
+      'sqlite_id',
+      'sync_status',
+      'synced',
+      'downloaded',
+      'saved_by_user_id',
+      'date_sync',
+      'login_id',
+      'created_by',
+      'updated_by',
+      'geom',
+      'geometry',
+      'wkt',
+      'api_id',
+      'id',
+
+      // si jamais ils existent dans certains records
+      'commune_nom',
+      'prefecture_nom',
+      'region_nom',
+      'prefecture_id',
+      'region_id',
+
+      // ✅ on ne veut plus afficher commune_id dans Détails
+      'commune_id',
+      'commune_rurale_id',
+      'communes_rurales',
+      'communes_rurales_id',
+      'region_name',
+      'prefecture_name',
+      'commune_name',
+    };
+
+    bool isHidden(String key) {
+      final k = key.toLowerCase();
+      if (hiddenKeys.contains(key)) return true;
+      if (k.contains('password') || k.contains('token')) return true;
+      if (k.endsWith('_json')) return true;
+      return false;
+    }
+
+    String groupOf(String key) {
+      final k = key.toLowerCase();
+
+      // Localisation (points)
+      if (k.contains('lat') || k.contains('lon') || k == 'x' || k == 'y' || k.contains('coord') || k.contains('longitude') || k.contains('latitude')) {
+        return 'Localisation';
+      }
+
+      // Administration / rattachements
+      if (k.contains('commune') || k.contains('commune_rurale_id') || k.contains('code_piste') || k.contains('piste') || k.contains('region') || k.contains('prefecture')) {
+        return 'Administration';
+      }
+
+      if (k.contains('origine') || k.contains('_origine')) return 'Origine';
+      if (k.contains('destination') || k.contains('_destination')) return 'Destination';
+      if (k.contains('intersection') || k.contains('_intersection')) return 'Intersection';
+
+      if (k.contains('occupation') || k.contains('type_occupation') || k.contains('debut_occupation') || k.contains('fin_occupation')) {
+        return 'Occupation';
+      }
+
+      if (k.contains('trafic') || k.contains('type_trafic') || k.contains('frequence_trafic')) {
+        return 'Trafic';
+      }
+
+      if (k.contains('date') || k.endsWith('_at')) return 'Dates';
+
+      return 'Général';
+    }
+
+    final entries = item.entries.where((e) => e.value != null && !isHidden(e.key)).toList();
+
+    const order = {
+      'Général': 0,
+      'Administration': 1,
+      'Localisation': 2,
+      'Origine': 3,
+      'Destination': 4,
+      'Intersection': 5,
+      'Occupation': 6,
+      'Trafic': 7,
+      'Dates': 8,
+    };
+
+    entries.sort((a, b) {
+      final ga = groupOf(a.key);
+      final gb = groupOf(b.key);
+      final oa = order[ga] ?? 99;
+      final ob = order[gb] ?? 99;
+      if (oa != ob) return oa.compareTo(ob);
+      return _getFieldLabel(a.key).compareTo(_getFieldLabel(b.key));
+    });
+
+    final Map<String, List<MapEntry<String, dynamic>>> grouped = {};
+    for (final e in entries) {
+      final g = groupOf(e.key);
+      grouped.putIfAbsent(g, () => []);
+      grouped[g]!.add(e);
+    }
+
+    // ✅ Injecter region/prefecture/commune (3 lignes) dans Administration
+    // ✅ Injecter region/prefecture/commune SEULEMENT si downloaded ou synced
+    final isDownloaded = item['downloaded'] == 1;
+    final isSynced = item['synced'] == 1;
+    if (isDownloaded || isSynced) {
+      grouped.putIfAbsent('Administration', () => []);
+      grouped['Administration']!.insertAll(0, [
+        MapEntry('__region__', item['region_name'] ?? ''),
+        MapEntry('__prefecture__', item['prefecture_name'] ?? ''),
+        MapEntry('__commune__', item['commune_name'] ?? ''),
+      ]);
+    }
+
+    Widget rowItem(String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 4,
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 6,
+              child: Text(
+                value.isEmpty ? '—' : value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget section(String title, List<MapEntry<String, dynamic>> list) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              children: list.map((e) {
+                // ✅ 3 lignes Administration (region/pref/commune) -> toutes les données
+                if (e.key == '__region__' || e.key == '__prefecture__' || e.key == '__commune__') {
+                  final label = e.key == '__region__'
+                      ? 'Région'
+                      : e.key == '__prefecture__'
+                          ? 'Préfecture'
+                          : 'Commune';
+                  final value = (e.value ?? '').toString().trim();
+
+                  return Column(
+                    children: [
+                      rowItem(label, value.isEmpty ? '----' : value),
+                      Divider(height: 1, color: Colors.grey[300]),
+                    ],
+                  );
+                }
+
+                final label = _getFieldLabel(e.key);
+                final value = _formatValue(e.value, e.key);
+
+                return Column(
+                  children: [
+                    rowItem(label, value),
+                    Divider(height: 1, color: Colors.grey[300]),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      );
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 520,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Détails', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        ...grouped.entries.map((g) => section(g.key, g.value)),
+                        //  SECTION INTERSECTION (conditionnelle)
+                        if (_hasIntersection(item)) ...[
+                          const Divider(),
+                          _buildIntersectionDetailSection(item),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Fermer'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getFieldLabel(String key) {
+    final labels = {
+      'code_piste': 'Code Piste',
+      'commune_rurale_id': 'Commune',
+      'user_login': 'Utilisateur',
+      'heure_debut': 'Heure Début',
+      'heure_fin': 'Heure Fin',
+      'created_at': 'Date Création',
+      'updated_at': 'Date Modification',
+      'nom_origine_piste': 'Origine',
+      'nom_destination_piste': 'Destination',
+      'type_occupation': 'Type Occupation',
+      'enqueteur': 'Enquêteur',
+      'id': 'ID',
+      'nom': 'Nom',
+      'type': 'Type',
+      'x_localite': 'Longitude (X)',
+      'y_localite': 'Latitude (Y)',
+      // ===== CHAMPS TERRAIN =====
+      'plateforme': 'Plateforme',
+      'relief': 'Relief',
+      'vegetation': 'Végétation',
+      'debut_travaux': 'Début Travaux',
+      'fin_travaux': 'Fin Travaux',
+      'financement': 'Financement',
+      'projet': 'Projet',
+      // ===== ÉVALUATION =====
+      'niveau_service': 'Niveau de Service',
+      'fonctionnalite': 'Fonctionnalité',
+      'interet_socio_administratif': 'Intérêt Socio-Admin.',
+      'population_desservie': 'Population Desservie',
+      'potentiel_agricole': 'Potentiel Agricole',
+      'cout_investissement': 'Coût Investissement',
+      'protection_environnement': 'Protection Environnement',
+      'note_globale': 'Note Globale',
+      //========== INTERSECTION ======
+      'existence_intersection': 'Croisement détecté',
+      'nombre_intersections': 'Nombre d\'intersections',
+      'intersections_json': 'Détail des intersections',
+      // ajoute ici les autres si tu veux
+    };
+
+    return labels[key] ?? key;
+  }
+
+  String _formatValue(dynamic value, String key) {
+    // ✅ Cas spécial enquêteur
+    if (key == 'enqueteur') {
+      if (value == null || value.toString().trim().isEmpty) return '----';
+      final v = value.toString();
+      if (v == '0' || v == '1' || v.toLowerCase().contains('sync')) return '----';
+      return v;
+    }
+
+    if (value == null) return '----';
+
+    if (key.contains('date') || key.contains('_at')) {
+      return _formatDate(value.toString());
+    }
+
+    if (value is DateTime) {
+      return _formatDate(value.toString());
+    }
+// ✅ Format coordonnées : limiter à 7 décimales
+    final k = key.toLowerCase();
+    final isCoord = k.startsWith('x_') || k.startsWith('y_') || k.contains('latitude') || k.contains('longitude') || k.contains('lat') || k.contains('lon');
+
+    if (isCoord) {
+      final d = double.tryParse(value.toString());
+      if (d != null) return d.toStringAsFixed(7);
+    }
+
+    final s = value.toString().trim();
+    return s.isEmpty ? '----' : s;
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null) return '----';
+    if (_dateCache.containsKey(dateString)) return _dateCache[dateString]!;
+
+    String out;
+    try {
+      final date = DateTime.parse(dateString);
+      out = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} '
+          '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      out = dateString;
+    }
+
+    _dateCache[dateString] = out;
+    return out;
+  }
+}
+
+class _AdminNames {
+  final String region;
+  final String prefecture;
+  final String commune;
+
+  const _AdminNames({
+    required this.region,
+    required this.prefecture,
+    required this.commune,
+  });
+}

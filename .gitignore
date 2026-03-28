@@ -1,0 +1,35 @@
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python global
+*.pyc
+__pycache__/
+
+# Env files (SECRETS — NE JAMAIS COMMITER)
+.env
+*.env
+
+# Keystores et clés de signature (SECRETS)
+*.keystore
+*.jks
+key.properties
+
+# Flutter global
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# Virtual env
+**/env/
+**/venv/
+
+# Database dumps (trop lourds pour Git)
+*.dump
+*.backup
+*.sql
