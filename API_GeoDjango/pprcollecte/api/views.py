@@ -108,10 +108,10 @@ def login_view(request):
     if not user.actif:
         return JsonResponse({'error': 'Compte désactivé. Contactez votre administrateur.'}, status=403)
 
-    if not user.mot_de_passe_hash:
+    if not user.mot_de_passe:
         return JsonResponse({'error': 'Aucun mot de passe configuré pour ce compte'}, status=401)
 
-    if not check_password(mot_de_passe, user.mot_de_passe_hash):
+    if mot_de_passe != user.mot_de_passe:
         return JsonResponse({'error': 'Login ou mot de passe incorrect'}, status=401)
 
     roles_mobile = ['admin', 'project_manager', 'editeur_terrain', 'editeur_bureau']

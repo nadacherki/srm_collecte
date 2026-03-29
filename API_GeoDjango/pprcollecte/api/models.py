@@ -23,7 +23,7 @@ from django.contrib.gis.db import models
 class Utilisateur(models.Model):
     id_user = models.AutoField(primary_key=True)
     login = models.CharField(max_length=100, unique=True)
-    mot_de_passe_hash = models.CharField(max_length=255, null=True, blank=True)
+    mot_de_passe = models.CharField(max_length=255, null=True, blank=True)
     nom_prenom = models.CharField(max_length=200, null=True, blank=True)
     actif = models.BooleanField(default=True)
     date_creation = models.DateField(null=True, blank=True)
