@@ -1,57 +1,150 @@
-# api/urls.py - Version corrigée sans doublons
+"""
+URLs API pour SRM Collecte — COMPLET (55 endpoints).
+
+Organisation :
+  /api/login/                           → Authentification
+  /api/projets/                         → Projets
+  /api/missions/                        → Missions
+  /api/communes/                        → Communes
+  /api/historique/                       → Journal des modifications
+  /api/objets-incomplets/               → Objets non collectés
+  /api/fonds-de-plan/                   → Services cartographiques
+  /api/evaluations/                     → Évaluations agents
+
+  /api/ep/vannes/                       → Vannes EP
+  /api/ep/vannes-vidange/               → Vannes de vidange EP
+  /api/ep/ventouses/                    → Ventouses EP
+  /api/ep/hydrants/                     → Hydrants EP
+  /api/ep/bornes-fontaine/              → Bornes fontaine EP
+  /api/ep/bornes-onep/                  → Bornes ONEP EP
+  /api/ep/bouches-cles/                 → Bouches à clés EP
+  /api/ep/bouches-arrosage/             → Bouches d'arrosage EP
+  /api/ep/compteurs-abonne/             → Compteurs abonné EP
+  /api/ep/compteurs-reseau/             → Compteurs réseau EP
+  /api/ep/cones-reduction/              → Cônes de réduction EP
+  /api/ep/centres-tampon/               → Centres tampon EP
+  /api/ep/noeuds/                       → Noeuds EP
+  /api/ep/obturateurs/                  → Obturateurs EP
+  /api/ep/reducteurs-pression/          → Réducteurs de pression EP
+  /api/ep/forages/                      → Forages EP
+  /api/ep/puits/                        → Puits EP
+  /api/ep/pompes/                       → Pompes EP
+  /api/ep/reservoirs/                   → Réservoirs EP
+  /api/ep/stations-pompage/             → Stations de pompage EP
+  /api/ep/regards/                      → Regards EP
+  /api/ep/autres-objets/                → Autres objets EP
+  /api/ep/conduites-terrain/            → Conduites terrain EP
+  /api/ep/conduites-bureau/             → Conduites bureau EP
+  /api/ep/branchements/                 → Branchements EP
+  /api/ep/traverses/                    → Traversées EP
+  /api/ep/planches/                     → Planches EP
+
+  /api/ass/regards/                     → Regards ASS
+  /api/ass/regards-branchement/         → Regards branchement ASS
+  /api/ass/canalisations/               → Canalisations ASS
+  /api/ass/canalisations-reutilisation/ → Canalisations réutilisation ASS
+  /api/ass/branchements/                → Branchements ASS
+  /api/ass/bassins/                     → Bassins ASS
+  /api/ass/ouvrages/                    → Ouvrages ASS
+  /api/ass/equipements/                 → Équipements ASS
+  /api/ass/stations/                    → Stations ASS
+
+  /api/elec/supports/                   → Supports ELEC
+  /api/elec/postes/                     → Postes ELEC
+  /api/elec/coffrets-bt/                → Coffrets BT ELEC
+  /api/elec/noeuds-raccord/             → Noeuds raccord ELEC
+  /api/elec/points-desserte/            → Points desserte ELEC
+  /api/elec/transformateurs/            → Transformateurs ELEC
+  /api/elec/cellules/                   → Cellules ELEC
+  /api/elec/departs-bt/                 → Départs BT ELEC
+  /api/elec/departs-hta/                → Départs HTA ELEC
+  /api/elec/troncons-bt/                → Tronçons BT ELEC
+  /api/elec/troncons-hta/               → Tronçons HTA ELEC
+"""
+
 from django.urls import path, include
-from .views import (
-    LoginAPIView, PisteListCreateAPIView,
-    ServicesSantesListCreateAPIView, AutresInfrastructuresListCreateAPIView, BacsListCreateAPIView,
-    BatimentsAdministratifsListCreateAPIView, BusesListCreateAPIView, DalotsListCreateAPIView,
-    EcolesListCreateAPIView, InfrastructuresHydrauliquesListCreateAPIView, LocalitesListCreateAPIView,
-    MarchesListCreateAPIView, PassagesSubmersiblesListCreateAPIView, PontsListCreateAPIView,
-    CommunesRuralesListCreateAPIView, PrefecturesListCreateAPIView, RegionsListCreateAPIView,
-    UserManagementAPIView,ChausseesListCreateAPIView,PointsCoupuresListCreateAPIView,PointsCritiquesListCreateAPIView,
-    SiteEnqueteListCreateAPIView, EnquetePolygoneListCreateAPIView, PasswordResetRequestAPIView
-)
-from .temporal_views import TemporalAnalysisAPIView
-from .geographic_api import GeographyHierarchyAPIView, ZoomToLocationAPIView
+from rest_framework.routers import DefaultRouter
+from . import views
 
+router = DefaultRouter()
+
+# =====================================================================
+#  PUBLIC (8 endpoints)
+# =====================================================================
+router.register(r'projets', views.ProjetViewSet, basename='projet')
+router.register(r'missions', views.MissionViewSet, basename='mission')
+router.register(r'communes', views.CommuneViewSet, basename='commune')
+router.register(r'historique', views.HistoriqueAttributViewSet, basename='historique')
+router.register(r'objets-incomplets', views.ObjetIncompletViewSet, basename='objet-incomplet')
+router.register(r'fonds-de-plan', views.FondDePlanViewSet, basename='fond-de-plan')
+router.register(r'evaluations', views.EvaluationAgentViewSet, basename='evaluation')
+
+# =====================================================================
+#  EP — Eau Potable (27 endpoints)
+# =====================================================================
+router.register(r'ep/vannes', views.EpVanneViewSet, basename='ep-vanne')
+router.register(r'ep/vannes-vidange', views.EpVanneDeVidangeViewSet, basename='ep-vanne-vidange')
+router.register(r'ep/ventouses', views.EpVentouseViewSet, basename='ep-ventouse')
+router.register(r'ep/hydrants', views.EpHydrantViewSet, basename='ep-hydrant')
+router.register(r'ep/bornes-fontaine', views.EpBorneFontaineViewSet, basename='ep-borne-fontaine')
+router.register(r'ep/bornes-onep', views.EpBorneOnepViewSet, basename='ep-borne-onep')
+router.register(r'ep/bouches-cles', views.EpBoucheClesViewSet, basename='ep-bouche-cles')
+router.register(r'ep/bouches-arrosage', views.EpBoucheDarrosageViewSet, basename='ep-bouche-arrosage')
+router.register(r'ep/compteurs-abonne', views.EpCompteurAbonneViewSet, basename='ep-compteur-abonne')
+router.register(r'ep/compteurs-reseau', views.EpCompteurReseauViewSet, basename='ep-compteur-reseau')
+router.register(r'ep/cones-reduction', views.EpConeDeReductionViewSet, basename='ep-cone-reduction')
+router.register(r'ep/centres-tampon', views.EpCentreTamponViewSet, basename='ep-centre-tampon')
+router.register(r'ep/noeuds', views.EpNoeudViewSet, basename='ep-noeud')
+router.register(r'ep/obturateurs', views.EpObturateurViewSet, basename='ep-obturateur')
+router.register(r'ep/reducteurs-pression', views.EpReducteurDePressionViewSet, basename='ep-reducteur-pression')
+router.register(r'ep/forages', views.EpForageViewSet, basename='ep-forage')
+router.register(r'ep/puits', views.EpPuitViewSet, basename='ep-puit')
+router.register(r'ep/pompes', views.EpPompeViewSet, basename='ep-pompe')
+router.register(r'ep/reservoirs', views.EpReservoirViewSet, basename='ep-reservoir')
+router.register(r'ep/stations-pompage', views.EpStationDePompageViewSet, basename='ep-station-pompage')
+router.register(r'ep/regards', views.EpRegardEpViewSet, basename='ep-regard')
+router.register(r'ep/autres-objets', views.EpAutreObjetViewSet, basename='ep-autre-objet')
+router.register(r'ep/conduites-terrain', views.EpConduiteTerrainViewSet, basename='ep-conduite-terrain')
+router.register(r'ep/conduites-bureau', views.EpConduiteBureauViewSet, basename='ep-conduite-bureau')
+router.register(r'ep/branchements', views.EpBranchementViewSet, basename='ep-branchement')
+router.register(r'ep/traverses', views.EpTraverseViewSet, basename='ep-traverse')
+router.register(r'ep/planches', views.EpPlancheViewSet, basename='ep-planche')
+
+# =====================================================================
+#  ASS — Assainissement (9 endpoints)
+# =====================================================================
+router.register(r'ass/regards', views.AssRegardViewSet, basename='ass-regard')
+router.register(r'ass/regards-branchement', views.AssRegardBranchementViewSet, basename='ass-regard-branchement')
+router.register(r'ass/canalisations', views.AssCanalisationViewSet, basename='ass-canalisation')
+router.register(r'ass/canalisations-reutilisation', views.AssCanalisationReutilisationViewSet, basename='ass-canalisation-reutilisation')
+router.register(r'ass/branchements', views.AssBranchementViewSet, basename='ass-branchement')
+router.register(r'ass/bassins', views.AssBassinViewSet, basename='ass-bassin')
+router.register(r'ass/ouvrages', views.AssOuvrageViewSet, basename='ass-ouvrage')
+router.register(r'ass/equipements', views.AssEquipementViewSet, basename='ass-equipement')
+router.register(r'ass/stations', views.AssStationViewSet, basename='ass-station')
+
+# =====================================================================
+#  ELEC — Électricité (11 endpoints)
+# =====================================================================
+router.register(r'elec/supports', views.ElecSupportViewSet, basename='elec-support')
+router.register(r'elec/postes', views.ElecPosteViewSet, basename='elec-poste')
+router.register(r'elec/coffrets-bt', views.ElecCoffretBtViewSet, basename='elec-coffret-bt')
+router.register(r'elec/noeuds-raccord', views.ElecNoeudRaccordViewSet, basename='elec-noeud-raccord')
+router.register(r'elec/points-desserte', views.ElecPointDesserteViewSet, basename='elec-point-desserte')
+router.register(r'elec/transformateurs', views.ElecTransformateurViewSet, basename='elec-transformateur')
+router.register(r'elec/cellules', views.ElecCelluleViewSet, basename='elec-cellule')
+router.register(r'elec/departs-bt', views.ElecDepartBtViewSet, basename='elec-depart-bt')
+router.register(r'elec/departs-hta', views.ElecDepartHtaViewSet, basename='elec-depart-hta')
+router.register(r'elec/troncons-bt', views.ElecTronconBtViewSet, basename='elec-troncon-bt')
+router.register(r'elec/troncons-hta', views.ElecTronconHtaViewSet, basename='elec-troncon-hta')
+
+# =====================================================================
+#  URL PATTERNS
+# =====================================================================
 urlpatterns = [
-    #  APIs principales
-    path('api/login/', LoginAPIView.as_view(), name='api-login'),
-    path('api/users/', UserManagementAPIView.as_view(), name='api-user-management'),
-    path('api/users/<int:user_id>/', UserManagementAPIView.as_view(), name='api-user-detail'),
+    # Login (vue fonction, pas un ViewSet)
+    path('api/login/', views.login_view, name='login'),
 
-    #  APIs géographiques
-    path('api/geography/hierarchy/', GeographyHierarchyAPIView.as_view(), name='api-geography-hierarchy'),
-    path('api/geography/zoom/', ZoomToLocationAPIView.as_view(), name='api-geography-zoom'),
-
-    #  APIs de données géographiques
-    path('api/regions/', RegionsListCreateAPIView.as_view(), name='api-regions'),
-    path('api/prefectures/', PrefecturesListCreateAPIView.as_view(), name='api-prefectures'),
-    path('api/communes_rurales/', CommunesRuralesListCreateAPIView.as_view(), name='api-communes-rurales'),
-
-    #  APIs d'infrastructures
-    path('api/pistes/', PisteListCreateAPIView.as_view(), name='api-pistes'),
-    path('api/services_santes/', ServicesSantesListCreateAPIView.as_view(), name='api-services-santes'),
-    path('api/autres_infrastructures/', AutresInfrastructuresListCreateAPIView.as_view(), name='api-autres-infrastructures'),
-    path('api/bacs/', BacsListCreateAPIView.as_view(), name='api-bacs'),
-    path('api/batiments_administratifs/', BatimentsAdministratifsListCreateAPIView.as_view(), name='api-batiments-administratifs'),
-    path('api/buses/', BusesListCreateAPIView.as_view(), name='api-buses'),
-    path('api/dalots/', DalotsListCreateAPIView.as_view(), name='api-dalots'),
-    path('api/ecoles/', EcolesListCreateAPIView.as_view(), name='api-ecoles'),
-    path('api/infrastructures_hydrauliques/', InfrastructuresHydrauliquesListCreateAPIView.as_view(), name='api-infrastructures-hydrauliques'),
-    path('api/localites/', LocalitesListCreateAPIView.as_view(), name='api-localites'),
-    path('api/marches/', MarchesListCreateAPIView.as_view(), name='api-marches'),
-    path('api/passages_submersibles/', PassagesSubmersiblesListCreateAPIView.as_view(), name='api-passages-submersibles'),
-    path('api/ponts/', PontsListCreateAPIView.as_view(), name='api-ponts'),
-    path('api/chaussees/', ChausseesListCreateAPIView.as_view(), name='api-chaussees'),
-    path('api/points_coupures/', PointsCoupuresListCreateAPIView.as_view(), name='api-points-coupures'),
-    path('api/points_critiques/', PointsCritiquesListCreateAPIView.as_view(), name='api-points-critiques'),
-    path('api/site_enquete/', SiteEnqueteListCreateAPIView.as_view(), name='api-site-enquete'),
-    path('api/enquete_polygone/', EnquetePolygoneListCreateAPIView.as_view(), name='api-enquete-polygone'),
-    #  APIs d'analyse
-    path('api/temporal-analysis/', TemporalAnalysisAPIView.as_view(), name='api-temporal-analysis'),
-    
-    #  URLs spatiales (sans doublon)
-    path('', include('api.spatial_urls')),
-
-    path('api/password-reset-request/', PasswordResetRequestAPIView.as_view(), name='api-password-reset-request'),
+    # Toutes les routes du router sous /api/
+    path('api/', include(router.urls)),
 ]
