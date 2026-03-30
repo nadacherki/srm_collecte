@@ -54,29 +54,28 @@ class _DataListViewState extends State<DataListView> {
   }
 
   Future<_AdminNames> _loadAdminNames() async {
-    // 1) si ApiService déjà rempli (ex: après login)
-    final r1 = ApiService.regionNom?.toString().trim() ?? '';
-    final p1 = ApiService.prefectureNom?.toString().trim() ?? '';
-    final c1 = ApiService.communeNom?.toString().trim() ?? '';
+    // Sprint 4 SRM: pas de région/préfecture/commune par utilisateur.
+    // On affiche la région du projet actif depuis ApiService.
+    final r1 = (ApiService.currentProjetRegion ?? '').toString().trim();
+    final p1 = (ApiService.currentProjetNom ?? '').toString().trim();
 
-    if (r1.isNotEmpty || p1.isNotEmpty || c1.isNotEmpty) {
+    if (r1.isNotEmpty) {
       return _AdminNames(
-        region: r1.isEmpty ? '----' : r1,
+        region: r1,
         prefecture: p1.isEmpty ? '----' : p1,
-        commune: c1.isEmpty ? '----' : c1,
+        commune: '----',
       );
     }
 
-    // 2) sinon: lire depuis SQLite users (offline)
-    final user = await DatabaseHelper().getCurrentUser();
-    final r2 = (user?['region_nom'] ?? '').toString().trim();
-    final p2 = (user?['prefecture_nom'] ?? '').toString().trim();
-    final c2 = (user?['commune_nom'] ?? '').toString().trim();
+    // Fallback offline : lire depuis SQLite (utilisateur_local SRM)
+    final user = await DatabaseHelper().getCurrentUserSrm();
+    final login = (user?['login'] ?? '').toString().trim();
+    final role  = (user?['role']  ?? '').toString().trim();
 
     return _AdminNames(
-      region: r2.isEmpty ? '----' : r2,
-      prefecture: p2.isEmpty ? '----' : p2,
-      commune: c2.isEmpty ? '----' : c2,
+      region: login.isEmpty ? '----' : login,
+      prefecture: role.isEmpty ? '----' : role,
+      commune: '----',
     );
   }
 

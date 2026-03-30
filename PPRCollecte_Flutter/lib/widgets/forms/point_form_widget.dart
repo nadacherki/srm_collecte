@@ -289,7 +289,15 @@ class _PointFormWidgetState extends State<PointFormWidget> {
 
       if (widget.pointData != null && widget.pointData!['id'] != null) {
         // MISE À JOUR de l'entité existante
-        id = await dbHelper.updateEntity(tableName, widget.pointData!['id'], entityData);
+        // Sprint 4: updateEntity remplacé par db.update direct
+        final db = await dbHelper.database;
+        await db.update(
+          tableName,
+          entityData,
+          where: 'id = ?',
+          whereArgs: [widget.pointData!['id']],
+        );
+        id = widget.pointData!['id'] as int;
         print('✅ Entité mise à jour avec ID: $id');
       } else {
         // INSERTION d'une nouvelle entité
@@ -308,31 +316,14 @@ class _PointFormWidgetState extends State<PointFormWidget> {
         final entityConfig = InfrastructureConfig.getEntityConfig(widget.category, widget.type);
         final originalTableName = entityConfig?['tableName'] ?? ''; // ← NOM DIFFÉRENT
 
+        // Sprint 4: saveDisplayedSpecialLine et saveDisplayedPoint supprimés.
+        // Les entités sont déjà insérées via insertEntity() ci-dessus.
+        // Le rechargement des marqueurs se fait via getDisplayedPointsMarkers()
+        // qui lira directement les tables SRM (Sprint 5+).
         if (widget.isSpecialLine) {
-          print('🟣 Tentative de sauvegarde comme ligne spéciale...');
-          // POUR LES LIGNES SPÉCIALES (Bac, Passage Submersible)
-          await dbHelper.saveDisplayedSpecialLine(
-            id: id,
-            tableName: originalTableName,
-            latDebut: _formData['latitude_debut'] ?? _formData['latitude'] ?? 0.0,
-            lngDebut: _formData['longitude_debut'] ?? _formData['longitude'] ?? 0.0,
-            latFin: _formData['latitude_fin'] ?? _formData['latitude'] ?? 0.0,
-            lngFin: _formData['longitude_fin'] ?? _formData['longitude'] ?? 0.0,
-            specialType: widget.type,
-            name: _formData['nom'] ?? 'Sans nom',
-            codePiste: _formData['code_piste'] ?? 'Non spécifié',
-          );
+          print('🟣 Ligne spéciale sauvegardée dans: $originalTableName (ID: $id)');
         } else {
-          // POUR LES POINTS NORMaux (comme avant)
-          await dbHelper.saveDisplayedPoint(
-            id: id,
-            tableName: originalTableName,
-            latitude: _formData['latitude'] ?? 0.0,
-            longitude: _formData['longitude'] ?? 0.0,
-            type: widget.type,
-            name: _formData['nom'] ?? 'Sans nom',
-            codePiste: _formData['code_piste'] ?? 'Non spécifié',
-          );
+          print('📍 Point sauvegardé dans: $originalTableName (ID: $id)');
         }
       }
 

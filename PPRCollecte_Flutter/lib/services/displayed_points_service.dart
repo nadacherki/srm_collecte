@@ -14,12 +14,12 @@ class DisplayedPointsService {
     required void Function(Map<String, dynamic>) onTapDetails,
   }) async {
     try {
-      final points = await _dbHelper.loadDisplayedPoints();
+      // Sprint 4: displayed_points table supprimée — liste vide, sera remplacé par entités SRM Sprint 5
+      final points = <Map<String, dynamic>>[];
       final List<Marker> markers = [];
-      final user = await _dbHelper.getCurrentUser();
-      final regionNom = (user?['region_nom'] ?? ApiService.regionNom ?? '----').toString();
-      final prefectureNom = (user?['prefecture_nom'] ?? ApiService.prefectureNom ?? '----').toString();
-      final communeNom = (user?['commune_nom'] ?? ApiService.communeNom ?? '----').toString();
+      final regionNom = (ApiService.currentProjetRegion ?? '----').toString();
+      final prefectureNom = '----';
+      final communeNom = '----';
 
       // Créer les marqueurs avec les icônes (flutter_map utilise des Widgets, pas besoin de cache)
       for (var point in points) {
@@ -144,10 +144,9 @@ class DownloadedPointsService {
         print('❌ [DL-POINTS] Impossible de déterminer login_id (viewer)');
         return [];
       }
-      final user = await _dbHelper.getCurrentUser();
-      final regionNom = (user?['region_nom'] ?? ApiService.regionNom ?? '----').toString();
-      final prefectureNom = (user?['prefecture_nom'] ?? ApiService.prefectureNom ?? '----').toString();
-      final communeNom = (user?['commune_nom'] ?? ApiService.communeNom ?? '----').toString();
+      final regionNom = (ApiService.currentProjetRegion ?? '----').toString();
+      final prefectureNom = '----';
+      final communeNom = '----';
 
       // Pré-générer toutes les icônes nécessaires
       /* final Map<String, Future<BitmapDescriptor>> iconFutures = {};

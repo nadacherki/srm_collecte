@@ -959,37 +959,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadAdminNamesOffline() async {
+    // Sprint 4: SRM n'a pas de région/préfecture/commune par utilisateur.
+    // On affiche la région du projet actif (ApiService.currentProjetRegion).
     try {
-      // 1) SQLite (offline)
-      final user = await DatabaseHelper().getCurrentUser();
-      final r = (user?['region_nom'] ?? '').toString().trim();
-      final p = (user?['prefecture_nom'] ?? '').toString().trim();
-      final c = (user?['commune_nom'] ?? '').toString().trim();
-
-      // 2) fallback ApiService si sqlite vide
-      String rr = r.isNotEmpty ? r : (ApiService.regionNom ?? '').toString().trim();
-      String pp = p.isNotEmpty ? p : (ApiService.prefectureNom ?? '').toString().trim();
-      String cc = c.isNotEmpty ? c : (ApiService.communeNom ?? '').toString().trim();
-
-      // 3) ===== NOUVEAU : Fallback RBAC pour BTGR / SPGR =====
-      // BTGR → afficher les régions assignées
-      if (rr.isEmpty && ApiService.assignedRegions.isNotEmpty) {
-        rr = ApiService.assignedRegions.map((r) => (r['region_nom'] ?? '').toString()).where((n) => n.isNotEmpty).join(', ');
-      }
-      // SPGR → afficher les préfectures assignées
-      if (pp.isEmpty && ApiService.assignedPrefectures.isNotEmpty) {
-        pp = ApiService.assignedPrefectures.map((p) => (p['prefecture_nom'] ?? '').toString()).where((n) => n.isNotEmpty).join(', ');
-      }
-      // Commune → afficher le nombre de communes accessibles
-      if (cc.isEmpty && ApiService.accessibleCommuneIds.isNotEmpty) {
-        cc = '${ApiService.accessibleCommuneIds.length} communes';
-      }
+      final projetRegion = (ApiService.currentProjetRegion ?? '').toString().trim();
+      final projetNom = (ApiService.currentProjetNom ?? '').toString().trim();
 
       if (!mounted) return;
       setState(() {
-        _regionNom = rr.isEmpty ? '----' : rr;
-        _prefectureNom = pp.isEmpty ? '----' : pp;
-        _communeNom = cc.isEmpty ? '----' : cc;
+        _regionNom = projetRegion.isNotEmpty ? projetRegion : '----';
+        _prefectureNom = projetNom.isNotEmpty ? projetNom : '----';
+        _communeNom = '----';
       });
     } catch (_) {
       // on laisse ----
@@ -1284,25 +1264,22 @@ class _HomePageState extends State<HomePage> {
   /// Restaure les champs statiques d'ApiService depuis SQLite
   /// (nécessaire après un login offline suivi d'un retour de connectivité)
   Future<void> _restoreApiServiceFromLocal() async {
+    // Sprint 4: SRM utilise utilisateur_local (id_user, login, role).
+    // Pas de commune_id/prefecture_id/region_id dans ce modèle.
     try {
-      // Ne rien écraser si déjà rempli (login online classique)
-      if (ApiService.userId != null) return;
+      if (ApiService.userId != null) return; // déjà rempli
 
-      final user = await DatabaseHelper().getCurrentUser();
+      final user = await DatabaseHelper().getCurrentUserSrm();
       if (user == null) return;
 
-      ApiService.userId = user['apiId'] is int ? user['apiId'] : int.tryParse(user['apiId']?.toString() ?? '');
-      ApiService.communeId = user['communes_rurales'] is int ? user['communes_rurales'] : int.tryParse(user['communes_rurales']?.toString() ?? '');
-      ApiService.prefectureId = user['prefecture_id'] is int ? user['prefecture_id'] : int.tryParse(user['prefecture_id']?.toString() ?? '');
-      ApiService.regionId = user['region_id'] is int ? user['region_id'] : int.tryParse(user['region_id']?.toString() ?? '');
-      ApiService.communeNom = user['commune_nom']?.toString();
-      ApiService.prefectureNom = user['prefecture_nom']?.toString();
-      ApiService.regionNom = user['region_nom']?.toString();
+      ApiService.userId   = user['id_user'] is int ? user['id_user'] : int.tryParse(user['id_user']?.toString() ?? '');
       ApiService.userRole = user['role']?.toString();
+      ApiService.userLogin = user['login']?.toString();
+      ApiService.nomPrenom = user['nom_prenom']?.toString();
 
-      print('🔄 ApiService restauré depuis SQLite: userId=${ApiService.userId}, role=${ApiService.userRole}');
+      print('🔄 ApiService restauré depuis SQLite SRM: userId=${ApiService.userId}, role=${ApiService.userRole}');
     } catch (e) {
-      print('❌ Erreur restauration ApiService: $e');
+      print('❌ Erreur restauration ApiService SRM: $e');
     }
   }
 
@@ -2089,34 +2066,12 @@ class _HomePageState extends State<HomePage> {
       return 0;
     }
 
-    int communeId = 0;
-    int prefectureId = 0;
-    int regionId = 0;
+    // Sprint 4: SRM utilise id_projet, id_mission, id_agent au lieu de commune/prefecture/region.
+    final projetId = ApiService.currentProjetId ?? 0;
+    final missionId = ApiService.currentMissionId ?? 0;
+    final agentId = ApiService.userId ?? 0;
 
-    // 1) API si dispo et non nulle
-    final apiCommuneId = _toInt(ApiService.communeId);
-    final apiPrefId = _toInt(ApiService.prefectureId);
-    final apiRegionId = _toInt(ApiService.regionId);
-
-    if (apiCommuneId > 0 && apiPrefId > 0 && apiRegionId > 0) {
-      communeId = apiCommuneId;
-      prefectureId = apiPrefId;
-      regionId = apiRegionId;
-      print('📍 Localisation (IDs) récupérée depuis API');
-    } else {
-      // 2) DB locale via session / fallback dernier user
-      final currentUser = await DatabaseHelper().getCurrentUser();
-      if (currentUser != null) {
-        communeId = _toInt(currentUser['communes_rurales']);
-        prefectureId = _toInt(currentUser['prefecture_id']);
-        regionId = _toInt(currentUser['region_id']);
-        print('📍 Localisation (IDs) récupérée depuis base locale');
-      } else {
-        print('⚠️ Localisation IDs inconnue (pas de session, pas de user local)');
-      }
-    }
-
-    final code = 'Piste_${communeId}_${prefectureId}_${regionId}_$ts';
+    final code = 'Piste_${projetId}_${missionId}_${agentId}_$ts';
     print('🆔 Code piste généré (IDs): $code');
     return code;
   }
@@ -2175,7 +2130,7 @@ class _HomePageState extends State<HomePage> {
       );
       // ⭐⭐ FILTRER SEULEMENT LES MARQUEURS VALIDES ⭐⭐
       final dbHelper = DatabaseHelper();
-      final existingPoints = await dbHelper.loadDisplayedPoints();
+      final existingPoints = <Map<String, dynamic>>[];  // Sprint 4: table supprimée
       final existingKeys = existingPoints.map((p) {
         final t = (p['original_table'] ?? '').toString();
         final i = p['id'];
@@ -4170,7 +4125,7 @@ class _HomePageState extends State<HomePage> {
 
   // Ajoutez cette méthode pour effectuer la déconnexion
   Future<void> _performLogout() async {
-    await DatabaseHelper().clearSession();
+    await DatabaseHelper().clearSrmSession();
     ApiService.userId = null;
 
     if (!mounted) return;

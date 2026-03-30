@@ -1119,10 +1119,10 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
               ],
             );
             print('🗑️ Ligne spéciale supprimée de displayed_special_lines: $id / $tableName');
-          } else {
-            await dbHelper.deleteDisplayedPoint(id, tableName);
           }
-          await dbHelper.deleteEntity(tableName, id);
+          // Sprint 4: deleteDisplayedPoint et deleteEntity remplacés par db.delete direct
+          final db = await dbHelper.database;
+          await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
           _fetchData(); // Rafraîchir la liste
 
           ScaffoldMessenger.of(context).showSnackBar(

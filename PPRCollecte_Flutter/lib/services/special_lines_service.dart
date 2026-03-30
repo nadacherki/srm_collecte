@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../data/local/database_helper.dart';
-
 import '../screens/home/home_page.dart';
+
 
 class SpecialLinesService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
@@ -13,7 +13,9 @@ class SpecialLinesService {
     required void Function(Map<String, dynamic>) onTapDetails,
   }) async {
     try {
-      final lines = await _dbHelper.loadDisplayedSpecialLines();
+      // Sprint 4: la table displayed_special_lines n'existe plus dans SRM.
+      // Les lignes spéciales seront gérées via les entités SRM (Sprint 5+).
+      final lines = <Map<String, dynamic>>[];
       final List<Polyline> polylines = [];
 
       for (var line in lines) {

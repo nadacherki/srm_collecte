@@ -56,7 +56,7 @@ class SyncService {
     ];
 
     for (var table in tables) {
-      final data = await dbHelper.getUnsyncedEntities(table);
+      final data = <Map<String, dynamic>>[];  // Sprint 4: table GeoDNGR supprimée
       totalItems += data.length;
     }
 
@@ -132,7 +132,7 @@ class SyncService {
         }
       });
 
-      processedItems += (await dbHelper.getUnsyncedEntities(table)).length;
+      processedItems += 0;  // Sprint 4: table GeoDNGR supprimée
     }
 
     // POST terminé - pas de téléchargement automatique
@@ -251,7 +251,7 @@ class SyncService {
         final storageHelper = SimpleStorageHelper();
         localData = await storageHelper.getUnsyncedChaussees();
       } else {
-        localData = await dbHelper.getUnsyncedEntities(tableName);
+        localData = [];  // Sprint 4: table GeoDNGR supprimée
       }
 
       if (localData.isEmpty) {
@@ -315,11 +315,9 @@ class SyncService {
               await storageHelper.markChausseeAsSynced(data['id']);
             }
           } else {
-            if (response is Map<String, dynamic>) {
-              await dbHelper.updateSyncedEntity(tableName, data['id'], response);
-            } else {
-              await dbHelper.markAsSynced(tableName, data['id']);
-            }
+            // Sprint 4: updateSyncedEntity/markAsSynced supprimés (tables GeoDNGR).
+            // Pour pistes/chaussées, géré par SimpleStorageHelper ci-dessus.
+            print('ℹ️ $tableName ID ${data['id']} : sync OK (table SRM Sprint 5)');
           }
           result.successCount++;
           print('✅ $tableName ID ${data['id']} synchronisé et mis à jour');
@@ -543,28 +541,13 @@ class SyncService {
       final chausseeCount = await storageHelper.getUnsyncedChausseesCount();
 
       // Compter les autres tables
-      final tables = [
-        'localites',
-        'ecoles',
-        'marches',
-        'services_santes',
-        'batiments_administratifs',
-        'infrastructures_hydrauliques',
-        'autres_infrastructures',
-        'ponts',
-        'bacs',
-        'buses',
-        'dalots',
-        'passages_submersibles',
-        'points_critiques',
-        'points_coupures',
-        'site_enquete',
-        'enquete_polygone'
-      ];
+      // Sprint 4: Les tables GeoDNGR (localites, ecoles, etc.) n'existent plus dans SRM.
+      // Seules pistes et chaussées sont synchronisées.
+      final tables = <String>[];
 
       for (var table in tables) {
-        final data = await dbHelper.getUnsyncedEntities(table);
-        totalItems += data.length;
+        // Stub: 0 entités pour les tables supprimées
+        totalItems += 0;
       }
 
       totalItems += pisteCount + chausseeCount;
@@ -631,7 +614,7 @@ class SyncService {
       // === ÉTAPE 6: SYNCHRONISATION DES AUTRES DONNÉES (TROISIÈME) ===
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
-        final tableData = await dbHelper.getUnsyncedEntities(table);
+        final tableData = <Map<String, dynamic>>[];  // Sprint 4: table GeoDNGR supprimée
         final tableCount = tableData.length;
 
         if (tableCount > 0) {
@@ -681,7 +664,7 @@ class SyncService {
         final storageHelper = SimpleStorageHelper();
         localData = await storageHelper.getUnsyncedChaussees();
       } else {
-        localData = await dbHelper.getUnsyncedEntities(tableName);
+        localData = [];  // Sprint 4: table GeoDNGR supprimée
       }
     } catch (e) {
       result.errors.add('$tableName: Impossible de lire les données locales ($e)');
@@ -742,11 +725,8 @@ class SyncService {
               await storageHelper.markChausseeAsSynced(data['id']);
             }
           } else {
-            if (response is Map<String, dynamic>) {
-              await dbHelper.updateSyncedEntity(tableName, data['id'], response);
-            } else {
-              await dbHelper.markAsSynced(tableName, data['id']);
-            }
+            // Sprint 4: updateSyncedEntity/markAsSynced supprimés (tables GeoDNGR).
+            print('ℹ️ $tableName ID ${data['id']} : sync OK (table SRM Sprint 5)');
           }
           successCount++;
           result.successCount++;
@@ -789,45 +769,19 @@ class SyncService {
   }
 
   Future<dynamic> _sendDataToApi(String endpoint, Map<String, dynamic> data) async {
+    // Sprint 4: seuls pistes et chaussées sont synchronisés via SRM.
     switch (endpoint) {
       case 'pistes':
         return await syncPiste(data);
       case 'chaussees':
         return await syncChaussee(data);
-      case 'localites':
-        return await ApiService.syncLocalite(data);
-      case 'ecoles':
-        return await ApiService.syncEcole(data);
-      case 'marches':
-        return await ApiService.syncMarche(data);
-      case 'services_santes':
-        return await ApiService.syncServiceSante(data);
-      case 'batiments_administratifs':
-        return await ApiService.syncBatimentAdministratif(data);
-      case 'infrastructures_hydrauliques':
-        return await ApiService.syncInfrastructureHydraulique(data);
-      case 'autres_infrastructures':
-        return await ApiService.syncAutreInfrastructure(data);
-      case 'ponts':
-        return await ApiService.syncPont(data);
-      case 'bacs':
-        return await ApiService.syncBac(data);
-      case 'buses':
-        return await ApiService.syncBuse(data);
-      case 'dalots':
-        return await ApiService.syncDalot(data);
-      case 'passages_submersibles':
-        return await ApiService.syncPassageSubmersible(data);
-      case 'points_critiques':
-        return await ApiService.syncPointCritique(data);
-      case 'points_coupures':
-        return await ApiService.syncPointCoupure(data);
-      case 'site_enquete':
-        return await ApiService.syncSiteEnquete(data);
-      case 'enquete_polygone':
-        return await ApiService.syncEnquetePolygone(data);
       default:
-        return await ApiService.postData(endpoint, data);
+        // Sprint 4: endpoint GeoDNGR supprimé — utiliser ApiService.syncEntity pour SRM
+        return await ApiService.syncEntity(
+          endpoint.contains('/') ? endpoint.split('/')[0] : 'ep',
+          endpoint,
+          data,
+        );
     }
   }
 
@@ -857,26 +811,9 @@ class SyncService {
       // ══════════════════════════════════════════
       final Map<String, List<dynamic>> _cache = {};
 
-      final Map<String, Future<List<dynamic>> Function()> operations = {
-        'pistes': ApiService.fetchPistes,
-        'chaussees': ApiService.fetchChausseesTest,
-        'localites': ApiService.fetchLocalites,
-        'ecoles': ApiService.fetchEcoles,
-        'marches': ApiService.fetchMarches,
-        'services_santes': ApiService.fetchServicesSantes,
-        'batiments_administratifs': ApiService.fetchBatimentsAdministratifs,
-        'infrastructures_hydrauliques': ApiService.fetchInfrastructuresHydrauliques,
-        'autres_infrastructures': ApiService.fetchAutresInfrastructures,
-        'ponts': ApiService.fetchPonts,
-        'bacs': ApiService.fetchBacs,
-        'buses': ApiService.fetchBuses,
-        'dalots': ApiService.fetchDalots,
-        'passages_submersibles': ApiService.fetchPassagesSubmersibles,
-        'points_critiques': ApiService.fetchPointsCritiques,
-        'points_coupures': ApiService.fetchPointsCoupures,
-        'site_enquete': ApiService.fetchSiteEnquetes,
-        'enquete_polygone': ApiService.fetchEnquetePolygones,
-      };
+      // Sprint 4: Téléchargement des entités GeoDNGR supprimé.
+      // Les données SRM (EP, ASS, ELEC) seront téléchargées via endpoints SRM en Sprint 5.
+      final Map<String, Future<List<dynamic>> Function()> operations = {};
 
       bool connectionLost = false; // ⭐ AJOUTÉ
 
@@ -922,616 +859,11 @@ class SyncService {
         onProgress(0.0, "Préparation...", 0, totalItems);
       }
 
-      //================ CHAUSSÉES ======================
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des chaussées...", processedItems, totalItems);
-        }
-
-        print('📥 Téléchargement des chaussées...');
-        final chaussees = _cache['chaussees'] ?? [];
-        print('🛣️ ${chaussees.length} chaussées à traiter');
-
-        for (var chaussee in chaussees) {
-          try {
-            final storageHelper = SimpleStorageHelper();
-            final wasNew = await storageHelper.saveOrUpdateChausseeTest(chaussee);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde chaussée téléchargée: $e');
-          }
-          processedItems++;
-
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des chaussées...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Chaussées : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des chaussées: $e');
-      }
-
-      // ============ LOCALITES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des localités...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des localités...');
-        final localites = _cache['localites'] ?? [];
-        print('📍 ${localites.length} localités à traiter');
-        for (var localite in localites) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateLocalite(localite);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde localités téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des localités...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Localités : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des localités: $e');
-      }
-
-      // ============ ECOLES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des écoles...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des écoles...');
-        final ecoles = _cache['ecoles'] ?? [];
-        print('🏫 ${ecoles.length} écoles à traiter');
-        for (var ecole in ecoles) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateEcole(ecole);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde écoles téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des écoles...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Écoles : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des écoles: $e');
-      }
-
-      // ============ MARCHES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des marchés...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des marchés...');
-        final marches = _cache['marches'] ?? [];
-        print('🛒 ${marches.length} marchés à traiter');
-        for (var marche in marches) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateMarche(marche);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde marchés téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des marchés...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Marchés : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des marchés: $e');
-      }
-
-      // ============ SERVICES SANTES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des services de santé...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des services de santé...');
-        final servicesSantes = _cache['services_santes'] ?? [];
-        print('🏥 ${servicesSantes.length} services de santé à traiter');
-        for (var service in servicesSantes) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateServiceSante(service);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde marchés téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des services de santé...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Services de santé : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des services de santé: $e');
-      }
-
-      // ============ BATIMENTS ADMINISTRATIFS ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des bâtiments administratifs...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des bâtiments administratifs...');
-        final batiments = _cache['batiments_administratifs'] ?? [];
-        print('🏛️ ${batiments.length} bâtiments administratifs à traiter');
-        for (var batiment in batiments) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateBatimentAdministratif(batiment);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde bâtiments administratifs téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des bâtiments administratifs...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Bâtiments administratifs : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des bâtiments administratifs: $e');
-      }
-
-      // ============ INFRASTRUCTURES HYDRAULIQUES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des infrastructures hydrauliques...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des infrastructures hydrauliques...');
-        final infrastructures = _cache['infrastructures_hydrauliques'] ?? [];
-        print('💧 ${infrastructures.length} infrastructures hydrauliques à traiter');
-        for (var infrastructure in infrastructures) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateInfrastructureHydraulique(infrastructure);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde infrastructures hydrauliques téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des infrastructures hydrauliques...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Infrastructures hydrauliques : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des infrastructures hydrauliques: $e');
-      }
-
-      // ============ AUTRES INFRASTRUCTURES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des autres infrastructures...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des autres infrastructures...');
-        final autresInfrastructures = _cache['autres_infrastructures'] ?? [];
-        print('🏗️ ${autresInfrastructures.length} autres infrastructures à traiter');
-        for (var infrastructure in autresInfrastructures) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateAutreInfrastructure(infrastructure);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde autres infrastructures téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des autres infrastructures...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Autres infrastructures : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des autres infrastructures: $e');
-      }
-
-      // ============ PONTS ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des ponts...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des ponts...');
-        final ponts = _cache['ponts'] ?? [];
-        print('🌉 ${ponts.length} ponts à traiter');
-        for (var pont in ponts) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdatePont(pont);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde ponts téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des ponts...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Ponts : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des ponts: $e');
-      }
-
-      // ============ BACS ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des bacs...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des bacs...');
-        final bacs = _cache['bacs'] ?? [];
-        print('⛴️ ${bacs.length} bacs à traiter');
-        for (var bac in bacs) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateBac(bac);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde bacs téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des bacs...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Bacs: les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des bacs: $e');
-      }
-
-      // ============ BUSES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des buses...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des buses...');
-        final buses = _cache['buses'] ?? [];
-        print('🕳️ ${buses.length} buses à traiter');
-        for (var buse in buses) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateBuse(buse);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde buses téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des buses...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Buses : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des buses: $e');
-      }
-
-      // ============ DALOTS ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des dalots...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des dalots...');
-        final dalots = _cache['dalots'] ?? [];
-        print('🔄 ${dalots.length} dalots à traiter');
-        for (var dalot in dalots) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateDalot(dalot);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde dalots téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des dalots...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Dalots : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des dalots: $e');
-      }
-
-      // ============ PASSAGES SUBMERSIBLES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des passages submersibles...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des passages submersibles...');
-        final passages = _cache['passages_submersibles'] ?? [];
-        print('🌊 ${passages.length} passages submersibles à traiter');
-        for (var passage in passages) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdatePassageSubmersible(passage);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde passages submersibles téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des passages submersibles...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Passages submersibles : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des passages submersibles: $e');
-      }
-
-      // ============ POINTS CRITIQUES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des points critiques...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des points critiques...');
-        final pointsCritiques = _cache['points_critiques'] ?? [];
-        print('⚠️ ${pointsCritiques.length} points critiques à traiter');
-        for (var pointCritique in pointsCritiques) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdatePointCritique(pointCritique);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde points critiques téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des points critiques...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Points critiques : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des points critiques: $e');
-      }
-
-      // ============ POINTS COUPURES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des points de coupure...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des points de coupure...');
-        final pointsCoupures = _cache['points_coupures'] ?? [];
-        print('🔌 ${pointsCoupures.length} points de coupure à traiter');
-        for (var pointCoupure in pointsCoupures) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdatePointCoupure(pointCoupure);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde points coupure téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des points de coupure...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Points de coupure: les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des points de coupure: $e');
-      }
-// ============ SITES ENQUETE ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des sites d'enquête...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des sites d\'enquête...');
-        final sites = _cache['site_enquete'] ?? [];
-        print('📋 ${sites.length} sites d\'enquête à traiter');
-        for (var site in sites) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateSiteEnquete(site);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde sites d\'enquête téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des sites d'enquête...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Sites d\'enquête : les données n\'ont pas pu être mises à jour.',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des sites d\'enquête: $e');
-      }
-// ============ ENQUÊTE POLYGONES ============
-      try {
-        if (onProgress != null) {
-          onProgress(
-            processedItems / totalItems,
-            "Téléchargement des zones de plaine...",
-            processedItems,
-            totalItems,
-          );
-        }
-
-        print('📥 Téléchargement des zones de plaine...');
-        final polygones = _cache['enquete_polygone'] ?? [];
-        print('📐 ${polygones.length} zones de plaine à traiter');
-
-        for (var polygone in polygones) {
-          try {
-            final wasNew = await dbHelper.saveOrUpdateEnquetePolygone(polygone);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde zone de plaine téléchargée: $e');
-          }
-
-          //  IMPORTANT: toujours incrémenter, même si save échoue
-          processedItems++;
-
-          if (onProgress != null) {
-            onProgress(
-              processedItems / totalItems,
-              "Sauvegarde des zones de plaine...",
-              processedItems,
-              totalItems,
-            );
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Zones de plaine : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des zones de plaine: $e');
-      }
-
-      // ============ PISTES ============
-      try {
-        if (onProgress != null) {
-          onProgress(processedItems / totalItems, "Téléchargement des pistes...", processedItems, totalItems);
-        }
-        print('📥 Téléchargement des pistes...');
-        final pistes = _cache['pistes'] ?? [];
-        print('🛤️ ${pistes.length} pistes à traiter');
-        for (var piste in pistes) {
-          try {
-            final storageHelper = SimpleStorageHelper();
-            final wasNew = await storageHelper.saveOrUpdatePiste(piste);
-            if (wasNew == true) {
-              result.successCount++;
-            } else if (wasNew == false) {
-              result.skippedCount++;
-            }
-          } catch (e) {
-            result.failedCount++;
-            print('❌ Erreur sauvegarde sites d\'enquête téléchargée: $e');
-          }
-          processedItems++;
-          if (onProgress != null) {
-            onProgress(processedItems / totalItems, "Sauvegarde des pistes...", processedItems, totalItems);
-          }
-        }
-      } catch (e) {
-        result.failedCount++;
-        result.errors.add(
-          'Pistes : les données n’ont pas pu être mises à jour (problème de connexion ou serveur indisponible).',
-        );
-        print('❌ Erreur lors du téléchargement/sauvegarde des pistes: $e');
+      // Sprint 4: Téléchargement des entités GeoDNGR désactivé.
+      // Les données SRM (EP/ASS/ELEC) seront téléchargées via endpoints SRM en Sprint 5.
+      print('ℹ️ Sprint 4: Téléchargement données SRM non implémenté (Sprint 5+)');
+      if (onProgress != null) {
+        onProgress(1.0, 'Téléchargement SRM : Sprint 5', 0, 1);
       }
 
       print('✅ Téléchargement terminé: ${result.successCount} nouvelles, ${result.skippedCount} déjà à jour, sur $totalItems disponibles');

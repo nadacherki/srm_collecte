@@ -1350,12 +1350,9 @@ ON displayed_pistes(login_id, code_piste);
       final db = await database;
 
       int? communeRurales;
-      if (ApiService.communeId != null) {
-        communeRurales = ApiService.communeId;
-      } else {
-        final currentUser = await DatabaseHelper().getCurrentUser();
-        communeRurales = currentUser?['communes_rurales'] as int?;
-      }
+      // Sprint 4: ApiService.communeId supprimé. Utiliser currentProjetId comme référence.
+      // communeRurales sera null — le backend SRM gère l'attribution via le projet.
+      communeRurales = null;
       // ✅ PRÉPARER UNIQUEMENT LES CHAMPS MODIFIABLES
       final updateData = {
         'code_piste': pisteData['code_piste'],
