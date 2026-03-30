@@ -1,6 +1,10 @@
+// lib/widgets/map/map_widget.dart
+// ── SPRINT 3 : Carte centrée sur le Maroc (33.57, -7.59) par défaut ──
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../core/constants/projection_constants.dart';
 
 class MapWidget extends StatefulWidget {
   final LatLng userPosition;
@@ -39,22 +43,17 @@ class MapWidget extends StatefulWidget {
 class _MapWidgetState extends State<MapWidget> {
   late final MapController _mapController;
   bool _controllerReady = false;
-// Notifier pour détecter les taps sur les polylines
   final _polylineHitNotifier = ValueNotifier<LayerHitResult<Object>?>(null);
   final _polygonHitNotifier = ValueNotifier<LayerHitResult<Object>?>(null);
+
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
-
-    // Notifier le parent après le premier frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onMapCreated(_mapController);
-      setState(() {
-        _controllerReady = true;
-      });
+      setState(() => _controllerReady = true);
     });
-    // Écouter les taps sur les polylines
     _polylineHitNotifier.addListener(_onPolylineHit);
     _polygonHitNotifier.addListener(_onPolygonHit);
   }
@@ -69,47 +68,29 @@ class _MapWidgetState extends State<MapWidget> {
 
   void _onPolylineHit() {
     final hitResult = _polylineHitNotifier.value;
-    print('🖱️ [MapWidget] _onPolylineHit appelé');
-    print('🖱️ [MapWidget] hitResult: $hitResult');
-
-    if (hitResult != null) {
-      print('🖱️ [MapWidget] hitValues: ${hitResult.hitValues}');
-      print('🖱️ [MapWidget] hitValues.length: ${hitResult.hitValues.length}');
-
-      if (hitResult.hitValues.isNotEmpty) {
-        final hitValue = hitResult.hitValues.first;
-        print('🖱️ [MapWidget] hitValue trouvé: $hitValue (type: ${hitValue.runtimeType})');
-
-        if (widget.onPolylineTap != null) {
-          widget.onPolylineTap!(hitValue);
-        }
-      }
-    } else {
-      print('⚠️ [MapWidget] hitResult est null');
+    if (hitResult != null && hitResult.hitValues.isNotEmpty) {
+      widget.onPolylineTap?.call(hitResult.hitValues.first);
     }
   }
 
   void _onPolygonHit() {
     final hitResult = _polygonHitNotifier.value;
     if (hitResult != null && hitResult.hitValues.isNotEmpty) {
-      final hitValue = hitResult.hitValues.first;
-      if (widget.onPolygonTap != null) {
-        widget.onPolygonTap!(hitValue);
-      }
+      widget.onPolygonTap?.call(hitResult.hitValues.first);
     }
   }
 
   void _zoomIn() {
     if (_controllerReady) {
-      final currentZoom = _mapController.camera.zoom;
-      _mapController.move(_mapController.camera.center, currentZoom + 1);
+      _mapController.move(
+          _mapController.camera.center, _mapController.camera.zoom + 1);
     }
   }
 
   void _zoomOut() {
     if (_controllerReady) {
-      final currentZoom = _mapController.camera.zoom;
-      _mapController.move(_mapController.camera.center, currentZoom - 1);
+      _mapController.move(
+          _mapController.camera.center, _mapController.camera.zoom - 1);
     }
   }
 
@@ -122,11 +103,9 @@ class _MapWidgetState extends State<MapWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Fusionner tous les marqueurs
     final allMarkers = [
       ...widget.markers,
       ...widget.formMarkers,
-      // Marqueur de position utilisateur (si GPS activé)
       if (widget.gpsEnabled)
         Marker(
           point: widget.userPosition,
@@ -139,31 +118,40 @@ class _MapWidgetState extends State<MapWidget> {
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
-                  blurRadius: 6,
-                  spreadRadius: 2,
-                ),
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 6,
+                    spreadRadius: 2),
               ],
             ),
           ),
         ),
     ];
 
-    // URL des tuiles selon le mode (normal ou satellite)
-    final String tileUrl = widget.isSatellite ? 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    final String tileUrl = widget.isSatellite
+        ? 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    // ── Centre par défaut : Oujda / Région Oriental ──
+    // Si le GPS est actif, on centre sur l'utilisateur.
+    // Sinon, on centre sur la zone du projet (Oriental = Oujda).
+    final LatLng initialCenter = widget.gpsEnabled
+        ? widget.userPosition
+        : LatLng(ProjectionConstants.defaultLatitude,
+            ProjectionConstants.defaultLongitude);
+    final double initialZoom =
+        widget.gpsEnabled ? 15 : ProjectionConstants.defaultZoom;
 
     return Stack(
       children: [
         FlutterMap(
           mapController: _mapController,
           options: MapOptions(
-            initialCenter: widget.userPosition,
-            initialZoom: 15,
+            initialCenter: initialCenter,
+            initialZoom: initialZoom,
             minZoom: 3,
             maxZoom: 19,
-            interactionOptions: const InteractionOptions(
-              flags: InteractiveFlag.all,
-            ),
+            interactionOptions:
+                const InteractionOptions(flags: InteractiveFlag.all),
             onMapEvent: (event) {
               if (event is MapEventMoveStart) {
                 widget.onUserInteraction?.call();
@@ -171,30 +159,24 @@ class _MapWidgetState extends State<MapWidget> {
             },
           ),
           children: [
-            // Couche de tuiles (fond de carte)
             TileLayer(
               urlTemplate: tileUrl,
-              userAgentPackageName: 'com.example.pprcollecte',
+              userAgentPackageName: 'com.example.srmcollecte',
               maxZoom: 19,
             ),
-            // Couche des polylignes
-
             PolylineLayer(
               polylines: widget.polylines,
               hitNotifier: _polylineHitNotifier,
             ),
-            // Couche des polygones (Zone de Plaine)
             if (widget.polygons.isNotEmpty)
               PolygonLayer(
                 polygons: widget.polygons,
                 hitNotifier: _polygonHitNotifier,
               ),
-            // Couche des marqueurs
-            MarkerLayer(
-              markers: allMarkers,
-            ),
+            MarkerLayer(markers: allMarkers),
           ],
         ),
+        // Bouton Ma position
         Positioned(
           top: 8,
           right: 10,
@@ -203,7 +185,10 @@ class _MapWidgetState extends State<MapWidget> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               boxShadow: const [
-                BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2)),
               ],
             ),
             child: IconButton(
@@ -213,11 +198,10 @@ class _MapWidgetState extends State<MapWidget> {
             ),
           ),
         ),
-
-        // Boutons de zoom (+/-)
+        // Zoom +/-
         Positioned(
           right: 5,
-          bottom: 10, // ajuste
+          bottom: 10,
           child: Column(
             children: [
               Container(
@@ -225,7 +209,10 @@ class _MapWidgetState extends State<MapWidget> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                    BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2)),
                   ],
                 ),
                 child: IconButton(
@@ -240,7 +227,10 @@ class _MapWidgetState extends State<MapWidget> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                    BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2)),
                   ],
                 ),
                 child: IconButton(
@@ -256,6 +246,10 @@ class _MapWidgetState extends State<MapWidget> {
     );
   }
 }
+
+// ══════════════════════════════════════════════════════
+// Widgets compagnons (inchangés)
+// ══════════════════════════════════════════════════════
 
 class MapTypeToggle extends StatelessWidget {
   final bool isSatellite;
@@ -278,38 +272,28 @@ class MapTypeToggle extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
+                color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
           ],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
-            onTap: () {
-              onMapTypeChanged(!isSatellite);
-            },
+            onTap: () => onMapTypeChanged(!isSatellite),
             child: Container(
               padding: EdgeInsets.all(12),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    isSatellite ? Icons.map : Icons.satellite,
-                    size: 24,
-                    color: isSatellite ? Colors.blue : Colors.orange,
-                  ),
+                  Icon(isSatellite ? Icons.map : Icons.satellite,
+                      size: 24,
+                      color: isSatellite ? Colors.blue : Colors.orange),
                   SizedBox(width: 8),
-                  Text(
-                    isSatellite ? 'Carte' : 'Satellite',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
+                  Text(isSatellite ? 'Carte' : 'Satellite',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87)),
                 ],
               ),
             ),
@@ -342,7 +326,8 @@ class DownloadedPistesToggle extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
           boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+            BoxShadow(
+                color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
           ],
         ),
         child: Material(
@@ -351,40 +336,44 @@ class DownloadedPistesToggle extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             onTap: () => onChanged(!isOn),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.alt_route,
-                    size: 22,
-                    color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
-                  ),
+                  Icon(Icons.alt_route,
+                      size: 22,
+                      color:
+                          isOn ? const Color(0xFFB86E1D) : Colors.grey),
                   const SizedBox(width: 8),
-                  Text(
-                    'Pistes téléchargées',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
-                  ),
+                  Text('Pistes téléchargées',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87)),
                   if (count > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isOn ? const Color(0xFFB86E1D).withOpacity(0.12) : Colors.grey.withOpacity(0.15),
+                        color: isOn
+                            ? const Color(0xFFB86E1D).withOpacity(0.12)
+                            : Colors.grey.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
-                          width: 0.8,
-                        ),
+                            color: isOn
+                                ? const Color(0xFFB86E1D)
+                                : Colors.grey,
+                            width: 0.8),
                       ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isOn ? const Color(0xFFB86E1D) : Colors.grey[700],
-                        ),
-                      ),
+                      child: Text('$count',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isOn
+                                  ? const Color(0xFFB86E1D)
+                                  : Colors.grey[700])),
                     ),
                   ],
                 ],
@@ -420,10 +409,7 @@ class DownloadedChausseesToggle extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           boxShadow: const [
             BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
+                color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
           ],
         ),
         child: Material(
@@ -432,44 +418,44 @@ class DownloadedChausseesToggle extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             onTap: () => onChanged(!isOn),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.alt_route_rounded,
-                    size: 22,
-                    color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
-                  ),
+                  Icon(Icons.alt_route_rounded,
+                      size: 22,
+                      color:
+                          isOn ? const Color(0xFFB86E1D) : Colors.grey),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Chaussées téléchargées',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
+                  const Text('Chaussées téléchargées',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87)),
                   if (count > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isOn ? const Color(0xFFB86E1D).withOpacity(0.12) : Colors.grey.withOpacity(0.15),
+                        color: isOn
+                            ? const Color(0xFFB86E1D).withOpacity(0.12)
+                            : Colors.grey.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
-                          width: 0.8,
-                        ),
+                            color: isOn
+                                ? const Color(0xFFB86E1D)
+                                : Colors.grey,
+                            width: 0.8),
                       ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isOn ? const Color(0xFFB86E1D) : Colors.grey[700],
-                        ),
-                      ),
+                      child: Text('$count',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isOn
+                                  ? const Color(0xFFB86E1D)
+                                  : Colors.grey[700])),
                     ),
                   ],
                 ],
