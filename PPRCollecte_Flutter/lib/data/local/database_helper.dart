@@ -512,6 +512,198 @@ class DatabaseHelper {
     return await db.query(tableName);
   }
 
+  // ══════════════════════════════════════════════════════
+  // ██ ENTITÉS SRM (EP / ASS / ELEC) — SPRINT 5
+  // ══════════════════════════════════════════════════════
+
+  /// Crée la table SQLite pour une entité SRM si elle n'existe pas.
+  /// Structure générique : id + tous les champs en TEXT ou REAL + FK SRM.
+  Future<void> ensureEntityTable(String tableName, List<String> fields) async {
+    final db = await database;
+    // Vérifier si la table existe déjà
+    final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName]);
+    if (tables.isNotEmpty) return; // déjà créée
+
+    // Colonnes fixes SRM communes à toutes les entités
+    const fixedCols = '''
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uuid TEXT UNIQUE,
+      id_projet INTEGER,
+      id_mission INTEGER,
+      id_agent_crea INTEGER,
+      id_planche INTEGER,
+      id_commune INTEGER,
+      latitude_gps REAL,
+      longitude_gps REAL,
+      altitude_gps REAL,
+      x_debut REAL,
+      y_debut REAL,
+      x_fin REAL,
+      y_fin REAL,
+      lat_debut REAL,
+      lon_debut REAL,
+      lat_fin REAL,
+      lon_fin REAL,
+      nb_points INTEGER DEFAULT 0,
+      distance_m REAL DEFAULT 0,
+      points_json TEXT,
+      anomalie INTEGER DEFAULT 0,
+      type_anomalie TEXT,
+      photo_1 TEXT,
+      photo_2 TEXT,
+      photo_3 TEXT,
+      photo_4 TEXT,
+      mode_localisation TEXT DEFAULT 'GPS',
+      synced INTEGER DEFAULT 0,
+      date_collecte TEXT,
+      date_sync TEXT
+    ''';
+
+    // Colonnes dynamiques depuis srm_config.dart (fields)
+    final dynamicCols = fields
+        .where((f) => !_isFixedCol(f))
+        .map((f) => '  $f TEXT')
+        .join(',\n');
+
+    final sql = '''
+      CREATE TABLE IF NOT EXISTS $tableName (
+        $fixedCols
+        ${dynamicCols.isNotEmpty ? ',$dynamicCols' : ''}
+      )
+    ''';
+
+    await db.execute(sql);
+    print('✅ Table SRM créée: $tableName (${fields.length} champs)');
+  }
+
+  bool _isFixedCol(String col) {
+    const fixed = {
+      'id', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
+      'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
+      'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
+      'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
+      'nb_points', 'distance_m', 'points_json',
+      'anomalie', 'type_anomalie',
+      'photo_1', 'photo_2', 'photo_3', 'photo_4',
+      'mode_localisation', 'synced', 'date_collecte', 'date_sync',
+    };
+    return fixed.contains(col);
+  }
+
+  /// Insert une entité SRM dans sa table (crée la table si besoin).
+  Future<int> insertEntitySrm(
+      String tableName, Map<String, dynamic> data) async {
+    // Récupérer les champs depuis la config (pour créer la table)
+    final fields = data.keys.toList();
+    await ensureEntityTable(tableName, fields);
+
+    final db = await database;
+    // Nettoyer les valeurs null pour éviter les erreurs SQLite
+    final cleaned = <String, dynamic>{};
+    for (final entry in data.entries) {
+      if (entry.value != null) cleaned[entry.key] = entry.value;
+    }
+
+    try {
+      final id = await db.insert(
+        tableName,
+        cleaned,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('✅ SRM insertEntitySrm → $tableName (ID: $id)');
+      return id;
+    } catch (e) {
+      // Si la colonne n'existe pas encore, ajouter dynamiquement
+      if (e.toString().contains('no such column')) {
+        await _addMissingColumns(tableName, cleaned);
+        final id = await db.insert(tableName, cleaned,
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        return id;
+      }
+      rethrow;
+    }
+  }
+
+  /// Ajoute les colonnes manquantes dans une table existante.
+  Future<void> _addMissingColumns(
+      String tableName, Map<String, dynamic> data) async {
+    final db = await database;
+    final existing = await db.rawQuery('PRAGMA table_info($tableName)');
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+
+    for (final key in data.keys) {
+      if (!existingCols.contains(key)) {
+        try {
+          await db.execute('ALTER TABLE $tableName ADD COLUMN $key TEXT');
+          print('✅ Colonne ajoutée: $tableName.$key');
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Met à jour une entité SRM.
+  Future<void> updateEntitySrm(
+      String tableName, int id, Map<String, dynamic> data) async {
+    final db = await database;
+    await _addMissingColumns(tableName, data);
+    final cleaned = <String, dynamic>{};
+    for (final entry in data.entries) {
+      if (entry.value != null) cleaned[entry.key] = entry.value;
+    }
+    await db.update(tableName, cleaned, where: 'id = ?', whereArgs: [id]);
+    print('✅ SRM updateEntitySrm → $tableName id=$id');
+  }
+
+  /// Supprime une entité SRM.
+  Future<void> deleteEntitySrm(String tableName, int id) async {
+    final db = await database;
+    await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+    print('✅ SRM deleteEntitySrm → $tableName id=$id');
+  }
+
+  /// Récupère toutes les entités d'une table SRM.
+  Future<List<Map<String, dynamic>>> getEntitiesSrm(
+      String tableName) async {
+    try {
+      final db = await database;
+      // Vérifier que la table existe
+      final tables = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          [tableName]);
+      if (tables.isEmpty) return [];
+      return await db.query(tableName, orderBy: 'id DESC');
+    } catch (e) {
+      print('❌ getEntitiesSrm $tableName: $e');
+      return [];
+    }
+  }
+
+  /// Récupère les entités non synchronisées d'une table SRM.
+  Future<List<Map<String, dynamic>>> getUnsyncedSrm(
+      String tableName) async {
+    try {
+      final db = await database;
+      final tables = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          [tableName]);
+      if (tables.isEmpty) return [];
+      return await db.query(tableName,
+          where: 'synced = ?', whereArgs: [0], orderBy: 'id ASC');
+    } catch (e) {
+      print('❌ getUnsyncedSrm $tableName: $e');
+      return [];
+    }
+  }
+
+  /// Marque une entité comme synchronisée.
+  Future<void> markSyncedSrm(String tableName, int id) async {
+    final db = await database;
+    await db.update(tableName, {'synced': 1, 'date_sync': DateTime.now().toIso8601String()},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<void> saveLastSyncTime(DateTime dt) async {
     final db = await database;
     await db.insert(

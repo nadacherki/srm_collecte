@@ -5,37 +5,44 @@ import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import '../models/collection_models.dart';
+import '../data/remote/api_service.dart';
 
 class CollectionService {
   Timer? _captureTimer;
   StreamSubscription<LocationData>? _locationSubscription;
 
-  // ✅ STOCKAGE de la position GPS la plus récente
+  // Stockage de la position GPS la plus récente
   LocationData? _currentLocation;
   final List<DateTime> _captureTimestamps = [];
 
-  // ✅ CONFIGURATION GPS TÉLÉPHONE
-  final Duration _captureInterval = const Duration(seconds: 20);
-  static const double _minimumAccuracy = 12.0; // 12m max pour plus de précision (était 15.0)
-  static const double _minimumDistance = 5.0; // 5m minimum pour ignorer le bruit GPS (était 3.0)
-  static const double _lowDistanceThreshold = 15.0; // Seuil dialogue porté à 15m (était 8.0)
-  static const double _maxSpeed = 50.0; // 50 m/s vitesse max réaliste
+  // ── SPRINT 5 : stockage altitude Z pour chaque point capturé ──
+  // Parallèle à collection.points : _altitudesZ[i] = altitude du point i
+  final List<double?> _altitudesZ = [];
 
-  // État de surveillance des distances faibles
+  // Configuration GPS
+  final Duration _captureInterval = const Duration(seconds: 20);
+  static const double _minimumAccuracy = 12.0;
+  static const double _minimumDistance = 5.0;
+  static const double _lowDistanceThreshold = 15.0;
+  static const double _maxSpeed = 50.0;
+
   int _consecutiveLowDistances = 0;
   DateTime? _lastNotificationTime;
-
-  // Context pour les dialogues (à injecter)
   BuildContext? _context;
 
-  /// ✅ INJECTER le context pour les dialogues
   void setContext(BuildContext context) {
     _context = context;
   }
 
   int _countdown = 20;
 
-  /// ✅ DÉMARRE la collecte avec capture exacte toutes les 20 secondes
+  // ── SPRINT 5 : Altitude Z courante (depuis GNSS externe via Mock Location) ──
+  double? get currentAltitude => _currentLocation?.altitude;
+
+  // ── SPRINT 5 : Récupérer les altitudes Z capturées ──
+  List<double?> get capturedAltitudes => List.unmodifiable(_altitudesZ);
+
+  /// Démarre la collecte GPS avec capture toutes les 20s
   void startCollection({
     required CollectionBase collection,
     required Stream<LocationData> locationStream,
@@ -44,12 +51,12 @@ class CollectionService {
   }) {
     stopCollection();
     _captureTimestamps.clear();
+    _altitudesZ.clear(); // Sprint 5 : reset altitudes
     _consecutiveLowDistances = 0;
     _countdown = 20;
 
-    print('🚀 Démarrage collecte GPS téléphone - capture toutes les 20s');
+    print('🚀 Démarrage collecte GPS SRM - capture toutes les 20s');
 
-    // ✅ 1. ÉCOUTER le stream GPS en continu
     _locationSubscription = locationStream.listen(
       (locationData) {
         _currentLocation = locationData;
@@ -142,7 +149,7 @@ class CollectionService {
     }
   }
 
-  /// ✅ TRAITE une position GPS pour la collecte
+  /// Traite une position GPS pour la collecte
   Future<void> _processLocationForCollection(LocationData locationData, CollectionBase collection, Function(LatLng point, double distance) onPointAdded, {bool isFirstPoint = false}) async {
     if (locationData.latitude == null || locationData.longitude == null) {
       print('❌ Coordonnées GPS invalides');
@@ -152,14 +159,15 @@ class CollectionService {
     final lat = locationData.latitude!;
     final lon = locationData.longitude!;
     final accuracy = locationData.accuracy ?? 999.0;
+    // Sprint 5 : altitude Z depuis le GNSS (Mock Location ou GPS natif)
+    final double? altitudeZ = locationData.altitude;
 
-    // ✅ FILTRE de précision téléphone
+    // Filtre précision
     if (accuracy > _minimumAccuracy) {
       print('❌ Point rejeté: précision insuffisante (${accuracy.toStringAsFixed(1)}m > ${_minimumAccuracy}m)');
       return;
     }
 
-    // ✅ VÉRIFIER coordonnées valides
     if (lat.abs() > 90 || lon.abs() > 180) {
       print('❌ Point rejeté: coordonnées invalides');
       return;
@@ -167,76 +175,78 @@ class CollectionService {
 
     final newPoint = LatLng(lat, lon);
 
-    // ✅ PREMIER POINT : toujours accepté si précision OK
+    // Premier point : toujours accepté
     if (collection.points.isEmpty || isFirstPoint) {
+      _altitudesZ.add(altitudeZ); // Sprint 5 : stocker Z
       onPointAdded(newPoint, 0.0);
-      print('✅ Premier point accepté: précision ${accuracy.toStringAsFixed(1)}m');
+      print('✅ Premier point SRM: précision ${accuracy.toStringAsFixed(1)}m'
+          '${altitudeZ != null ? " Z=${altitudeZ.toStringAsFixed(3)}m" : ""}');
       return;
     }
 
-    // ✅ CALCULER distance depuis le dernier point
     final lastPoint = collection.points.last;
     final distanceFromLast = _haversineDistance(
-      lastPoint.latitude,
-      lastPoint.longitude,
-      lat,
-      lon,
+      lastPoint.latitude, lastPoint.longitude, lat, lon,
     );
 
-    // ✅ FILTRE de vitesse (détection mouvement irréaliste)
+    // Filtre vitesse
     if (_captureTimestamps.length >= 2) {
-      final timeDiff = _captureTimestamps.last.difference(_captureTimestamps[_captureTimestamps.length - 2]).inSeconds;
-
+      final timeDiff = _captureTimestamps.last
+          .difference(_captureTimestamps[_captureTimestamps.length - 2])
+          .inSeconds;
       if (timeDiff > 0) {
-        final speed = distanceFromLast / timeDiff; // m/s
-
+        final speed = distanceFromLast / timeDiff;
         if (speed > _maxSpeed) {
-          print('❌ Point rejeté: vitesse irréaliste (${speed.toStringAsFixed(1)} m/s > $_maxSpeed m/s)');
+          print('❌ Point rejeté: vitesse irréaliste (${speed.toStringAsFixed(1)} m/s)');
           return;
         }
       }
     }
 
-    // 🧠 ANALYSE INTELLIGENTE de la distance
-    await _analyzeDistanceAndPrompt(distanceFromLast, accuracy, collection, newPoint, onPointAdded);
+    // Analyse distance — passe le Z pour le stocker si accepté
+    await _analyzeDistanceAndPrompt(
+        distanceFromLast, accuracy, collection, newPoint, onPointAdded,
+        altitudeZ: altitudeZ);
   }
 
-  /// 🧠 ANALYSE distance avec dialogue utilisateur
+  /// Analyse distance avec dialogue utilisateur
   Future<void> _analyzeDistanceAndPrompt(
     double distance,
     double accuracy,
     CollectionBase collection,
     LatLng newPoint,
-    Function(LatLng point, double distance) onPointAdded,
-  ) async {
+    Function(LatLng point, double distance) onPointAdded, {
+    double? altitudeZ, // Sprint 5 : altitude Z du point
+  }) async {
     if (distance < _minimumDistance) {
-      // ❌ DISTANCE TROP FAIBLE (< 3m) - Rejet automatique (dérive GPS)
-      print('❌ Point rejeté: distance trop faible (${distance.toStringAsFixed(1)}m < ${_minimumDistance}m)');
+      print('❌ Point rejeté: distance trop faible (${distance.toStringAsFixed(1)}m)');
       _consecutiveLowDistances++;
       await _checkForMovementAdvice();
     } else if (distance < _lowDistanceThreshold) {
-      // ⚠️ DISTANCE FAIBLE (3-8m) - Demander à l'utilisateur
       _consecutiveLowDistances++;
 
       if (await _shouldPromptUser()) {
-        final userDecision = await _promptUserForLowDistance(distance, accuracy, collection);
-
+        final userDecision =
+            await _promptUserForLowDistance(distance, accuracy, collection);
         if (userDecision) {
+          _altitudesZ.add(altitudeZ); // Sprint 5
           onPointAdded(newPoint, distance);
-          print('✅ Point accepté par utilisateur: ${distance.toStringAsFixed(1)}m');
+          print('✅ Point accepté (utilisateur): ${distance.toStringAsFixed(1)}m'
+              '${altitudeZ != null ? " Z=${altitudeZ.toStringAsFixed(2)}m" : ""}');
           _resetLowDistanceTracking();
         } else {
-          print('❌ Point rejeté par utilisateur: ${distance.toStringAsFixed(1)}m');
+          print('❌ Point rejeté (utilisateur)');
         }
       } else {
-        // Accepter automatiquement si pas de notification récente
+        _altitudesZ.add(altitudeZ); // Sprint 5
         onPointAdded(newPoint, distance);
         print('✅ Point accepté automatiquement: ${distance.toStringAsFixed(1)}m');
       }
     } else {
-      // ✅ DISTANCE NORMALE (> 8m) - Acceptation automatique
+      _altitudesZ.add(altitudeZ); // Sprint 5
       onPointAdded(newPoint, distance);
-      print('✅ Point accepté: ${distance.toStringAsFixed(1)}m');
+      print('✅ Point SRM accepté: ${distance.toStringAsFixed(1)}m'
+          '${altitudeZ != null ? " Z=${altitudeZ.toStringAsFixed(2)}m" : ""}');
       _resetLowDistanceTracking();
     }
   }
@@ -539,9 +549,37 @@ class CollectionService {
     _currentLocation = null;
 
     if (_captureTimestamps.isNotEmpty) {
-      print('🏁 Collecte terminée: ${_captureTimestamps.length} points capturés');
-      _validateCaptureIntervals();
+      print('🏁 Collecte SRM terminée: ${_captureTimestamps.length} points capturés');
+      final zCount = _altitudesZ.where((z) => z != null).length;
+      print('   Altitudes Z disponibles: $zCount / ${_altitudesZ.length}');
     }
+  }
+
+  // ── SPRINT 5 : Données enrichies SRM pour sauvegarde ──
+  /// Retourne la map des données FK SRM à injecter dans chaque entité
+  Map<String, dynamic> getSrmFkData() {
+    return {
+      'id_projet': ApiService.currentProjetId,
+      'id_mission': ApiService.currentMissionId,
+      'id_agent_crea': ApiService.userId,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+    };
+  }
+
+  /// Retourne l'altitude Z moyenne des points capturés (pour entités ayant hasZ=true)
+  double? getAverageAltitude() {
+    final valid = _altitudesZ.whereType<double>().toList();
+    if (valid.isEmpty) return null;
+    return valid.reduce((a, b) => a + b) / valid.length;
+  }
+
+  /// Retourne l'altitude Z du dernier point capturé
+  double? getLastAltitude() {
+    for (int i = _altitudesZ.length - 1; i >= 0; i--) {
+      if (_altitudesZ[i] != null) return _altitudesZ[i];
+    }
+    return null;
   }
 
   /// Calcule la distance entre deux points (Haversine)

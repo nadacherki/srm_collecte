@@ -62,6 +62,12 @@ import 'package:flutter_map/flutter_map.dart' show Polygon;
 import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 
+// ── SPRINT 5 : SRM Forms ──
+import '../../core/config/srm_config.dart';
+import '../../widgets/forms/srm_metier_selector.dart';
+import '../../widgets/forms/srm_point_form_widget.dart';
+import '../forms/srm_ligne_form_page.dart';
+
 // ════════════════════════════════════════════
 // APRÈS
 // ════════════════════════════════════════════
@@ -159,6 +165,9 @@ class _HomePageState extends State<HomePage> {
   final DownloadedSpecialLinesService _downloadedSpecialLinesService = DownloadedSpecialLinesService();
   List<Polyline> _downloadedSpecialLinesPolylines = [];
   bool _showDownloadedSpecialLines = true;
+
+  // Sprint 5 : sélection SRM en attente pour la collecte ligne
+  SrmSelection? _pendingSrmLigneSelection;
 
   // Téléchargés : Pistes
 
@@ -1734,9 +1743,14 @@ class _HomePageState extends State<HomePage> {
             agentName: widget.agentName,
             activePisteCode: homeController.activePisteCode,
             nearestPisteCode: nearestPisteCode,
+            // Sprint 5 : SRM métier + type polygone
+            metier: _pendingSrmPolygoneMetier,
+            entityType: _pendingSrmPolygoneEntityType,
           ),
         ),
       );
+      _pendingSrmPolygoneMetier = null;
+      _pendingSrmPolygoneEntityType = null;
 
       if (mounted) _refreshAfterNavigation();
 
@@ -2302,97 +2316,98 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  // === GESTION DES POINTS D'INTÉRÊT ===
+  // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
   Future<void> addPointOfInterest() async {
-    if (_isSpecialCollection && homeController.specialCollection?.isPaused != true) {
-      await finishSpecialCollection();
-      return;
-    }
+    // 1) Sélectionner métier + type
+    if (!mounted) return;
+    final selection = await showSrmPointSelector(context);
+    if (selection == null) return;
 
-    // Vérifier si une collecte est active
-    final activeType = homeController.getActiveCollectionType();
-    if (activeType != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Veuillez mettre en pause la collecte de $activeType en cours',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
+    // 2) Récupérer la position GPS actuelle
     final current = homeController.userPosition;
-    final nearestPisteCode = await SimpleStorageHelper().findNearestPisteCode(
-      current,
-      activePisteCode: homeController.activePisteCode,
-    );
 
-    final result = await Navigator.push(
+    // 3) Ouvrir le formulaire SRM
+    if (!mounted) return;
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (
-          _,
-        ) =>
-            PointFormScreen(
-          pointData: {
-            'latitude': current.latitude,
-            'longitude': current.longitude,
-            'accuracy': 10.0,
-            'timestamp': DateTime.now().toIso8601String(),
-          },
+        builder: (_) => SrmPointFormWidget(
+          metier: selection.metier,
+          entityType: selection.entityType,
+          latitude: current.latitude,
+          longitude: current.longitude,
+          // Sprint 5 : altitude Z depuis GNSS (Mock Location ou GPS natif)
+          altitude: homeController.collectionManager.currentAltitude,
           agentName: widget.agentName,
-          nearestPisteCode: nearestPisteCode,
-          onSpecialTypeSelected: (
-            type,
-          ) {
-            if (type == "Zone de Plaine") {
-              startPolygonCollection();
-            } else {
-              startSpecialCollection(type);
-            }
+          onSaved: () {
+            Navigator.pop(context);
+            _refreshAfterNavigation();
           },
+          onCancel: () => Navigator.pop(context),
         ),
       ),
     );
-    if (mounted) {
-      _refreshAfterNavigation(); // Rafraîchir après être revenu
+    if (mounted) _refreshAfterNavigation();
+  }
+
+  // === SPRINT 5 : COLLECTE LIGNE SRM ===
+  Future<void> startLigneSrmCollection() async {
+    if (!mounted) return;
+    // 1) Sélectionner métier + type linéaire
+    final selection = await showSrmLigneSelector(context);
+    if (selection == null) return;
+
+    // 2) Démarrer la collecte GPS (réutilisation du CollectionManager existant)
+    if (!homeController.gpsEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Veuillez activer le GPS'),
+      ));
+      return;
     }
-    if (result != null && result is Map<String, dynamic>) {
-      setState(
-        () {
-          collectedMarkers.add(Marker(
-            point: LatLng(result['latitude'], result['longitude']),
-            width: 40,
-            height: 40,
-            child: GestureDetector(
-              onTap: () {
-                // Si vous aviez un onTap, mettez-le ici
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: const Icon(Icons.location_on, color: Colors.white, size: 24),
-              ),
-            ),
-          ));
-        },
-      );
+    if (homeController.hasActiveCollection) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Collecte de ${homeController.activeCollectionType} en cours — mettez-la en pause d\'abord'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    // Stocker la sélection SRM pour l'utiliser à la fin
+    _pendingSrmLigneSelection = selection;
+
+    // Lancer collecte (code piste fictif pour réutiliser le CollectionManager)
+    final fakeCode = 'SRM_${selection.tableName}_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      await homeController.startLigneCollection(fakeCode);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            '📡 Tracé ${selection.entityType} démarré — marchez le long de l\'objet'),
+        backgroundColor: Color(SrmConfig.getMetierColor(selection.metier)),
+        duration: const Duration(seconds: 3),
+      ));
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Erreur: $e'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 
-  // === GESTION DE LA COLLECTE LIGNE/PISTE ===
+
   // home_page.dart - Modifiez la méthode startLigneCollection
 
   // home_page.dart - Méthode startLigneCollection modifiée
 // === COLLECTE POLYGONE (Zone de Plaine) ===
-  Future<void> startPolygonCollection() async {
+  // ── SPRINT 5 : sélection SRM en attente pour polygone ──
+  String? _pendingSrmPolygoneMetier;
+  String? _pendingSrmPolygoneEntityType;
+
+  Future<void> startPolygonCollection({
+    String? metier,
+    String? entityType,
+  }) async {
     if (!homeController.gpsEnabled) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Veuillez activer le GPS")),
@@ -2410,27 +2425,44 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    // ── SPRINT 5 : si appelé sans métier, ouvrir le sélecteur ──
+    String? m = metier;
+    String? e = entityType;
+    if (m == null || e == null) {
+      if (!mounted) return;
+      final sel = await showSrmPolygoneSelector(context);
+      if (sel == null) return;
+      m = sel.metier;
+      e = sel.entityType;
+    }
+
+    _pendingSrmPolygoneMetier = m;
+    _pendingSrmPolygoneEntityType = e;
+
     try {
-      // Réutiliser le mécanisme de special collection
-      await homeController.startSpecialCollection("Zone de Plaine");
+      await homeController.startSpecialCollection(e ?? 'Zone de Plaine');
 
       setState(() {
         _isSpecialCollection = true;
         _isPolygonCollection = true;
-        _specialCollectionType = "Zone de Plaine";
+        _specialCollectionType = e ?? 'Zone de Plaine';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🔷 Collecte de polygone démarrée — Marchez le périmètre de la zone'),
-          backgroundColor: Color(0xFF1B5E20),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text(
+              '🔷 Tracé $e démarré — Marchez le périmètre de l\'objet'),
+          backgroundColor: _pendingSrmPolygoneMetier != null
+              ? Color(SrmConfig.getMetierColor(_pendingSrmPolygoneMetier!))
+              : const Color(0xFF1B5E20),
+          duration: const Duration(seconds: 3),
         ),
       );
-    } catch (e) {
+    } catch (err) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(content: Text(err.toString()), backgroundColor: Colors.red),
       );
+
     }
   }
 
@@ -2842,11 +2874,42 @@ class _HomePageState extends State<HomePage> {
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Une piste doit contenir au moins 2 points."),
+          content: Text("Le tracé doit contenir au moins 2 points."),
         ),
       );
-      _continuationData = null;
+      _pendingSrmLigneSelection = null;
       return;
+    }
+
+    // ── SPRINT 5 : Si collecte SRM ligne, ouvrir SrmLigneFormPage ──
+    if (_pendingSrmLigneSelection != null) {
+      final sel = _pendingSrmLigneSelection!;
+      _pendingSrmLigneSelection = null;
+      final pts = List<LatLng>.from(result['points'] as List<LatLng>);
+
+      setState(() {
+        homeController.collectedPolylines.clear();
+        collectedPolylines.clear();
+      });
+
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SrmLigneFormPage(
+            metier: sel.metier,
+            entityType: sel.entityType,
+            linePoints: pts,
+            startTime: result['startTime'] as DateTime?,
+            endTime: result['endTime'] as DateTime?,
+            agentName: widget.agentName,
+            // Sprint 5 : altitude Z depuis GNSS
+            averageAltitude: homeController.collectionManager.averageAltitude,
+          ),
+        ),
+      );
+      if (mounted) _refreshAfterNavigation();
+      return; // ← ne pas continuer vers l'ancien flux GeoDNGR
     }
 
     final List<LatLng> newPts = List<LatLng>.from(result['points'] as List<LatLng>);
@@ -4799,7 +4862,7 @@ class _HomePageState extends State<HomePage> {
                   MapControlsWidget(
                     controller: homeController,
                     onAddPoint: addPointOfInterest,
-                    onStartLigne: startLigneCollection,
+                    onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
                     onStartChaussee: startChausseeCollection,
                     onToggleLigne: toggleLigneCollection,
                     onToggleChaussee: toggleChausseeCollection,

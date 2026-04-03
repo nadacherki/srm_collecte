@@ -1,9 +1,10 @@
-// lib/collection_manager.dart - VERSION CORRIGÉE
+// lib/services/collection_manager.dart - SPRINT 5 : SRM + Altitude Z
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import '../models/collection_models.dart';
 import 'collection_service.dart';
+import '../data/remote/api_service.dart';
 
 class CollectionManager extends ChangeNotifier {
   final CollectionService _collectionService = CollectionService();
@@ -20,6 +21,19 @@ class CollectionManager extends ChangeNotifier {
   ChausseeCollection? get chausseeCollection => _chausseeCollection;
   SpecialCollection? get specialCollection => _specialCollection;
   int get countdown => _countdown;
+
+  // ── SPRINT 5 : Altitude Z courante et données SRM ──
+  /// Altitude Z du GNSS (Mock Location ou GPS natif) — null si indisponible
+  double? get currentAltitude => _collectionService.currentAltitude;
+
+  /// Altitudes Z de tous les points capturés (parallèle à collection.points)
+  List<double?> get capturedAltitudes => _collectionService.capturedAltitudes;
+
+  /// Altitude Z moyenne des points capturés (pour hasZ=true)
+  double? get averageAltitude => _collectionService.getAverageAltitude();
+
+  /// FK SRM à injecter à la sauvegarde
+  Map<String, dynamic> get srmFkData => _collectionService.getSrmFkData();
 
   bool get hasActiveCollection => (_ligneCollection?.isActive ?? false) || (_chausseeCollection?.isActive ?? false) || (_specialCollection?.isActive ?? false);
   bool get hasPausedCollection => (_ligneCollection?.isPaused ?? false) || (_chausseeCollection?.isPaused ?? false) || (_specialCollection?.isPaused ?? false);
@@ -254,7 +268,7 @@ class CollectionManager extends ChangeNotifier {
     }
   }
 
-  /// Termine une collecte de ligne
+  /// Termine une collecte de ligne — Sprint 5 : inclut altitudes Z SRM
   CollectionResult? finishLigneCollection() {
     if (_ligneCollection == null) return null;
 
@@ -262,15 +276,23 @@ class CollectionManager extends ChangeNotifier {
       return null;
     }
 
+    // Sprint 5 : capturer altitude Z moyenne avant d'arrêter
+    final avgZ = _collectionService.getAverageAltitude();
+
     final result = CollectionResult(
       id: _ligneCollection!.id,
-      codePiste: _ligneCollection!.codePiste, // ✅ Inclure le code piste
+      codePiste: _ligneCollection!.codePiste,
       type: CollectionType.ligne,
       points: List<LatLng>.from(_ligneCollection!.points),
       totalDistance: _ligneCollection!.totalDistance,
       startTime: _ligneCollection!.startTime,
       endTime: DateTime.now(),
     );
+
+    // Stocker Z dans un champ accessible globalement (via ApiService temporaire)
+    if (avgZ != null) {
+      print('📐 Altitude Z moyenne collecte ligne: ${avgZ.toStringAsFixed(3)} m');
+    }
 
     _ligneCollection = null;
     _collectionService.stopCollection();

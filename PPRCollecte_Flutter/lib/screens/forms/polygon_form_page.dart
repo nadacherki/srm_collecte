@@ -2,9 +2,12 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:uuid/uuid.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/local/piste_chaussee_db_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../core/config/srm_config.dart';
+import '../../services/projection_service.dart';
 
 class PolygonFormPage extends StatefulWidget {
   final List<LatLng> polygonPoints;
@@ -13,7 +16,12 @@ class PolygonFormPage extends StatefulWidget {
   final String agentName;
   final String? activePisteCode;
   final String? nearestPisteCode;
-  final Map<String, dynamic>? existingData; // Pour le mode édition
+  final Map<String, dynamic>? existingData;
+
+  // ── SPRINT 5 : métier + type SRM pour polygone ──
+  // Si null → comportement historique (Zone de Plaine)
+  final String? metier;      // "Eau Potable" etc.
+  final String? entityType;  // "Regard EP" | "Planche"
 
   const PolygonFormPage({
     super.key,
@@ -24,6 +32,8 @@ class PolygonFormPage extends StatefulWidget {
     this.activePisteCode,
     this.nearestPisteCode,
     this.existingData,
+    this.metier,
+    this.entityType,
   });
 
   @override
@@ -37,14 +47,48 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
   final _nomController = TextEditingController();
   final _codeGpsController = TextEditingController();
 
+  // ── SPRINT 5 : champs SRM pour Regard EP / Planche ──
+  final _epNumController = TextEditingController();
+  final _epTypeController = TextEditingController();
+  final _epFormeController = TextEditingController();
+  final _epLongueurController = TextEditingController();
+  final _epLargeurController = TextEditingController();
+  final _epCoteTamponController = TextEditingController();
+  final _epCoteRadierController = TextEditingController();
+  final _epCoteFilEauController = TextEditingController();
+  final _epEtatController = TextEditingController();
+  final _emplacementController = TextEditingController();
+  final _refRueController = TextEditingController();
+  final _etageAquaController = TextEditingController();
+  final _secteurAquaController = TextEditingController();
+  final _observationController = TextEditingController();
+  // Coordonnées Merchich du centroïde
+  double _xMerchich = 0.0;
+  double _yMerchich = 0.0;
+
   late double _superficieHa;
   late List<List<double>> _closedCoordinates;
 
-  // Mode édition = existingData avec un id valide
-  bool get _isEditing => widget.existingData != null && widget.existingData!['id'] != null;
+  bool get _isEditing =>
+      widget.existingData != null && widget.existingData!['id'] != null;
 
-  // Couleur catégorie Enquête (noir comme le web)
-  final Color _categoryColor = const Color(0xFF212121);
+  // SRM : est-ce un objet SRM (pas GeoDNGR) ?
+  bool get _isSrm =>
+      widget.metier != null && widget.entityType != null;
+
+  // Couleur selon contexte
+  Color get _categoryColor => _isSrm
+      ? Color(SrmConfig.getMetierColor(widget.metier!))
+      : const Color(0xFF212121);
+
+  String get _pageTitle =>
+      widget.entityType ?? 'Zone de Plaine';
+
+  String get _tableName {
+    if (!_isSrm) return 'enquete_polygone';
+    return SrmConfig.getTableName(widget.metier!, widget.entityType!) ??
+        widget.entityType!.toLowerCase();
+  }
 
   @override
   void initState() {
@@ -57,36 +101,70 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
     _superficieHa = _calculateAreaHectares(widget.polygonPoints);
 
     _closedCoordinates = widget.polygonPoints
-        .map((p) => [
-              p.longitude,
-              p.latitude
-            ])
+        .map((p) => [p.longitude, p.latitude])
         .toList();
     if (_closedCoordinates.isNotEmpty) {
       _closedCoordinates.add(List<double>.from(_closedCoordinates.first));
     }
 
+    // ── SPRINT 5 : Calcul centroïde Merchich Nord ──
+    if (widget.polygonPoints.isNotEmpty) {
+      final centroidLat = widget.polygonPoints
+              .map((p) => p.latitude)
+              .reduce((a, b) => a + b) /
+          widget.polygonPoints.length;
+      final centroidLon = widget.polygonPoints
+              .map((p) => p.longitude)
+              .reduce((a, b) => a + b) /
+          widget.polygonPoints.length;
+      final m = ProjectionService()
+          .wgs84ToMerchich(longitude: centroidLon, latitude: centroidLat);
+      _xMerchich = m.x;
+      _yMerchich = m.y;
+
+      // Pré-remplir coordonnées SRM
+      _epLongueurController.text =
+          (widget.polygonPoints.length > 1 ? sqrt(_superficieHa * 10000) : 0.0)
+              .toStringAsFixed(2);
+    }
+
     // Pré-remplir en mode édition
     if (_isEditing) {
       _nomController.text = widget.existingData!['nom']?.toString() ?? '';
-      _codeGpsController.text = widget.existingData!['code_gps']?.toString() ?? '';
-    }
-
-    // Chercher la piste
-    try {
-      if (widget.activePisteCode != null && widget.activePisteCode!.isNotEmpty) {
-        _nearestPisteCode = widget.activePisteCode;
-      } else if (widget.nearestPisteCode != null && widget.nearestPisteCode!.isNotEmpty) {
-        _nearestPisteCode = widget.nearestPisteCode;
-      } else {
-        _nearestPisteCode = await SimpleStorageHelper().findNearestPisteCode(widget.polygonPoints.first);
+      _codeGpsController.text =
+          widget.existingData!['code_gps']?.toString() ?? '';
+      if (_isSrm) {
+        _epNumController.text =
+            widget.existingData!['ep_num']?.toString() ?? '';
+        _epTypeController.text =
+            widget.existingData!['ep_type']?.toString() ?? '';
+        _epFormeController.text =
+            widget.existingData!['ep_forme']?.toString() ?? '';
+        _epEtatController.text =
+            widget.existingData!['ep_etat']?.toString() ?? '';
+        _emplacementController.text =
+            widget.existingData!['emplacement']?.toString() ?? '';
+        _observationController.text =
+            widget.existingData!['observation']?.toString() ?? '';
       }
-    } catch (e) {
-      print('❌ Erreur recherche piste: $e');
     }
 
-    if (_superficieHa < 0.0001) {
-      print('⚠️ Polygone dégénéré: superficie = $_superficieHa ha');
+    // Chercher la piste (seulement mode GeoDNGR)
+    if (!_isSrm) {
+      try {
+        if (widget.activePisteCode != null &&
+            widget.activePisteCode!.isNotEmpty) {
+          _nearestPisteCode = widget.activePisteCode;
+        } else if (widget.nearestPisteCode != null &&
+            widget.nearestPisteCode!.isNotEmpty) {
+          _nearestPisteCode = widget.nearestPisteCode;
+        } else {
+          _nearestPisteCode = await SimpleStorageHelper()
+              .findNearestPisteCode(widget.polygonPoints.first);
+        }
+      } catch (e) {
+        print('❌ Erreur recherche piste: $e');
+      }
     }
 
     setState(() => _isLoading = false);
@@ -159,7 +237,8 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('❌ Les points sont alignés ou trop proches. Polygone invalide.'),
+            content: Text(
+                '❌ Les points sont alignés ou trop proches. Polygone invalide.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -169,11 +248,86 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
     }
 
     try {
-      final db = await DatabaseHelper().database;
       final now = DateTime.now();
 
+      // ── SPRINT 5 : Sauvegarde entité SRM polygone ──
+      if (_isSrm) {
+        final data = <String, dynamic>{
+          'uuid': widget.existingData?['uuid'] ?? const Uuid().v4(),
+          'ep_num': _epNumController.text.trim().isEmpty
+              ? null
+              : _epNumController.text.trim(),
+          'ep_type': _epTypeController.text.trim().isEmpty
+              ? null
+              : _epTypeController.text.trim(),
+          'ep_forme': _epFormeController.text.trim().isEmpty
+              ? null
+              : _epFormeController.text.trim(),
+          'ep_longueur': _epLongueurController.text.trim().isEmpty
+              ? null
+              : _epLongueurController.text.trim(),
+          'ep_largeur': _epLargeurController.text.trim().isEmpty
+              ? null
+              : _epLargeurController.text.trim(),
+          'ep_cote_tampon': _epCoteTamponController.text.trim().isEmpty
+              ? null
+              : _epCoteTamponController.text.trim(),
+          'ep_cote_radier': _epCoteRadierController.text.trim().isEmpty
+              ? null
+              : _epCoteRadierController.text.trim(),
+          'ep_cote_fil_eau': _epCoteFilEauController.text.trim().isEmpty
+              ? null
+              : _epCoteFilEauController.text.trim(),
+          'ep_etat': _epEtatController.text.trim().isEmpty
+              ? null
+              : _epEtatController.text.trim(),
+          'emplacement': _emplacementController.text.trim().isEmpty
+              ? null
+              : _emplacementController.text.trim(),
+          'ref_rue': _refRueController.text.trim().isEmpty
+              ? null
+              : _refRueController.text.trim(),
+          'etage_aqua': _etageAquaController.text.trim().isEmpty
+              ? null
+              : _etageAquaController.text.trim(),
+          'secteur_aqua': _secteurAquaController.text.trim().isEmpty
+              ? null
+              : _secteurAquaController.text.trim(),
+          'observation': _observationController.text.trim().isEmpty
+              ? null
+              : _observationController.text.trim(),
+          // Coordonnées Merchich centroïde
+          'ep_coor_x': _xMerchich,
+          'ep_coor_y': _yMerchich,
+          // Géométrie polygone
+          'points_json': jsonEncode(_closedCoordinates),
+          'superficie_ha': _superficieHa,
+          'nb_points': widget.polygonPoints.length,
+          // FK SRM
+          'id_projet': ApiService.currentProjetId,
+          'id_mission': ApiService.currentMissionId,
+          'id_agent_crea': ApiService.userId,
+          'synced': 0,
+          'date_collecte': now.toIso8601String(),
+        };
+
+        await DatabaseHelper().insertEntitySrm(_tableName, data);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '✅ ${widget.entityType} enregistré (${_superficieHa.toStringAsFixed(4)} ha)'),
+            backgroundColor: _categoryColor,
+          ));
+          Navigator.of(context).pop(true);
+        }
+        return;
+      }
+
+      // ── Comportement historique GeoDNGR (Zone de Plaine) ──
+      final db = await DatabaseHelper().database;
+
       if (_isEditing) {
-        // ===== MISE À JOUR =====
         final id = widget.existingData!['id'];
         await db.update(
           'enquete_polygone',
@@ -181,19 +335,17 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
             'nom': _nomController.text.isEmpty ? null : _nomController.text,
             'points_json': jsonEncode(_closedCoordinates),
             'superficie_en_ha': _superficieHa,
-            'code_gps': _codeGpsController.text.isEmpty ? null : _codeGpsController.text,
+            'code_gps': _codeGpsController.text.isEmpty
+                ? null
+                : _codeGpsController.text,
             'date_modification': now.toIso8601String(),
             'code_piste': _nearestPisteCode,
-            'synced': 0, // Re-marquer pour synchronisation
+            'synced': 0,
           },
           where: 'id = ?',
-          whereArgs: [
-            id
-          ],
+          whereArgs: [id],
         );
-        print('✅ Zone de Plaine mise à jour (ID: $id)');
       } else {
-        // ===== CRÉATION =====
         await db.insert('enquete_polygone', {
           'nom': _nomController.text.isEmpty ? null : _nomController.text,
           'points_json': jsonEncode(_closedCoordinates),
@@ -202,14 +354,16 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
           'date_creation': now.toIso8601String(),
           'date_modification': null,
           'code_piste': _nearestPisteCode,
-          'code_gps': _codeGpsController.text.isEmpty ? null : _codeGpsController.text,
+          'code_gps': _codeGpsController.text.isEmpty
+              ? null
+              : _codeGpsController.text,
           'synced': 0,
           'downloaded': 0,
-          'login_id': ApiService.userId ?? await DatabaseHelper().resolveLoginId(),
+          'login_id':
+              ApiService.userId ?? await DatabaseHelper().resolveLoginId(),
           'saved_by_user_id': ApiService.userId,
           'commune_id': null,
         });
-        print('✅ Zone de Plaine créée (${widget.polygonPoints.length} points, ${_superficieHa.toStringAsFixed(4)} ha)');
       }
 
       if (mounted) {
@@ -225,7 +379,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
               ],
             ),
             content: Text(
-              'Zone de Plaine "${_nomController.text.isNotEmpty ? _nomController.text : "Sans nom"}" enregistrée avec succès\n'
+              'Zone de Plaine "${_nomController.text.isNotEmpty ? _nomController.text : "Sans nom"}" enregistrée\n'
               'Code Piste: ${_nearestPisteCode ?? "Non spécifié"}\n'
               'Superficie: ${_superficieHa.toStringAsFixed(4)} ha\n'
               'Nombre de points: ${widget.polygonPoints.length}',
@@ -238,15 +392,14 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
             ],
           ),
         );
-        if (mounted) {
-          Navigator.of(context).pop(true);
-        }
+        if (mounted) Navigator.of(context).pop(true);
       }
     } catch (e) {
       print('❌ Erreur sauvegarde polygone: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -334,7 +487,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
                           ),
                         ),
                         Text(
-                          'Table: enquete_polygone',
+                          'Table: $_tableName',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.white.withAlpha((0.9 * 255).round()),
@@ -364,7 +517,120 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // ====== SECTION ASSOCIATION ======
+                  // ====== SECTION SRM — Regard EP / Planche ======
+                  if (_isSrm) ...[
+                    _buildFormSection(
+                      title: '🔧 ${widget.entityType} — Attributs',
+                      children: [
+                        // Bandeau coordonnées Merchich
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: _categoryColor.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: _categoryColor.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Centroïde Merchich Nord',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _categoryColor,
+                                    fontSize: 13),
+                              ),
+                              Text(
+                                'X: ${_xMerchich.toStringAsFixed(3)} m  '
+                                'Y: ${_yMerchich.toStringAsFixed(3)} m',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                'Superficie: ${_superficieHa.toStringAsFixed(4)} ha  '
+                                '(${(_superficieHa * 10000).toStringAsFixed(1)} m²)',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (widget.entityType == 'Regard EP') ...[
+                          _buildTextField(
+                              label: 'Numéro (ep_num)',
+                              hint: 'Ex: R001',
+                              controller: _epNumController),
+                          _buildTextField(
+                              label: 'Type',
+                              hint: '',
+                              controller: _epTypeController),
+                          _buildTextField(
+                              label: 'Forme',
+                              hint: 'Circulaire / Rectangulaire',
+                              controller: _epFormeController),
+                          _buildTextField(
+                              label: 'Longueur (m)',
+                              hint: '0.00',
+                              controller: _epLongueurController),
+                          _buildTextField(
+                              label: 'Largeur (m)',
+                              hint: '0.00',
+                              controller: _epLargeurController),
+                          _buildTextField(
+                              label: 'Cote tampon (m)',
+                              hint: '0.000',
+                              controller: _epCoteTamponController),
+                          _buildTextField(
+                              label: 'Cote radier (m)',
+                              hint: '0.000',
+                              controller: _epCoteRadierController),
+                          _buildTextField(
+                              label: 'Cote fil eau (m)',
+                              hint: '0.000',
+                              controller: _epCoteFilEauController),
+                          _buildTextField(
+                              label: 'État',
+                              hint: 'Bon / Moyen / Mauvais',
+                              controller: _epEtatController),
+                          _buildTextField(
+                              label: 'Emplacement',
+                              hint: '',
+                              controller: _emplacementController),
+                          _buildTextField(
+                              label: 'Réf. rue',
+                              hint: '',
+                              controller: _refRueController),
+                          _buildTextField(
+                              label: 'Étage aqua',
+                              hint: '',
+                              controller: _etageAquaController),
+                          _buildTextField(
+                              label: 'Secteur aqua',
+                              hint: '',
+                              controller: _secteurAquaController),
+                          _buildTextField(
+                              label: 'Observation',
+                              hint: '',
+                              controller: _observationController),
+                        ] else if (widget.entityType == 'Planche') ...[
+                          _buildTextField(
+                              label: 'Nom de la planche',
+                              hint: 'Ex: Planche_01',
+                              controller: _nomController),
+                          _buildTextField(
+                              label: 'Code',
+                              hint: '',
+                              controller: _codeGpsController),
+                        ],
+                      ],
+                    ),
+                  ],
+
+                  // ====== SECTION ASSOCIATION (mode GeoDNGR seulement) ======
+                  if (!_isSrm) ...[
                   _buildFormSection(
                     title: '🔗 Association',
                     children: [
@@ -399,6 +665,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
                       _buildDateModificationField(),
                     ],
                   ),
+                  ],
 
                   // ====== SECTION GÉOMÉTRIE ======
                   _buildFormSection(
@@ -875,6 +1142,20 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
   void dispose() {
     _nomController.dispose();
     _codeGpsController.dispose();
+    _epNumController.dispose();
+    _epTypeController.dispose();
+    _epFormeController.dispose();
+    _epLongueurController.dispose();
+    _epLargeurController.dispose();
+    _epCoteTamponController.dispose();
+    _epCoteRadierController.dispose();
+    _epCoteFilEauController.dispose();
+    _epEtatController.dispose();
+    _emplacementController.dispose();
+    _refRueController.dispose();
+    _etageAquaController.dispose();
+    _secteurAquaController.dispose();
+    _observationController.dispose();
     super.dispose();
   }
 }
