@@ -50,7 +50,7 @@ class Projet(models.Model):
     date_fin = models.DateField(null=True, blank=True)
     statut = models.CharField(max_length=20, default='EN_PREPARATION')
     metier = models.CharField(max_length=10, null=True, blank=True)
-    geom_zone = models.MultiPolygonField(srid=26191, null=True, blank=True)
+    geom_zone = models.MultiPolygonField(srid=26191, dim=3,null=True, blank=True)
 
     class Meta:
         managed = False
@@ -86,7 +86,7 @@ class Commune(models.Model):
     nom_commune = models.CharField(max_length=100)
     nom_province = models.CharField(max_length=100, null=True, blank=True)
     nom_region = models.CharField(max_length=100, null=True, blank=True)
-    geom = models.MultiPolygonField(srid=26191, null=True, blank=True)
+    geom = models.MultiPolygonField(srid=26191, dim=3,null=True, blank=True)
 
     class Meta:
         managed = False
@@ -172,7 +172,7 @@ class EvaluationAgent(models.Model):
 
 class EpVanne(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_modele = models.CharField(max_length=254, null=True, blank=True)
@@ -204,6 +204,7 @@ class EpVanne(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -221,7 +222,7 @@ class EpVanne(models.Model):
 
 class EpVanneDeVidange(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_modele = models.CharField(max_length=254, null=True, blank=True)
@@ -247,6 +248,7 @@ class EpVanneDeVidange(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -264,7 +266,7 @@ class EpVanneDeVidange(models.Model):
 
 class EpVentouse(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -290,6 +292,7 @@ class EpVentouse(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -307,7 +310,7 @@ class EpVentouse(models.Model):
 
 class EpHydrant(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -333,6 +336,7 @@ class EpHydrant(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -350,7 +354,7 @@ class EpHydrant(models.Model):
 
 class EpBorneFontaine(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -369,6 +373,7 @@ class EpBorneFontaine(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -386,7 +391,7 @@ class EpBorneFontaine(models.Model):
 
 class EpBorneOnep(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_etat = models.CharField(max_length=254, null=True, blank=True)
@@ -404,6 +409,7 @@ class EpBorneOnep(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -441,6 +447,7 @@ class EpBoucheCles(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -455,7 +462,7 @@ class EpBoucheCles(models.Model):
 
 class EpBoucheDarrosage(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_etat = models.CharField(max_length=254, null=True, blank=True)
@@ -473,6 +480,7 @@ class EpBoucheDarrosage(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -509,6 +517,7 @@ class EpCompteurAbonne(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -523,7 +532,7 @@ class EpCompteurAbonne(models.Model):
 
 class EpCompteurReseau(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_calibre = models.CharField(max_length=254, null=True, blank=True)
@@ -546,6 +555,7 @@ class EpCompteurReseau(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -560,7 +570,7 @@ class EpCompteurReseau(models.Model):
 
 class EpConeDeReduction(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_diam_amont = models.CharField(max_length=254, null=True, blank=True)
     ep_diam_aval = models.CharField(max_length=254, null=True, blank=True)
@@ -581,6 +591,7 @@ class EpConeDeReduction(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -613,6 +624,7 @@ class EpCentreTampon(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -627,7 +639,7 @@ class EpCentreTampon(models.Model):
 
 class EpNoeud(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     emplacement = models.CharField(max_length=254, null=True, blank=True)
@@ -644,6 +656,7 @@ class EpNoeud(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -658,7 +671,7 @@ class EpNoeud(models.Model):
 
 class EpObturateur(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -679,6 +692,7 @@ class EpObturateur(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -693,7 +707,7 @@ class EpObturateur(models.Model):
 
 class EpReducteurDePression(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -714,6 +728,7 @@ class EpReducteurDePression(models.Model):
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -731,7 +746,7 @@ class EpReducteurDePression(models.Model):
 
 class EpForage(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_profondeur = models.FloatField(null=True, blank=True)
@@ -751,6 +766,7 @@ class EpForage(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -768,7 +784,7 @@ class EpForage(models.Model):
 
 class EpPuit(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_profondeur = models.FloatField(null=True, blank=True)
@@ -787,6 +803,7 @@ class EpPuit(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -804,7 +821,7 @@ class EpPuit(models.Model):
 
 class EpPompe(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_puissance = models.FloatField(null=True, blank=True)
@@ -824,6 +841,7 @@ class EpPompe(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -841,7 +859,7 @@ class EpPompe(models.Model):
 
 class EpReservoir(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_capacite = models.FloatField(null=True, blank=True)
@@ -862,6 +880,7 @@ class EpReservoir(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -879,7 +898,7 @@ class EpReservoir(models.Model):
 
 class EpStationDePompage(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PointField(srid=26191, null=True, blank=True)
+    geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_nb_pompes = models.IntegerField(null=True, blank=True)
@@ -899,6 +918,7 @@ class EpStationDePompage(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -941,6 +961,7 @@ class EpRegardEp(models.Model):
     id_tampon = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -971,6 +992,7 @@ class EpAutreObjet(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     ep_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -991,7 +1013,7 @@ class EpAutreObjet(models.Model):
 
 class EpConduiteTerrain(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.LineStringField(srid=26191, null=True, blank=True)
+    geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -1021,6 +1043,7 @@ class EpConduiteTerrain(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -1036,7 +1059,7 @@ class EpConduiteTerrain(models.Model):
 
 class EpConduiteBureau(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.LineStringField(srid=26191, null=True, blank=True)
+    geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -1066,6 +1089,7 @@ class EpConduiteBureau(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -1081,7 +1105,7 @@ class EpConduiteBureau(models.Model):
 
 class EpBranchement(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.LineStringField(srid=26191, null=True, blank=True)
+    geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_diam = models.CharField(max_length=254, null=True, blank=True)
@@ -1098,6 +1122,7 @@ class EpBranchement(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -1113,7 +1138,7 @@ class EpBranchement(models.Model):
 
 class EpTraverse(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.LineStringField(srid=26191, null=True, blank=True)
+    geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
     ep_type = models.CharField(max_length=254, null=True, blank=True)
     ep_longueur = models.FloatField(null=True, blank=True)
@@ -1128,6 +1153,7 @@ class EpTraverse(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
@@ -1145,7 +1171,7 @@ class EpTraverse(models.Model):
 
 class EpPlanche(models.Model):
     fid = models.AutoField(primary_key=True)
-    geom = models.PolygonField(srid=26191, null=True, blank=True)
+    geom = models.PolygonField(srid=26191, dim=3,null=True, blank=True)
     nom = models.CharField(max_length=254, null=True, blank=True)
     code = models.CharField(max_length=254, null=True, blank=True)
     observation = models.CharField(max_length=254, null=True, blank=True)
@@ -1156,6 +1182,7 @@ class EpPlanche(models.Model):
     id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
+    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
 
