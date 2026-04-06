@@ -1922,11 +1922,11 @@ class _PointFormWidgetState extends State<PointFormWidget> {
         key: 'financement',
         autoCapitalize: true,
       ));
-      if (config?.containsKey('typeRealisationOptions') == true) {
+      if (config.containsKey('typeRealisationOptions') == true) {
         fields.add(_buildDropdownField(
           label: 'Type de réalisation',
           hint: 'Sélectionner',
-          options: List<String>.from(config!['typeRealisationOptions']),
+          options: List<String>.from(config['typeRealisationOptions']),
           key: 'type_de_realisation',
         ));
       }

@@ -2020,7 +2020,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     required String? value,
     required List<String> options,
     required Function(String?) onChanged,
-    bool required = false,
   }) {
     final bool isCommuneRurale = label == 'Commune Rurale *';
 
@@ -2163,7 +2162,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
   Widget _buildTimeField({
     required String label,
     required TextEditingController controller,
-    VoidCallback? onTap,
     bool enabled = true,
   }) {
     return Column(

@@ -28,6 +28,7 @@ key.properties
 # Virtual env
 **/env/
 **/venv/
+srmenv/
 
 # Database dumps (trop lourds pour Git)
 *.dump
