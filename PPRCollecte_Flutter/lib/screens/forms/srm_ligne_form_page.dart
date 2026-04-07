@@ -5,6 +5,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -12,6 +13,7 @@ import 'dart:math';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../services/photo_validation_service.dart';
 import '../../services/projection_service.dart';
 
 class SrmLigneFormPage extends StatefulWidget {
@@ -152,7 +154,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
 
   @override
   void dispose() {
-    for (final c in _controllers.values) c.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -178,9 +182,24 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
       ),
     );
     if (source == null) return;
-    final picked = await _picker.pickImage(
-        source: source, imageQuality: 75, maxWidth: 1280);
-    if (picked != null) setState(() => _photoPaths[index] = picked.path);
+    final picked = await _picker.pickImage(source: source);
+    if (picked == null) return;
+
+    try {
+      await PhotoValidationService.validatePickedPhoto(picked);
+    } on PhotoValidationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Photo refusee: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _photoPaths[index] = picked.path);
   }
 
   Future<void> _save() async {
@@ -196,7 +215,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
 
       for (final field in _fields) {
         final val = _controllers[field]?.text.trim();
-        if (val != null && val.isNotEmpty) data[field] = val;
+        if (val != null && val.isNotEmpty) {
+          data[field] = _normalizeFieldValue(field, val);
+        }
       }
 
       // Géométrie : stocker les points JSON
@@ -275,6 +296,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
         field == 'ep_long_c' ||
         field == 'ep_long_r' ||
         field == 'long_troncon';
+    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     final label = _fieldLabel(field);
     final controller = _controllers[field]!;
 
@@ -282,7 +304,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: DropdownButtonFormField<String>(
-          value: controller.text.isEmpty ? null : controller.text,
+          initialValue: controller.text.isEmpty ? null : controller.text,
           decoration: _deco(label),
           isExpanded: true,
           items: _typeOptions
@@ -317,9 +339,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
       child: TextFormField(
         controller: controller,
         decoration: _deco(label),
-        keyboardType: _kbType(field),
-        maxLines:
-            (field == 'commentaire' || field == 'observation') ? 3 : 1,
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        validator: (value) => _validateField(field, value),
       ),
     );
   }
@@ -332,15 +356,96 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
         isDense: true,
       );
 
-  TextInputType _kbType(String field) {
-    final numKeys = [
-      'diam', 'long', 'profondeur', 'aval', 'amont', 'section',
-      'nb_', 'tension', 'pente', 'zamont', 'zaval', 'zalerte',
-    ];
-    for (final k in numKeys) {
-      if (field.contains(k)) return TextInputType.number;
+  TextInputType _kbType(SrmFieldRule rule) {
+    switch (rule.kind) {
+      case SrmFieldKind.integer:
+        return TextInputType.number;
+      case SrmFieldKind.decimal:
+        return const TextInputType.numberWithOptions(decimal: true, signed: true);
+      case SrmFieldKind.date:
+        return TextInputType.datetime;
+      default:
+        return TextInputType.text;
     }
-    return TextInputType.text;
+  }
+
+  List<TextInputFormatter> _inputFormatters(SrmFieldRule rule) {
+    switch (rule.kind) {
+      case SrmFieldKind.integer:
+        return [FilteringTextInputFormatter.allow(RegExp(r'[0-9]'))];
+      case SrmFieldKind.decimal:
+        return [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\-]'))];
+      case SrmFieldKind.date:
+        return [FilteringTextInputFormatter.allow(RegExp(r'[0-9-]'))];
+      case SrmFieldKind.uuid:
+        return [FilteringTextInputFormatter.allow(RegExp(r'[a-fA-F0-9-]'))];
+      default:
+        return const [];
+    }
+  }
+
+  String? _validateField(String field, String? value) {
+    final normalized = (value ?? '').trim();
+    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+
+    if (normalized.isEmpty) {
+      return rule.required ? 'Champ requis' : null;
+    }
+
+    if (rule.maxLength != null && normalized.length > rule.maxLength!) {
+      return 'Maximum ${rule.maxLength} caractères';
+    }
+
+    switch (rule.kind) {
+      case SrmFieldKind.integer:
+        if (int.tryParse(normalized) == null) {
+          return 'Nombre entier attendu';
+        }
+        break;
+      case SrmFieldKind.decimal:
+        if (double.tryParse(normalized.replaceAll(',', '.')) == null) {
+          return 'Nombre décimal attendu';
+        }
+        break;
+      case SrmFieldKind.date:
+        if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(normalized)) {
+          return 'Format attendu : YYYY-MM-DD';
+        }
+        break;
+      case SrmFieldKind.uuid:
+        if (!RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(normalized)) {
+          return 'UUID invalide';
+        }
+        break;
+      case SrmFieldKind.enumValue:
+        if (rule.allowedValues.isNotEmpty &&
+            !rule.allowedValues.contains(normalized)) {
+          return 'Valeur non autorisée';
+        }
+        break;
+      case SrmFieldKind.booleanLike:
+      case SrmFieldKind.text:
+        break;
+    }
+    return null;
+  }
+
+  dynamic _normalizeFieldValue(String field, String value) {
+    final normalized = value.trim();
+    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+
+    switch (rule.kind) {
+      case SrmFieldKind.integer:
+        return int.tryParse(normalized);
+      case SrmFieldKind.decimal:
+        return double.tryParse(normalized.replaceAll(',', '.'));
+      case SrmFieldKind.date:
+      case SrmFieldKind.uuid:
+      case SrmFieldKind.enumValue:
+      case SrmFieldKind.booleanLike:
+      case SrmFieldKind.text:
+        return normalized;
+    }
   }
 
   String _fieldLabel(String field) {
@@ -484,7 +589,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
               title: const Text('Anomalie détectée',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               value: _hasAnomalie,
-              activeColor: Colors.red,
+              activeThumbColor: Colors.red,
               onChanged: (v) => setState(() {
                 _hasAnomalie = v;
                 if (!v) _typeAnomalie = null;
@@ -495,7 +600,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: DropdownButtonFormField<String>(
-                  value: _typeAnomalie,
+                  initialValue: _typeAnomalie,
                   decoration: _deco('Type d\'anomalie'),
                   hint: const Text('Sélectionner'),
                   items: const [
@@ -520,6 +625,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
               Text('Photos (max $_maxPhotos)',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 8),
+              Text(
+                'Formats autorises: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,

@@ -17,7 +17,7 @@ class MapControlsWidget extends StatelessWidget {
   final VoidCallback? onToggleSpecial;
 
   const MapControlsWidget({
-    Key? key,
+    super.key,
     required this.controller,
     required this.onAddPoint,
     required this.onStartLigne,
@@ -31,7 +31,7 @@ class MapControlsWidget extends StatelessWidget {
     this.isPolygonCollection = false,
     required this.onStopSpecial,
     this.onToggleSpecial,
-  }) : super(key: key);
+  });
 
   @override
   @override
@@ -161,13 +161,13 @@ class MapControlsWidget extends StatelessWidget {
     final ligneCollection = controller.ligneCollection;
 
     if (ligneCollection == null || ligneCollection.isInactive) {
-      // Bouton démarrer ligne/piste
+      // Bouton démarrer ligne
       return FloatingActionButton.extended(
         heroTag: "ligneBtn",
         backgroundColor: const Color(0xFF1976D2),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.timeline),
-        label: const Text("Piste"),
+        label: const Text("Ligne"),
         onPressed: onStartLigne,
         elevation: 6,
         highlightElevation: 12,

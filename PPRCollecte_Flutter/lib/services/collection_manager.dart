@@ -4,7 +4,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import '../models/collection_models.dart';
 import 'collection_service.dart';
-import '../data/remote/api_service.dart';
 
 class CollectionManager extends ChangeNotifier {
   final CollectionService _collectionService = CollectionService();

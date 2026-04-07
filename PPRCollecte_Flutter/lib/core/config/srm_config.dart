@@ -348,10 +348,190 @@ class SrmConfig {
   static List<String> getPolygonEntities(String metier) =>
       getEntitiesForMetier(metier).where((e) => isPolygonEntity(metier, e)).toList();
 
+  static const Set<String> _doubleFieldHints = {
+    'accuracy', 'altitude', 'amont', 'aval', 'capacite', 'chute', 'cote',
+    'debit', 'diam', 'distance', 'hauteur', 'largeur', 'long', 'pente',
+    'pression', 'profondeur', 'puissance', 'section', 'tension', 'x_', 'y_',
+    'z_', 'rayon',
+  };
+
+  static const Set<String> _integerFields = {
+    'nb_arrivees_ht', 'nb_depart_mt_dispo', 'nb_depart_mt_en_service',
+    'nb_emplacement_transfo', 'nb_points', 'nb_pompes', 'nb_rames',
+    'nb_transfo_install', 'nbr_arrivees', 'nbr_depart', 'num_transfo',
+  };
+
+  static const Set<String> _dateFields = {
+    'date_collecte', 'date_construction', 'date_mise_en_service',
+    'date_mise_service', 'date_mst', 'date_pose', 'date_rehabilitation',
+  };
+
+  static const Set<String> _longTextFields = {
+    'commentaire', 'observation', 'type_anomalie',
+  };
+
+  static const Set<String> _mediumTextFields = {
+    'emplacement', 'nom', 'nom_poste', 'observation', 'ref_rue',
+  };
+
+  static const Set<String> _uuidFields = {
+    'uuid',
+  };
+
+  static const Set<String> _booleanLikeFields = {
+    'accessibilite', 'anomalie', 'boite_coupure', 'compensation_energie',
+    'compteur_bt', 'compteur_ht', 'compteur_mt', 'detec_extinc_incendie',
+    'lumineux', 'mise_a_la_terre', 'presence_cunette', 'presence_ild',
+    'rehabilitation', 'telecommande', 'verrouille',
+  };
+
+  static const Set<String> _shortCodeHints = {
+    'code', 'depart', 'num', 'numero', 'reference', 'ref_', 'status', 'statut',
+    'tournee', 'type_',
+  };
+
   /// Champs FK communs à tous les objets SRM
   static const List<String> commonFkFields = [
     'uuid', 'id_projet', 'id_agent_crea', 'id_mission',
     'id_planche', 'id_commune', 'mode_localisation',
     'anomalie', 'type_anomalie',
   ];
+
+  static SrmFieldRule getFieldRule(String metier, String entity, String field) {
+    final entityConfig = getEntityConfig(metier, entity) ?? const {};
+    final typeField = entityConfig['typeField']?.toString();
+    final typeOptions = getTypeOptions(metier, entity);
+
+    if (field == typeField && typeOptions.isNotEmpty) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.enumValue,
+        maxLength: 100,
+        required: true,
+        allowedValues: typeOptions,
+      );
+    }
+
+    if (_uuidFields.contains(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.uuid,
+        maxLength: 36,
+        readOnly: true,
+      );
+    }
+
+    if (_dateFields.contains(field) || field.startsWith('date_')) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.date,
+        maxLength: 10,
+      );
+    }
+
+    if (_booleanLikeFields.contains(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.booleanLike,
+        maxLength: 5,
+      );
+    }
+
+    if (_isIntegerField(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.integer,
+        maxLength: 10,
+      );
+    }
+
+    if (_isDoubleField(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.decimal,
+        maxLength: 20,
+      );
+    }
+
+    if (_longTextFields.contains(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: 500,
+        multiline: true,
+      );
+    }
+
+    if (_mediumTextFields.contains(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: 150,
+      );
+    }
+
+    if (_hasAnyHint(field, _shortCodeHints)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: 100,
+      );
+    }
+
+    return const SrmFieldRule(
+      kind: SrmFieldKind.text,
+      maxLength: 254,
+    );
+  }
+
+  static bool _isIntegerField(String field) {
+    return field.startsWith('nb_') ||
+        field.startsWith('nbr_') ||
+        _integerFields.contains(field);
+  }
+
+  static bool _isDoubleField(String field) {
+    if (field.endsWith('_coor_x') ||
+        field.endsWith('_coor_y') ||
+        field.endsWith('_coor_z') ||
+        field.startsWith('x_') ||
+        field.startsWith('y_') ||
+        field.startsWith('z_') ||
+        field.startsWith('lat_') ||
+        field.startsWith('lon_')) {
+      return true;
+    }
+    return _hasAnyHint(field, _doubleFieldHints);
+  }
+
+  static bool _hasAnyHint(String field, Set<String> hints) {
+    for (final hint in hints) {
+      if (field.contains(hint)) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+enum SrmFieldKind {
+  text,
+  integer,
+  decimal,
+  date,
+  uuid,
+  enumValue,
+  booleanLike,
+}
+
+class SrmFieldRule {
+  final SrmFieldKind kind;
+  final int? maxLength;
+  final bool required;
+  final bool multiline;
+  final bool readOnly;
+  final List<String> allowedValues;
+
+  const SrmFieldRule({
+    required this.kind,
+    this.maxLength,
+    this.required = false,
+    this.multiline = false,
+    this.readOnly = false,
+    this.allowedValues = const [],
+  });
+
+  bool get isNumeric =>
+      kind == SrmFieldKind.integer || kind == SrmFieldKind.decimal;
 }

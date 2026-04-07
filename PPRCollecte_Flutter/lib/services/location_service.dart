@@ -1,11 +1,9 @@
-// lib/services/location_service.dart
-// ── SPRINT 3 : LocationService avec transformation temps réel WGS84 → Merchich Nord ──
-
 import 'dart:async';
+
 import 'package:location/location.dart';
+
 import 'projection_service.dart';
 
-/// Position GPS enrichie avec coordonnées Merchich Nord
 class EnrichedLocation {
   final LocationData raw;
   final double merchichX;
@@ -27,12 +25,28 @@ class EnrichedLocation {
 class LocationService {
   final Location _location = Location();
   final ProjectionService _projection = ProjectionService();
+  final StreamController<LocationData> _locationStreamController =
+      StreamController<LocationData>.broadcast();
+
+  StreamSubscription<LocationData>? _deviceLocationSubscription;
+  bool _mockLocationEnabled = false;
+  LocationData? _lastMockLocation;
+
+  LocationService() {
+    _deviceLocationSubscription = _location.onLocationChanged.listen((loc) {
+      if (!_mockLocationEnabled && !_locationStreamController.isClosed) {
+        _locationStreamController.add(loc);
+      }
+    });
+  }
 
   Future<bool> requestPermissionAndService() async {
     bool serviceEnabled = await _location.serviceEnabled();
     if (!serviceEnabled) {
       serviceEnabled = await _location.requestService();
-      if (!serviceEnabled) return false;
+      if (!serviceEnabled) {
+        return false;
+      }
     }
 
     PermissionStatus permission = await _location.hasPermission();
@@ -50,40 +64,82 @@ class LocationService {
         interval: 1000,
         distanceFilter: 0,
       );
-    } catch (e) {
-      // Certaines versions ne supportent pas changeSettings
+    } catch (_) {
+      // Certaines versions du plugin ne supportent pas changeSettings.
     }
 
     try {
       await _location.enableBackgroundMode(enable: true);
-      print('✅ Background mode activé');
-    } catch (e) {
-      print('⚠️ Impossible d\'activer le background mode: $e');
+    } catch (_) {
+      // Le mode background n'est pas critique pour les tests.
     }
 
     return true;
   }
 
-  Future<LocationData> getCurrent() => _location.getLocation();
+  bool get isMockLocationEnabled => _mockLocationEnabled;
+  LocationData? get lastMockLocation => _lastMockLocation;
+
+  Future<LocationData> getCurrent() async {
+    if (_mockLocationEnabled && _lastMockLocation != null) {
+      return _lastMockLocation!;
+    }
+    return _location.getLocation();
+  }
 
   Future<EnrichedLocation> getCurrentEnriched() async {
-    final loc = await _location.getLocation();
+    final loc = await getCurrent();
     return _enrichLocation(loc);
   }
 
-  Stream<LocationData> onLocationChanged() => _location.onLocationChanged;
+  Stream<LocationData> onLocationChanged() => _locationStreamController.stream;
 
-  /// Stream enrichi : chaque position GPS est transformée en Merchich Nord
   Stream<EnrichedLocation> onEnrichedLocationChanged() {
-    return _location.onLocationChanged.map(_enrichLocation);
+    return onLocationChanged().map(_enrichLocation);
+  }
+
+  void setMockLocation({
+    required double latitude,
+    required double longitude,
+    double accuracy = 1.0,
+    double altitude = 0.0,
+    double speed = 0.0,
+  }) {
+    _mockLocationEnabled = true;
+    _lastMockLocation = LocationData.fromMap({
+      'latitude': latitude,
+      'longitude': longitude,
+      'accuracy': accuracy,
+      'altitude': altitude,
+      'speed': speed,
+      'time': DateTime.now().millisecondsSinceEpoch.toDouble(),
+    });
+  }
+
+  Future<void> clearMockLocation() async {
+    _mockLocationEnabled = false;
+    _lastMockLocation = null;
   }
 
   EnrichedLocation _enrichLocation(LocationData loc) {
     final lat = loc.latitude ?? 0.0;
     final lon = loc.longitude ?? 0.0;
-    final m = _projection.wgs84ToMerchich(longitude: lon, latitude: lat);
-    return EnrichedLocation(raw: loc, merchichX: m.x, merchichY: m.y);
+    final merchich = _projection.wgs84ToMerchich(
+      longitude: lon,
+      latitude: lat,
+    );
+
+    return EnrichedLocation(
+      raw: loc,
+      merchichX: merchich.x,
+      merchichY: merchich.y,
+    );
   }
 
   ProjectionService get projection => _projection;
+
+  Future<void> dispose() async {
+    await _deviceLocationSubscription?.cancel();
+    await _locationStreamController.close();
+  }
 }

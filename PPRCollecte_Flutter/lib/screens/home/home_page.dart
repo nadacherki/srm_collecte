@@ -53,12 +53,10 @@ import '../../models/collection_models.dart';
 // ============================================================
 import '../auth/login_page.dart';
 import '../data/data_categories_page.dart';
-import '../forms/point_form_screen.dart';
 import '../forms/special_line_form_page.dart';
 import '../forms/formulaire_ligne_page.dart';
 import '../forms/formulaire_chaussee_page.dart';
 import '../forms/polygon_form_page.dart';
-import 'package:flutter_map/flutter_map.dart' show Polygon;
 import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 
@@ -140,8 +138,8 @@ class _HomePageState extends State<HomePage> {
   int _syncTotalItems = 0;
   int _syncProcessedItems = 0;
   List<Marker> _displayedPointsMarkers = [];
-  List<Marker> _focusOverlayMarkers = [];
-  List<Polyline> _focusOverlayPolylines = [];
+  final List<Marker> _focusOverlayMarkers = [];
+  final List<Polyline> _focusOverlayPolylines = [];
   String? _currentNearestPisteCode;
   Map<String, dynamic>? _continuationData;
   bool _isSpecialCollection = false;
@@ -174,7 +172,7 @@ class _HomePageState extends State<HomePage> {
   final DownloadedPistesService _downloadedPistesService = DownloadedPistesService();
   List<Polyline> _downloadedPistesPolylines = [];
   bool _showDownloadedPistes = true; // comme pour les points
-  DownloadedChausseesService _downloadedChausseesService = DownloadedChausseesService();
+  final DownloadedChausseesService _downloadedChausseesService = DownloadedChausseesService();
   List<Polyline> _downloadedChausseesPolylines = [];
   bool _showDownloadedChaussees = true;
   bool get _autoCenterSuspended => _autoCenterDisabledByUser || (_suspendAutoCenterUntil != null && DateTime.now().isBefore(_suspendAutoCenterUntil!));
@@ -497,7 +495,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 12),
               Text(
-                '${safe(specialType)}',
+                safe(specialType),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
@@ -1098,7 +1096,7 @@ class _HomePageState extends State<HomePage> {
             color: homeController.ligneCollection!.isPaused ? Colors.orange : Colors.green,
             strokeWidth: 4.0,
             pattern: homeController.ligneCollection!.isPaused
-                ? StrokePattern.dashed(segments: [
+                ? StrokePattern.dashed(segments: const [
                     10,
                     5
                   ])
@@ -1118,7 +1116,7 @@ class _HomePageState extends State<HomePage> {
             color: homeController.chausseeCollection!.isPaused ? Colors.deepOrange : const Color(0xFFFF9800),
             strokeWidth: 5.0,
             pattern: homeController.chausseeCollection!.isPaused
-                ? StrokePattern.dashed(segments: [
+                ? StrokePattern.dashed(segments: const [
                     15,
                     5
                   ])
@@ -1155,7 +1153,7 @@ class _HomePageState extends State<HomePage> {
               color: specialColor,
               strokeWidth: 5.0,
               pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: [
+                  ? StrokePattern.dashed(segments: const [
                       10,
                       5
                     ])
@@ -1441,7 +1439,7 @@ class _HomePageState extends State<HomePage> {
         points: target.polyline!,
         color: Colors.purpleAccent,
         strokeWidth: 6.0,
-        pattern: StrokePattern.dashed(segments: [
+        pattern: StrokePattern.dashed(segments: const [
           12,
           6
         ]),
@@ -1848,54 +1846,117 @@ class _HomePageState extends State<HomePage> {
     try {
       final db = await DatabaseHelper().database;
       final loginId = await DatabaseHelper().resolveLoginId();
+      final List<Polygon> mapPolygons = [];
 
-      // ✅ CORRECTION: Filtrer par utilisateur (même logique que les autres données)
-      final polygons = await db.query(
+      final legacyPolygons = await db.query(
         'enquete_polygone',
         where: '(login_id = ? OR saved_by_user_id = ?)',
-        whereArgs: [
-          loginId,
-          loginId
-        ],
+        whereArgs: [loginId, loginId],
       );
 
-      List<Polygon> mapPolygons = [];
-      for (var poly in polygons) {
-        final pointsJson = poly['points_json'] as String?;
-        if (pointsJson != null && pointsJson.isNotEmpty) {
-          try {
-            final List<dynamic> coords = jsonDecode(pointsJson);
-            final List<LatLng> points = coords.map<LatLng>((c) {
-              if (c is List && c.length >= 2) {
-                return LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
-              }
-              return LatLng(0, 0);
-            }).toList();
+      for (final poly in legacyPolygons) {
+        final points = _extractPolygonPoints(poly['points_json']);
+        if (points.length < 3) continue;
 
-            if (points.length >= 3) {
-              mapPolygons.add(Polygon(
-                points: points,
-                color: const Color(0xFF4CAF50).withOpacity(0.3),
-                borderColor: const Color(0xFF2E7D32),
-                borderStrokeWidth: 2.0,
-                isFilled: true,
-                hitValue: PolygonTapData(
-                  nom: poly['nom']?.toString() ?? '----',
-                  codePiste: poly['code_piste']?.toString() ?? '----',
-                  superficie: (poly['superficie_en_ha'] as num?)?.toDouble() ?? 0.0,
-                  nbSommets: points.length,
-                  enqueteur: poly['enqueteur']?.toString() ?? '',
-                  dateCreation: poly['date_creation']?.toString() ?? '----',
-                  synced: poly['synced'] == 1,
-                  downloaded: poly['downloaded'] == 1,
-                  regionName: poly['region_name']?.toString() ?? '',
-                  prefectureName: poly['prefecture_name']?.toString() ?? '',
-                  communeName: poly['commune_name']?.toString() ?? '',
+        mapPolygons.add(
+          Polygon(
+            points: points,
+            color: const Color(0xFF4CAF50).withOpacity(0.3),
+            borderColor: const Color(0xFF2E7D32),
+            borderStrokeWidth: 2.0,
+            isFilled: true,
+            hitValue: PolygonTapData(
+              nom: poly['nom']?.toString() ?? '----',
+              codePiste: poly['code_piste']?.toString() ?? '----',
+              superficie:
+                  (poly['superficie_en_ha'] as num?)?.toDouble() ?? 0.0,
+              nbSommets: points.length,
+              enqueteur: poly['enqueteur']?.toString() ?? '',
+              dateCreation: poly['date_creation']?.toString() ?? '----',
+              synced: poly['synced'] == 1,
+              downloaded: poly['downloaded'] == 1,
+              regionName: poly['region_name']?.toString() ?? '',
+              prefectureName: poly['prefecture_name']?.toString() ?? '',
+              communeName: poly['commune_name']?.toString() ?? '',
+            ),
+          ),
+        );
+      }
+
+      for (final metier in SrmConfig.getMetiers()) {
+        for (final entity in SrmConfig.getPolygonEntities(metier)) {
+          final tableName = SrmConfig.getTableName(metier, entity);
+          if (tableName == null || tableName.isEmpty) continue;
+
+          try {
+            final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+            final availableColumns = columns
+                .map((row) => (row['name'] ?? '').toString())
+                .where((name) => name.isNotEmpty)
+                .toSet();
+
+            final filters = <String>[];
+            final args = <dynamic>[];
+
+            if (loginId != null) {
+              for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
+                if (availableColumns.contains(column)) {
+                  filters.add('$column = ?');
+                  args.add(loginId);
+                }
+              }
+            }
+
+            if (ApiService.currentProjetId != null &&
+                availableColumns.contains('id_projet')) {
+              filters.add('id_projet = ?');
+              args.add(ApiService.currentProjetId);
+            }
+
+            final rows = await db.query(
+              tableName,
+              where: filters.isEmpty ? null : filters.join(' OR '),
+              whereArgs: args,
+            );
+
+            for (final poly in rows) {
+              final points = _extractPolygonPoints(poly['points_json']);
+              if (points.length < 3) continue;
+
+              mapPolygons.add(
+                Polygon(
+                  points: points,
+                  color: Color(SrmConfig.getMetierColor(metier)).withOpacity(0.25),
+                  borderColor: Color(SrmConfig.getMetierColor(metier)),
+                  borderStrokeWidth: 2.0,
+                  isFilled: true,
+                  hitValue: PolygonTapData(
+                    nom: poly['nom']?.toString() ??
+                        poly['ep_num']?.toString() ??
+                        entity,
+                    codePiste: poly['code_piste']?.toString() ?? '----',
+                    superficie:
+                        (poly['superficie_ha'] as num?)?.toDouble() ??
+                            (poly['superficie_en_ha'] as num?)?.toDouble() ??
+                            0.0,
+                    nbSommets: points.length,
+                    enqueteur: poly['enqueteur']?.toString() ??
+                        ApiService.nomPrenom ??
+                        '',
+                    dateCreation: poly['date_collecte']?.toString() ??
+                        poly['date_creation']?.toString() ??
+                        '----',
+                    synced: poly['synced'] == 1,
+                    downloaded: poly['downloaded'] == 1,
+                    regionName: poly['region_name']?.toString() ?? '',
+                    prefectureName: poly['prefecture_name']?.toString() ?? '',
+                    communeName: poly['commune_name']?.toString() ?? '',
+                  ),
                 ),
-              ));
+              );
             }
           } catch (e) {
-            print('❌ Erreur parsing polygone: $e');
+            print('❌ Erreur chargement polygone SRM $tableName: $e');
           }
         }
       }
@@ -1911,55 +1972,89 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  List<LatLng> _extractPolygonPoints(dynamic rawPoints) {
+    if (rawPoints == null) return [];
+
+    try {
+      final dynamic decoded =
+          rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
+      if (decoded is! List) return [];
+
+      final points = <LatLng>[];
+      for (final item in decoded) {
+        if (item is List && item.length >= 2) {
+          final lng = item[0];
+          final lat = item[1];
+          if (lng is num && lat is num) {
+            points.add(LatLng(lat.toDouble(), lng.toDouble()));
+          }
+        } else if (item is Map) {
+          final lat = item['lat'] ?? item['latitude'];
+          final lng = item['lon'] ?? item['lng'] ?? item['longitude'];
+          if (lat is num && lng is num) {
+            points.add(LatLng(lat.toDouble(), lng.toDouble()));
+          }
+        }
+      }
+
+      if (points.length >= 2 && points.first == points.last) {
+        return points.sublist(0, points.length - 1);
+      }
+      return points;
+    } catch (_) {
+      return [];
+    }
+  }
+
   StrokePattern? getChausseePattern(String type) {
     switch (type.toLowerCase()) {
       case 'asphalte':
       case 'bitume':
         return null;
       case 'terre':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           8,
           4,
           20,
           4
         ]);
       case 'latérite':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           15,
           8
         ]);
       case 'bouwal':
       case 'bowal':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           12,
           6
         ]);
       case 'déviation':
       case 'deviation':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           15,
           5,
           5,
           5
         ]);
       case 'coupure':
-        return StrokePattern.dotted(spacingFactor: 1.2);
+        return const StrokePattern.dotted(spacingFactor: 1.2);
       case 'submersible':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           6,
           3,
           6,
           3
         ]);
       case 'col':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           20,
           5
         ]);
       case 'béton':
-        return StrokePattern.dotted(spacingFactor: 1.5);
+        return const StrokePattern.dotted(spacingFactor: 1.5);
       case 'pavée':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           10,
           5
         ]);
@@ -2073,7 +2168,7 @@ class _HomePageState extends State<HomePage> {
         '${now.millisecond.toString().padLeft(3, '0')}';
 
     // helper: convertir n’importe quoi en int (int/string) avec 0 par défaut
-    int _toInt(dynamic v) {
+    int toInt(dynamic v) {
       if (v == null) return 0;
       if (v is int) return v;
       if (v is String) return int.tryParse(v) ?? 0;
@@ -2102,7 +2197,6 @@ class _HomePageState extends State<HomePage> {
   }*/
 
   Future<void> _loadDisplayedPoints() async {
-    // AJOUTEZ CE DEBUG pour voir QUI appelle
     print(
       '🛑 _loadDisplayedPoints appelée par:',
     );
@@ -2124,6 +2218,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
+      final Map<String, List<Marker>> callbackByTable = {};
       final markers = await _pointsService.getDisplayedPointsMarkers(
         onTapDetails: (data) {
           _suspendAutoCenterFor(const Duration(seconds: 10));
@@ -2141,10 +2236,21 @@ class _HomePageState extends State<HomePage> {
             statut: (data['synced'].toString() == '1') ? 'Synchronisée' : 'Enregistrée localement',
           );
         },
+        onMarkerCreated: (tableName, marker) {
+          callbackByTable.putIfAbsent(tableName, () => []);
+          callbackByTable[tableName]!.add(marker);
+        },
       );
       // ⭐⭐ FILTRER SEULEMENT LES MARQUEURS VALIDES ⭐⭐
       final dbHelper = DatabaseHelper();
-      final existingPoints = <Map<String, dynamic>>[];  // Sprint 4: table supprimée
+      final existingPoints = callbackByTable.entries
+          .expand((entry) => entry.value.map((marker) => {
+                'original_table': entry.key,
+                'latitude': marker.point.latitude,
+                'longitude': marker.point.longitude,
+                'id': '${entry.key}_${marker.point.latitude}_${marker.point.longitude}',
+              }))
+          .toList();
       final existingKeys = existingPoints.map((p) {
         final t = (p['original_table'] ?? '').toString();
         final i = p['id'];
@@ -2155,7 +2261,7 @@ class _HomePageState extends State<HomePage> {
       final existingPositions = existingPoints.map((p) {
         final lat = (p['latitude'] as num).toDouble();
         final lng = (p['longitude'] as num).toDouble();
-        return '${lat}_${lng}';
+        return '${lat}_$lng';
       }).toSet();
 
 // Filtrer les markers dont la position existe encore
@@ -2182,7 +2288,7 @@ class _HomePageState extends State<HomePage> {
       for (var point in existingPoints) {
         final lat = (point['latitude'] as num).toDouble();
         final lng = (point['longitude'] as num).toDouble();
-        final posKey = '${lat}_${lng}';
+        final posKey = '${lat}_$lng';
         pointsByPosition.putIfAbsent(posKey, () => []);
         pointsByPosition[posKey]!.add(point);
       }
@@ -2225,7 +2331,18 @@ class _HomePageState extends State<HomePage> {
       final db = await DatabaseHelper().database;
       final loginId = await DatabaseHelper().resolveLoginId(); // ✅ AJOUT
       final Map<String, int> counts = {};
-      final tables = [
+      final tables = <String>{};
+
+      for (final metier in SrmConfig.getMetiers()) {
+        for (final entity in SrmConfig.getPointEntities(metier)) {
+          final tableName = SrmConfig.getTableName(metier, entity);
+          if (tableName != null && tableName.isNotEmpty) {
+            tables.add(tableName);
+          }
+        }
+      }
+
+      /*final tables = [
         'localites',
         'ecoles',
         'marches',
@@ -2239,16 +2356,39 @@ class _HomePageState extends State<HomePage> {
         'points_critiques',
         'points_coupures',
         'site_enquete',
-      ];
+      ];*/
 
       for (var table in tables) {
         try {
+          final columns = await db.rawQuery('PRAGMA table_info($table)');
+          final availableColumns = columns
+              .map((row) => (row['name'] ?? '').toString())
+              .where((name) => name.isNotEmpty)
+              .toSet();
+
+          final filters = <String>[];
+          final args = <dynamic>[];
+
+          if (loginId != null) {
+            for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
+              if (availableColumns.contains(column)) {
+                filters.add('$column = ?');
+                args.add(loginId);
+              }
+            }
+          }
+
+          if (ApiService.currentProjetId != null &&
+              availableColumns.contains('id_projet')) {
+            filters.add('id_projet = ?');
+            args.add(ApiService.currentProjetId);
+          }
+
+          final whereClause =
+              filters.isEmpty ? '' : ' WHERE ${filters.join(' OR ')}';
           final result = await db.rawQuery(
-            'SELECT COUNT(*) as c FROM $table WHERE login_id = ? OR saved_by_user_id = ?',
-            [
-              loginId,
-              loginId
-            ],
+            'SELECT COUNT(*) as c FROM $table$whereClause',
+            args,
           );
           counts[table] = result.first['c'] as int? ?? 0;
         } catch (_) {
@@ -2753,12 +2893,12 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Row(
+        title: const Row(
           children: [
-            Icon(Icons.add_road, color: const Color(0xFF1976D2), size: 28),
-            const SizedBox(width: 10),
+            Icon(Icons.add_road, color: Color(0xFF1976D2), size: 28),
+            SizedBox(width: 10),
             Expanded(
-              child: Text('Continuer la piste', style: const TextStyle(fontSize: 17)),
+              child: Text('Continuer la piste', style: TextStyle(fontSize: 17)),
             ),
           ],
         ),
@@ -3490,7 +3630,7 @@ class _HomePageState extends State<HomePage> {
             points: pts,
             color: Color(row['color'] as int),
             strokeWidth: 5.0,
-            pattern: StrokePattern.dotted(spacingFactor: 2.0),
+            pattern: const StrokePattern.dotted(spacingFactor: 2.0),
             hitValue: PolylineTapData(
               type: 'piste_local',
               data: {
@@ -3813,7 +3953,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               Icon(titleIcon, color: titleColor, size: 28),
               const SizedBox(width: 10),
-              Expanded(child: Text(title, style: TextStyle(fontSize: 18))),
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 18))),
             ],
           ),
           content: SingleChildScrollView(
@@ -4293,6 +4433,285 @@ class _HomePageState extends State<HomePage> {
         );
   }
 
+  Future<void> _showMockLocationDialog() async {
+    final initialPosition = homeController.mockPosition ?? homeController.userPosition;
+    final latitudeController = TextEditingController(
+      text: initialPosition.latitude.toStringAsFixed(6),
+    );
+    final longitudeController = TextEditingController(
+      text: initialPosition.longitude.toStringAsFixed(6),
+    );
+
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Position GPS mock'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: latitudeController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Latitude',
+                    hintText: 'Ex: 33.573110',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: longitudeController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Longitude',
+                    hintText: 'Ex: -7.589843',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              if (homeController.isMockLocationEnabled)
+                TextButton(
+                  onPressed: () async {
+                    Navigator.of(dialogContext).pop();
+                    await Future<void>.delayed(Duration.zero);
+                    if (!mounted) return;
+                    await homeController.clearMockPosition();
+                    final restoredPosition = homeController.userPosition;
+                    if (_mapController != null) {
+                      _mapController!.move(restoredPosition, 17);
+                      _lastCameraPosition = restoredPosition;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Mock GPS désactivé'),
+                        backgroundColor: Colors.blueGrey,
+                      ),
+                    );
+                  },
+                  child: const Text('Revenir au GPS réel'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final lat = double.tryParse(
+                    latitudeController.text.trim().replaceAll(',', '.'),
+                  );
+                  final lon = double.tryParse(
+                    longitudeController.text.trim().replaceAll(',', '.'),
+                  );
+
+                  if (lat == null || lon == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Latitude ou longitude invalide'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  try {
+                    Navigator.of(dialogContext).pop();
+                    await Future<void>.delayed(Duration.zero);
+                    if (!mounted) return;
+                    homeController.setMockPosition(
+                      latitude: lat,
+                      longitude: lon,
+                    );
+                    final mockPosition = LatLng(lat, lon);
+                    if (_mapController != null) {
+                      _mapController!.move(mockPosition, 17);
+                      _lastCameraPosition = mockPosition;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Mock GPS appliqué: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
+                        ),
+                        backgroundColor: Colors.teal,
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(e.toString()),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Appliquer'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      latitudeController.dispose();
+      longitudeController.dispose();
+    }
+  }
+
+  Future<void> _showMockLocationDialogSafe() async {
+    final initialPosition = homeController.mockPosition ?? homeController.userPosition;
+    final latitudeController = TextEditingController(
+      text: initialPosition.latitude.toStringAsFixed(6),
+    );
+    final longitudeController = TextEditingController(
+      text: initialPosition.longitude.toStringAsFixed(6),
+    );
+
+    try {
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Position GPS mock'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: latitudeController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Latitude',
+                    hintText: 'Ex: 33.573110',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: longitudeController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Longitude',
+                    hintText: 'Ex: -7.589843',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              if (homeController.isMockLocationEnabled)
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop({
+                    'action': 'clear',
+                  }),
+                  child: const Text('Revenir au GPS reel'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop({
+                    'action': 'apply',
+                    'lat': double.tryParse(
+                      latitudeController.text.trim().replaceAll(',', '.'),
+                    ),
+                    'lon': double.tryParse(
+                      longitudeController.text.trim().replaceAll(',', '.'),
+                    ),
+                  });
+                },
+                child: const Text('Appliquer'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (!mounted || result == null) return;
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (!mounted) return;
+
+      final action = (result['action'] ?? '').toString();
+
+      if (action == 'clear') {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+
+          await homeController.clearMockPosition();
+          final restoredPosition = homeController.userPosition;
+          if (_mapController != null) {
+            _mapController!.move(restoredPosition, 17);
+            _lastCameraPosition = restoredPosition;
+          }
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Mock GPS desactive'),
+              backgroundColor: Colors.blueGrey,
+            ),
+          );
+        });
+        return;
+      }
+
+      final lat = result['lat'] as double?;
+      final lon = result['lon'] as double?;
+
+      if (lat == null || lon == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Latitude ou longitude invalide'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      try {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+
+          homeController.setMockPosition(
+            latitude: lat,
+            longitude: lon,
+          );
+          final mockPosition = LatLng(lat, lon);
+          if (_mapController != null) {
+            _mapController!.move(mockPosition, 17);
+            _lastCameraPosition = mockPosition;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Mock GPS applique: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
+              ),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        });
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {}
+  }
+
   @override
   void dispose() {
     homeController.dispose();
@@ -4325,7 +4744,7 @@ class _HomePageState extends State<HomePage> {
           color: currentStep == "Pistes" ? Colors.grey : Colors.green,
           size: 16,
         ),
-        SizedBox(
+        const SizedBox(
           width: 4,
         ),
         Text(
@@ -4335,7 +4754,7 @@ class _HomePageState extends State<HomePage> {
             fontWeight: currentStep == "Pistes" ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        SizedBox(
+        const SizedBox(
           width: 12,
         ),
         Icon(
@@ -4347,7 +4766,7 @@ class _HomePageState extends State<HomePage> {
                   : Colors.green,
           size: 16,
         ),
-        SizedBox(
+        const SizedBox(
           width: 4,
         ),
         Text(
@@ -4361,7 +4780,7 @@ class _HomePageState extends State<HomePage> {
             fontWeight: currentStep == "Chaussées" ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        SizedBox(
+        const SizedBox(
           width: 12,
         ),
         Icon(
@@ -4369,7 +4788,7 @@ class _HomePageState extends State<HomePage> {
           color: currentStep == "Points d'intérêt" ? Colors.grey : Colors.green,
           size: 16,
         ),
-        SizedBox(
+        const SizedBox(
           width: 4,
         ),
         Text(
@@ -4386,10 +4805,10 @@ class _HomePageState extends State<HomePage> {
   // Ajoutez cette méthode
   Widget _buildSyncProgressIndicator() {
     return Container(
-      padding: EdgeInsets.all(
+      padding: const EdgeInsets.all(
         16,
       ),
-      margin: EdgeInsets.symmetric(
+      margin: const EdgeInsets.symmetric(
         horizontal: 20,
       ),
       decoration: BoxDecoration(
@@ -4400,7 +4819,7 @@ class _HomePageState extends State<HomePage> {
         border: Border.all(
           color: Colors.orange[100]!,
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black26,
             blurRadius: 10,
@@ -4411,7 +4830,7 @@ class _HomePageState extends State<HomePage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(
                 Icons.cloud_upload,
@@ -4428,17 +4847,17 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          SizedBox(
+          const SizedBox(
             height: 12,
           ),
           LinearProgressIndicator(
             value: _syncProgressValue,
             backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
+            valueColor: const AlwaysStoppedAnimation<Color>(
               Colors.orange,
             ),
           ),
-          SizedBox(
+          const SizedBox(
             height: 8,
           ),
           Row(
@@ -4452,7 +4871,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          SizedBox(
+          const SizedBox(
             height: 8,
           ),
           Text(
@@ -4464,7 +4883,7 @@ class _HomePageState extends State<HomePage> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(
+          const SizedBox(
             height: 8,
           ),
           // Ajouter des indicateurs d'étapes
@@ -4615,7 +5034,7 @@ class _HomePageState extends State<HomePage> {
               color: specialColor,
               strokeWidth: 5.0,
               pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: [
+                  ? StrokePattern.dashed(segments: const [
                       10,
                       5
                     ])
@@ -4650,7 +5069,7 @@ class _HomePageState extends State<HomePage> {
             color: homeController.ligneCollection!.isPaused ? Colors.orange : Colors.green,
             strokeWidth: 4.0,
             pattern: homeController.ligneCollection!.isPaused
-                ? StrokePattern.dashed(segments: [
+                ? StrokePattern.dashed(segments: const [
                     10,
                     5
                   ])
@@ -4670,7 +5089,7 @@ class _HomePageState extends State<HomePage> {
             color: homeController.chausseeCollection!.isPaused ? Colors.deepOrange : const Color(0xFFFF9800),
             strokeWidth: 5.0,
             pattern: homeController.chausseeCollection!.isPaused
-                ? StrokePattern.dashed(segments: [
+                ? StrokePattern.dashed(segments: const [
                     15,
                     5
                   ])
@@ -4747,6 +5166,27 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
 
+                  Positioned(
+                    bottom: 280,
+                    right: 16,
+                    child: Visibility(
+                      visible: kDebugMode,
+                      child: FloatingActionButton(
+                        onPressed: _showMockLocationDialogSafe,
+                        backgroundColor: homeController.isMockLocationEnabled
+                            ? Colors.teal
+                            : Colors.blueGrey,
+                        mini: true,
+                        heroTag: 'mock_gps_button',
+                        child: Icon(
+                          homeController.isMockLocationEnabled
+                              ? Icons.gps_fixed
+                              : Icons.edit_location_alt,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                   // === AJOUTEZ ICI === //
                   Positioned(
                     bottom: 200,
@@ -4755,13 +5195,13 @@ class _HomePageState extends State<HomePage> {
                       visible: kDebugMode && homeController.hasActiveCollection,
                       child: FloatingActionButton(
                         onPressed: () {
-                          homeController.addRealisticPisteSimulation();
+                          homeController.addRealisticLineSimulation();
                           ScaffoldMessenger.of(
                             context,
                           ).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Points réalistes simulés',
+                                'Ligne simulée autour de la position courante',
                               ), // ← MESSAGE MODIFIÉ
                               backgroundColor: Colors.blue,
                               duration: Duration(
@@ -4771,12 +5211,12 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                         backgroundColor: Colors.orange,
+                        mini: true,
+                        heroTag: 'dev_button',
                         child: const Icon(
                           Icons.add_location_alt,
                           color: Colors.white,
                         ),
-                        mini: true,
-                        heroTag: 'dev_button',
                       ),
                     ),
                   ),
@@ -4804,12 +5244,12 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                         backgroundColor: Colors.purple,
+                        mini: true,
+                        heroTag: 'simulate_special_button',
                         child: const Icon(
                           Icons.add_road,
                           color: Colors.white,
                         ),
-                        mini: true,
-                        heroTag: 'simulate_special_button',
                       ),
                     ),
                   ),
@@ -4985,18 +5425,18 @@ class _HomePageState extends State<HomePage> {
                       left: 0,
                       right: 0,
                       child: AnimatedSlide(
-                        duration: Duration(
+                        duration: const Duration(
                           milliseconds: 300,
                         ),
                         curve: Curves.easeOut,
                         offset: isSyncing
                             ? Offset.zero
-                            : Offset(
+                            : const Offset(
                                 0,
                                 -1,
                               ),
                         child: AnimatedOpacity(
-                          duration: Duration(
+                          duration: const Duration(
                             milliseconds: 300,
                           ),
                           opacity: isSyncing ? 1.0 : 0.0,
@@ -5204,9 +5644,9 @@ class DownloadedPistesService {
       for (final r in pistes) {
         final pj = r['points_json'];
         final g = r['geom'];
-        if (pj is String && pj.trim().isNotEmpty)
+        if (pj is String && pj.trim().isNotEmpty) {
           withPointsJson++;
-        else if (g != null && g.toString().trim().startsWith('{'))
+        } else if (g != null && g.toString().trim().startsWith('{'))
           withGeom++;
         else
           unusable++;
@@ -5227,7 +5667,7 @@ class DownloadedPistesService {
         final pointsJson = row['points_json'];
         if (pointsJson is String && pointsJson.trim().isNotEmpty) {
           // debug: petit aperçu
-          final preview = pointsJson.length > 120 ? pointsJson.substring(0, 120) + '…' : pointsJson;
+          final preview = pointsJson.length > 120 ? '${pointsJson.substring(0, 120)}…' : pointsJson;
           print('🔤 [DL-PISTE:$id] $code -> points_json len=${pointsJson.length} preview="$preview"');
 
           try {
@@ -5279,7 +5719,7 @@ class DownloadedPistesService {
           points: points,
           color: downloadedPisteColor,
           strokeWidth: 5.0,
-          pattern: StrokePattern.dotted(spacingFactor: 2.0),
+          pattern: const StrokePattern.dotted(spacingFactor: 2.0),
 
           // ✅ AJOUT IMPORTANT
           hitValue: PolylineTapData(
@@ -5459,7 +5899,7 @@ class DownloadedChausseesService {
         final helper = SimpleStorageHelper();
         final color = helper.getChausseeColor(type); // mapping déjà présent chez toi
         final pattern = helper.getChausseePattern(type); // idem
-        final width = 6;
+        const width = 6;
         final distanceKm = _polylineDistanceKm(pts);
 
         final pl = Polyline(

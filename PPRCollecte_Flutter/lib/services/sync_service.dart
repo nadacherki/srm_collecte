@@ -283,7 +283,7 @@ class SyncService {
         // avec un code_piste vide → le serveur attribuera la piste la plus proche
         if (tableName == 'pistes') {
           if (codePiste == null || codePiste.isEmpty || codePiste == 'Non spécifié' || codePiste == 'Non spÃ©cifiÃ©') {
-            print('⏭️ Skipping ${tableName} ID ${data['id']} - code_piste invalide: "$codePiste"');
+            print('⏭️ Skipping $tableName ID ${data['id']} - code_piste invalide: "$codePiste"');
             result.failedCount++;
             result.errors.add('$tableName ID ${data['id']}: code_piste invalide');
             continue;
@@ -291,7 +291,7 @@ class SyncService {
         } else {
           // Pour les autres tables: si code_piste vide, on log mais on envoie quand même
           if (codePiste == null || codePiste.isEmpty || codePiste == 'Non spécifié' || codePiste == 'Non spÃ©cifiÃ©') {
-            print('ℹ️ ${tableName} ID ${data['id']} - code_piste vide, le serveur attribuera la piste la plus proche');
+            print('ℹ️ $tableName ID ${data['id']} - code_piste vide, le serveur attribuera la piste la plus proche');
           }
         }
 
@@ -575,14 +575,14 @@ class SyncService {
         if (onProgress != null) {
           onProgress(0.0, "✅ Aucune piste à synchroniser", 0, safeTotalItems);
         }
-        await Future.delayed(Duration(seconds: 1));
+        await Future.delayed(const Duration(seconds: 1));
       }
 
       // === ÉTAPE 3: CONFIRMATION PISTES TERMINÉES ===
       if (onProgress != null) {
         onProgress(processedItems / safeTotalItems, "🎯 Pistes synchronisées! Début chaussées...", processedItems, safeTotalItems);
       }
-      await Future.delayed(Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 2));
 
       // === ÉTAPE 4: SYNCHRONISATION DES CHAUSSÉES (DEUXIÈME) ===
       if (chausseeCount > 0) {
@@ -602,14 +602,14 @@ class SyncService {
         if (onProgress != null) {
           onProgress(processedItems / safeTotalItems, "✅ Aucune chaussée à synchroniser", processedItems, safeTotalItems);
         }
-        await Future.delayed(Duration(seconds: 1));
+        await Future.delayed(const Duration(seconds: 1));
       }
 
       // === ÉTAPE 5: CONFIRMATION CHAUSSÉES TERMINÉES ===
       if (onProgress != null) {
         onProgress(processedItems / safeTotalItems, "🎯 Chaussées synchronisées! Début autres données...", processedItems, safeTotalItems);
       }
-      await Future.delayed(Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 2));
 
       // === ÉTAPE 6: SYNCHRONISATION DES AUTRES DONNÉES (TROISIÈME) ===
       for (var i = 0; i < tables.length; i++) {
@@ -809,7 +809,7 @@ class SyncService {
       // ══════════════════════════════════════════
       // (PRÉ-COMPTAGE + CACHE en mémoire)
       // ══════════════════════════════════════════
-      final Map<String, List<dynamic>> _cache = {};
+      final Map<String, List<dynamic>> cache = {};
 
       // Sprint 4: Téléchargement des entités GeoDNGR supprimé.
       // Les données SRM (EP, ASS, ELEC) seront téléchargées via endpoints SRM en Sprint 5.
@@ -820,7 +820,7 @@ class SyncService {
       for (var entry in operations.entries) {
         // Si connexion déjà perdue, skip immédiat
         if (connectionLost) {
-          _cache[entry.key] = [];
+          cache[entry.key] = [];
           result.failedCount++;
           result.errors.add('${_getFrenchTableName(entry.key)} : connexion indisponible');
           continue;
@@ -831,10 +831,10 @@ class SyncService {
             onProgress(0.0, "📥 Téléchargement des ${_getFrenchTableName(entry.key)}...", 0, 1);
           }
           final data = await entry.value();
-          _cache[entry.key] = data;
+          cache[entry.key] = data;
           totalItems += data.length;
         } catch (e) {
-          _cache[entry.key] = [];
+          cache[entry.key] = [];
           result.failedCount++;
           final bool isNetwork = e.toString().contains('SocketException') || e.toString().contains('Timeout') || e.toString().contains('réseau') || e.toString().contains('network');
           if (isNetwork) {

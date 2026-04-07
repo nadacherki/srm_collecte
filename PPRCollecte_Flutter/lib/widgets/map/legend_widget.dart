@@ -215,40 +215,40 @@ class _LegendWidgetState extends State<LegendWidget> {
   StrokePattern? _getPatternForChausseeType(String type) {
     switch (type) {
       case 'terre':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           8,
           4,
           20,
           4
         ]);
       case 'latérite':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           15,
           8
         ]);
       case 'bouwal':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           12,
           6
         ]);
       case 'déviation':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           15,
           5,
           5,
           5
         ]);
       case 'coupure':
-        return StrokePattern.dotted(spacingFactor: 1.2);
+        return const StrokePattern.dotted(spacingFactor: 1.2);
       case 'submersible':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           6,
           3,
           6,
           3
         ]);
       case 'col':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           20,
           5
         ]);
@@ -310,11 +310,11 @@ class _LegendWidgetState extends State<LegendWidget> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black26,
               blurRadius: 6,
-              offset: const Offset(0, 3),
+              offset: Offset(0, 3),
             ),
           ],
         ),

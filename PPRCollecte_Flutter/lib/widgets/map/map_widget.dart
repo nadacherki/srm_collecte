@@ -136,7 +136,7 @@ class _MapWidgetState extends State<MapWidget> {
     // Sinon, on centre sur la zone du projet (Oriental = Oujda).
     final LatLng initialCenter = widget.gpsEnabled
         ? widget.userPosition
-        : LatLng(ProjectionConstants.defaultLatitude,
+        : const LatLng(ProjectionConstants.defaultLatitude,
             ProjectionConstants.defaultLongitude);
     final double initialZoom =
         widget.gpsEnabled ? 15 : ProjectionConstants.defaultZoom;
@@ -270,7 +270,7 @@ class MapTypeToggle extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
                 color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
           ],
@@ -281,16 +281,16 @@ class MapTypeToggle extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             onTap: () => onMapTypeChanged(!isSatellite),
             child: Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(isSatellite ? Icons.map : Icons.satellite,
                       size: 24,
                       color: isSatellite ? Colors.blue : Colors.orange),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(isSatellite ? 'Carte' : 'Satellite',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Colors.black87)),
@@ -346,8 +346,8 @@ class DownloadedPistesToggle extends StatelessWidget {
                       color:
                           isOn ? const Color(0xFFB86E1D) : Colors.grey),
                   const SizedBox(width: 8),
-                  Text('Pistes téléchargées',
-                      style: const TextStyle(
+                  const Text('Pistes téléchargées',
+                      style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Colors.black87)),

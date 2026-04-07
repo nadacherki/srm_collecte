@@ -290,49 +290,49 @@ ON displayed_pistes(login_id, code_piste);
       case 'asphalte':
         return null;
       case 'terre':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           8,
           4,
           20,
           4
         ]);
       case 'latérite':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           15,
           8
         ]);
       case 'bouwal':
       case 'bowal':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           12,
           6
         ]);
       case 'déviation':
       case 'deviation':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           15,
           5,
           5,
           5
         ]);
       case 'coupure':
-        return StrokePattern.dotted(spacingFactor: 1.2);
+        return const StrokePattern.dotted(spacingFactor: 1.2);
       case 'submersible':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           6,
           3,
           6,
           3
         ]);
       case 'col':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           20,
           5
         ]);
       case 'béton':
-        return StrokePattern.dotted(spacingFactor: 1.5);
+        return const StrokePattern.dotted(spacingFactor: 1.5);
       case 'pavée':
-        return StrokePattern.dashed(segments: [
+        return StrokePattern.dashed(segments: const [
           10,
           5
         ]);
@@ -489,7 +489,7 @@ ON displayed_pistes(login_id, code_piste);
             points: points,
             color: Color(map['color'] as int),
             strokeWidth: (map['width'] as num).toDouble(),
-            pattern: StrokePattern.dotted(spacingFactor: 2.0),
+            pattern: const StrokePattern.dotted(spacingFactor: 2.0),
           ));
         }
       }

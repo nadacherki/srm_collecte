@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:sqflite/sqflite.dart';
+import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../screens/home/home_page.dart';
-
+import '../data/remote/api_service.dart';
 
 class SpecialLinesService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
@@ -13,144 +16,199 @@ class SpecialLinesService {
     required void Function(Map<String, dynamic>) onTapDetails,
   }) async {
     try {
-      // Sprint 4: la table displayed_special_lines n'existe plus dans SRM.
-      // Les lignes spéciales seront gérées via les entités SRM (Sprint 5+).
-      final lines = <Map<String, dynamic>>[];
+      final db = await _dbHelper.database;
+      final loginId = await _dbHelper.resolveLoginId();
       final List<Polyline> polylines = [];
 
-      for (var line in lines) {
-        final specialType = (line['special_type'] ?? '').toString();
-// DEBUG
-        print('🔍 Special line type from DB: "$specialType"');
-        print('🔍 toLowerCase: "${specialType.toLowerCase()}"');
-        Color lineColor;
-        StrokePattern? linePattern;
+      for (final metier in SrmConfig.getMetiers()) {
+        for (final entityType in SrmConfig.getLineEntities(metier)) {
+          final tableName = SrmConfig.getTableName(metier, entityType);
+          if (tableName == null || tableName.isEmpty) continue;
 
-        switch (specialType.toLowerCase()) {
-          case 'bac':
-            lineColor = Colors.purple;
-            linePattern = StrokePattern.dashed(segments: [
-              15,
-              5
-            ]);
-            break;
-          case 'passage submersible':
-            lineColor = Colors.cyan;
-            linePattern = StrokePattern.dashed(segments: [
-              15,
-              5
-            ]);
-            break;
-          default:
-            lineColor = Colors.blueGrey;
-            linePattern = null;
-        }
+          final rows = await _fetchVisibleRows(
+            db: db,
+            tableName: tableName,
+            loginId: loginId,
+          );
 
-        final start = LatLng(
-          (line['lat_debut'] as num).toDouble(),
-          (line['lng_debut'] as num).toDouble(),
-        );
-        final end = LatLng(
-          (line['lat_fin'] as num).toDouble(),
-          (line['lng_fin'] as num).toDouble(),
-        );
-// ⭐ Skip les lignes où début == fin (polyline invisible)
-        if (start.latitude == end.latitude && start.longitude == end.longitude) {
-          print('⚠️ Ligne spéciale ignorée (début == fin): $specialType');
-          continue;
-        }
-        // ✅ distance en km (utilise tes méthodes haversine déjà ajoutées)
-        // (tu vas la calculer côté HomePage, pas ici)
-        // Ici on renvoie juste les coords.
-        final st = specialType.toLowerCase().trim();
-        final tag = st.contains('bac')
-            ? 'bac'
-            : st.contains('passage')
-                ? 'passage_submersible'
-                : 'special';
-        final distanceKm = _haversineDistance(start, end);
+          for (final row in rows) {
+            final points = _extractLinePoints(row);
+            if (points.length < 2) continue;
 
-        // Chercher synced/region dans la vraie table (bacs ou passages_submersibles)
-        String slSynced = '0';
-        String slRegion = '';
-        String slPrefecture = '';
-        String slCommune = '';
-        String slEnqueteur = '';
-        try {
-          final originalTable = (line['original_table'] ?? '').toString();
-          if (originalTable.isNotEmpty) {
-            final slDb = await _dbHelper.database;
-            final slRows = await slDb.query(
-              originalTable,
-              columns: [
-                'synced',
-                'region_name',
-                'prefecture_name',
-                'commune_name',
-                'enqueteur'
-              ],
-              where: 'id = ?',
-              whereArgs: [
-                line['original_id']
-              ],
-              limit: 1,
+            final polyline = Polyline(
+              points: points,
+              color: _lineColorForMetier(metier),
+              strokeWidth: 4.0,
+              pattern: const StrokePattern.solid(),
+              hitValue: PolylineTapData(
+                type: 'special_local',
+                data: {
+                  'special_type': entityType,
+                  'table_name': tableName,
+                  'metier': metier,
+                  'start_lat': points.first.latitude,
+                  'start_lng': points.first.longitude,
+                  'end_lat': points.last.latitude,
+                  'end_lng': points.last.longitude,
+                  'distance_km': _polylineDistanceKm(points),
+                  'synced': (row['synced'] ?? 0).toString(),
+                  'region_name':
+                      (row['region_name'] ?? ApiService.currentProjetRegion ?? '')
+                          .toString(),
+                  'prefecture_name':
+                      (row['prefecture_name'] ?? ApiService.currentProjetNom ?? '')
+                          .toString(),
+                  'commune_name': (row['commune_name'] ?? '').toString(),
+                  'enqueteur': (row['enqueteur'] ??
+                          ApiService.nomPrenom ??
+                          ApiService.userLogin ??
+                          '')
+                      .toString(),
+                },
+              ),
             );
-            if (slRows.isNotEmpty) {
-              slSynced = (slRows.first['synced']?.toString() == '1') ? '1' : '0';
-              slRegion = (slRows.first['region_name'] ?? '').toString();
-              slPrefecture = (slRows.first['prefecture_name'] ?? '').toString();
-              slCommune = (slRows.first['commune_name'] ?? '').toString();
-              slEnqueteur = (slRows.first['enqueteur'] ?? '').toString();
-            }
+
+            polylines.add(polyline);
           }
-        } catch (_) {}
-
-        polylines.add(
-          Polyline(
-            points: [
-              start,
-              end
-            ],
-            color: lineColor,
-            strokeWidth: 4.0,
-            pattern: linePattern ?? const StrokePattern.solid(),
-
-            //  IMPORTANT : PolylineTapData (comme Chaussees)
-            hitValue: PolylineTapData(
-              type: 'special_local',
-              data: {
-                'special_type': specialType,
-                'start_lat': start.latitude,
-                'start_lng': start.longitude,
-                'end_lat': end.latitude,
-                'end_lng': end.longitude,
-                'distance_km': distanceKm,
-                'synced': slSynced,
-                'region_name': slRegion,
-                'prefecture_name': slPrefecture,
-                'commune_name': slCommune,
-                'enqueteur': slEnqueteur,
-              },
-            ),
-          ),
-        );
+        }
       }
 
-      print('📍 ${polylines.length} lignes spéciales chargées');
+      print('Loaded ${polylines.length} displayed SRM line polylines');
       return polylines;
     } catch (e) {
-      print('❌ Erreur chargement lignes spéciales: $e');
+      print('Error loading displayed SRM lines: $e');
       return [];
     }
   }
 
+  Future<List<Map<String, dynamic>>> _fetchVisibleRows({
+    required Database db,
+    required String tableName,
+    required int? loginId,
+  }) async {
+    try {
+      final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+      final availableColumns = columns
+          .map((row) => (row['name'] ?? '').toString())
+          .where((name) => name.toString().isNotEmpty)
+          .toSet();
+
+      final filters = <String>[];
+      final args = <dynamic>[];
+
+      if (loginId != null) {
+        for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
+          if (availableColumns.contains(column)) {
+            filters.add('$column = ?');
+            args.add(loginId);
+          }
+        }
+      }
+
+      if (ApiService.currentProjetId != null &&
+          availableColumns.contains('id_projet')) {
+        filters.add('id_projet = ?');
+        args.add(ApiService.currentProjetId);
+      }
+
+      final where = filters.isEmpty ? null : filters.join(' OR ');
+      return await db.query(tableName, where: where, whereArgs: args);
+    } catch (e) {
+      print('Error reading line table $tableName: $e');
+      return [];
+    }
+  }
+
+  List<LatLng> _extractLinePoints(Map<String, dynamic> row) {
+    final raw = row['points_json'];
+    if (raw == null) return [];
+
+    try {
+      final dynamic decoded = raw is String ? jsonDecode(raw) : raw;
+      if (decoded is! List) {
+        if (raw is String) {
+          return _extractLinePointsFromLooseString(raw);
+        }
+        return [];
+      }
+
+      final points = <LatLng>[];
+      for (final item in decoded) {
+        if (item is Map) {
+          final lat = _toDouble(item['lat'] ?? item['latitude']);
+          final lng = _toDouble(item['lon'] ?? item['lng'] ?? item['longitude']);
+          if (lat != null && lng != null) {
+            points.add(LatLng(lat, lng));
+          }
+        } else if (item is List && item.length >= 2) {
+          final lng = _toDouble(item[0]);
+          final lat = _toDouble(item[1]);
+          if (lat != null && lng != null) {
+            points.add(LatLng(lat, lng));
+          }
+        }
+      }
+      return points;
+    } catch (_) {
+      if (raw is String) {
+        return _extractLinePointsFromLooseString(raw);
+      }
+      return [];
+    }
+  }
+
+  List<LatLng> _extractLinePointsFromLooseString(String raw) {
+    final matches = RegExp(r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)')
+        .allMatches(raw);
+    return matches.map((match) {
+      final lat = double.tryParse(match.group(1) ?? '');
+      final lon = double.tryParse(match.group(2) ?? '');
+      if (lat == null || lon == null) {
+        return null;
+      }
+      return LatLng(lat, lon);
+    }).whereType<LatLng>().toList();
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  Color _lineColorForMetier(String metier) {
+    switch (metier) {
+      case 'Eau Potable':
+        return const Color(0xFF1E88E5);
+      case 'Assainissement':
+        return const Color(0xFF2E7D32);
+      case 'Électricité':
+        return const Color(0xFFF57C00);
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  double _polylineDistanceKm(List<LatLng> points) {
+    if (points.length < 2) return 0.0;
+    double total = 0.0;
+    for (int i = 0; i < points.length - 1; i++) {
+      total += _haversineDistance(points[i], points[i + 1]);
+    }
+    return total;
+  }
+
   double _haversineDistance(LatLng start, LatLng end) {
-    const double R = 6371; // Rayon de la Terre en km
+    const double r = 6371;
     final dLat = (end.latitude - start.latitude) * pi / 180;
     final dLon = (end.longitude - start.longitude) * pi / 180;
-    final a = sin(dLat / 2) * sin(dLat / 2) + cos(start.latitude * pi / 180) * cos(end.latitude * pi / 180) * sin(dLon / 2) * sin(dLon / 2);
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(start.latitude * pi / 180) *
+            cos(end.latitude * pi / 180) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return R * c;
+    return r * c;
   }
 }
 
@@ -167,27 +225,21 @@ class DownloadedSpecialLinesService {
       final loginId = await DatabaseHelper().resolveLoginId();
 
       if (loginId == null) {
-        print('❌ [DL-SPECIAL] Impossible de déterminer login_id (viewer)');
+        print('âŒ [DL-SPECIAL] Impossible de dÃ©terminer login_id (viewer)');
         return [];
       }
 
-      // ✅ change si ton nom de table diffère
       const tableName = 'special_lines';
 
       final rows = await db.query(
         tableName,
         where: 'downloaded = ? AND saved_by_user_id = ?',
-        whereArgs: [
-          1,
-          loginId
-        ],
+        whereArgs: [1, loginId],
       );
 
       int added = 0, skipped = 0;
 
       for (final r in rows) {
-        final id = r['id'];
-
         final specialTypeRaw = (r['special_type'] ?? r['type'] ?? '').toString();
         final st = specialTypeRaw.toLowerCase().trim();
 
@@ -204,25 +256,18 @@ class DownloadedSpecialLinesService {
         final start = LatLng((latDebut as num).toDouble(), (lngDebut as num).toDouble());
         final end = LatLng((latFin as num).toDouble(), (lngFin as num).toDouble());
 
-        // ✅ tag logique pour la légende
-        final String tag = st.contains('bac') ? 'bac' : (st.contains('passage') ? 'passage_submersible' : 'special');
+        final String tag =
+            st.contains('bac') ? 'bac' : (st.contains('passage') ? 'passage_submersible' : 'special');
 
-        // ✅ style comme tes lignes locales
         Color lineColor;
         StrokePattern? linePattern;
 
         if (tag == 'bac') {
           lineColor = Colors.purple;
-          linePattern = StrokePattern.dashed(segments: [
-            15,
-            5
-          ]);
+          linePattern = StrokePattern.dashed(segments: const [15, 5]);
         } else if (tag == 'passage_submersible') {
           lineColor = Colors.cyan;
-          linePattern = StrokePattern.dashed(segments: [
-            15,
-            5
-          ]);
+          linePattern = StrokePattern.dashed(segments: const [15, 5]);
         } else {
           lineColor = Colors.blueGrey;
           linePattern = null;
@@ -230,26 +275,19 @@ class DownloadedSpecialLinesService {
 
         polylines.add(
           Polyline(
-            points: [
-              start,
-              end
-            ],
+            points: [start, end],
             color: lineColor,
             strokeWidth: 4.0,
             pattern: linePattern ?? const StrokePattern.solid(),
-
-            // ✅ AJOUT IMPORTANT
             hitValue: PolylineTapData(
               type: 'special_downloaded',
               data: {
-                'special_type': specialTypeRaw, // ou specialTypeRaw / r['special_type']
+                'special_type': specialTypeRaw,
                 'start_lat': start.latitude,
                 'start_lng': start.longitude,
                 'end_lat': end.latitude,
                 'end_lng': end.longitude,
-                // si tu veux aussi l’afficher :
                 'code_piste': (r['code_piste'] ?? '----').toString(),
-                // tu peux ajouter distance si tu veux:
                 'distance_km': _haversineDistance(start, end),
                 'region_name': (r['region_name'] ?? '----').toString(),
                 'prefecture_name': (r['prefecture_name'] ?? '----').toString(),
@@ -263,20 +301,24 @@ class DownloadedSpecialLinesService {
         added++;
       }
 
-      print('🎯 [DL-SPECIAL] ajoutées: $added | ignorées: $skipped');
+      print('ðŸŽ¯ [DL-SPECIAL] ajoutÃ©es: $added | ignorÃ©es: $skipped');
       return polylines.toList();
     } catch (e) {
-      print('❌ [DL-SPECIAL] Erreur chargement: $e');
+      print('âŒ [DL-SPECIAL] Erreur chargement: $e');
       return [];
     }
   }
 
   double _haversineDistance(LatLng start, LatLng end) {
-    const double R = 6371; // Rayon de la Terre en km
+    const double r = 6371;
     final dLat = (end.latitude - start.latitude) * pi / 180;
     final dLon = (end.longitude - start.longitude) * pi / 180;
-    final a = sin(dLat / 2) * sin(dLat / 2) + cos(start.latitude * pi / 180) * cos(end.latitude * pi / 180) * sin(dLon / 2) * sin(dLon / 2);
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(start.latitude * pi / 180) *
+            cos(end.latitude * pi / 180) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return R * c;
+    return r * c;
   }
 }

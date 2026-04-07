@@ -1,6 +1,6 @@
 #  - Nouvelles routes pour les APIs GeoDjango
 
-from django.urls import path
+from urls import path
 from .spatial_views import (
     CollectesGeoAPIView,
     CommunesSearchAPIView,

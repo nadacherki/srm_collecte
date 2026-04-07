@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math';
 import '../../data/local/piste_chaussee_db_helper.dart';
-import '../../data/remote/api_service.dart';
 import '../../data/local/database_helper.dart';
 
 class FormulaireLignePage extends StatefulWidget {
@@ -700,8 +699,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
             colorScheme: const ColorScheme.light(
               primary: Color(0xFF1976D2), // Couleur principale
               onPrimary: Colors.white,
-            ),
-            dialogBackgroundColor: Colors.white,
+            ), dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -2020,7 +2018,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     required String? value,
     required List<String> options,
     required Function(String?) onChanged,
-    bool required = false,
   }) {
     final bool isCommuneRurale = label == 'Commune Rurale *';
 
@@ -2069,7 +2066,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
           else
             // Dropdown normal pour les autres champs
             DropdownButtonFormField<String>(
-              value: value,
+              initialValue: value,
               items: options.map((String option) {
                 return DropdownMenuItem<String>(
                   value: option,
@@ -2163,7 +2160,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
   Widget _buildTimeField({
     required String label,
     required TextEditingController controller,
-    VoidCallback? onTap,
     bool enabled = true,
   }) {
     return Column(

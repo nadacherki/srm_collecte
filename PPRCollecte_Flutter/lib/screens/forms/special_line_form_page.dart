@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../widgets/forms/point_form_widget.dart';
-import '../../core/config/infrastructure_config.dart';
-import '../../data/remote/api_service.dart';
-import '../../data/local/database_helper.dart';
 import '../../data/local/piste_chaussee_db_helper.dart';
-import '../../controllers/home_controller.dart';
 
 class SpecialLineFormPage extends StatefulWidget {
   final List<LatLng> linePoints;
@@ -114,10 +110,10 @@ class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(
+              const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               Text(
                 'Recherche de la piste la plus proche...',
                 style: TextStyle(

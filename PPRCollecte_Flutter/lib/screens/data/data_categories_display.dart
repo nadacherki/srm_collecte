@@ -3,17 +3,14 @@ import 'package:latlong2/latlong.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import '../../core/config/infrastructure_config.dart';
-import '../../widgets/forms/category_selector_widget.dart';
 import '../../widgets/forms/type_selector_widget.dart';
 import '../../widgets/forms/point_form_widget.dart';
 import '../../widgets/lists/data_list_view.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/local/piste_chaussee_db_helper.dart';
-import '../../data/remote/api_service.dart';
 import '../forms/formulaire_ligne_page.dart';
 import '../forms/formulaire_chaussee_page.dart';
 import '../home/home_page.dart';
-import '../auth/login_page.dart';
 import '../forms/polygon_form_page.dart';
 
 const bool _DBG_FOCUS_POINT = true;
@@ -108,7 +105,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     const double a = 6378137.0;
     const double f = 1 / 298.257223563;
     const double k0 = 0.9996;
-    final double b = a * (1 - f);
+    const double b = a * (1 - f);
     final double e = (1 - (b / a) * (b / a)).sqrt();
 
     // helpers
@@ -216,7 +213,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
 
     if (_DBG_FOCUS_POINT) {
       final show = r.keys.where((k) => k.contains('lat') || k.contains('lon') || k.contains('lng') || k.startsWith('x') || k.startsWith('y') || k == 'geom' || k == 'geometry' || k.contains('geojson') || k.contains('point')).toList();
-      print('👁️ [FOCUS-ROW] keys=${show}');
+      print('👁️ [FOCUS-ROW] keys=$show');
     }
 
     //  STRATÉGIE 1: Chercher d'abord les paires EXPLICITES selon la convention de votre base
@@ -329,12 +326,12 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
         //  VALIDATION SIMPLE - pas d'inversion automatique
         if (_isLat(lat) && _isLng(lng)) {
           if (_DBG_FOCUS_POINT) {
-            print('✅ [FOCUS] Paire explicite ${pair} -> lat=$lat, lon=$lng');
+            print('✅ [FOCUS] Paire explicite $pair -> lat=$lat, lon=$lng');
           }
           return LatLng(lat, lng);
         } else {
           if (_DBG_FOCUS_POINT) {
-            print('⚠️ [FOCUS] Paire ${pair} invalide: lat=$lat, lon=$lng');
+            print('⚠️ [FOCUS] Paire $pair invalide: lat=$lat, lon=$lng');
           }
         }
       }
@@ -408,16 +405,16 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
   }
 
   List<LatLng>? _extractPolyline(Map<String, dynamic> item) {
-    double? _toDouble(dynamic v) {
+    double? toDouble(dynamic v) {
       if (v == null) return null;
       if (v is num) return v.toDouble();
       if (v is String) return double.tryParse(v.trim());
       return null;
     }
 
-    LatLng? _latLngFrom(Map p) {
-      final lat = _toDouble(p['latitude'] ?? p['lat'] ?? p['y']);
-      final lng = _toDouble(p['longitude'] ?? p['lng'] ?? p['lon'] ?? p['x']);
+    LatLng? latLngFrom(Map p) {
+      final lat = toDouble(p['latitude'] ?? p['lat'] ?? p['y']);
+      final lng = toDouble(p['longitude'] ?? p['lng'] ?? p['lon'] ?? p['x']);
       if (lat == null || lng == null) return null;
       return LatLng(lat, lng);
     }
@@ -425,7 +422,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     // ---------- 1) PISTES / CHAUSSEES : points_collectes ----------
     if (item['points_collectes'] is List) {
       final raw = item['points_collectes'] as List;
-      final pts = raw.whereType<Map>().map(_latLngFrom).whereType<LatLng>().toList();
+      final pts = raw.whereType<Map>().map(latLngFrom).whereType<LatLng>().toList();
       if (pts.length >= 2) return pts;
     }
 
@@ -440,12 +437,12 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
       final pts = <LatLng>[];
       for (final e in rawJson) {
         if (e is Map) {
-          final p = _latLngFrom(e);
+          final p = latLngFrom(e);
           if (p != null) pts.add(p);
         } else if (e is List && e.length >= 2) {
           // cas [lon,lat]
-          final lon = _toDouble(e[0]);
-          final lat = _toDouble(e[1]);
+          final lon = toDouble(e[0]);
+          final lat = toDouble(e[1]);
           if (lat != null && lon != null) pts.add(LatLng(lat, lon));
         }
       }
@@ -454,37 +451,38 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
 
     // ---------- 3) LIGNES SPECIALES : debut/fin ----------
     // ---------- 3) LIGNES SPECIALES : debut/fin ----------
-    LatLng? _pair(dynamic latV, dynamic lngV) {
-      final lat = _toDouble(latV);
-      final lng = _toDouble(lngV);
+    LatLng? pair(dynamic latV, dynamic lngV) {
+      final lat = toDouble(latV);
+      final lng = toDouble(lngV);
       if (lat == null || lng == null) return null;
       return LatLng(lat, lng);
     }
 
 // ⭐⭐ CORRECTION: Ajouter les paires spécifiques pour Bac et Passage Submersible ⭐⭐
-    final start = _pair(item['lat_debut'], item['lng_debut']) ??
-        _pair(item['start_lat'], item['start_lng'])
+    final start = pair(item['lat_debut'], item['lng_debut']) ??
+        pair(item['start_lat'], item['start_lng'])
         // Bac (x=longitude, y=latitude)
         ??
-        _pair(item['y_debut_traversee_bac'], item['x_debut_traversee_bac'])
+        pair(item['y_debut_traversee_bac'], item['x_debut_traversee_bac'])
         // Passage Submersible (x=longitude, y=latitude)
         ??
-        _pair(item['y_debut_passage_submersible'], item['x_debut_passage_submersible']);
+        pair(item['y_debut_passage_submersible'], item['x_debut_passage_submersible']);
 
-    final end = _pair(item['lat_fin'], item['lng_fin']) ??
-        _pair(item['end_lat'], item['end_lng'])
+    final end = pair(item['lat_fin'], item['lng_fin']) ??
+        pair(item['end_lat'], item['end_lng'])
         // Bac
         ??
-        _pair(item['y_fin_traversee_bac'], item['x_fin_traversee_bac'])
+        pair(item['y_fin_traversee_bac'], item['x_fin_traversee_bac'])
         // Passage Submersible
         ??
-        _pair(item['y_fin_passage_submersible'], item['x_fin_passage_submersible']);
+        pair(item['y_fin_passage_submersible'], item['x_fin_passage_submersible']);
 
-    if (start != null && end != null)
+    if (start != null && end != null) {
       return [
         start,
         end
       ];
+    }
 
     // ---------- 4) GeoJSON optional ----------
     for (final k in [
@@ -510,8 +508,8 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
             final pts = <LatLng>[];
             for (final c in line) {
               if (c is List && c.length >= 2) {
-                final lon = _toDouble(c[0]);
-                final lat = _toDouble(c[1]);
+                final lon = toDouble(c[0]);
+                final lat = toDouble(c[1]);
                 if (lat != null && lon != null) pts.add(LatLng(lat, lon));
               }
             }
@@ -758,7 +756,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
       //  METTRE À JOUR L'ÉTAT
       setState(() => currentData = filteredData);
     } catch (e) {
-      print('❌ Erreur récupération ${selectedCategory}: $e');
+      print('❌ Erreur récupération $selectedCategory: $e');
       setState(() => currentData = []);
     }
   }
@@ -906,7 +904,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
             if (c is List && c.length >= 2) {
               return LatLng(c[1].toDouble(), c[0].toDouble());
             }
-            return LatLng(0, 0);
+            return const LatLng(0, 0);
           }).toList();
           // Retirer le dernier point s'il est identique au premier (polygone fermé)
           if (points.length > 1 && points.first.latitude == points.last.latitude && points.first.longitude == points.last.longitude) {
