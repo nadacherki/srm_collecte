@@ -311,52 +311,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadDownloadedSpecialLines() async {
-    print('🔄 [_loadDownloadedSpecialLines] start');
-
-    try {
-      final lines = await _downloadedSpecialLinesService.getDownloadedSpecialLinesPolylines(
-        onTapDetails: (data) {
-          final start = LatLng(
-            (data['start_lat'] as num).toDouble(),
-            (data['start_lng'] as num).toDouble(),
-          );
-          final end = LatLng(
-            (data['end_lat'] as num).toDouble(),
-            (data['end_lng'] as num).toDouble(),
-          );
-
-          final distanceKm = polylineDistanceKm([
-            start,
-            end
-          ]);
-
-          _showSpecialLineDetailsSheet(
-            context: context,
-            specialType: (data['special_type'] ?? '----').toString(),
-            statut: 'Sauvegardée (downloaded)',
-            region: (data['region_name'] ?? '').toString().isNotEmpty ? data['region_name'].toString() : _regionNom,
-            prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty ? data['prefecture_name'].toString() : _prefectureNom,
-            commune: (data['commune_name'] ?? '').toString().isNotEmpty ? data['commune_name'].toString() : _communeNom,
-            enqueteur: (data['enqueteur'] ?? '').toString(),
-            distanceKm: distanceKm,
-            startLat: start.latitude,
-            startLng: start.longitude,
-            endLat: end.latitude,
-            endLng: end.longitude,
-          );
-        },
-      );
-
+    // ── SPRINT 6 stub ──
+    // La table special_lines (GeoDNGR) n'existe pas dans sig_srm.
+    // Les lignes SRM (conduites EP, canalisations ASS, tronçons ELEC)
+    // seront affichées au Sprint 6 via displayed_points_service.dart.
+    if (mounted) {
       setState(() {
-        _downloadedSpecialLinesPolylines = lines;
+        _downloadedSpecialLinesPolylines = [];
       });
-
-      print('✅ [_loadDownloadedSpecialLines] ${lines.length} lignes téléchargées');
-    } catch (e) {
-      print('❌ [_loadDownloadedSpecialLines] $e');
     }
-
-    print('✅ [_loadDownloadedSpecialLines] done');
+    print('✅ [_loadDownloadedSpecialLines] stubbed — Sprint 6');
   }
 
   void _showChausseeDetailsSheet({
@@ -1272,19 +1236,63 @@ class _HomePageState extends State<HomePage> {
   /// (nécessaire après un login offline suivi d'un retour de connectivité)
   Future<void> _restoreApiServiceFromLocal() async {
     // Sprint 4: SRM utilise utilisateur_local (id_user, login, role).
-    // Pas de commune_id/prefecture_id/region_id dans ce modèle.
+    // Sprint 6 fix: restaure aussi currentProjetId + currentMissionId
+    // pour que id_projet ne soit pas null en mode offline.
     try {
       if (ApiService.userId != null) return; // déjà rempli
 
       final user = await DatabaseHelper().getCurrentUserSrm();
       if (user == null) return;
 
-      ApiService.userId   = user['id_user'] is int ? user['id_user'] : int.tryParse(user['id_user']?.toString() ?? '');
-      ApiService.userRole = user['role']?.toString();
+      ApiService.userId    = user['id_user'] is int
+          ? user['id_user']
+          : int.tryParse(user['id_user']?.toString() ?? '');
+      ApiService.userRole  = user['role']?.toString();
       ApiService.userLogin = user['login']?.toString();
       ApiService.nomPrenom = user['nom_prenom']?.toString();
 
-      print('🔄 ApiService restauré depuis SQLite SRM: userId=${ApiService.userId}, role=${ApiService.userRole}');
+      // ── CORRECTIF : restaurer le projet actif ──
+      final idProjetActif = user['id_projet_actif'];
+      if (idProjetActif != null && ApiService.currentProjetId == null) {
+        ApiService.currentProjetId = idProjetActif is int
+            ? idProjetActif
+            : int.tryParse(idProjetActif.toString());
+
+        // Charger les infos du projet depuis projet_local
+        if (ApiService.currentProjetId != null) {
+          final projet = await DatabaseHelper()
+              .getProjetLocal(ApiService.currentProjetId!);
+          if (projet != null) {
+            ApiService.currentProjetNom    = projet['nom']?.toString();
+            ApiService.currentProjetStatut = projet['statut']?.toString();
+            ApiService.currentProjetMetier = projet['metier']?.toString();
+            ApiService.currentProjetRegion = projet['region']?.toString();
+          }
+        }
+      }
+
+      // ── CORRECTIF : restaurer la mission active depuis mission_local ──
+      if (ApiService.currentMissionId == null &&
+          ApiService.currentProjetId != null) {
+        final missions = await DatabaseHelper()
+            .getMissionsLocal(ApiService.currentProjetId!);
+        if (missions.isNotEmpty) {
+          // Prendre la dernière mission EN_COURS si elle existe
+          final enCours = missions.where(
+              (m) => m['etat_mission']?.toString() == 'EN_COURS').toList();
+          final mission =
+              enCours.isNotEmpty ? enCours.last : missions.last;
+          ApiService.currentMissionId = mission['id_mission'] is int
+              ? mission['id_mission']
+              : int.tryParse(mission['id_mission']?.toString() ?? '');
+        }
+      }
+
+      print('🔄 ApiService restauré depuis SQLite SRM: '
+          'userId=${ApiService.userId} '
+          'projetId=${ApiService.currentProjetId} '
+          'missionId=${ApiService.currentMissionId} '
+          'role=${ApiService.userRole}');
     } catch (e) {
       print('❌ Erreur restauration ApiService SRM: $e');
     }
@@ -1545,44 +1553,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadDownloadedPoints() async {
-    try {
-      final Map<String, List<Marker>> dlByTable = {};
-      final markers = await _downloadedPointsService.getDownloadedPointsMarkers(
-        onTapDetails: (data) {
-          _showPointDetailsSheet(
-            context: context,
-            type: (data['type'] ?? 'Point').toString(),
-            name: (data['name'] ?? 'Sans nom').toString(),
-            region: (data['region_name'] ?? '').toString(),
-            prefecture: (data['prefecture_name'] ?? '').toString(),
-            commune: (data['commune_name'] ?? '').toString(),
-            enqueteur: (data['enqueteur'] ?? '').toString(),
-            codePiste: (data['code_piste'] ?? '').toString(),
-            lat: (data['lat'] as num).toDouble(),
-            lng: (data['lng'] as num).toDouble(),
-            statut: 'Sauvegardée (downloaded)',
-          );
-        },
-        onMarkerCreated: (String tableName, Marker marker) {
-          dlByTable.putIfAbsent(tableName, () => []);
-          dlByTable[tableName]!.add(marker);
-        },
-      );
-      setState(
-        () {
-          _downloadedPointsMarkers = markers;
-          _downloadedPointsByTable = dlByTable;
-        },
-      );
-      print(
-        '✅ ${markers.length} points téléchargés chargés (verts)',
-      );
-    } catch (e) {
-      print(
-        '❌ Erreur chargement points téléchargés: $e',
-      );
+    // ── SPRINT 6 stub ──
+    // La table enquete_polygone (GeoDNGR) n'existe pas dans sig_srm.
+    // Les points SRM téléchargés (ep_*, ass_*, elec_*) seront chargés
+    // au Sprint 6 via displayed_points_service.dart après synchronisation.
+    if (mounted) {
+      setState(() {
+        _downloadedPointsMarkers = [];
+        _downloadedPointsByTable = {};
+      });
     }
     await _loadDisplayedPolygons();
+    print('✅ [_loadDownloadedPoints] stubbed — Sprint 6');
   }
 
   Future<void> _refreshAfterNavigation() async {
@@ -1848,39 +1830,46 @@ class _HomePageState extends State<HomePage> {
       final loginId = await DatabaseHelper().resolveLoginId();
       final List<Polygon> mapPolygons = [];
 
-      final legacyPolygons = await db.query(
-        'enquete_polygone',
-        where: '(login_id = ? OR saved_by_user_id = ?)',
-        whereArgs: [loginId, loginId],
+      final legacyTables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        ['enquete_polygone'],
       );
 
-      for (final poly in legacyPolygons) {
-        final points = _extractPolygonPoints(poly['points_json']);
-        if (points.length < 3) continue;
-
-        mapPolygons.add(
-          Polygon(
-            points: points,
-            color: const Color(0xFF4CAF50).withOpacity(0.3),
-            borderColor: const Color(0xFF2E7D32),
-            borderStrokeWidth: 2.0,
-            isFilled: true,
-            hitValue: PolygonTapData(
-              nom: poly['nom']?.toString() ?? '----',
-              codePiste: poly['code_piste']?.toString() ?? '----',
-              superficie:
-                  (poly['superficie_en_ha'] as num?)?.toDouble() ?? 0.0,
-              nbSommets: points.length,
-              enqueteur: poly['enqueteur']?.toString() ?? '',
-              dateCreation: poly['date_creation']?.toString() ?? '----',
-              synced: poly['synced'] == 1,
-              downloaded: poly['downloaded'] == 1,
-              regionName: poly['region_name']?.toString() ?? '',
-              prefectureName: poly['prefecture_name']?.toString() ?? '',
-              communeName: poly['commune_name']?.toString() ?? '',
-            ),
-          ),
+      if (legacyTables.isNotEmpty) {
+        final legacyPolygons = await db.query(
+          'enquete_polygone',
+          where: loginId == null ? null : '(login_id = ? OR saved_by_user_id = ?)',
+          whereArgs: loginId == null ? null : [loginId, loginId],
         );
+
+        for (final poly in legacyPolygons) {
+          final points = _extractPolygonPoints(poly['points_json']);
+          if (points.length < 3) continue;
+
+          mapPolygons.add(
+            Polygon(
+              points: points,
+              color: const Color(0xFF4CAF50).withOpacity(0.3),
+              borderColor: const Color(0xFF2E7D32),
+              borderStrokeWidth: 2.0,
+              isFilled: true,
+              hitValue: PolygonTapData(
+                nom: poly['nom']?.toString() ?? '----',
+                codePiste: poly['code_piste']?.toString() ?? '----',
+                superficie:
+                    (poly['superficie_en_ha'] as num?)?.toDouble() ?? 0.0,
+                nbSommets: points.length,
+                enqueteur: poly['enqueteur']?.toString() ?? '',
+                dateCreation: poly['date_creation']?.toString() ?? '----',
+                synced: poly['synced'] == 1,
+                downloaded: poly['downloaded'] == 1,
+                regionName: poly['region_name']?.toString() ?? '',
+                prefectureName: poly['prefecture_name']?.toString() ?? '',
+                communeName: poly['commune_name']?.toString() ?? '',
+              ),
+            ),
+          );
+        }
       }
 
       for (final metier in SrmConfig.getMetiers()) {
@@ -1898,7 +1887,11 @@ class _HomePageState extends State<HomePage> {
             final filters = <String>[];
             final args = <dynamic>[];
 
-            if (loginId != null) {
+            if (ApiService.currentProjetId != null &&
+                availableColumns.contains('id_projet')) {
+              filters.add('id_projet = ?');
+              args.add(ApiService.currentProjetId);
+            } else if (loginId != null) {
               for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
                 if (availableColumns.contains(column)) {
                   filters.add('$column = ?');
@@ -1907,16 +1900,10 @@ class _HomePageState extends State<HomePage> {
               }
             }
 
-            if (ApiService.currentProjetId != null &&
-                availableColumns.contains('id_projet')) {
-              filters.add('id_projet = ?');
-              args.add(ApiService.currentProjetId);
-            }
-
             final rows = await db.query(
               tableName,
               where: filters.isEmpty ? null : filters.join(' OR '),
-              whereArgs: args,
+              whereArgs: args.isEmpty ? null : args,
             );
 
             for (final poly in rows) {
@@ -2005,6 +1992,11 @@ class _HomePageState extends State<HomePage> {
       return [];
     }
   }
+    // ── SPRINT 6 stub ──
+    // La table enquete_polygone (GeoDNGR) n'existe pas dans sig_srm.
+    // Les polygones SRM (ep_planche, ep_regard_ep...) seront affichés au Sprint 6
+    // via displayed_points_service.dart après la synchronisation.
+
 
   StrokePattern? getChausseePattern(String type) {
     switch (type.toLowerCase()) {
@@ -2329,7 +2321,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadPointCountsByTable() async {
     try {
       final db = await DatabaseHelper().database;
-      final loginId = await DatabaseHelper().resolveLoginId(); // ✅ AJOUT
+      final loginId = await DatabaseHelper().resolveLoginId();
       final Map<String, int> counts = {};
       final tables = <String>{};
 
@@ -2342,22 +2334,9 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
-      /*final tables = [
-        'localites',
-        'ecoles',
-        'marches',
-        'services_santes',
-        'batiments_administratifs',
-        'infrastructures_hydrauliques',
-        'autres_infrastructures',
-        'ponts',
-        'buses',
-        'dalots',
-        'points_critiques',
-        'points_coupures',
-        'site_enquete',
-      ];*/
-
+      // ── Tables SRM (créées dynamiquement à la première insertion) ──
+      // Les tables GeoDNGR (localites, ecoles...) n'existent pas dans sig_srm.
+      // On filtre par id_projet pour n'avoir que les objets du projet actif.
       for (var table in tables) {
         try {
           final columns = await db.rawQuery('PRAGMA table_info($table)');
@@ -2369,19 +2348,21 @@ class _HomePageState extends State<HomePage> {
           final filters = <String>[];
           final args = <dynamic>[];
 
-          if (loginId != null) {
-            for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
+          if (ApiService.currentProjetId != null &&
+              availableColumns.contains('id_projet')) {
+            filters.add('id_projet = ?');
+            args.add(ApiService.currentProjetId);
+          } else if (loginId != null) {
+            for (final column in [
+              'id_agent_crea',
+              'saved_by_user_id',
+              'login_id',
+            ]) {
               if (availableColumns.contains(column)) {
                 filters.add('$column = ?');
                 args.add(loginId);
               }
             }
-          }
-
-          if (ApiService.currentProjetId != null &&
-              availableColumns.contains('id_projet')) {
-            filters.add('id_projet = ?');
-            args.add(ApiService.currentProjetId);
           }
 
           final whereClause =
@@ -2392,7 +2373,7 @@ class _HomePageState extends State<HomePage> {
           );
           counts[table] = result.first['c'] as int? ?? 0;
         } catch (_) {
-          counts[table] = 0;
+          counts[table] = 0; // table pas encore créée = 0 objets
         }
       }
 
