@@ -44,7 +44,7 @@ class LigneStatusWidget extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                collection.isActive ? "Collecte piste active" : "Piste en pause",
+                collection.isActive ? "Collecte ligne active" : "Ligne en pause",
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87),
               ),
             ),
@@ -153,9 +153,9 @@ class SpecialStatusWidget extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.radio_button_checked,
-              color: const Color(0xFF9C27B0),
+              color: Color(0xFF9C27B0),
               size: 16,
             ),
             const SizedBox(width: 8),

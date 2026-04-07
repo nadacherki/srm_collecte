@@ -44,8 +44,55 @@ class HomeController extends ChangeNotifier {
   String? get activePisteCode => _activePisteCode;
   SpecialCollection? get specialCollection => _collectionManager.specialCollection;
   int get collectionCountdown => _collectionManager.countdown;
+  bool get isMockLocationEnabled => _locationService.isMockLocationEnabled;
+  LatLng? get mockPosition {
+    final mock = _locationService.lastMockLocation;
+    if (mock?.latitude == null || mock?.longitude == null) {
+      return null;
+    }
+    return LatLng(mock!.latitude!, mock.longitude!);
+  }
 // Expose le collection manager pour la simulation
   CollectionManager get collectionManager => _collectionManager;
+
+  void setMockPosition({
+    required double latitude,
+    required double longitude,
+    double accuracy = 1.0,
+  }) {
+    if (latitude.abs() > 90 || longitude.abs() > 180) {
+      throw Exception('Coordonnées mock invalides');
+    }
+
+    _locationService.setMockLocation(
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+    );
+
+    userPosition = LatLng(latitude, longitude);
+    gpsEnabled = true;
+    gpsAccuracy = accuracy.round();
+    lastSync = _formatTimeNow();
+    notifyListeners();
+  }
+
+  Future<void> clearMockPosition() async {
+    await _locationService.clearMockLocation();
+
+    try {
+      final loc = await _locationService.getCurrent();
+      if (loc.latitude != null && loc.longitude != null) {
+        userPosition = LatLng(loc.latitude!, loc.longitude!);
+      }
+      gpsAccuracy = loc.accuracy?.round() ?? gpsAccuracy;
+    } catch (_) {
+      // On conserve la dernière position connue si le GPS réel n'est pas encore disponible.
+    }
+
+    lastSync = _formatTimeNow();
+    notifyListeners();
+  }
   Future<void> startSpecialCollection(String specialType) async {
     try {
       _collectionManager.startSpecialCollection(
@@ -87,7 +134,7 @@ class HomeController extends ChangeNotifier {
 
     // Simuler un quadrilatère autour de la position actuelle
     // ~50m de côté environ
-    final offset = 0.0005; // ~55 mètres
+    const offset = 0.0005; // ~55 mètres
     final points = [
       LatLng(centerLat + offset, centerLng - offset), // Nord-Ouest
       LatLng(centerLat + offset, centerLng + offset), // Nord-Est
@@ -195,8 +242,8 @@ class HomeController extends ChangeNotifier {
     updateStatus();
   }
 
-//  Une methode pour tester les  pistes dans l'emulateur à supprimer après
-  void addRealisticPisteSimulation() async {
+//  Une methode pour tester les lignes dans l'emulateur à supprimer après
+  void addRealisticLineSimulation() {
     if (!hasActiveCollection) return;
 
     final random = Random();
@@ -209,7 +256,7 @@ class HomeController extends ChangeNotifier {
     double angle = random.nextDouble() * 2 * pi; // 0 à 360°
     double curveIntensity = 0.03; // Léger virage
 
-    List<LatLng> pistePoints = [];
+    List<LatLng> simulatedLinePoints = [];
 
     for (int i = 0; i < numberOfPoints; i++) {
       final distance = 0.00015 + (random.nextDouble() * 0.00005);
@@ -220,7 +267,7 @@ class HomeController extends ChangeNotifier {
       currentLng += distance * sin(angle);
 
       final point = LatLng(currentLat, currentLng);
-      pistePoints.add(point);
+      simulatedLinePoints.add(point);
 
       _collectionManager.addManualPoint(
         activeCollectionType == 'ligne'
@@ -233,17 +280,21 @@ class HomeController extends ChangeNotifier {
     }
 
     final bearingDeg = (angle * 180 / pi % 360).toStringAsFixed(0);
-    print('🧪 SIMULATION PISTE: $numberOfPoints pts, direction ~${bearingDeg}°');
+    print('🧪 SIMULATION LIGNE: $numberOfPoints pts, direction ~$bearingDeg°');
 
     collectedPolylines.add(
       Polyline(
-        points: pistePoints,
+        points: simulatedLinePoints,
         color: const Color(0xFF1976D2),
         strokeWidth: 5.0,
       ),
     );
 
     notifyListeners();
+  }
+
+  void addRealisticPisteSimulation() {
+    addRealisticLineSimulation();
   }
 
   double _haversineDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -485,6 +536,7 @@ class HomeController extends ChangeNotifier {
     stopLocationTracking();
     _collectionManager.removeListener(_onCollectionChanged);
     _collectionManager.dispose();
+    unawaited(_locationService.dispose());
     super.dispose();
   }
 }
