@@ -1,7 +1,6 @@
 // lib/point_form_widget.dart
 import 'package:flutter/material.dart';
 import '../../data/local/database_helper.dart';
-import '../../data/remote/api_service.dart';
 import '../../core/config/infrastructure_config.dart';
 
 class PointFormWidget extends StatefulWidget {
@@ -84,13 +83,13 @@ class _PointFormWidgetState extends State<PointFormWidget> {
       print('🆕 Mode CRÉATION');
 
       // AJOUTEZ SEULEMENT LES CHAMPS MANQUANTS, NE REMPLACEZ PAS TOUT
-      _formData['id'] = _formData['id'] ?? null;
+      _formData['id'] = _formData['id'];
       _formData['code_piste'] = _formData['code_piste'] ?? widget.nearestPisteCode;
-      _formData['nom'] = _formData['nom'] ?? null;
-      _formData['type'] = _formData['type'] ?? null;
+      _formData['nom'] = _formData['nom'];
+      _formData['type'] = _formData['type'];
       _formData['enqueteur'] = _formData['enqueteur'] ?? widget.agentName ?? 'N/A';
       _formData['date_creation'] = _formData['date_creation'] ?? DateTime.now().toIso8601String();
-      _formData['date_modification'] = _formData['date_modification'] ?? null;
+      _formData['date_modification'] = _formData['date_modification'];
 
       // ASSUREZ-VOUS QUE LES COORDONNÉES PRINCIPALES EXISTENT
       if (!_formData.containsKey('latitude') && _formData.containsKey('latitude_debut')) {
@@ -716,7 +715,7 @@ class _PointFormWidgetState extends State<PointFormWidget> {
                         child: Row(
                           children: [
                             Icon(Icons.auto_awesome, size: 20, color: Colors.green[700]),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1164,8 +1163,7 @@ class _PointFormWidgetState extends State<PointFormWidget> {
                       colorScheme: const ColorScheme.light(
                         primary: Color(0xFF1976D2),
                         onPrimary: Colors.white,
-                      ),
-                      dialogBackgroundColor: Colors.white,
+                      ), dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
                     ),
                     child: child!,
                   );
@@ -1602,8 +1600,8 @@ class _PointFormWidgetState extends State<PointFormWidget> {
             ),
           ),
           if (hasError)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
               child: Text(
                 'Veuillez sélectionner au moins un type',
                 style: TextStyle(color: Colors.red, fontSize: 12),

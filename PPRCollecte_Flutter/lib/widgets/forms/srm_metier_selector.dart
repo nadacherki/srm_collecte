@@ -96,7 +96,9 @@ class _MetierSheet extends StatelessWidget {
       if (c == null) continue;
       if (geometryFilter == 'point' &&
           c['isLine'] != true &&
-          c['isPolygon'] != true) return true;
+          c['isPolygon'] != true) {
+        return true;
+      }
       if (geometryFilter == 'line' && c['isLine'] == true) return true;
       if (geometryFilter == 'polygon' && c['isPolygon'] == true) return true;
     }

@@ -60,19 +60,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'pprcollecte.wsgi.application'
 
+from pathlib import Path
+import environ
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / ".env")
+
 # ============================================================
 # BASE DE DONNÉES — sig_srm (PostgreSQL/PostGIS)
 # ============================================================
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': 'sig_srm',
-        'USER': 'postgres',
-        'PASSWORD': 'geoinfo',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
-        'OPTIONS': {
-            'client_encoding': 'UTF8',
+    "default": {
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": env("DB_NAME", default="sig_srm"),
+        "USER": env("DB_USER", default="postgres"),
+        "PASSWORD": env("DB_PASSWORD", default="geoinfo"),
+        "HOST": env("DB_HOST", default="127.0.0.1"),
+        "PORT": env("DB_PORT", default="5432"),
+        "OPTIONS": {
+            "client_encoding": env("DB_CLIENT_ENCODING", default="UTF8"),
         },
     }
 }
@@ -111,8 +119,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # GDAL / GEOS / PROJ — fournis par QGIS
 # Adapter les chemins selon votre version de QGIS installée
 # ============================================================
-GDAL_LIBRARY_PATH = r"C:\Program Files\QGIS 3.34.12\bin\gdal309.dll"
-GEOS_LIBRARY_PATH = r"C:\Program Files\QGIS 3.34.12\bin\geos_c.dll"
+GDAL_LIBRARY_PATH = r"C:\Program Files\QGIS 3.40.14\bin\gdal312.dll"
+GEOS_LIBRARY_PATH = r"C:\Program Files\QGIS 3.40.14\bin\geos_c.dll"
 PROJ_LIB = r"C:\Program Files\QGIS 3.34.12\share\proj"
 
 os.environ['PATH'] = r"C:\Program Files\QGIS 3.34.12\bin;" + os.environ['PATH']

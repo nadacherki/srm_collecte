@@ -10,6 +10,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import check_password, make_password
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import ValidationError
+from django.utils import timezone
 import json
 
 from .models import (
@@ -52,6 +54,7 @@ from .serializers import (
     ElecTransformateurSerializer, ElecCelluleSerializer,
     ElecDepartBtSerializer, ElecDepartHtaSerializer,
     ElecTronconBtSerializer, ElecTronconHtaSerializer,
+    LoginRequestSerializer,
 )
 
 
@@ -64,17 +67,32 @@ class ProjetMissionFilterMixin:
     Filtre automatiquement le queryset par id_projet et id_mission
     si ces paramètres sont passés dans l'URL (?id_projet=1&id_mission=5).
     """
+    def _parse_positive_int_param(self, name):
+        raw_value = self.request.query_params.get(name)
+        if raw_value in (None, ''):
+            return None
+
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            raise ValidationError({name: 'Entier positif attendu'})
+
+        if value <= 0:
+            raise ValidationError({name: 'Entier positif attendu'})
+
+        return value
+
     def get_queryset(self):
         qs = super().get_queryset()
-        id_projet = self.request.query_params.get('id_projet')
-        id_mission = self.request.query_params.get('id_mission')
-        id_agent = self.request.query_params.get('id_agent_crea')
-        if id_projet:
-            qs = qs.filter(id_projet=int(id_projet))
-        if id_mission:
-            qs = qs.filter(id_mission=int(id_mission))
-        if id_agent:
-            qs = qs.filter(id_agent_crea=int(id_agent))
+        id_projet = self._parse_positive_int_param('id_projet')
+        id_mission = self._parse_positive_int_param('id_mission')
+        id_agent = self._parse_positive_int_param('id_agent_crea')
+        if id_projet is not None:
+            qs = qs.filter(id_projet=id_projet)
+        if id_mission is not None:
+            qs = qs.filter(id_mission=id_mission)
+        if id_agent is not None:
+            qs = qs.filter(id_agent_crea=id_agent)
         return qs
 
 
@@ -90,15 +108,16 @@ def login_view(request):
     Body: { "login": "username", "mot_de_passe": "password" }
     """
     try:
-        data = json.loads(request.body)
+        payload = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Corps de la requête invalide (JSON attendu)'}, status=400)
 
-    login_val = data.get('login', '').strip()
-    mot_de_passe = data.get('mot_de_passe', '').strip()
+    serializer = LoginRequestSerializer(data=payload)
+    if not serializer.is_valid():
+        return JsonResponse({'error': serializer.errors}, status=400)
 
-    if not login_val or not mot_de_passe:
-        return JsonResponse({'error': 'Login et mot de passe requis'}, status=400)
+    login_val = serializer.validated_data['login']
+    mot_de_passe = serializer.validated_data['mot_de_passe']
 
     try:
         user = Utilisateur.objects.get(login=login_val)
@@ -134,7 +153,6 @@ def login_view(request):
         except Projet.DoesNotExist:
             pass
 
-    from django.utils import timezone
     user.dernier_login = timezone.now()
     user.save(update_fields=['dernier_login'])
 
@@ -161,18 +179,18 @@ class ProjetViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ProjetSerializer
 
 
-class MissionViewSet(viewsets.ModelViewSet):
+class MissionViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
     queryset = Mission.objects.all()
     serializer_class = MissionSerializer
 
     def get_queryset(self):
         qs = Mission.objects.all()
-        id_agent = self.request.query_params.get('id_agent')
-        id_projet = self.request.query_params.get('id_projet')
-        if id_agent:
-            qs = qs.filter(id_agent=int(id_agent))
-        if id_projet:
-            qs = qs.filter(id_projet=int(id_projet))
+        id_agent = self._parse_positive_int_param('id_agent')
+        id_projet = self._parse_positive_int_param('id_projet')
+        if id_agent is not None:
+            qs = qs.filter(id_agent=id_agent)
+        if id_projet is not None:
+            qs = qs.filter(id_projet=id_projet)
         return qs.order_by('-id_mission')
 
 
@@ -191,15 +209,15 @@ class ObjetIncompletViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
     serializer_class = ObjetIncompletSerializer
 
 
-class FondDePlanViewSet(viewsets.ReadOnlyModelViewSet):
+class FondDePlanViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet):
     queryset = FondDePlan.objects.all()
     serializer_class = FondDePlanSerializer
 
     def get_queryset(self):
         qs = FondDePlan.objects.all()
-        id_projet = self.request.query_params.get('id_projet')
-        if id_projet:
-            qs = qs.filter(id_projet=int(id_projet))
+        id_projet = self._parse_positive_int_param('id_projet')
+        if id_projet is not None:
+            qs = qs.filter(id_projet=id_projet)
         return qs
 
 

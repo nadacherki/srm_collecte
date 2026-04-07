@@ -195,7 +195,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
     if (points.length < 3) return 0.0;
     final refLat = points.first.latitude;
     final refLng = points.first.longitude;
-    final metersPerDegreeLat = 111320.0;
+    const metersPerDegreeLat = 111320.0;
     final metersPerDegreeLng = 111320.0 * cos(refLat * pi / 180);
 
     List<List<double>> meterPoints = points.map((p) {

@@ -9,8 +9,8 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:io';
+import '../../core/config/srm_config.dart';
 import '../remote/api_service.dart';
-import 'dart:convert';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -519,6 +519,7 @@ class DatabaseHelper {
   /// Crée la table SQLite pour une entité SRM si elle n'existe pas.
   /// Structure générique : id + tous les champs en TEXT ou REAL + FK SRM.
   Future<void> ensureEntityTable(String tableName, List<String> fields) async {
+    _assertAllowedSrmTable(tableName);
     final db = await database;
     // Vérifier si la table existe déjà
     final tables = await db.rawQuery(
@@ -563,8 +564,9 @@ class DatabaseHelper {
 
     // Colonnes dynamiques depuis srm_config.dart (fields)
     final dynamicCols = fields
+        .where(_isAllowedSrmColumn)
         .where((f) => !_isFixedCol(f))
-        .map((f) => '  $f TEXT')
+        .map((f) => '  $f ${_sqliteTypeForField(f)}')
         .join(',\n');
 
     final sql = '''
@@ -595,16 +597,14 @@ class DatabaseHelper {
   /// Insert une entité SRM dans sa table (crée la table si besoin).
   Future<int> insertEntitySrm(
       String tableName, Map<String, dynamic> data) async {
+    _assertAllowedSrmTable(tableName);
     // Récupérer les champs depuis la config (pour créer la table)
     final fields = data.keys.toList();
     await ensureEntityTable(tableName, fields);
 
     final db = await database;
     // Nettoyer les valeurs null pour éviter les erreurs SQLite
-    final cleaned = <String, dynamic>{};
-    for (final entry in data.entries) {
-      if (entry.value != null) cleaned[entry.key] = entry.value;
-    }
+    final cleaned = _sanitizeSrmPayload(tableName, data);
 
     try {
       final id = await db.insert(
@@ -617,7 +617,7 @@ class DatabaseHelper {
     } catch (e) {
       // Si la colonne n'existe pas encore, ajouter dynamiquement
       if (e.toString().contains('no such column')) {
-        await _addMissingColumns(tableName, cleaned);
+        await _addMissingColumns(tableName, cleaned.keys.toList());
         final id = await db.insert(tableName, cleaned,
             conflictAlgorithm: ConflictAlgorithm.replace);
         return id;
@@ -628,15 +628,18 @@ class DatabaseHelper {
 
   /// Ajoute les colonnes manquantes dans une table existante.
   Future<void> _addMissingColumns(
-      String tableName, Map<String, dynamic> data) async {
+      String tableName, List<String> fields) async {
+    _assertAllowedSrmTable(tableName);
     final db = await database;
     final existing = await db.rawQuery('PRAGMA table_info($tableName)');
     final existingCols = existing.map((r) => r['name'] as String).toSet();
 
-    for (final key in data.keys) {
-      if (!existingCols.contains(key)) {
+    for (final key in fields.where(_isAllowedSrmColumn)) {
+      if (!existingCols.contains(key) && !_isFixedCol(key)) {
         try {
-          await db.execute('ALTER TABLE $tableName ADD COLUMN $key TEXT');
+          await db.execute(
+            'ALTER TABLE $tableName ADD COLUMN $key ${_sqliteTypeForField(key)}',
+          );
           print('✅ Colonne ajoutée: $tableName.$key');
         } catch (_) {}
       }
@@ -646,18 +649,17 @@ class DatabaseHelper {
   /// Met à jour une entité SRM.
   Future<void> updateEntitySrm(
       String tableName, int id, Map<String, dynamic> data) async {
+    _assertAllowedSrmTable(tableName);
     final db = await database;
-    await _addMissingColumns(tableName, data);
-    final cleaned = <String, dynamic>{};
-    for (final entry in data.entries) {
-      if (entry.value != null) cleaned[entry.key] = entry.value;
-    }
+    await _addMissingColumns(tableName, data.keys.toList());
+    final cleaned = _sanitizeSrmPayload(tableName, data);
     await db.update(tableName, cleaned, where: 'id = ?', whereArgs: [id]);
     print('✅ SRM updateEntitySrm → $tableName id=$id');
   }
 
   /// Supprime une entité SRM.
   Future<void> deleteEntitySrm(String tableName, int id) async {
+    _assertAllowedSrmTable(tableName);
     final db = await database;
     await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
     print('✅ SRM deleteEntitySrm → $tableName id=$id');
@@ -667,6 +669,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getEntitiesSrm(
       String tableName) async {
     try {
+      _assertAllowedSrmTable(tableName);
       final db = await database;
       // Vérifier que la table existe
       final tables = await db.rawQuery(
@@ -684,6 +687,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getUnsyncedSrm(
       String tableName) async {
     try {
+      _assertAllowedSrmTable(tableName);
       final db = await database;
       final tables = await db.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
@@ -699,9 +703,126 @@ class DatabaseHelper {
 
   /// Marque une entité comme synchronisée.
   Future<void> markSyncedSrm(String tableName, int id) async {
+    _assertAllowedSrmTable(tableName);
     final db = await database;
     await db.update(tableName, {'synced': 1, 'date_sync': DateTime.now().toIso8601String()},
         where: 'id = ?', whereArgs: [id]);
+  }
+
+  Set<String> _allowedSrmTables() {
+    final tables = <String>{};
+    for (final metier in SrmConfig.getMetiers()) {
+      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
+        final tableName = SrmConfig.getTableName(metier, entity);
+        if (tableName != null && tableName.isNotEmpty) {
+          tables.add(tableName);
+        }
+      }
+    }
+    return tables;
+  }
+
+  Set<String> _allowedSrmColumns() {
+    final columns = <String>{..._fixedSrmColumns};
+    for (final metier in SrmConfig.getMetiers()) {
+      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
+        columns.addAll(SrmConfig.getFields(metier, entity));
+      }
+    }
+    return columns;
+  }
+
+  static const Set<String> _fixedSrmColumns = {
+    'id', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
+    'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
+    'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
+    'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
+    'nb_points', 'distance_m', 'points_json', 'altitude_z_moy',
+    'anomalie', 'type_anomalie',
+    'photo_1', 'photo_2', 'photo_3', 'photo_4',
+    'mode_localisation', 'synced', 'date_collecte', 'date_sync',
+  };
+
+  void _assertAllowedSrmTable(String tableName) {
+    if (!_allowedSrmTables().contains(tableName)) {
+      throw Exception('Table SRM non autorisée: $tableName');
+    }
+  }
+
+  bool _isAllowedSrmColumn(String column) {
+    return _allowedSrmColumns().contains(column);
+  }
+
+  String _sqliteTypeForField(String field) {
+    if (_fixedSrmColumns.contains(field)) {
+      switch (field) {
+        case 'id':
+        case 'id_projet':
+        case 'id_mission':
+        case 'id_agent_crea':
+        case 'id_planche':
+        case 'id_commune':
+        case 'nb_points':
+        case 'anomalie':
+        case 'synced':
+          return 'INTEGER';
+        case 'latitude_gps':
+        case 'longitude_gps':
+        case 'altitude_gps':
+        case 'altitude_z_moy':
+        case 'x_debut':
+        case 'y_debut':
+        case 'x_fin':
+        case 'y_fin':
+        case 'lat_debut':
+        case 'lon_debut':
+        case 'lat_fin':
+        case 'lon_fin':
+        case 'distance_m':
+          return 'REAL';
+        default:
+          return 'TEXT';
+      }
+    }
+
+    for (final metier in SrmConfig.getMetiers()) {
+      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
+        final fields = SrmConfig.getFields(metier, entity);
+        if (fields.contains(field)) {
+          final rule = SrmConfig.getFieldRule(metier, entity, field);
+          switch (rule.kind) {
+            case SrmFieldKind.integer:
+            case SrmFieldKind.booleanLike:
+              return 'INTEGER';
+            case SrmFieldKind.decimal:
+              return 'REAL';
+            case SrmFieldKind.date:
+            case SrmFieldKind.uuid:
+            case SrmFieldKind.enumValue:
+            case SrmFieldKind.text:
+              return 'TEXT';
+          }
+        }
+      }
+    }
+    return 'TEXT';
+  }
+
+  Map<String, dynamic> _sanitizeSrmPayload(
+    String tableName,
+    Map<String, dynamic> data,
+  ) {
+    _assertAllowedSrmTable(tableName);
+    final cleaned = <String, dynamic>{};
+    for (final entry in data.entries) {
+      if (!_isAllowedSrmColumn(entry.key)) {
+        continue;
+      }
+      if (entry.value != null) {
+        cleaned[entry.key] = entry.value;
+      }
+    }
+    return cleaned;
   }
 
   Future<void> saveLastSyncTime(DateTime dt) async {
