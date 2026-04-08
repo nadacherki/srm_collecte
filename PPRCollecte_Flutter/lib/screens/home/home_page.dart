@@ -1564,13 +1564,11 @@ class _HomePageState extends State<HomePage> {
       });
     }
     await _loadDisplayedPolygons();
-    print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ [_loadDownloadedPoints] stubbed ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Sprint 6');
+    print('[_loadDownloadedPoints] stubbed for Sprint 6');
   }
 
   Future<void> _refreshAfterNavigation() async {
-    print(
-      'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ RafraÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â®chissement aprÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨s navigation...',
-    );
+    print('Refresh after navigation...');
     await _loadDisplayedSpecialLines();
     await _refreshAllPoints(); // Seulement les lignes spéciales
   }
@@ -1822,6 +1820,57 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  Future<void> cancelSpecialCollection() async {
+    final wasPolygon = _isPolygonCollection;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(wasPolygon ? 'Annuler le polygone' : 'Annuler le tracé'),
+        content: Text(
+          wasPolygon
+              ? 'Voulez-vous vraiment annuler ce polygone ? Les points collectés ne seront pas enregistrés.'
+              : 'Voulez-vous vraiment annuler ce tracé ? Les points collectés ne seront pas enregistrés.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53E3E),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Oui, annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    homeController.cancelSpecialCollection();
+    if (!mounted) return;
+
+    setState(() {
+      _isSpecialCollection = false;
+      _isPolygonCollection = false;
+      _specialCollectionType = null;
+      _pendingSrmPolygoneMetier = null;
+      _pendingSrmPolygoneEntityType = null;
+      homeController.collectedPolylines.clear();
+      collectedPolylines.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(wasPolygon ? 'Polygone annulé' : 'Tracé annulé'),
+        backgroundColor: const Color(0xFFE53E3E),
+      ),
+    );
   }
 
   Future<void> _loadDisplayedPolygons() async {
@@ -2439,6 +2488,13 @@ class _HomePageState extends State<HomePage> {
 
   // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
   Future<void> addPointOfInterest() async {
+    if ((homeController.ligneCollection?.isActive ?? false) ||
+        (homeController.chausseeCollection?.isActive ?? false) ||
+        (homeController.specialCollection?.isActive ?? false)) {
+      _addCurrentPointToActiveCollection();
+      return;
+    }
+
     // 1) Sélectionner métier + type
     if (!mounted) return;
     final selection = await showSrmPointSelector(context);
@@ -2469,6 +2525,33 @@ class _HomePageState extends State<HomePage> {
       ),
     );
     if (mounted) _refreshAfterNavigation();
+  }
+
+  void _addCurrentPointToActiveCollection() {
+    final error = homeController.addCurrentPointToActiveCollection();
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final pointCount = homeController.ligneCollection?.points.length ??
+        homeController.chausseeCollection?.points.length ??
+        homeController.specialCollection?.points.length ??
+        0;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Point ajoute au trace ($pointCount total)'),
+        backgroundColor: const Color(0xFFF59E0B),
+        duration: const Duration(milliseconds: 900),
+      ),
+    );
   }
 
   // === SPRINT 5 : COLLECTE LIGNE SRM ===
@@ -2503,7 +2586,7 @@ class _HomePageState extends State<HomePage> {
       await homeController.startLigneCollection(fakeCode);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
-            'Tracé ${selection.entityType} démarré, marchez le long de l\'objet'),
+            'Tracé ${selection.entityType} démarré, ajoutez les points avec le bouton jaune'),
         backgroundColor: Color(SrmConfig.getMetierColor(selection.metier)),
         duration: const Duration(seconds: 3),
       ));
@@ -2572,7 +2655,7 @@ class _HomePageState extends State<HomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Tracé $e démarré. Marchez sur le périmètre de l\'objet'),
+              'Tracé $e démarré. Ajoutez les points avec le bouton jaune'),
           backgroundColor: _pendingSrmPolygoneMetier != null
               ? Color(SrmConfig.getMetierColor(_pendingSrmPolygoneMetier!))
               : const Color(0xFF1B5E20),
@@ -3461,6 +3544,51 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  Future<void> cancelLigneCollection() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Annuler le tracé'),
+        content: const Text(
+          'Voulez-vous vraiment annuler ce tracé ? Les points collectés ne seront pas enregistrés.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53E3E),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Oui, annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    homeController.cancelLigneCollection();
+    _pendingSrmLigneSelection = null;
+    _continuationData = null;
+
+    if (!mounted) return;
+    setState(() {
+      homeController.collectedPolylines.clear();
+      collectedPolylines.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tracé annulé'),
+        backgroundColor: Color(0xFFE53E3E),
+      ),
+    );
   }
 
   Future<String> _resolveLocalPisteCodeFromPolyline(List<LatLng> polyPts) async {
@@ -5185,7 +5313,7 @@ class _HomePageState extends State<HomePage> {
                     bottom: 200,
                     right: 16,
                     child: Visibility(
-                      visible: kDebugMode && homeController.hasActiveCollection,
+                      visible: false,
                       child: FloatingActionButton(
                         onPressed: () {
                           homeController.addRealisticLineSimulation();
@@ -5218,7 +5346,7 @@ class _HomePageState extends State<HomePage> {
                     bottom: 120,
                     right: 16,
                     child: Visibility(
-                      visible: _isSpecialCollection && kDebugMode,
+                      visible: false,
                       child: FloatingActionButton(
                         onPressed: () {
                           homeController.addManualPointToSpecialCollection();
@@ -5249,7 +5377,7 @@ class _HomePageState extends State<HomePage> {
                   //  SIMULATION POLYGONE ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SUPPRIMER APRÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â S TEST
                   //  BOUTON SIMULATION ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°MULATEUR ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SUPPRIMER POUR LA PRODUCTION
                   // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ SIMULATION POLYGONE ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SUPPRIMER APRÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â S TEST ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´
-                  if (_isPolygonCollection)
+                  if (false)
                     Positioned(
                       bottom: 120,
                       right: 16,
@@ -5301,6 +5429,8 @@ class _HomePageState extends State<HomePage> {
                     onTogglePolygon: toggleSpecialCollection,
                     onFinishLigne: finishLigneCollection,
                     onFinishPolygon: finishSpecialCollection,
+                    onCancelLigne: cancelLigneCollection,
+                    onCancelPolygon: cancelSpecialCollection,
                     onRefresh: _loadDisplayedPoints,
                     isSpecialCollection: _isSpecialCollection, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOUVEAU
                     onStopSpecial: finishSpecialCollection,
@@ -5374,12 +5504,6 @@ class _HomePageState extends State<HomePage> {
                               ? 70 // décalé sous l’un des deux
                               : 16, // position par défaut
                     ),
-
-                  // === COMPTE À REBOURS GPS ===
-                  GlobalCountdownWidget(
-                    seconds: homeController.collectionCountdown,
-                    isVisible: homeController.hasActiveCollection,
-                  ),
 
                   // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
                   // Remplacez le Positioned actuel par ceci :

@@ -538,7 +538,27 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
   }
 
   String _fieldLabel(String field) {
-    const labels = {
+    final labels = <String, String>{
+      'marque': 'Marque',
+      'ref': 'Reference',
+      'sect': 'Secteur',
+      'tour': 'Tour',
+      'abon': 'Abonne',
+      'nom': 'Nom',
+      'cin': 'CIN',
+      'adresse': 'Adresse',
+      'num_contrat': 'Numero contrat',
+      'num_compteur': 'Numero compteur',
+      'type_cpt': 'Type compteur',
+      'type_abonnement': 'Type abonnement',
+      'etat_abonnement': 'Etat abonnement',
+      'consommation': 'Consommation',
+      'date_pose': 'Date pose',
+      'date_releve': 'Date releve',
+      'anne_fabr_compt': 'Annee fabrication',
+      'anomalie_rdo': 'Anomalie RDO',
+      'diametre_calibre_terrain': 'Diametre calibre terrain',
+      'diametre_conduite': 'Diametre conduite',
       // EP
       'ep_num': 'Numéro', 'ep_type': 'Type', 'ep_modele': 'Modèle',
       'ep_marque': 'Marque', 'ep_diam': 'Diamètre (mm)',

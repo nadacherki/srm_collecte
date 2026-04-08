@@ -408,6 +408,43 @@ class HomeController extends ChangeNotifier {
     }
   }
 
+  String? addCurrentPointToActiveCollection() {
+    if (_collectionManager.ligneCollection?.isActive ?? false) {
+      final added = _collectionManager.addManualPoint(
+        CollectionType.ligne,
+        userPosition,
+      );
+      if (!added) {
+        return 'Le point courant existe déjà dans ce tracé.';
+      }
+      return null;
+    }
+
+    if (_collectionManager.chausseeCollection?.isActive ?? false) {
+      final added = _collectionManager.addManualPoint(
+        CollectionType.chaussee,
+        userPosition,
+      );
+      if (!added) {
+        return 'Le point courant existe déjà dans ce tracé.';
+      }
+      return null;
+    }
+
+    if (_collectionManager.specialCollection?.isActive ?? false) {
+      final added = _collectionManager.addManualPoint(
+        CollectionType.special,
+        userPosition,
+      );
+      if (!added) {
+        return 'Le point courant existe déjà dans ce tracé.';
+      }
+      return null;
+    }
+
+    return 'Aucune collecte active.';
+  }
+
   Map<String, dynamic>? finishLigneCollection() {
     final result = _collectionManager.finishLigneCollection();
 
@@ -433,6 +470,12 @@ class HomeController extends ChangeNotifier {
     };
   }
 
+  void cancelLigneCollection() {
+    _collectionManager.cancelLigneCollection();
+    _activePisteCode = null;
+    notifyListeners();
+  }
+
   Map<String, dynamic>? finishChausseeCollection() {
     final result = _collectionManager.finishChausseeCollection();
     if (result == null) return null;
@@ -444,6 +487,16 @@ class HomeController extends ChangeNotifier {
       'startTime': result.startTime,
       'endTime': result.endTime,
     };
+  }
+
+  void cancelChausseeCollection() {
+    _collectionManager.cancelChausseeCollection();
+    notifyListeners();
+  }
+
+  void cancelSpecialCollection() {
+    _collectionManager.cancelSpecialCollection();
+    notifyListeners();
   }
 
   void setActivePisteCode(String code) {

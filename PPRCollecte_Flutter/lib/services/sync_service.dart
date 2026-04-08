@@ -139,6 +139,7 @@ class SyncService {
           payload.remove('downloaded');
           payload.remove('synced');
           payload.remove('date_sync');
+          _removeKnownObsoleteKeys(info, payload);
           _normalizeSyncPayload(payload);
 
           final response = await ApiService.postData(
@@ -333,6 +334,170 @@ class SyncService {
         return;
       default:
         payload['mode_localisation'] = rawMode.toLowerCase();
+    }
+  }
+
+  void _removeKnownObsoleteKeys(_TableInfo info, Map<String, dynamic> payload) {
+    if (info.table == 'ventouse') {
+      payload.remove('ep_etat');
+      return;
+    }
+
+    if (info.table == 'hydrant') {
+      final legacyMarque = payload['ep_marque'];
+      final currentMarque = payload['marque'];
+      if ((currentMarque == null || currentMarque.toString().trim().isEmpty) &&
+          legacyMarque != null &&
+          legacyMarque.toString().trim().isNotEmpty) {
+        payload['marque'] = legacyMarque;
+      }
+
+      const obsoleteKeys = <String>{
+        'ep_modele',
+        'ep_marque',
+        'ep_pression',
+        'etage_aqua',
+        'secteur_aqua',
+        'id_regard',
+        'id_conduite',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
+      return;
+    }
+
+    if (info.table == 'borne_fontaine') {
+      final legacyMarque = payload['ep_marque'];
+      final currentMarque = payload['marque'];
+      if ((currentMarque == null || currentMarque.toString().trim().isEmpty) &&
+          legacyMarque != null &&
+          legacyMarque.toString().trim().isNotEmpty) {
+        payload['marque'] = legacyMarque;
+      }
+
+      const obsoleteKeys = <String>{
+        'ep_marque',
+        'etage_aqua',
+        'secteur_aqua',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
+      return;
+    }
+
+    if (info.table == 'bouche_cles') {
+      const obsoleteKeys = <String>{
+        'ep_num',
+        'ep_type',
+        'ep_etat',
+        'emplacement',
+        'ref_rue',
+        'ep_statut',
+        'ep_coor_x',
+        'ep_coor_y',
+        'etage_aqua',
+        'secteur_aqua',
+        'photo_1',
+        'photo_2',
+        'photo_3',
+        'photo_4',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
+      return;
+    }
+
+    if (info.table == 'compteur_reseau') {
+      final legacyNumero = payload['ep_numero'] ?? payload['ep_numero_compteur'];
+      final currentSerie = payload['ep_n_serie'];
+      if ((currentSerie == null || currentSerie.toString().trim().isEmpty) &&
+          legacyNumero != null &&
+          legacyNumero.toString().trim().isNotEmpty) {
+        payload['ep_n_serie'] = legacyNumero;
+      }
+
+      const obsoleteKeys = <String>{
+        'ep_numero',
+        'ep_numero_compteur',
+        'ep_etat',
+        'emplacement',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
+      return;
+    }
+
+    if (info.table == 'compteur_abonne') {
+      final legacyNumero = payload['ep_numero'] ?? payload['ep_numero_compteur'];
+      final currentNumero = payload['num_compteur'];
+      if ((currentNumero == null || currentNumero.toString().trim().isEmpty) &&
+          legacyNumero != null &&
+          legacyNumero.toString().trim().isNotEmpty) {
+        payload['num_compteur'] = legacyNumero;
+      }
+
+      final legacyCalibre = payload['ep_calibre'];
+      final currentCalibre = payload['diametre_calibre_terrain'];
+      if ((currentCalibre == null || currentCalibre.toString().trim().isEmpty) &&
+          legacyCalibre != null &&
+          legacyCalibre.toString().trim().isNotEmpty) {
+        payload['diametre_calibre_terrain'] = legacyCalibre;
+      }
+
+      const obsoleteKeys = <String>{
+        'ep_num',
+        'ep_type',
+        'ep_calibre',
+        'ep_numero',
+        'ep_numero_compteur',
+        'ep_marque',
+        'ep_etat',
+        'etage_aqua',
+        'secteur_aqua',
+        'ep_statut',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
+      return;
+    }
+
+    if (info.table == 'cone_de_reduction') {
+      final legacyDiamIn = payload['ep_diam_amont'];
+      final legacyDiamOut = payload['ep_diam_aval'];
+      if ((payload['ep_diam_in'] == null ||
+              payload['ep_diam_in'].toString().trim().isEmpty) &&
+          legacyDiamIn != null &&
+          legacyDiamIn.toString().trim().isNotEmpty) {
+        payload['ep_diam_in'] = legacyDiamIn;
+      }
+      if ((payload['ep_diam_out'] == null ||
+              payload['ep_diam_out'].toString().trim().isEmpty) &&
+          legacyDiamOut != null &&
+          legacyDiamOut.toString().trim().isNotEmpty) {
+        payload['ep_diam_out'] = legacyDiamOut;
+      }
+
+      const obsoleteKeys = <String>{
+        'ep_diam_amont',
+        'ep_diam_aval',
+        'ep_etat',
+        'emplacement',
+        'id_conduite',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
+      return;
+    }
+
+    if (info.table == 'regard_ep') {
+      const obsoleteKeys = <String>{
+        'ep_type',
+        'ep_forme',
+        'ep_longueur',
+        'ep_largeur',
+        'ep_profondeur',
+        'ep_cote_tampon',
+        'ep_cote_radier',
+        'ep_cote_fil_eau',
+        'ep_etat',
+        'etage_aqua',
+        'secteur_aqua',
+      };
+      payload.removeWhere((key, _) => obsoleteKeys.contains(key));
     }
   }
 }

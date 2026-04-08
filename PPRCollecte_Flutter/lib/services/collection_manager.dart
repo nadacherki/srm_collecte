@@ -7,6 +7,7 @@ import 'collection_service.dart';
 
 class CollectionManager extends ChangeNotifier {
   final CollectionService _collectionService = CollectionService();
+  static const double _duplicatePointThresholdMeters = 0.1;
   static int _nextPisteId = 1;
   static int _nextChausseeId = 1;
 
@@ -290,6 +291,14 @@ class CollectionManager extends ChangeNotifier {
     return result;
   }
 
+  void cancelLigneCollection() {
+    if (_ligneCollection == null) return;
+    _ligneCollection = null;
+    _countdown = 0;
+    _collectionService.stopCollection();
+    notifyListeners();
+  }
+
   /// Termine une collecte de chaussée
   CollectionResult? finishChausseeCollection() {
     if (_chausseeCollection == null) return null;
@@ -315,33 +324,56 @@ class CollectionManager extends ChangeNotifier {
     return result;
   }
 
-  /// ✅ MÉTHODE MANQUANTE AJOUTÉE - Ajoute un point manuellement pour debug/simulation
-  void addManualPoint(CollectionType type, LatLng point) {
-    if (type == CollectionType.ligne && (_ligneCollection?.isActive ?? false)) {
-      _collectionService.recordCurrentAltitudeForManualPoint();
-      final lastPoint = _ligneCollection!.points.isNotEmpty ? _ligneCollection!.points.last : point;
-      final distance = _collectionService.calculateTotalDistance([
-        lastPoint,
-        point
-      ]);
-      _addPointToCollection(type, point, distance);
-    } else if (type == CollectionType.chaussee && (_chausseeCollection?.isActive ?? false)) {
-      _collectionService.recordCurrentAltitudeForManualPoint();
-      final lastPoint = _chausseeCollection!.points.isNotEmpty ? _chausseeCollection!.points.last : point;
-      final distance = _collectionService.calculateTotalDistance([
-        lastPoint,
-        point
-      ]);
-      _addPointToCollection(type, point, distance);
-    } else if (type == CollectionType.special && (_specialCollection?.isActive ?? false)) {
-      _collectionService.recordCurrentAltitudeForManualPoint();
-      final lastPoint = _specialCollection!.points.isNotEmpty ? _specialCollection!.points.last : point;
-      final distance = _collectionService.calculateTotalDistance([
-        lastPoint,
-        point
-      ]);
-      _addPointToCollection(type, point, distance);
+  void cancelChausseeCollection() {
+    if (_chausseeCollection == null) return;
+    _chausseeCollection = null;
+    _countdown = 0;
+    _collectionService.stopCollection();
+    notifyListeners();
+  }
+
+  /// Ajoute un point manuellement sur la position courante.
+  /// Retourne false si la collecte n'est pas active ou si le point duplique
+  /// exactement le dernier point déjà capturé.
+  bool addManualPoint(CollectionType type, LatLng point) {
+    CollectionBase? collection;
+
+    if (type == CollectionType.ligne) {
+      collection = _ligneCollection;
+    } else if (type == CollectionType.chaussee) {
+      collection = _chausseeCollection;
+    } else if (type == CollectionType.special) {
+      collection = _specialCollection;
     }
+
+    if (collection == null || !collection.isActive) {
+      return false;
+    }
+
+    double segmentDistance = 0.0;
+    if (collection.points.isNotEmpty) {
+      final lastPoint = collection.points.last;
+      segmentDistance = _collectionService.calculateTotalDistance([
+        lastPoint,
+        point,
+      ]);
+
+      if (segmentDistance <= _duplicatePointThresholdMeters) {
+        return false;
+      }
+    }
+
+    _collectionService.recordCurrentAltitudeForManualPoint();
+    _addPointToCollection(type, point, segmentDistance);
+    return true;
+  }
+
+  void cancelSpecialCollection() {
+    if (_specialCollection == null) return;
+    _specialCollection = null;
+    _countdown = 0;
+    _collectionService.stopCollection();
+    notifyListeners();
   }
 
   @override
