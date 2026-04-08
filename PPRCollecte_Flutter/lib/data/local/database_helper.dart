@@ -942,19 +942,13 @@ class DatabaseHelper {
       [tableName],
     );
     if (tables.isEmpty) {
-      // Créer la table automatiquement avec colonnes fixes
-      final cols = <String>['id INTEGER PRIMARY KEY AUTOINCREMENT'];
-      for (final entry in _migratableFixedSrmColumns.entries) {
-        cols.add('${entry.key} ${entry.value}');
-      }
-      await db.execute(
-        'CREATE TABLE IF NOT EXISTS $tableName (${cols.join(', ')})',
+      throw Exception(
+        'Table locale SRM absente: $tableName. Le schema SQLite doit etre aligne avec le serveur.',
       );
-      print('✅ Table SRM créée automatiquement: $tableName');
-    } else {
-      // Table existe → migrer les colonnes manquantes
-      await _ensureSrmFixedColumns(db, tableName);
     }
+
+    // Table existe → migrer uniquement les colonnes fixes connues
+    await _ensureSrmFixedColumns(db, tableName);
   }
 
   Future<bool> tableHasColumn(String tableName, String columnName) async {
