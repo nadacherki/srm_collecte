@@ -60,34 +60,33 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'pprcollecte.wsgi.application'
 
-from pathlib import Path
-import environ
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-env = environ.Env()
-environ.Env.read_env(BASE_DIR / ".env")
-
 # ============================================================
 # BASE DE DONNÉES — sig_srm (PostgreSQL/PostGIS)
 # ============================================================
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": env("DB_NAME", default="sig_srm"),
-        "USER": env("DB_USER", default="postgres"),
-        "PASSWORD": env("DB_PASSWORD", default="geoinfo"),
-        "HOST": env("DB_HOST", default="127.0.0.1"),
-        "PORT": env("DB_PORT", default="5432"),
+        "NAME": os.environ.get("DB_NAME", "sig_srm"),
+        "USER": os.environ.get("DB_USER", "postgres"),
+        "PASSWORD": os.environ.get("DB_PASSWORD", "geoinfo"),
+        "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("DB_PORT", "5432"),
         "OPTIONS": {
-            "client_encoding": env("DB_CLIENT_ENCODING", default="UTF8"),
+            "client_encoding": os.environ.get("DB_CLIENT_ENCODING", "UTF8"),
         },
     }
 }
 
 # ============================================================
-# MOT DE PASSE — Validation
+# MOT DE PASSE — Argon2
+# pip install argon2-cffi
 # ============================================================
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -107,20 +106,16 @@ USE_TZ = True
 # FICHIERS STATIQUES
 # ============================================================
 STATIC_URL = 'static/'
-
-# Dossier pour stocker les photos uploadées par les agents
 MEDIA_URL = '/media/'
-
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ============================================================
-# GDAL / GEOS / PROJ — fournis par QGIS
-# Adapter les chemins selon votre version de QGIS installée
+# GDAL / GEOS / PROJ — fournis par QGIS 3.34.12
 # ============================================================
-GDAL_LIBRARY_PATH = r"C:\Program Files\QGIS 3.40.14\bin\gdal312.dll"
-GEOS_LIBRARY_PATH = r"C:\Program Files\QGIS 3.40.14\bin\geos_c.dll"
+GDAL_LIBRARY_PATH = r"C:\Program Files\QGIS 3.34.12\bin\gdal309.dll"
+GEOS_LIBRARY_PATH = r"C:\Program Files\QGIS 3.34.12\bin\geos_c.dll"
 PROJ_LIB = r"C:\Program Files\QGIS 3.34.12\share\proj"
 
 os.environ['PATH'] = r"C:\Program Files\QGIS 3.34.12\bin;" + os.environ['PATH']

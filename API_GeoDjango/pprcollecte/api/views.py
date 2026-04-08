@@ -127,6 +127,9 @@ def login_view(request):
     """
     POST /api/login/
     Body: { "login": "username", "mot_de_passe": "password" }
+    Vérifie le mot de passe avec Argon2 (check_password).
+    Si le mot de passe est encore en clair (ancien compte), il est
+    automatiquement migré vers Argon2 lors du premier login.
     """
     try:
         payload = json.loads(request.body)
@@ -151,7 +154,22 @@ def login_view(request):
     if not user.mot_de_passe:
         return JsonResponse({'error': 'Aucun mot de passe configuré pour ce compte'}, status=401)
 
-    if mot_de_passe != user.mot_de_passe:
+    # ── Vérification mot de passe avec migration automatique ──
+    mot_de_passe_valide = False
+
+    if user.mot_de_passe.startswith(('argon2', 'pbkdf2', 'bcrypt')):
+        # Mot de passe déjà hashé → vérification standard
+        mot_de_passe_valide = check_password(mot_de_passe, user.mot_de_passe)
+    else:
+        # Mot de passe encore en clair (anciens comptes)
+        # Comparaison directe + migration automatique vers Argon2
+        if mot_de_passe == user.mot_de_passe:
+            mot_de_passe_valide = True
+            # Migration : hasher le mot de passe avec Argon2
+            user.mot_de_passe = make_password(mot_de_passe)
+            user.save(update_fields=['mot_de_passe'])
+
+    if not mot_de_passe_valide:
         return JsonResponse({'error': 'Login ou mot de passe incorrect'}, status=401)
 
     roles_mobile = ['admin', 'project_manager', 'editeur_terrain', 'editeur_bureau']
