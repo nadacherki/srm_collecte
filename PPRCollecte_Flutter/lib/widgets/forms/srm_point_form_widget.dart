@@ -250,12 +250,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
         data['type_anomalie'] = _typeAnomalie;
       }
 
-      // ── Objet Incomplet (NOUVEAU) ──
+      // ── Objet Incomplet : flag dans la table métier uniquement ──
+      // Les détails vont dans la table objet_incomplet séparément
       data['objet_incomplet'] = _isObjetIncomplet ? 1 : 0;
-      if (_isObjetIncomplet) {
-        data['raison_incomplet']        = _raisonIncomplet;
-        data['detail_raison_incomplet'] = _detailRaisonController.text.trim();
-      }
 
       // ── Photos ──
       for (int i = 1; i <= 4; i++) {
@@ -281,7 +278,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
         await db.insertEntitySrm(tableName, data);
       }
 
-      // ── INSERT dans objet_incomplet si toggle activé (NOUVEAU) ──
+      // ── INSERT dans objet_incomplet si toggle activé ──
       if (_isObjetIncomplet) {
         final metierCode = widget.metier == 'Eau Potable'
             ? 'EP'
@@ -289,10 +286,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
                 ? 'ASS'
                 : 'ELEC';
         final incompletData = {
-          'uuid_objet':        data['uuid'],     // lien avec l'objet parent
-          'nom_classe':        tableName,
-          'metier':            metierCode,
-          'raison':            _raisonIncomplet,
+          // Colonnes exactes de public.objet_incomplet (PostgreSQL)
+          'nom_classe':        tableName,         // ex: coffret_bt
+          'metier':            metierCode,         // EP / ASS / ELEC
+          'raison':            _raisonIncomplet,   // raison choisie
           'detail_raison':     _detailRaisonController.text.trim(),
           'date_signalement':  DateTime.now().toIso8601String(),
           'id_agent_signal':   ApiService.userId,
@@ -300,6 +297,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
           'id_mission':        ApiService.currentMissionId,
           'id_projet':         ApiService.currentProjetId,
           'synced':            0,
+          'date_collecte':     DateTime.now().toIso8601String(),
         };
         await db.insertEntitySrm('objet_incomplet', incompletData);
       }

@@ -168,7 +168,12 @@ class DatabaseHelper {
 
   Future<void> _migrateExistingSrmTables(Database db) async {
     await _createAllSrmEntityTables(db);
+    // ── Migration spécifique : table objet_incomplet ──
+    await _ensureObjetIncompletTable(db);
     for (final tableName in _allowedSrmTables()) {
+      if (tableName == 'objet_incomplet' || tableName == 'raison_incomplet') {
+        continue; // gérées séparément
+      }
       try {
         final tables = await db.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
@@ -178,6 +183,71 @@ class DatabaseHelper {
         await _ensureSrmFixedColumns(db, tableName);
       } catch (e) {
         print('⚠️ Migration SRM ignorée pour $tableName: $e');
+      }
+    }
+  }
+
+  /// Crée ou migre la table objet_incomplet avec les colonnes PostgreSQL exactes
+  Future<void> _ensureObjetIncompletTable(Database db) async {
+    // Créer la table si elle n'existe pas
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS objet_incomplet (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_incomplet INTEGER,
+        id_objet INTEGER,
+        nom_classe TEXT,
+        metier TEXT,
+        raison TEXT,
+        detail_raison TEXT,
+        date_signalement TEXT,
+        id_agent_signal INTEGER,
+        statut TEXT DEFAULT 'A_COMPLETER',
+        date_planification TEXT,
+        id_agent_retour INTEGER,
+        date_completion TEXT,
+        id_mission INTEGER,
+        id_projet INTEGER,
+        synced INTEGER DEFAULT 0,
+        downloaded INTEGER DEFAULT 0,
+        date_collecte TEXT,
+        date_sync TEXT
+      )
+    ''');
+
+    // Migrer les colonnes manquantes si la table existait déjà sans elles
+    final colonnesMigration = {
+      'id_incomplet': 'INTEGER',
+      'id_objet': 'INTEGER',
+      'nom_classe': 'TEXT',
+      'metier': 'TEXT',
+      'raison': 'TEXT',
+      'detail_raison': 'TEXT',
+      'date_signalement': 'TEXT',
+      'id_agent_signal': 'INTEGER',
+      'statut': "TEXT DEFAULT 'A_COMPLETER'",
+      'date_planification': 'TEXT',
+      'id_agent_retour': 'INTEGER',
+      'date_completion': 'TEXT',
+      'id_mission': 'INTEGER',
+      'id_projet': 'INTEGER',
+      'synced': 'INTEGER DEFAULT 0',
+      'downloaded': 'INTEGER DEFAULT 0',
+      'date_collecte': 'TEXT',
+      'date_sync': 'TEXT',
+    };
+
+    final existing = await db.rawQuery('PRAGMA table_info(objet_incomplet)');
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+
+    for (final entry in colonnesMigration.entries) {
+      if (existingCols.contains(entry.key)) continue;
+      try {
+        await db.execute(
+          'ALTER TABLE objet_incomplet ADD COLUMN ${entry.key} ${entry.value}',
+        );
+        print('✅ Col ajoutée objet_incomplet.${entry.key}');
+      } catch (e) {
+        print('⚠️ objet_incomplet.${entry.key}: $e');
       }
     }
   }
@@ -710,6 +780,11 @@ class DatabaseHelper {
         }
       }
     }
+    // Tables spéciales hors srm_config
+    tables.addAll({
+      'objet_incomplet',
+      'raison_incomplet',
+    });
     return tables;
   }
 
@@ -732,6 +807,13 @@ class DatabaseHelper {
     'anomalie', 'type_anomalie',
     'photo_1', 'photo_2', 'photo_3', 'photo_4',
     'mode_localisation', 'downloaded', 'synced', 'date_collecte', 'date_sync',
+    // Flag objet incomplet dans les tables métier
+    'objet_incomplet',
+    // Colonnes de la table objet_incomplet (correspond à PostgreSQL)
+    'id_incomplet', 'id_objet', 'nom_classe', 'metier',
+    'raison', 'detail_raison', 'date_signalement',
+    'id_agent_signal', 'statut', 'date_planification',
+    'id_agent_retour', 'date_completion',
   };
 
   static const Map<String, String> _migratableFixedSrmColumns = {
@@ -766,6 +848,8 @@ class DatabaseHelper {
     'synced': 'INTEGER DEFAULT 0',
     'date_collecte': 'TEXT',
     'date_sync': 'TEXT',
+    // Flag dans les tables métier
+    'objet_incomplet': 'INTEGER DEFAULT 0',
   };
 
   void _assertAllowedSrmTable(String tableName) {
@@ -858,9 +942,18 @@ class DatabaseHelper {
       [tableName],
     );
     if (tables.isEmpty) {
-      throw Exception(
-        'Table locale SRM absente: $tableName. Le schema SQLite doit etre aligne avec le serveur.',
+      // Créer la table automatiquement avec colonnes fixes
+      final cols = <String>['id INTEGER PRIMARY KEY AUTOINCREMENT'];
+      for (final entry in _migratableFixedSrmColumns.entries) {
+        cols.add('${entry.key} ${entry.value}');
+      }
+      await db.execute(
+        'CREATE TABLE IF NOT EXISTS $tableName (${cols.join(', ')})',
       );
+      print('✅ Table SRM créée automatiquement: $tableName');
+    } else {
+      // Table existe → migrer les colonnes manquantes
+      await _ensureSrmFixedColumns(db, tableName);
     }
   }
 

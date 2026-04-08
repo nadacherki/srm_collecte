@@ -1,5 +1,6 @@
+// lib/screens/data/srm_data_status_page.dart
+// Sprint 6 — Liste données SRM + filtration avancée
 import 'package:flutter/material.dart';
-
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
@@ -27,14 +28,28 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   bool _isLoading = true;
-  List<Map<String, dynamic>> _data = [];
+  List<Map<String, dynamic>> _allData = [];
+  List<Map<String, dynamic>> _filteredData = [];
+
+  // ── Filtres actifs ──────────────────────────────────────────────
+  String? _filterMetier;       // null = tous
+  String? _filterGeometrie;    // 'Point' | 'LineString' | 'Polygon' | null
+  String? _filterEntite;       // nom entité, null = tous
+  DateTimeRange? _filterDateRange;
+  bool _filtersVisible = false;
+
+  // Listes pour les dropdowns
+  List<String> _metiers = [];
+  List<String> _entitesDisponibles = [];
 
   @override
   void initState() {
     super.initState();
+    _metiers = SrmConfig.getMetiers();
     _loadData();
   }
 
+  // ── Helpers ─────────────────────────────────────────────────────
   int _toInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -62,16 +77,14 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   bool _matchesCurrentContext(Map<String, dynamic> item) {
     final currentProjetId = ApiService.currentProjetId;
     final currentMissionId = ApiService.currentMissionId;
-
     final rowProjetId = _toInt(item['id_projet']);
     final rowMissionId = _toInt(item['id_mission']);
-
     if (currentProjetId != null && rowProjetId != currentProjetId) return false;
     if (currentMissionId != null && rowMissionId != currentMissionId) return false;
     return true;
   }
 
-  bool _matchesFilter(Map<String, dynamic> item, int? loginId) {
+  bool _matchesStatusFilter(Map<String, dynamic> item, int? loginId) {
     final synced = _toInt(item['synced']) == 1;
     final downloaded = _toInt(item['downloaded']) == 1;
     final creatorId = _toInt(item['id_agent_crea']);
@@ -93,34 +106,22 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
   String _buildDisplayTitle(String entity, Map<String, dynamic> row) {
     const preferredKeys = [
-      'nom',
-      'code',
-      'ep_num',
-      'ep_numero',
-      'reference',
-      'type',
-      'type_objet',
-      'type_regard',
-      'type_conduite',
-      'type_station',
-      'type_poste',
-      'type_support',
-      'type_bassin',
+      'nom', 'code', 'ep_num', 'ep_numero', 'reference', 'type',
+      'type_objet', 'type_regard', 'type_conduite', 'type_station',
+      'type_poste', 'type_support', 'type_bassin',
     ];
-
     for (final key in preferredKeys) {
       final raw = row[key]?.toString().trim();
       if (raw != null && raw.isNotEmpty && raw.toLowerCase() != 'null') {
         return '$entity • $raw';
       }
     }
-
     return entity;
   }
 
+  // ── Chargement données ───────────────────────────────────────────
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-
     try {
       final loginId = await _dbHelper.resolveLoginId();
       final items = <Map<String, dynamic>>[];
@@ -132,23 +133,25 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
           final rows = await _dbHelper.getEntitiesSrm(tableName);
           for (final row in rows) {
+            if (!_matchesStatusFilter(row, loginId)) continue;
+
             final item = Map<String, dynamic>.from(row);
             item['source_table'] = tableName;
             item['source_metier'] = metier;
             item['source_entity'] = entity;
-            item['nom'] = (item['nom']?.toString().trim().isNotEmpty ?? false)
-                ? item['nom']
-                : entity;
-            item['type'] = metier;
             item['display_title'] = _buildDisplayTitle(entity, item);
 
-            if (_matchesFilter(item, loginId)) {
-              items.add(item);
-            }
+            // Géométrie depuis config
+            final config = SrmConfig.getEntityConfig(metier, entity);
+            item['geometry_type'] =
+                config?['geometryType'] as String? ?? 'Point';
+
+            items.add(item);
           }
         }
       }
 
+      // Tri par date desc
       items.sort((a, b) {
         final da = _sortDateFor(a);
         final db = _sortDateFor(b);
@@ -159,23 +162,129 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       });
 
       if (!mounted) return;
-      setState(() => _data = items);
+      setState(() {
+        _allData = items;
+        _applyFilters();
+        _isLoading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _data = []);
+      setState(() {
+        _allData = [];
+        _filteredData = [];
+        _isLoading = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur de chargement des données: $e'),
+          content: Text('Erreur de chargement: $e'),
           backgroundColor: Colors.red,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Application des filtres ──────────────────────────────────────
+  void _applyFilters() {
+    List<Map<String, dynamic>> result = List.from(_allData);
+
+    // Filtre métier
+    if (_filterMetier != null) {
+      result = result
+          .where((item) => item['source_metier'] == _filterMetier)
+          .toList();
+    }
+
+    // Filtre géométrie
+    if (_filterGeometrie != null) {
+      result = result
+          .where((item) => item['geometry_type'] == _filterGeometrie)
+          .toList();
+    }
+
+    // Filtre entité
+    if (_filterEntite != null) {
+      result = result
+          .where((item) => item['source_entity'] == _filterEntite)
+          .toList();
+    }
+
+    // Filtre date
+    if (_filterDateRange != null) {
+      result = result.where((item) {
+        final d = _sortDateFor(item);
+        if (d == null) return false;
+        return d.isAfter(_filterDateRange!.start
+                .subtract(const Duration(seconds: 1))) &&
+            d.isBefore(
+                _filterDateRange!.end.add(const Duration(days: 1)));
+      }).toList();
+    }
+
+    setState(() => _filteredData = result);
+  }
+
+  // ── Mise à jour entités disponibles selon métier choisi ─────────
+  void _updateEntitesDisponibles() {
+    if (_filterMetier == null) {
+      _entitesDisponibles = [];
+      _filterEntite = null;
+    } else {
+      _entitesDisponibles =
+          SrmConfig.getEntitiesForMetier(_filterMetier!);
+      if (!_entitesDisponibles.contains(_filterEntite)) {
+        _filterEntite = null;
       }
     }
   }
 
+  // ── Réinitialiser filtres ────────────────────────────────────────
+  void _resetFilters() {
+    setState(() {
+      _filterMetier = null;
+      _filterGeometrie = null;
+      _filterEntite = null;
+      _filterDateRange = null;
+      _entitesDisponibles = [];
+      _applyFilters();
+    });
+  }
+
+  int get _activeFiltersCount {
+    int count = 0;
+    if (_filterMetier != null) count++;
+    if (_filterGeometrie != null) count++;
+    if (_filterEntite != null) count++;
+    if (_filterDateRange != null) count++;
+    return count;
+  }
+
+  // ── Sélection plage date ─────────────────────────────────────────
+  Future<void> _pickDateRange() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDateRange: _filterDateRange,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1B4F72),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (range != null) {
+      setState(() {
+        _filterDateRange = range;
+        _applyFilters();
+      });
+    }
+  }
+
+  // ── BUILD ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,23 +305,445 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
+          // Bouton filtres avec badge
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(
+                  _filtersVisible ? Icons.filter_list_off : Icons.filter_list,
+                  color: Colors.white,
+                ),
+                tooltip: 'Filtres',
+                onPressed: () =>
+                    setState(() => _filtersVisible = !_filtersVisible),
+              ),
+              if (_activeFiltersCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$_activeFiltersCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadData,
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : DataListView(
-              data: _data,
-              entityType: widget.title,
-              dataFilter: widget.dataFilter,
-              onEdit: null,
-              onDelete: null,
-              onView: null,
-              tableName: null,
-            ),
+      body: Column(
+        children: [
+          // ── Bandeau compteur ──
+          _buildCounterBanner(),
+
+          // ── Panneau filtres ──
+          if (_filtersVisible) _buildFilterPanel(),
+
+          // ── Liste ──
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : DataListView(
+                    data: _filteredData,
+                    entityType: widget.title,
+                    dataFilter: widget.dataFilter,
+                    onEdit: null,
+                    onDelete: null,
+                    onView: null,
+                    tableName: null,
+                  ),
+          ),
+        ],
+      ),
     );
   }
+
+  // ── Bandeau compteur ─────────────────────────────────────────────
+  Widget _buildCounterBanner() {
+    final total = _allData.length;
+    final shown = _filteredData.length;
+    final isFiltered = _activeFiltersCount > 0;
+
+    return Container(
+      color: const Color(0xFF1976D2).withOpacity(0.08),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 16,
+            color: const Color(0xFF1976D2),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isFiltered
+                ? '$shown / $total objet${total > 1 ? 's' : ''} (filtrés)'
+                : '$total objet${total > 1 ? 's' : ''}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1976D2),
+            ),
+          ),
+          const Spacer(),
+          if (isFiltered)
+            TextButton.icon(
+              onPressed: _resetFilters,
+              icon: const Icon(Icons.clear, size: 14),
+              label: const Text('Réinitialiser',
+                  style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Panneau filtres ──────────────────────────────────────────────
+  Widget _buildFilterPanel() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Titre filtres
+          Row(
+            children: [
+              const Icon(Icons.tune, size: 16, color: Color(0xFF1976D2)),
+              const SizedBox(width: 6),
+              const Text(
+                'Filtres',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1976D2),
+                ),
+              ),
+              const Spacer(),
+              if (_activeFiltersCount > 0)
+                TextButton(
+                  onPressed: _resetFilters,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                  ),
+                  child: const Text('Tout effacer',
+                      style: TextStyle(fontSize: 12)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── Ligne 1 : Métier + Géométrie ──
+          Row(
+            children: [
+              Expanded(child: _buildMetierDropdown()),
+              const SizedBox(width: 8),
+              Expanded(child: _buildGeometrieDropdown()),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // ── Ligne 2 : Entité (si métier choisi) ──
+          if (_filterMetier != null) ...[
+            _buildEntiteDropdown(),
+            const SizedBox(height: 8),
+          ],
+
+          // ── Ligne 3 : Date ──
+          _buildDateFilter(),
+        ],
+      ),
+    );
+  }
+
+  // ── Filtre métier ────────────────────────────────────────────────
+  Widget _buildMetierDropdown() {
+    final metierColors = {
+      'Eau Potable': const Color(0xFF1976D2),
+      'Assainissement': const Color(0xFF27AE60),
+      'Électricité': const Color(0xFFF39C12),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Métier',
+            style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _filterMetier != null
+                  ? Color(SrmConfig.getMetierColor(_filterMetier!))
+                  : const Color(0xFFDDDDDD),
+              width: _filterMetier != null ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: _filterMetier != null
+                ? Color(SrmConfig.getMetierColor(_filterMetier!))
+                    .withOpacity(0.06)
+                : Colors.white,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: _filterMetier,
+              isExpanded: true,
+              hint: const Text('Tous',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Tous les métiers',
+                      style: TextStyle(fontSize: 13)),
+                ),
+                ..._metiers.map((m) => DropdownMenuItem<String>(
+                      value: m,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: metierColors[m] ?? Colors.grey,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(m,
+                              style: const TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                    )),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _filterMetier = val;
+                  _updateEntitesDisponibles();
+                  _applyFilters();
+                });
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Filtre géométrie ─────────────────────────────────────────────
+  Widget _buildGeometrieDropdown() {
+    final geoOptions = {
+      'Point': Icons.place,
+      'LineString': Icons.show_chart,
+      'Polygon': Icons.pentagon_outlined,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Géométrie',
+            style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _filterGeometrie != null
+                  ? const Color(0xFF8E44AD)
+                  : const Color(0xFFDDDDDD),
+              width: _filterGeometrie != null ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: _filterGeometrie != null
+                ? const Color(0xFF8E44AD).withOpacity(0.06)
+                : Colors.white,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: _filterGeometrie,
+              isExpanded: true,
+              hint: const Text('Tous',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Tous les types',
+                      style: TextStyle(fontSize: 13)),
+                ),
+                ...geoOptions.entries.map((e) => DropdownMenuItem<String>(
+                      value: e.key,
+                      child: Row(
+                        children: [
+                          Icon(e.value, size: 16, color: const Color(0xFF8E44AD)),
+                          const SizedBox(width: 6),
+                          Text(
+                            e.key == 'LineString' ? 'Ligne' : e.key,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    )),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _filterGeometrie = val;
+                  _applyFilters();
+                });
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Filtre entité ────────────────────────────────────────────────
+  Widget _buildEntiteDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Type d'objet",
+            style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _filterEntite != null
+                  ? const Color(0xFF1976D2)
+                  : const Color(0xFFDDDDDD),
+              width: _filterEntite != null ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: _filterEntite != null
+                ? const Color(0xFF1976D2).withOpacity(0.06)
+                : Colors.white,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: _filterEntite,
+              isExpanded: true,
+              hint: const Text('Tous les types',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Tous les types',
+                      style: TextStyle(fontSize: 13)),
+                ),
+                ..._entitesDisponibles.map((e) => DropdownMenuItem<String>(
+                      value: e,
+                      child: Text(e, style: const TextStyle(fontSize: 13)),
+                    )),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _filterEntite = val;
+                  _applyFilters();
+                });
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Filtre date ──────────────────────────────────────────────────
+  Widget _buildDateFilter() {
+    final hasDate = _filterDateRange != null;
+    return GestureDetector(
+      onTap: _pickDateRange,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: hasDate ? const Color(0xFFE74C3C) : const Color(0xFFDDDDDD),
+            width: hasDate ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+          color: hasDate
+              ? const Color(0xFFE74C3C).withOpacity(0.06)
+              : Colors.white,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.date_range,
+              size: 18,
+              color: hasDate
+                  ? const Color(0xFFE74C3C)
+                  : const Color(0xFF666666),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                hasDate
+                    ? '${_formatDate(_filterDateRange!.start)} → ${_formatDate(_filterDateRange!.end)}'
+                    : 'Filtrer par date de collecte',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: hasDate
+                      ? const Color(0xFFE74C3C)
+                      : Colors.grey,
+                  fontWeight: hasDate
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (hasDate)
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _filterDateRange = null;
+                    _applyFilters();
+                  });
+                },
+                child: const Icon(Icons.clear,
+                    size: 16, color: Color(0xFFE74C3C)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
