@@ -88,17 +88,22 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     final synced = _toInt(item['synced']) == 1;
     final downloaded = _toInt(item['downloaded']) == 1;
     final creatorId = _toInt(item['id_agent_crea']);
-    final isCurrentUserItem = loginId == null || creatorId == loginId;
 
     if (!_matchesCurrentContext(item)) return false;
 
     switch (widget.dataFilter) {
       case 'unsynced':
-        return !synced && !downloaded && isCurrentUserItem;
+        return !synced && !downloaded && (loginId == null || creatorId == loginId);
       case 'synced':
-        return synced && !downloaded && isCurrentUserItem;
+        if (loginId == null) {
+          return synced && !downloaded;
+        }
+        return synced && creatorId == loginId;
       case 'saved':
-        return downloaded;
+        if (loginId == null) {
+          return downloaded;
+        }
+        return downloaded && creatorId != loginId;
       default:
         return true;
     }

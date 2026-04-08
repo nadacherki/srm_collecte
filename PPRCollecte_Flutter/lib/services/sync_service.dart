@@ -79,7 +79,7 @@ class SyncService {
           map['synced'] = 1;
           map['date_sync'] = nowIso;
 
-          await dbHelper.insertEntitySrm(info.table, map);
+          await dbHelper.upsertDownloadedEntitySrm(info.table, map);
           result.successCount++;
         }
       } catch (e) {

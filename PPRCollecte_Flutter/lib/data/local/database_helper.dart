@@ -610,6 +610,55 @@ class DatabaseHelper {
     return id;
   }
 
+  Future<int> upsertDownloadedEntitySrm(
+      String tableName, Map<String, dynamic> data) async {
+    _assertAllowedSrmTable(tableName);
+    final db = await database;
+    await _assertSrmTableExists(db, tableName);
+    final cleaned = _sanitizeSrmPayload(tableName, data);
+    final uuid = cleaned['uuid']?.toString().trim();
+
+    if (uuid != null && uuid.isNotEmpty) {
+      final existingRows = await db.query(
+        tableName,
+        where: 'uuid = ?',
+        whereArgs: [uuid],
+        limit: 1,
+      );
+
+      if (existingRows.isNotEmpty) {
+        final existing = Map<String, dynamic>.from(existingRows.first);
+        final localId = existing['id'];
+        final merged = Map<String, dynamic>.from(existing);
+        cleaned.forEach((key, value) {
+          merged[key] = value;
+        });
+        merged.remove('id');
+
+        if (_toInt(existing['downloaded']) != 1) {
+          merged['downloaded'] = 0;
+        }
+
+        await db.update(
+          tableName,
+          _sanitizeSrmPayload(tableName, merged),
+          where: 'id = ?',
+          whereArgs: [localId],
+        );
+        print('SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid');
+        return localId is int ? localId : 0;
+      }
+    }
+
+    final id = await db.insert(
+      tableName,
+      cleaned,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    print('SRM upsertDownloadedEntitySrm -> $tableName (ID: $id)');
+    return id;
+  }
+
   Future<List<Map<String, dynamic>>> getEntities(
       String tableName) async {
     final db = await database;
