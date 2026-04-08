@@ -508,11 +508,7 @@ class HomeController extends ChangeNotifier {
   }
 
   void addManualPointToCollection(CollectionType type) {
-    final offset = Random().nextDouble() * 0.001;
-    final point = LatLng(
-      userPosition.latitude + offset,
-      userPosition.longitude + offset,
-    );
+    final point = LatLng(userPosition.latitude, userPosition.longitude);
     _collectionManager.addManualPoint(type, point);
   }
 

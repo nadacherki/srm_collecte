@@ -58,10 +58,10 @@ class SrmConfig {
         },
         "Borne ONEP": {
           "tableName": "borne_onep", "schema": "ep",
-          "geometryType": "Point", "hasZ": false, "maxPhotos": 4,
-          "typeField": "ep_type", "typeOptions": [],
-          "fields": ["ep_num","ep_type","ep_etat","emplacement","ref_rue","etage_aqua","secteur_aqua","ep_statut","observation","ep_coor_x","ep_coor_y","ep_coor_z","conformite_plan"],
-          "requiredFields": ["ep_etat","conformite_plan"],
+          "geometryType": "Point", "hasZ": true, "maxPhotos": 0,
+          "typeField": null, "typeOptions": [],
+          "fields": ["observation","date_leve","ep_coor_x","ep_coor_y","ep_coor_z","conformite_plan"],
+          "requiredFields": ["conformite_plan"],
         },
         "Bouche à Clé": {
           "tableName": "bouche_cles", "schema": "ep",
@@ -455,6 +455,7 @@ class SrmConfig {
   static const Set<String> _dateFields = {
     'date_collecte', 'date_construction', 'date_mise_en_service',
     'date_mise_service', 'date_mst', 'date_pose', 'date_rehabilitation',
+    'date_leve',
   };
 
   static const Set<String> _longTextFields = {

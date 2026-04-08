@@ -307,6 +307,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
           'id_projet': ApiService.currentProjetId,
           'id_mission': ApiService.currentMissionId,
           'id_agent_crea': ApiService.userId,
+          'mode_localisation': 'gnss',
           'synced': 0,
           'date_collecte': now.toIso8601String(),
         };

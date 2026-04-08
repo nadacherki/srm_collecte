@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
+from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 import json
 
@@ -82,17 +83,37 @@ class ProjetMissionFilterMixin:
 
         return value
 
+    def _parse_datetime_param(self, name):
+        raw_value = self.request.query_params.get(name)
+        if raw_value in (None, ''):
+            return None
+
+        value = parse_datetime(raw_value)
+        if value is None:
+            raise ValidationError({name: 'Date ISO 8601 attendue'})
+
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone.get_current_timezone())
+
+        return value
+
+    def _has_model_field(self, qs, field_name):
+        return any(field.name == field_name for field in qs.model._meta.fields)
+
     def get_queryset(self):
         qs = super().get_queryset()
         id_projet = self._parse_positive_int_param('id_projet')
         id_mission = self._parse_positive_int_param('id_mission')
         id_agent = self._parse_positive_int_param('id_agent_crea')
+        updated_after = self._parse_datetime_param('updated_after')
         if id_projet is not None:
             qs = qs.filter(id_projet=id_projet)
         if id_mission is not None:
             qs = qs.filter(id_mission=id_mission)
         if id_agent is not None:
             qs = qs.filter(id_agent_crea=id_agent)
+        if updated_after is not None and self._has_model_field(qs, 'updated_at'):
+            qs = qs.filter(updated_at__gt=updated_after)
         return qs
 
 

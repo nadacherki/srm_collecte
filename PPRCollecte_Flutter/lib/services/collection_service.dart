@@ -34,7 +34,7 @@ class CollectionService {
     _context = context;
   }
 
-  int _countdown = 20;
+  int _countdown = 0;
 
   // ── SPRINT 5 : Altitude Z courante (depuis GNSS externe via Mock Location) ──
   double? get currentAltitude => _currentLocation?.altitude;
@@ -42,20 +42,20 @@ class CollectionService {
   // ── SPRINT 5 : Récupérer les altitudes Z capturées ──
   List<double?> get capturedAltitudes => List.unmodifiable(_altitudesZ);
 
-  /// Démarre la collecte GPS avec capture toutes les 20s
+  /// Démarre la collecte GPS en mode manuel.
+  /// La position courante continue d'être suivie, mais les points sont ajoutés
+  /// explicitement depuis l'UI.
   void startCollection({
-    required CollectionBase collection,
     required Stream<LocationData> locationStream,
-    required Function(LatLng point, double distance) onPointAdded,
     Function(int seconds)? onCountdownChanged,
   }) {
     stopCollection();
     _captureTimestamps.clear();
     _altitudesZ.clear(); // Sprint 5 : reset altitudes
     _consecutiveLowDistances = 0;
-    _countdown = 20;
+    _countdown = 0;
 
-    print('🚀 Démarrage collecte GPS SRM - capture toutes les 20s');
+    print('🚀 Démarrage collecte GPS SRM - mode manuel');
 
     _locationSubscription = locationStream.listen(
       (locationData) {
@@ -67,37 +67,13 @@ class CollectionService {
       },
     );
 
-    // ✅ 2. CAPTURE immédiate du premier point
-    _captureFirstPoint(collection, onPointAdded);
+    if (onCountdownChanged != null) {
+      onCountdownChanged(_countdown);
+    }
+  }
 
-    // ✅ 3. TIMER de 1 seconde pour le compte à rebours
-    _captureTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!collection.isActive) {
-        stopCollection();
-        return;
-      }
-
-      _countdown--;
-
-      // Notifier le changement de countdown
-      if (onCountdownChanged != null) {
-        onCountdownChanged(_countdown);
-      }
-
-      // ✅ BEEP sonore quand il reste 4 secondes ou moins (4, 3, 2, 1)
-      if (_countdown > 0 && _countdown <= 4) {
-        _playBeep();
-      }
-
-      // ✅ CAPTURE quand le compteur arrive à 0
-      if (_countdown <= 0) {
-        _captureScheduledPoint(collection, onPointAdded);
-        _countdown = 20; // Reset
-        if (onCountdownChanged != null) {
-          onCountdownChanged(_countdown);
-        }
-      }
-    });
+  void recordCurrentAltitudeForManualPoint() {
+    _altitudesZ.add(_currentLocation?.altitude);
   }
 
   /// ✅ Joue un petit son système

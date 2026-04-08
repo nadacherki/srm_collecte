@@ -190,7 +190,10 @@ class ApiService {
   // ══════════════════════════════════════════════════════
 
   static Future<dynamic> postData(
-      String endpoint, Map<String, dynamic> data) async {
+    String endpoint,
+    Map<String, dynamic> data, {
+    bool throwOnError = false,
+  }) async {
     try {
       final url = Uri.parse('$baseUrl/api/$endpoint/');
 
@@ -218,16 +221,26 @@ class ApiService {
       } else {
         print('❌ Erreur API POST ($endpoint): '
             '${response.statusCode} - ${response.body}');
+        if (throwOnError) {
+          throw Exception('Erreur POST $endpoint: ${response.statusCode}');
+        }
         return null;
       }
     } on TimeoutException catch (e) {
       print('⏰ Timeout $endpoint: $e');
+      if (throwOnError) {
+        throw Exception('Timeout POST $endpoint');
+      }
       return null;
     } on SocketException catch (e) {
       print('📡 Erreur réseau $endpoint: $e');
+      if (throwOnError) {
+        throw Exception('Erreur reseau POST $endpoint');
+      }
       return null;
     } catch (e) {
       print('❌ Exception $endpoint: $e');
+      if (throwOnError) rethrow;
       return null;
     }
   }
@@ -237,13 +250,19 @@ class ApiService {
   // ══════════════════════════════════════════════════════
 
   /// Ex : fetchData('ep/vannes') → GET /api/ep/vannes/?id_projet=1
-  static Future<List<dynamic>> fetchData(String endpoint) async {
+  static Future<List<dynamic>> fetchData(
+    String endpoint, {
+    DateTime? updatedAfter,
+  }) async {
     final params = <String, String>{};
     if (currentProjetId != null) {
       params['id_projet'] = currentProjetId.toString();
     }
     if (currentMissionId != null) {
       params['id_mission'] = currentMissionId.toString();
+    }
+    if (updatedAfter != null) {
+      params['updated_after'] = updatedAfter.toUtc().toIso8601String();
     }
 
     final uri = Uri.parse('$baseUrl/api/$endpoint/')
@@ -258,6 +277,18 @@ class ApiService {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         if (data is Map && data.containsKey('features')) {
           return data['features'];
+        } else if (data is Map && data.containsKey('results')) {
+          final results = data['results'];
+          if (results is List) {
+            return results;
+          }
+          if (results is Map && results.containsKey('features')) {
+            final features = results['features'];
+            if (features is List) {
+              return features;
+            }
+          }
+          return [];
         } else if (data is List) {
           return data;
         }
@@ -280,35 +311,35 @@ class ApiService {
 
   // ── Eau Potable ──
   static Future<List<dynamic>> fetchVannes() => fetchData('ep/vannes');
-  static Future<List<dynamic>> fetchVannesVidange() => fetchData('ep/vannes_vidange');
+  static Future<List<dynamic>> fetchVannesVidange() => fetchData('ep/vannes-vidange');
   static Future<List<dynamic>> fetchVentouses() => fetchData('ep/ventouses');
   static Future<List<dynamic>> fetchHydrants() => fetchData('ep/hydrants');
-  static Future<List<dynamic>> fetchBornesFontaine() => fetchData('ep/bornes_fontaine');
-  static Future<List<dynamic>> fetchBornesOnep() => fetchData('ep/bornes_onep');
-  static Future<List<dynamic>> fetchBouchesCles() => fetchData('ep/bouches_cles');
-  static Future<List<dynamic>> fetchBouchesArrosage() => fetchData('ep/bouches_arrosage');
-  static Future<List<dynamic>> fetchCompteursReseau() => fetchData('ep/compteurs_reseau');
-  static Future<List<dynamic>> fetchCompteursAbonne() => fetchData('ep/compteurs_abonne');
-  static Future<List<dynamic>> fetchConesReduction() => fetchData('ep/cones_reduction');
-  static Future<List<dynamic>> fetchCentresTampon() => fetchData('ep/centres_tampon');
+  static Future<List<dynamic>> fetchBornesFontaine() => fetchData('ep/bornes-fontaine');
+  static Future<List<dynamic>> fetchBornesOnep() => fetchData('ep/bornes-onep');
+  static Future<List<dynamic>> fetchBouchesCles() => fetchData('ep/bouches-cles');
+  static Future<List<dynamic>> fetchBouchesArrosage() => fetchData('ep/bouches-arrosage');
+  static Future<List<dynamic>> fetchCompteursReseau() => fetchData('ep/compteurs-reseau');
+  static Future<List<dynamic>> fetchCompteursAbonne() => fetchData('ep/compteurs-abonne');
+  static Future<List<dynamic>> fetchConesReduction() => fetchData('ep/cones-reduction');
+  static Future<List<dynamic>> fetchCentresTampon() => fetchData('ep/centres-tampon');
   static Future<List<dynamic>> fetchObturateurs() => fetchData('ep/obturateurs');
-  static Future<List<dynamic>> fetchReducteursPression() => fetchData('ep/reducteurs_pression');
+  static Future<List<dynamic>> fetchReducteursPression() => fetchData('ep/reducteurs-pression');
   static Future<List<dynamic>> fetchNoeudsEP() => fetchData('ep/noeuds');
   static Future<List<dynamic>> fetchReservoirs() => fetchData('ep/reservoirs');
-  static Future<List<dynamic>> fetchStationsPompage() => fetchData('ep/stations_pompage');
+  static Future<List<dynamic>> fetchStationsPompage() => fetchData('ep/stations-pompage');
   static Future<List<dynamic>> fetchForages() => fetchData('ep/forages');
   static Future<List<dynamic>> fetchPuits() => fetchData('ep/puits');
   static Future<List<dynamic>> fetchPompes() => fetchData('ep/pompes');
   static Future<List<dynamic>> fetchRegardsEP() => fetchData('ep/regards');
-  static Future<List<dynamic>> fetchConduitesTerrain() => fetchData('ep/conduites_terrain');
+  static Future<List<dynamic>> fetchConduitesTerrain() => fetchData('ep/conduites-terrain');
   static Future<List<dynamic>> fetchBranchementsEP() => fetchData('ep/branchements');
   static Future<List<dynamic>> fetchTraverses() => fetchData('ep/traverses');
 
   // ── Assainissement ──
   static Future<List<dynamic>> fetchRegardsASS() => fetchData('ass/regards');
-  static Future<List<dynamic>> fetchRegardsBranchement() => fetchData('ass/regards_branchement');
+  static Future<List<dynamic>> fetchRegardsBranchement() => fetchData('ass/regards-branchement');
   static Future<List<dynamic>> fetchCanalisationsASS() => fetchData('ass/canalisations');
-  static Future<List<dynamic>> fetchCanalisationsReutilisation() => fetchData('ass/canalisations_reutilisation');
+  static Future<List<dynamic>> fetchCanalisationsReutilisation() => fetchData('ass/canalisations-reutilisation');
   static Future<List<dynamic>> fetchBranchementsASS() => fetchData('ass/branchements');
   static Future<List<dynamic>> fetchBassins() => fetchData('ass/bassins');
   static Future<List<dynamic>> fetchOuvragesASS() => fetchData('ass/ouvrages');
@@ -318,11 +349,11 @@ class ApiService {
   // ── Électricité ──
   static Future<List<dynamic>> fetchSupports() => fetchData('elec/supports');
   static Future<List<dynamic>> fetchPostes() => fetchData('elec/postes');
-  static Future<List<dynamic>> fetchCoffretsBT() => fetchData('elec/coffrets_bt');
-  static Future<List<dynamic>> fetchNoeudsRaccord() => fetchData('elec/noeuds_raccord');
-  static Future<List<dynamic>> fetchPointsDesserte() => fetchData('elec/points_desserte');
-  static Future<List<dynamic>> fetchTronconsBT() => fetchData('elec/troncons_bt');
-  static Future<List<dynamic>> fetchTronconsHTA() => fetchData('elec/troncons_hta');
+  static Future<List<dynamic>> fetchCoffretsBT() => fetchData('elec/coffrets-bt');
+  static Future<List<dynamic>> fetchNoeudsRaccord() => fetchData('elec/noeuds-raccord');
+  static Future<List<dynamic>> fetchPointsDesserte() => fetchData('elec/points-desserte');
+  static Future<List<dynamic>> fetchTronconsBT() => fetchData('elec/troncons-bt');
+  static Future<List<dynamic>> fetchTronconsHTA() => fetchData('elec/troncons-hta');
 
   // ── Sync POST générique ──
   static Future<dynamic> syncEntity(

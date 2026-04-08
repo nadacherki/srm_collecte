@@ -30,7 +30,7 @@ class BottomButtonsWidget extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const FaIcon(FontAwesomeIcons.save, size: 14),
-              label: const Text("Sauvegarder", style: TextStyle(fontWeight: FontWeight.w500)),
+              label: const Text("Télécharger", style: TextStyle(fontWeight: FontWeight.w500)),
               onPressed: onSave,
             ),
           ),

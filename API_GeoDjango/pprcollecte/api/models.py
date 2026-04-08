@@ -16,6 +16,13 @@ Toutes les géométries sont en EPSG:26191 (Merchich Nord).
 from django.contrib.gis.db import models
 
 
+class SrmTrackedModel(models.Model):
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
 # =====================================================================
 #  SCHÉMA PUBLIC — Tables de gestion (8 tables)
 # =====================================================================
@@ -170,7 +177,7 @@ class EvaluationAgent(models.Model):
 #  SCHÉMA EP — Eau Potable : PONCTUELS (tables 1 à 22)
 # =====================================================================
 
-class EpVanne(models.Model):
+class EpVanne(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -220,7 +227,7 @@ class EpVanne(models.Model):
         return f"Vanne {self.ep_num or self.fid}"
 
 
-class EpVanneDeVidange(models.Model):
+class EpVanneDeVidange(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -264,7 +271,7 @@ class EpVanneDeVidange(models.Model):
         return f"Vanne de vidange {self.ep_num or self.fid}"
 
 
-class EpVentouse(models.Model):
+class EpVentouse(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -308,7 +315,7 @@ class EpVentouse(models.Model):
         return f"Ventouse {self.ep_num or self.fid}"
 
 
-class EpHydrant(models.Model):
+class EpHydrant(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -352,7 +359,7 @@ class EpHydrant(models.Model):
         return f"Hydrant {self.ep_num or self.fid}"
 
 
-class EpBorneFontaine(models.Model):
+class EpBorneFontaine(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -389,16 +396,11 @@ class EpBorneFontaine(models.Model):
         return f"Borne fontaine {self.ep_num or self.fid}"
 
 
-class EpBorneOnep(models.Model):
+class EpBorneOnep(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
-    ep_num = models.CharField(max_length=254, null=True, blank=True)
-    ep_type = models.CharField(max_length=254, null=True, blank=True)
-    ep_etat = models.CharField(max_length=254, null=True, blank=True)
-    emplacement = models.CharField(max_length=254, null=True, blank=True)
-    ref_rue = models.CharField(max_length=254, null=True, blank=True)
-    ep_statut = models.CharField(max_length=254, null=True, blank=True)
-    observation = models.CharField(max_length=254, null=True, blank=True)
+    observation = models.TextField(null=True, blank=True)
+    date_leve = models.DateField(null=True, blank=True)
     ep_coor_x = models.FloatField(null=True, blank=True)
     ep_coor_y = models.FloatField(null=True, blank=True)
     ep_coor_z = models.FloatField(null=True, blank=True)
@@ -412,20 +414,16 @@ class EpBorneOnep(models.Model):
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     anomalie = models.BooleanField(default=False)
     type_anomalie = models.TextField(null=True, blank=True)
-    photo_1 = models.TextField(null=True, blank=True)
-    photo_2 = models.TextField(null=True, blank=True)
-    photo_3 = models.TextField(null=True, blank=True)
-    photo_4 = models.TextField(null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = '"ep"."borne_onep"'
 
     def __str__(self):
-        return f"Borne ONEP {self.ep_num or self.fid}"
+        return f"Borne ONEP {self.fid}"
 
 
-class EpBoucheCles(models.Model):
+class EpBoucheCles(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -460,7 +458,7 @@ class EpBoucheCles(models.Model):
         db_table = '"ep"."bouche_cles"'
 
 
-class EpBoucheDarrosage(models.Model):
+class EpBoucheDarrosage(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -493,7 +491,7 @@ class EpBoucheDarrosage(models.Model):
         db_table = '"ep"."bouche_darrosage"'
 
 
-class EpCompteurAbonne(models.Model):
+class EpCompteurAbonne(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -530,7 +528,7 @@ class EpCompteurAbonne(models.Model):
         db_table = '"ep"."compteur_abonne"'
 
 
-class EpCompteurReseau(models.Model):
+class EpCompteurReseau(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -568,7 +566,7 @@ class EpCompteurReseau(models.Model):
         db_table = '"ep"."compteur_reseau"'
 
 
-class EpConeDeReduction(models.Model):
+class EpConeDeReduction(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -604,7 +602,7 @@ class EpConeDeReduction(models.Model):
         db_table = '"ep"."cone_de_reduction"'
 
 
-class EpCentreTampon(models.Model):
+class EpCentreTampon(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -637,7 +635,7 @@ class EpCentreTampon(models.Model):
         db_table = '"ep"."centre_tampon"'
 
 
-class EpNoeud(models.Model):
+class EpNoeud(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -669,7 +667,7 @@ class EpNoeud(models.Model):
         db_table = '"ep"."noeud"'
 
 
-class EpObturateur(models.Model):
+class EpObturateur(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -705,7 +703,7 @@ class EpObturateur(models.Model):
         db_table = '"ep"."obturateur"'
 
 
-class EpReducteurDePression(models.Model):
+class EpReducteurDePression(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -744,7 +742,7 @@ class EpReducteurDePression(models.Model):
 #  SCHÉMA EP — Eau Potable : suite des PONCTUELS + LINÉAIRES + SURFACIQUES
 # =====================================================================
 
-class EpForage(models.Model):
+class EpForage(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -782,7 +780,7 @@ class EpForage(models.Model):
         return f"Forage {self.ep_num or self.fid}"
 
 
-class EpPuit(models.Model):
+class EpPuit(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -819,7 +817,7 @@ class EpPuit(models.Model):
         return f"Puits {self.ep_num or self.fid}"
 
 
-class EpPompe(models.Model):
+class EpPompe(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -857,7 +855,7 @@ class EpPompe(models.Model):
         return f"Pompe {self.ep_num or self.fid}"
 
 
-class EpReservoir(models.Model):
+class EpReservoir(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -896,7 +894,7 @@ class EpReservoir(models.Model):
         return f"Réservoir {self.ep_num or self.fid}"
 
 
-class EpStationDePompage(models.Model):
+class EpStationDePompage(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191,dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -934,7 +932,7 @@ class EpStationDePompage(models.Model):
         return f"Station pompage {self.ep_num or self.fid}"
 
 
-class EpRegardEp(models.Model):
+class EpRegardEp(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PolygonField(srid=26191, dim=3, null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -977,7 +975,7 @@ class EpRegardEp(models.Model):
         return f"Regard EP {self.ep_num or self.fid}"
 
 
-class EpAutreObjet(models.Model):
+class EpAutreObjet(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     type_objet = models.CharField(max_length=254, null=True, blank=True)
@@ -1011,7 +1009,7 @@ class EpAutreObjet(models.Model):
 
 # ---------- EP LINÉAIRES ----------
 
-class EpConduiteTerrain(models.Model):
+class EpConduiteTerrain(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -1057,7 +1055,7 @@ class EpConduiteTerrain(models.Model):
         return f"Conduite terrain {self.ep_num or self.fid}"
 
 
-class EpConduiteBureau(models.Model):
+class EpConduiteBureau(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -1103,7 +1101,7 @@ class EpConduiteBureau(models.Model):
         return f"Conduite bureau {self.ep_num or self.fid}"
 
 
-class EpBranchement(models.Model):
+class EpBranchement(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -1136,7 +1134,7 @@ class EpBranchement(models.Model):
         return f"Branchement EP {self.ep_num or self.fid}"
 
 
-class EpTraverse(models.Model):
+class EpTraverse(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3,null=True, blank=True)
     ep_num = models.CharField(max_length=254, null=True, blank=True)
@@ -1169,7 +1167,7 @@ class EpTraverse(models.Model):
 
 # ---------- EP SURFACIQUE ----------
 
-class EpPlanche(models.Model):
+class EpPlanche(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PolygonField(srid=26191, dim=3,null=True, blank=True)
     nom = models.CharField(max_length=254, null=True, blank=True)
@@ -1198,7 +1196,7 @@ class EpPlanche(models.Model):
 #  SCHÉMA ASS — Assainissement (9 tables)
 # =====================================================================
 
-class AssRegard(models.Model):
+class AssRegard(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1250,7 +1248,7 @@ class AssRegard(models.Model):
         return f"Regard ASS {self.fid}"
 
 
-class AssRegardBranchement(models.Model):
+class AssRegardBranchement(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1300,7 +1298,7 @@ class AssRegardBranchement(models.Model):
         return f"Regard branchement ASS {self.fid}"
 
 
-class AssCanalisation(models.Model):
+class AssCanalisation(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1347,7 +1345,7 @@ class AssCanalisation(models.Model):
         return f"Canalisation ASS {self.fid}"
 
 
-class AssCanalisationReutilisation(models.Model):
+class AssCanalisationReutilisation(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1394,7 +1392,7 @@ class AssCanalisationReutilisation(models.Model):
         return f"Canalisation réutilisation ASS {self.fid}"
 
 
-class AssBranchement(models.Model):
+class AssBranchement(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1436,7 +1434,7 @@ class AssBranchement(models.Model):
         return f"Branchement ASS {self.fid}"
 
 
-class AssBassin(models.Model):
+class AssBassin(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1484,7 +1482,7 @@ class AssBassin(models.Model):
         return f"Bassin ASS {self.fid}"
 
 
-class AssOuvrage(models.Model):
+class AssOuvrage(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1529,7 +1527,7 @@ class AssOuvrage(models.Model):
         return f"Ouvrage ASS {self.fid}"
 
 
-class AssEquipement(models.Model):
+class AssEquipement(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1573,7 +1571,7 @@ class AssEquipement(models.Model):
         return f"Équipement ASS {self.fid}"
 
 
-class AssStation(models.Model):
+class AssStation(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1624,7 +1622,7 @@ class AssStation(models.Model):
 
 # ---------- PONCTUELS (avec géométrie) ----------
 
-class ElecSupport(models.Model):
+class ElecSupport(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1674,7 +1672,7 @@ class ElecSupport(models.Model):
         return f"Support {self.code_support or self.fid}"
 
 
-class ElecPoste(models.Model):
+class ElecPoste(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1737,7 +1735,7 @@ class ElecPoste(models.Model):
         return f"Poste {self.nom_poste or self.fid}"
 
 
-class ElecCoffretBt(models.Model):
+class ElecCoffretBt(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1785,7 +1783,7 @@ class ElecCoffretBt(models.Model):
         return f"Coffret BT {self.num_coffret or self.fid}"
 
 
-class ElecNoeudRaccord(models.Model):
+class ElecNoeudRaccord(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1826,7 +1824,7 @@ class ElecNoeudRaccord(models.Model):
         return f"Noeud raccord {self.fid}"
 
 
-class ElecPointDesserte(models.Model):
+class ElecPointDesserte(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -1874,7 +1872,7 @@ class ElecPointDesserte(models.Model):
 
 # ---------- ATTRIBUTS (sans géométrie propre, liés à poste) ----------
 
-class ElecTransformateur(models.Model):
+class ElecTransformateur(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     objectid = models.IntegerField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
@@ -1920,7 +1918,7 @@ class ElecTransformateur(models.Model):
         return f"Transformateur {self.num_transfo or self.fid}"
 
 
-class ElecCellule(models.Model):
+class ElecCellule(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     objectid = models.IntegerField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
@@ -1957,7 +1955,7 @@ class ElecCellule(models.Model):
         return f"Cellule {self.nom or self.fid}"
 
 
-class ElecDepartBt(models.Model):
+class ElecDepartBt(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     objectid = models.IntegerField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
@@ -1993,7 +1991,7 @@ class ElecDepartBt(models.Model):
         return f"Départ BT {self.nom_depart or self.fid}"
 
 
-class ElecDepartHta(models.Model):
+class ElecDepartHta(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     objectid = models.IntegerField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
@@ -2026,7 +2024,7 @@ class ElecDepartHta(models.Model):
 
 # ---------- LINÉAIRES ----------
 
-class ElecTronconBt(models.Model):
+class ElecTronconBt(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)
@@ -2073,7 +2071,7 @@ class ElecTronconBt(models.Model):
         return f"Tronçon BT {self.fid}"
 
 
-class ElecTronconHta(models.Model):
+class ElecTronconHta(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
     geom = models.LineStringField(srid=26191, dim=3, null=True, blank=True)
     objectid = models.IntegerField(null=True, blank=True)

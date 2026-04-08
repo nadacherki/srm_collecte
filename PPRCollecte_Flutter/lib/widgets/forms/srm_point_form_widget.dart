@@ -266,6 +266,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
       data['id_projet']     = ApiService.currentProjetId;
       data['id_mission']    = ApiService.currentMissionId;
       data['id_agent_crea'] = ApiService.userId;
+      data['mode_localisation'] = 'gnss';
       data['synced']        = 0;
       data['date_collecte'] = DateTime.now().toIso8601String();
 
@@ -550,6 +551,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
       'ep_entreprise': 'Entreprise', 'ep_ref_marche': 'Réf. marché',
       'etage_aqua': 'Étage aqua', 'secteur_aqua': 'Secteur aqua',
       'ep_statut': 'Statut', 'observation': 'Observation',
+      'date_leve': 'Date leve',
       'ep_coor_x': 'X Merchich (m)', 'ep_coor_y': 'Y Merchich (m)',
       'ep_coor_z': 'Z Altitude (m)', 'ep_pression': 'Pression (bar)',
       'ep_calibre': 'Calibre', 'ep_numero': 'Numéro',

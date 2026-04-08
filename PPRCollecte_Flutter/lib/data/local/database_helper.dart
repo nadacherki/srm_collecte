@@ -4,7 +4,7 @@
 //   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom_prenom, role)
 //   projet_local      → public.projet      (id_projet, code_affaire, nom, srm, region, metier, statut)
 //   mission_local     → public.mission     (id_mission, id_agent, id_projet, etat_mission)
-// Version DB: 14
+// Version DB: 15
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -61,18 +61,18 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: (db, version) async {
         print('🆕 Création tables v$version');
         await _createAllTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         print('🔄 Migration $oldVersion → $newVersion');
-        // Re-créer les tables SRM si elles n'existent pas
         await _createAllTables(db);
       },
       onOpen: (db) async {
         print('🔌 DB ouverte');
+        await _migrateExistingSrmTables(db);
       },
     );
   }
@@ -161,7 +161,41 @@ class DatabaseHelper {
     ''');
     print('✅ Table app_metadata');
 
+    await _createAllSrmEntityTables(db);
+
     print('🎉 Toutes les tables SRM créées !');
+  }
+
+  Future<void> _migrateExistingSrmTables(Database db) async {
+    await _createAllSrmEntityTables(db);
+    for (final tableName in _allowedSrmTables()) {
+      try {
+        final tables = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          [tableName],
+        );
+        if (tables.isEmpty) continue;
+        await _ensureSrmFixedColumns(db, tableName);
+      } catch (e) {
+        print('⚠️ Migration SRM ignorée pour $tableName: $e');
+      }
+    }
+  }
+
+  Future<void> _createAllSrmEntityTables(Database db) async {
+    for (final metier in SrmConfig.getMetiers()) {
+      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
+        final tableName = SrmConfig.getTableName(metier, entity);
+        if (tableName == null || tableName.isEmpty) continue;
+
+        final sql = _buildSrmCreateTableSql(
+          tableName,
+          SrmConfig.getFields(metier, entity),
+        );
+        await db.execute(sql);
+        await _ensureSrmFixedColumns(db, tableName);
+      }
+    }
   }
 
   // ══════════════════════════════════════════════════════
@@ -516,18 +550,9 @@ class DatabaseHelper {
   // ██ ENTITÉS SRM (EP / ASS / ELEC) — SPRINT 5
   // ══════════════════════════════════════════════════════
 
-  /// Crée la table SQLite pour une entité SRM si elle n'existe pas.
-  /// Structure générique : id + tous les champs en TEXT ou REAL + FK SRM.
-  Future<void> ensureEntityTable(String tableName, List<String> fields) async {
+  String _buildSrmCreateTableSql(String tableName, List<String> fields) {
     _assertAllowedSrmTable(tableName);
-    final db = await database;
-    // Vérifier si la table existe déjà
-    final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        [tableName]);
-    if (tables.isNotEmpty) return; // déjà créée
 
-    // Colonnes fixes SRM communes à toutes les entités
     const fixedCols = '''
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT UNIQUE,
@@ -556,28 +581,25 @@ class DatabaseHelper {
       photo_2 TEXT,
       photo_3 TEXT,
       photo_4 TEXT,
-      mode_localisation TEXT DEFAULT 'GPS',
+      mode_localisation TEXT DEFAULT 'gnss',
+      downloaded INTEGER DEFAULT 0,
       synced INTEGER DEFAULT 0,
       date_collecte TEXT,
       date_sync TEXT
     ''';
 
-    // Colonnes dynamiques depuis srm_config.dart (fields)
     final dynamicCols = fields
         .where(_isAllowedSrmColumn)
         .where((f) => !_isFixedCol(f))
         .map((f) => '  $f ${_sqliteTypeForField(f)}')
         .join(',\n');
 
-    final sql = '''
+    return '''
       CREATE TABLE IF NOT EXISTS $tableName (
         $fixedCols
         ${dynamicCols.isNotEmpty ? ',$dynamicCols' : ''}
       )
     ''';
-
-    await db.execute(sql);
-    print('✅ Table SRM créée: $tableName (${fields.length} champs)');
   }
 
   bool _isFixedCol(String col) {
@@ -589,7 +611,7 @@ class DatabaseHelper {
       'nb_points', 'distance_m', 'points_json',
       'anomalie', 'type_anomalie',
       'photo_1', 'photo_2', 'photo_3', 'photo_4',
-      'mode_localisation', 'synced', 'date_collecte', 'date_sync',
+      'mode_localisation', 'downloaded', 'synced', 'date_collecte', 'date_sync',
     };
     return fixed.contains(col);
   }
@@ -598,52 +620,18 @@ class DatabaseHelper {
   Future<int> insertEntitySrm(
       String tableName, Map<String, dynamic> data) async {
     _assertAllowedSrmTable(tableName);
-    // Récupérer les champs depuis la config (pour créer la table)
-    final fields = data.keys.toList();
-    await ensureEntityTable(tableName, fields);
-
     final db = await database;
+    await _assertSrmTableExists(db, tableName);
     // Nettoyer les valeurs null pour éviter les erreurs SQLite
     final cleaned = _sanitizeSrmPayload(tableName, data);
 
-    try {
-      final id = await db.insert(
-        tableName,
-        cleaned,
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-      print('✅ SRM insertEntitySrm → $tableName (ID: $id)');
-      return id;
-    } catch (e) {
-      // Si la colonne n'existe pas encore, ajouter dynamiquement
-      if (e.toString().contains('no such column')) {
-        await _addMissingColumns(tableName, cleaned.keys.toList());
-        final id = await db.insert(tableName, cleaned,
-            conflictAlgorithm: ConflictAlgorithm.replace);
-        return id;
-      }
-      rethrow;
-    }
-  }
-
-  /// Ajoute les colonnes manquantes dans une table existante.
-  Future<void> _addMissingColumns(
-      String tableName, List<String> fields) async {
-    _assertAllowedSrmTable(tableName);
-    final db = await database;
-    final existing = await db.rawQuery('PRAGMA table_info($tableName)');
-    final existingCols = existing.map((r) => r['name'] as String).toSet();
-
-    for (final key in fields.where(_isAllowedSrmColumn)) {
-      if (!existingCols.contains(key) && !_isFixedCol(key)) {
-        try {
-          await db.execute(
-            'ALTER TABLE $tableName ADD COLUMN $key ${_sqliteTypeForField(key)}',
-          );
-          print('✅ Colonne ajoutée: $tableName.$key');
-        } catch (_) {}
-      }
-    }
+    final id = await db.insert(
+      tableName,
+      cleaned,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    print('✅ SRM insertEntitySrm → $tableName (ID: $id)');
+    return id;
   }
 
   /// Met à jour une entité SRM.
@@ -651,7 +639,7 @@ class DatabaseHelper {
       String tableName, int id, Map<String, dynamic> data) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
-    await _addMissingColumns(tableName, data.keys.toList());
+    await _assertSrmTableExists(db, tableName);
     final cleaned = _sanitizeSrmPayload(tableName, data);
     await db.update(tableName, cleaned, where: 'id = ?', whereArgs: [id]);
     print('✅ SRM updateEntitySrm → $tableName id=$id');
@@ -693,8 +681,11 @@ class DatabaseHelper {
           "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
           [tableName]);
       if (tables.isEmpty) return [];
-      return await db.query(tableName,
-          where: 'synced = ?', whereArgs: [0], orderBy: 'id ASC');
+      return await db.query(
+        tableName,
+        where: '(synced IS NULL OR synced = 0) AND (downloaded IS NULL OR downloaded = 0)',
+        orderBy: 'id ASC',
+      );
     } catch (e) {
       print('❌ getUnsyncedSrm $tableName: $e');
       return [];
@@ -740,7 +731,41 @@ class DatabaseHelper {
     'nb_points', 'distance_m', 'points_json', 'altitude_z_moy',
     'anomalie', 'type_anomalie',
     'photo_1', 'photo_2', 'photo_3', 'photo_4',
-    'mode_localisation', 'synced', 'date_collecte', 'date_sync',
+    'mode_localisation', 'downloaded', 'synced', 'date_collecte', 'date_sync',
+  };
+
+  static const Map<String, String> _migratableFixedSrmColumns = {
+    'uuid': 'TEXT',
+    'id_projet': 'INTEGER',
+    'id_mission': 'INTEGER',
+    'id_agent_crea': 'INTEGER',
+    'id_planche': 'INTEGER',
+    'id_commune': 'INTEGER',
+    'latitude_gps': 'REAL',
+    'longitude_gps': 'REAL',
+    'altitude_gps': 'REAL',
+    'x_debut': 'REAL',
+    'y_debut': 'REAL',
+    'x_fin': 'REAL',
+    'y_fin': 'REAL',
+    'lat_debut': 'REAL',
+    'lon_debut': 'REAL',
+    'lat_fin': 'REAL',
+    'lon_fin': 'REAL',
+    'nb_points': 'INTEGER DEFAULT 0',
+    'distance_m': 'REAL DEFAULT 0',
+    'points_json': 'TEXT',
+    'anomalie': 'INTEGER DEFAULT 0',
+    'type_anomalie': 'TEXT',
+    'photo_1': 'TEXT',
+    'photo_2': 'TEXT',
+    'photo_3': 'TEXT',
+    'photo_4': 'TEXT',
+    'mode_localisation': "TEXT DEFAULT 'gnss'",
+    'downloaded': 'INTEGER DEFAULT 0',
+    'synced': 'INTEGER DEFAULT 0',
+    'date_collecte': 'TEXT',
+    'date_sync': 'TEXT',
   };
 
   void _assertAllowedSrmTable(String tableName) {
@@ -764,6 +789,7 @@ class DatabaseHelper {
         case 'id_commune':
         case 'nb_points':
         case 'anomalie':
+        case 'downloaded':
         case 'synced':
           return 'INTEGER';
         case 'latitude_gps':
@@ -808,6 +834,43 @@ class DatabaseHelper {
     return 'TEXT';
   }
 
+  Future<void> _ensureSrmFixedColumns(Database db, String tableName) async {
+    final existing = await db.rawQuery('PRAGMA table_info($tableName)');
+    if (existing.isEmpty) return;
+
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+    for (final entry in _migratableFixedSrmColumns.entries) {
+      if (existingCols.contains(entry.key)) continue;
+      try {
+        await db.execute(
+          'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
+        );
+        print('✅ Colonne fixe ajoutée: $tableName.${entry.key}');
+      } catch (e) {
+        print('⚠️ Impossible d’ajouter $tableName.${entry.key}: $e');
+      }
+    }
+  }
+
+  Future<void> _assertSrmTableExists(Database db, String tableName) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [tableName],
+    );
+    if (tables.isEmpty) {
+      throw Exception(
+        'Table locale SRM absente: $tableName. Le schema SQLite doit etre aligne avec le serveur.',
+      );
+    }
+  }
+
+  Future<bool> tableHasColumn(String tableName, String columnName) async {
+    _assertAllowedSrmTable(tableName);
+    final db = await database;
+    final info = await db.rawQuery('PRAGMA table_info($tableName)');
+    return info.any((row) => row['name'] == columnName);
+  }
+
   Map<String, dynamic> _sanitizeSrmPayload(
     String tableName,
     Map<String, dynamic> data,
@@ -846,6 +909,70 @@ class DatabaseHelper {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> saveLastDownloadTime(DateTime dt) async {
+    final db = await database;
+    await db.insert(
+      'app_metadata',
+      {'key': 'last_download_time', 'value': dt.toIso8601String()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<DateTime?> getLastDownloadTime() async {
+    final db = await database;
+    final res = await db.query(
+      'app_metadata',
+      where: 'key = ?',
+      whereArgs: ['last_download_time'],
+      limit: 1,
+    );
+    if (res.isEmpty) return null;
+    final raw = res.first['value'] as String?;
+    if (raw == null) return null;
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<int> countDownloadedSrmRows({
+    int? projetId,
+    int? missionId,
+  }) async {
+    final db = await database;
+    int total = 0;
+
+    for (final tableName in _allowedSrmTables()) {
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName],
+      );
+      if (tables.isEmpty) continue;
+
+      final whereParts = <String>['downloaded = 1'];
+      final whereArgs = <Object?>[];
+
+      if (projetId != null) {
+        whereParts.add('id_projet = ?');
+        whereArgs.add(projetId);
+      }
+      if (missionId != null) {
+        whereParts.add('id_mission = ?');
+        whereArgs.add(missionId);
+      }
+
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) AS c FROM $tableName WHERE ${whereParts.join(' AND ')}',
+        whereArgs,
+      );
+      final value = result.isNotEmpty ? result.first['c'] : 0;
+      total += value is int ? value : int.tryParse(value.toString()) ?? 0;
+    }
+
+    return total;
   }
 
   Future<void> resetDatabase() async {

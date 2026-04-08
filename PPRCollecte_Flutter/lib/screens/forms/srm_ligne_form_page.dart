@@ -265,6 +265,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
       data['id_projet'] = ApiService.currentProjetId;
       data['id_mission'] = ApiService.currentMissionId;
       data['id_agent_crea'] = ApiService.userId;
+      data['mode_localisation'] = 'gnss';
       data['synced'] = 0;
       data['date_collecte'] = DateTime.now().toIso8601String();
 

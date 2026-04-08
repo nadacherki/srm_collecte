@@ -13,7 +13,7 @@ class CollectionManager extends ChangeNotifier {
   LigneCollection? _ligneCollection;
   ChausseeCollection? _chausseeCollection;
   SpecialCollection? _specialCollection;
-  int _countdown = 20;
+  int _countdown = 0;
 
   // Getters
   LigneCollection? get ligneCollection => _ligneCollection;
@@ -57,14 +57,12 @@ class CollectionManager extends ChangeNotifier {
       id: _nextPisteId++,
       specialType: specialType,
       status: CollectionStatus.active,
-      points: [
-        initialPosition
-      ],
+      points: const [],
       startTime: DateTime.now(),
       lastPointTime: DateTime.now(),
     );
 
-    _startCollectionService(_specialCollection!, locationStream);
+    _startCollectionService(locationStream);
     notifyListeners();
   }
 
@@ -106,14 +104,12 @@ class CollectionManager extends ChangeNotifier {
       id: _nextPisteId++, // ✅ Générer ID automatiquement
       codePiste: codePiste, // ✅ Utiliser le code piste fourni
       status: CollectionStatus.active,
-      points: [
-        initialPosition
-      ],
+      points: const [],
       startTime: DateTime.now(),
       lastPointTime: DateTime.now(),
     );
 
-    _startCollectionService(_ligneCollection!, locationStream);
+    _startCollectionService(locationStream);
     notifyListeners();
   }
 
@@ -129,25 +125,19 @@ class CollectionManager extends ChangeNotifier {
     _chausseeCollection = ChausseeCollection(
       id: _nextChausseeId++, // ✅ Générer ID automatiquement
       status: CollectionStatus.active,
-      points: [
-        initialPosition
-      ],
+      points: const [],
       startTime: DateTime.now(),
       lastPointTime: DateTime.now(),
     );
 
-    _startCollectionService(_chausseeCollection!, locationStream);
+    _startCollectionService(locationStream);
     notifyListeners();
   }
 
   /// Démarre le service de collecte pour une collection donnée
-  void _startCollectionService(CollectionBase collection, Stream<LocationData> locationStream) {
+  void _startCollectionService(Stream<LocationData> locationStream) {
     _collectionService.startCollection(
-      collection: collection,
       locationStream: locationStream,
-      onPointAdded: (point, distance) {
-        _addPointToCollection(collection.type, point, distance);
-      },
       onCountdownChanged: (seconds) {
         _countdown = seconds;
         notifyListeners();
@@ -221,7 +211,7 @@ class CollectionManager extends ChangeNotifier {
       _ligneCollection = _ligneCollection!.copyWith(
         status: CollectionStatus.active,
       );
-      _startCollectionService(_ligneCollection!, locationStream);
+      _startCollectionService(locationStream);
       notifyListeners();
     }
   }
@@ -236,7 +226,7 @@ class CollectionManager extends ChangeNotifier {
       _chausseeCollection = _chausseeCollection!.copyWith(
         status: CollectionStatus.active,
       );
-      _startCollectionService(_chausseeCollection!, locationStream);
+      _startCollectionService(locationStream);
       notifyListeners();
     }
   }
@@ -262,7 +252,7 @@ class CollectionManager extends ChangeNotifier {
       _specialCollection = _specialCollection!.copyWith(
         status: CollectionStatus.active,
       );
-      _startCollectionService(_specialCollection!, locationStream);
+      _startCollectionService(locationStream);
       notifyListeners();
     }
   }
@@ -328,6 +318,7 @@ class CollectionManager extends ChangeNotifier {
   /// ✅ MÉTHODE MANQUANTE AJOUTÉE - Ajoute un point manuellement pour debug/simulation
   void addManualPoint(CollectionType type, LatLng point) {
     if (type == CollectionType.ligne && (_ligneCollection?.isActive ?? false)) {
+      _collectionService.recordCurrentAltitudeForManualPoint();
       final lastPoint = _ligneCollection!.points.isNotEmpty ? _ligneCollection!.points.last : point;
       final distance = _collectionService.calculateTotalDistance([
         lastPoint,
@@ -335,6 +326,7 @@ class CollectionManager extends ChangeNotifier {
       ]);
       _addPointToCollection(type, point, distance);
     } else if (type == CollectionType.chaussee && (_chausseeCollection?.isActive ?? false)) {
+      _collectionService.recordCurrentAltitudeForManualPoint();
       final lastPoint = _chausseeCollection!.points.isNotEmpty ? _chausseeCollection!.points.last : point;
       final distance = _collectionService.calculateTotalDistance([
         lastPoint,
@@ -342,6 +334,7 @@ class CollectionManager extends ChangeNotifier {
       ]);
       _addPointToCollection(type, point, distance);
     } else if (type == CollectionType.special && (_specialCollection?.isActive ?? false)) {
+      _collectionService.recordCurrentAltitudeForManualPoint();
       final lastPoint = _specialCollection!.points.isNotEmpty ? _specialCollection!.points.last : point;
       final distance = _collectionService.calculateTotalDistance([
         lastPoint,
