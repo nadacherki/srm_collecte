@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'data_subcategories_page.dart';
+
+import 'srm_data_status_page.dart';
 
 class DataCategoriesPage extends StatelessWidget {
   final bool isOnline;
   final String agentName;
+
   const DataCategoriesPage({
     super.key,
     required this.isOnline,
@@ -12,14 +14,14 @@ class DataCategoriesPage extends StatelessWidget {
 
   String _getDataFilterType(String categoryTitle) {
     switch (categoryTitle) {
-      case "Données Enregistrées":
-        return "unsynced";
-      case "Données Synchronisées":
-        return "synced";
-      case "Données Sauvegardées":
-        return "saved";
+      case 'Données Enregistrées':
+        return 'unsynced';
+      case 'Données Synchronisées':
+        return 'synced';
+      case 'Données Téléchargées':
+        return 'saved';
       default:
-        return "all";
+        return 'all';
     }
   }
 
@@ -29,7 +31,7 @@ class DataCategoriesPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF0F8FF),
       appBar: AppBar(
         title: const Text(
-          '📊 Données',
+          'Données',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -44,54 +46,44 @@ class DataCategoriesPage extends StatelessWidget {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Catégories de données',
+              'Choisissez un statut de données',
               style: TextStyle(
                 fontSize: 16,
                 color: Color(0xFF666666),
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
             Expanded(
               child: GridView.count(
                 crossAxisCount: 1,
                 mainAxisSpacing: 16,
-                childAspectRatio: 3.0,
+                childAspectRatio: 3,
                 children: [
                   _buildCategoryCard(
                     context,
                     title: 'Données Enregistrées',
-                    description: 'Données collectées localement',
+                    description: 'Données créées localement, non encore synchronisées',
                     icon: Icons.save,
                     color: const Color.fromARGB(255, 167, 94, 196),
-                    onTap: () {
-                      // Navigation vers les données enregistrées
-                    },
                   ),
                   _buildCategoryCard(
                     context,
                     title: 'Données Synchronisées',
-                    description: 'Données envoyées au serveur',
+                    description: 'Données locales déjà envoyées au serveur',
                     icon: Icons.cloud_upload,
                     color: const Color(0xFF2196F3),
-                    onTap: () {
-                      // Navigation vers les données synchronisées
-                    },
                   ),
                   _buildCategoryCard(
                     context,
-                    title: 'Données Sauvegardées',
-                    description: 'Données téléchargées du serveur',
+                    title: 'Données Téléchargées',
+                    description: 'Données récupérées depuis le serveur',
                     icon: Icons.cloud_download,
                     color: const Color(0xFF4CAF50),
-                    onTap: () {
-                      // Navigation vers les données sauvegardées
-                    },
                   ),
                 ],
               ),
@@ -108,15 +100,14 @@ class DataCategoriesPage extends StatelessWidget {
     required String description,
     required IconData icon,
     required Color color,
-    required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DataSubcategoriesPage(
-              categoryType: title,
+            builder: (context) => SrmDataStatusPage(
+              title: title,
               dataFilter: _getDataFilterType(title),
               isOnline: isOnline,
               agentName: agentName,
@@ -138,7 +129,7 @@ class DataCategoriesPage extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Container(

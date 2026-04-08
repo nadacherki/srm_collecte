@@ -225,7 +225,7 @@ class DownloadedSpecialLinesService {
       final loginId = await DatabaseHelper().resolveLoginId();
 
       if (loginId == null) {
-        print('âŒ [DL-SPECIAL] Impossible de dÃ©terminer login_id (viewer)');
+        print('[DL-SPECIAL] Impossible de determiner login_id (viewer)');
         return [];
       }
 
@@ -301,10 +301,10 @@ class DownloadedSpecialLinesService {
         added++;
       }
 
-      print('ðŸŽ¯ [DL-SPECIAL] ajoutÃ©es: $added | ignorÃ©es: $skipped');
+      print('[DL-SPECIAL] ajoutees: $added | ignorees: $skipped');
       return polylines.toList();
     } catch (e) {
-      print('âŒ [DL-SPECIAL] Erreur chargement: $e');
+      print('[DL-SPECIAL] Erreur chargement: $e');
       return [];
     }
   }

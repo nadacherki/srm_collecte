@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../data/remote/api_service.dart';
 import '../../data/local/database_helper.dart';
 import 'dart:convert';
@@ -9,8 +9,8 @@ class DataListView extends StatefulWidget {
   final List<Map<String, dynamic>> data;
   final String entityType;
   final String dataFilter;
-  final Function(Map<String, dynamic>) onEdit;
-  final Function(int) onDelete;
+  final Function(Map<String, dynamic>)? onEdit;
+  final Function(int)? onDelete;
   final void Function(Map<String, dynamic> item)? onView;
   final String? tableName;
 
@@ -90,7 +90,17 @@ class _DataListViewState extends State<DataListView> {
           final nom = item['nom']?.toString().toLowerCase() ?? '';
           final type = item['type']?.toString().toLowerCase() ?? '';
           final codePiste = item['code_piste']?.toString().toLowerCase() ?? '';
-          return nom.contains(query) || type.contains(query) || codePiste.contains(query);
+          final displayTitle = item['display_title']?.toString().toLowerCase() ?? '';
+          final sourceEntity = item['source_entity']?.toString().toLowerCase() ?? '';
+          final sourceMetier = item['source_metier']?.toString().toLowerCase() ?? '';
+          final sourceTable = item['source_table']?.toString().toLowerCase() ?? '';
+          return nom.contains(query) ||
+              type.contains(query) ||
+              codePiste.contains(query) ||
+              displayTitle.contains(query) ||
+              sourceEntity.contains(query) ||
+              sourceMetier.contains(query) ||
+              sourceTable.contains(query);
         }).toList();
       });
     }
@@ -104,9 +114,9 @@ class _DataListViewState extends State<DataListView> {
     return false;
   }
 
-  // ════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // APRÈS
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   void _focusOnIntersectionPoint(double? x, double? y, String label) {
     if (x == null || y == null) return;
 
@@ -116,7 +126,7 @@ class _DataListViewState extends State<DataListView> {
     HomePage.pendingFocusTarget = MapFocusTarget.point(
       point: point,
       label: 'Intersection: $label',
-      pointStyle: 'intersection', // ⭐⭐⭐ AJOUTÉ : style intersection (orange)
+      pointStyle: 'intersection', // â­â­â­ AJOUTÃ‰ : style intersection (orange)
     );
 
     // Remonter jusqu'à la HomePage (carte)
@@ -220,7 +230,7 @@ class _DataListViewState extends State<DataListView> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Rechercher par nom, type ou code piste...',
+          hintText: 'Rechercher par nom, type, metier ou table...',
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -346,11 +356,11 @@ class _DataListViewState extends State<DataListView> {
   String _getFilterText() {
     switch (widget.dataFilter) {
       case "unsynced":
-        return "enregistrée localement";
+        return "enregistree localement";
       case "synced":
-        return "synchronisée";
+        return "synchronisee";
       case "saved":
-        return "sauvegardée";
+        return "telechargee";
       default:
         return "";
     }
@@ -359,7 +369,7 @@ class _DataListViewState extends State<DataListView> {
   Widget _buildListItem(Map<String, dynamic> item, BuildContext context) {
     final hasModification = item['updated_at'] != null && item['updated_at'] != item['created_at'];
     final isChaussee = widget.entityType == "Chaussées";
-    final titleText = isChaussee ? 'Chaussée – ${(item['type_chaussee'] ?? item['type'] ?? '—')} (#${item['id'] ?? '—'})' : (item['nom'] ?? item['code_piste'] ?? 'Sans nom').toString();
+    final titleText = (item['display_title']?.toString().trim().isNotEmpty ?? false) ? item['display_title'].toString() : isChaussee ? 'Chaussee - ${(item['type_chaussee'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})' : (item['nom'] ?? item['code_piste'] ?? 'Sans nom').toString();
     return Card(
       elevation: 0.8, // au lieu de default / gros shadow
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -375,11 +385,11 @@ class _DataListViewState extends State<DataListView> {
             if (item['code_piste'] != null) Text('Code: ${item['code_piste']}'),
             if (item['type'] != null) Text('Type: ${item['type']}'),
 
-            if (item['created_at'] != null) Text('Créé: ${_formatDate(item['created_at'])}'),
+            if (item['created_at'] != null) Text('Cree: ${_formatDate(item['created_at'])}'),
 
             if (hasModification)
               Text(
-                'Modifié: ${_formatDate(item['updated_at'])}',
+                'Modifie: ${_formatDate(item['updated_at'])}',
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
               ),
 
@@ -387,10 +397,10 @@ class _DataListViewState extends State<DataListView> {
             if (item['commune_id'] != null) Text('Commune ID: ${item['commune_id']}'),
 
             item['synced'] == 1
-                ? const Text('Status: Synchronisé ✅', style: TextStyle(color: Colors.green))
+                ? const Text('Statut: Synchronise', style: TextStyle(color: Colors.green))
                 : item['downloaded'] == 1
-                    ? const Text('Status: Téléchargé 📥', style: TextStyle(color: Colors.blue))
-                    : const Text('Status: Non synchronisé ⏳', style: TextStyle(color: Colors.orange)),
+                    ? const Text('Statut: Telecharge', style: TextStyle(color: Colors.blue))
+                    : const Text('Statut: Non synchronise', style: TextStyle(color: Colors.orange)),
 
             //  INTERSECTION — affiché seulement si existence_intersection > 0
             if (_hasIntersection(item)) _buildIntersectionBadge(item),
@@ -410,18 +420,18 @@ class _DataListViewState extends State<DataListView> {
                   if (widget.tableName != null && itemCopy['source_table'] == null) {
                     itemCopy['source_table'] = widget.tableName;
                   }
-                  print('👁️ [DataListView] onView appelé pour ${widget.entityType}, table=${widget.tableName}, id=${itemCopy['id']}');
+                  print('[DataListView] onView called for ${widget.entityType}, table=${widget.tableName}, id=${itemCopy['id']}');
                   widget.onView?.call(itemCopy);
                 },
               ),
-            if (widget.dataFilter == "unsynced") ...[
+            if (widget.dataFilter == "unsynced" && widget.onEdit != null && widget.onDelete != null) ...[
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () => widget.onEdit(item),
+                onPressed: () => widget.onEdit?.call(item),
               ),
               IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _confirmDelete(item['id'], context),
+                onPressed: item['id'] is int ? () => _confirmDelete(item['id'] as int, context) : null,
               ),
             ],
           ],
@@ -432,7 +442,7 @@ class _DataListViewState extends State<DataListView> {
   }
 
   void _confirmDelete(int id, BuildContext context) {
-    widget.onDelete(id);
+    widget.onDelete?.call(id);
   }
 
   void _showDetails(Map<String, dynamic> item, BuildContext context) {
