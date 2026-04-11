@@ -20,6 +20,7 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/photo_validation_service.dart';
 import '../../services/projection_service.dart';
+import '../../services/draft_service.dart';
 
 class SrmPointFormWidget extends StatefulWidget {
   final String metier;      // "Eau Potable" | "Assainissement" | "Électricité"
@@ -49,7 +50,8 @@ class SrmPointFormWidget extends StatefulWidget {
   State<SrmPointFormWidget> createState() => _SrmPointFormWidgetState();
 }
 
-class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
+class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
+    with FormDraftMixin<SrmPointFormWidget> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
 
@@ -116,6 +118,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
     }
+
+    // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
+    if (widget.existingData == null) {
+      // Écouter les changements de chaque controller
+      for (final c in _controllers.values) {
+        c.addListener(onFieldChanged);
+      }
+      _detailRaisonController.addListener(onFieldChanged);
+      initDraft();
+    }
   }
 
   void _prefillCoordinates() {
@@ -142,9 +154,65 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
 
   @override
   void dispose() {
+    // ── SPRINT 7 : arrêter le timer de brouillon ──
+    if (widget.existingData == null) disposeDraft();
     for (final c in _controllers.values) c.dispose();
     _detailRaisonController.dispose(); // NOUVEAU
     super.dispose();
+  }
+
+  // ── SPRINT 7 : Implémentation FormDraftMixin ──
+
+  @override
+  String get draftKey => DraftService.buildDraftKey(
+        formType: 'point',
+        metier: widget.metier,
+        entityType: widget.entityType,
+      );
+
+  @override
+  Map<String, String> collectFormData() {
+    final data = <String, String>{};
+    for (final entry in _controllers.entries) {
+      data[entry.key] = entry.value.text;
+    }
+    data['__detail_raison'] = _detailRaisonController.text;
+    return data;
+  }
+
+  @override
+  Map<int, String?> collectPhotoPaths() => Map.from(_photoPaths);
+
+  @override
+  Map<String, dynamic> collectExtraState() => {
+        'hasAnomalie': _hasAnomalie,
+        'typeAnomalie': _typeAnomalie,
+        'isObjetIncomplet': _isObjetIncomplet,
+        'raisonIncomplet': _raisonIncomplet,
+      };
+
+  @override
+  void restoreFormData(Map<String, String> data) {
+    for (final entry in data.entries) {
+      if (entry.key == '__detail_raison') {
+        _detailRaisonController.text = entry.value;
+      } else if (_controllers.containsKey(entry.key)) {
+        _controllers[entry.key]!.text = entry.value;
+      }
+    }
+  }
+
+  @override
+  void restorePhotoPaths(Map<int, String?> photos) {
+    _photoPaths.addAll(photos);
+  }
+
+  @override
+  void restoreExtraState(Map<String, dynamic> extra) {
+    _hasAnomalie = extra['hasAnomalie'] == true;
+    _typeAnomalie = extra['typeAnomalie'] as String?;
+    _isObjetIncomplet = extra['isObjetIncomplet'] == true;
+    _raisonIncomplet = extra['raisonIncomplet'] as String?;
   }
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
@@ -303,6 +371,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
       }
 
       if (mounted) {
+        // ── SPRINT 7 : supprimer le brouillon après enregistrement réussi ──
+        await clearDraftAfterSave();
         final label = _isObjetIncomplet
             ? '⚠️ ${widget.entityType} signalé incomplet'
             : '✅ ${widget.entityType} enregistré';
@@ -866,7 +936,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
   // ────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (widget.existingData == null) await saveDraftBeforeExit();
+      },
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: _isObjetIncomplet ? Colors.orange : _metierColor,
         foregroundColor: Colors.white,
@@ -1030,6 +1105,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget> {
             const SizedBox(height: 32),
           ],
         ),
+      ),
       ),
     );
   }

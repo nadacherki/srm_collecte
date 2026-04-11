@@ -8,6 +8,7 @@ import '../../data/local/piste_chaussee_db_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../core/config/srm_config.dart';
 import '../../services/projection_service.dart';
+import '../../services/draft_service.dart';
 
 class PolygonFormPage extends StatefulWidget {
   final List<LatLng> polygonPoints;
@@ -40,7 +41,8 @@ class PolygonFormPage extends StatefulWidget {
   State<PolygonFormPage> createState() => _PolygonFormPageState();
 }
 
-class _PolygonFormPageState extends State<PolygonFormPage> {
+class _PolygonFormPageState extends State<PolygonFormPage>
+    with FormDraftMixin<PolygonFormPage> {
   String? _nearestPisteCode;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -95,6 +97,22 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
     super.initState();
     _initializeData();
     _setupAutoCapitalize();
+
+    // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
+    if (!_isEditing) {
+      final allControllers = [
+        _nomController, _codeGpsController, _epNumController,
+        _epTypeController, _epFormeController, _epLongueurController,
+        _epLargeurController, _epCoteTamponController, _epCoteRadierController,
+        _epCoteFilEauController, _epEtatController, _emplacementController,
+        _refRueController, _etageAquaController, _secteurAquaController,
+        _observationController,
+      ];
+      for (final c in allControllers) {
+        c.addListener(onFieldChanged);
+      }
+      initDraft();
+    }
   }
 
   Future<void> _initializeData() async {
@@ -315,6 +333,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
         await DatabaseHelper().insertEntitySrm(_tableName, data);
 
         if (mounted) {
+          await clearDraftAfterSave();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
                 '✅ ${widget.entityType} enregistré (${_superficieHa.toStringAsFixed(4)} ha)'),
@@ -393,7 +412,10 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
             ],
           ),
         );
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted) {
+          await clearDraftAfterSave();
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       print('❌ Erreur sauvegarde polygone: $e');
@@ -414,7 +436,9 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
     });
   }
 
-  void _handleBack() {
+  void _handleBack() async {
+    // ── SPRINT 7 : sauvegarder le brouillon avant de quitter ──
+    if (!_isEditing) await saveDraftBeforeExit();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1141,6 +1165,7 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
 
   @override
   void dispose() {
+    if (!_isEditing) disposeDraft();
     _nomController.dispose();
     _codeGpsController.dispose();
     _epNumController.dispose();
@@ -1159,4 +1184,66 @@ class _PolygonFormPageState extends State<PolygonFormPage> {
     _observationController.dispose();
     super.dispose();
   }
+
+  // ── SPRINT 7 : Implémentation FormDraftMixin ──
+
+  @override
+  String get draftKey => DraftService.buildDraftKey(
+        formType: 'polygon',
+        metier: widget.metier ?? 'GeoDNGR',
+        entityType: widget.entityType ?? 'Zone de Plaine',
+      );
+
+  @override
+  Map<String, String> collectFormData() => {
+        'nom': _nomController.text,
+        'code_gps': _codeGpsController.text,
+        'ep_num': _epNumController.text,
+        'ep_type': _epTypeController.text,
+        'ep_forme': _epFormeController.text,
+        'ep_longueur': _epLongueurController.text,
+        'ep_largeur': _epLargeurController.text,
+        'ep_cote_tampon': _epCoteTamponController.text,
+        'ep_cote_radier': _epCoteRadierController.text,
+        'ep_cote_fil_eau': _epCoteFilEauController.text,
+        'ep_etat': _epEtatController.text,
+        'emplacement': _emplacementController.text,
+        'ref_rue': _refRueController.text,
+        'etage_aqua': _etageAquaController.text,
+        'secteur_aqua': _secteurAquaController.text,
+        'observation': _observationController.text,
+      };
+
+  @override
+  Map<int, String?> collectPhotoPaths() => {};
+
+  @override
+  void restoreFormData(Map<String, String> data) {
+    final mapping = <String, TextEditingController>{
+      'nom': _nomController,
+      'code_gps': _codeGpsController,
+      'ep_num': _epNumController,
+      'ep_type': _epTypeController,
+      'ep_forme': _epFormeController,
+      'ep_longueur': _epLongueurController,
+      'ep_largeur': _epLargeurController,
+      'ep_cote_tampon': _epCoteTamponController,
+      'ep_cote_radier': _epCoteRadierController,
+      'ep_cote_fil_eau': _epCoteFilEauController,
+      'ep_etat': _epEtatController,
+      'emplacement': _emplacementController,
+      'ref_rue': _refRueController,
+      'etage_aqua': _etageAquaController,
+      'secteur_aqua': _secteurAquaController,
+      'observation': _observationController,
+    };
+    for (final entry in data.entries) {
+      if (mapping.containsKey(entry.key)) {
+        mapping[entry.key]!.text = entry.value;
+      }
+    }
+  }
+
+  @override
+  void restorePhotoPaths(Map<int, String?> photos) {}
 }

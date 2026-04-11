@@ -15,6 +15,7 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/photo_validation_service.dart';
 import '../../services/projection_service.dart';
+import '../../services/draft_service.dart';
 
 class SrmLigneFormPage extends StatefulWidget {
   final String metier;       // "Eau Potable" | "Assainissement" | "Électricité"
@@ -42,7 +43,8 @@ class SrmLigneFormPage extends StatefulWidget {
   State<SrmLigneFormPage> createState() => _SrmLigneFormPageState();
 }
 
-class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
+class _SrmLigneFormPageState extends State<SrmLigneFormPage>
+    with FormDraftMixin<SrmLigneFormPage> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
   bool _hasAnomalie = false;
@@ -96,6 +98,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
       for (int i = 1; i <= 2; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
+    }
+
+    // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
+    if (widget.existingData == null) {
+      for (final c in _controllers.values) {
+        c.addListener(onFieldChanged);
+      }
+      initDraft();
     }
   }
 
@@ -154,10 +164,58 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
 
   @override
   void dispose() {
+    if (widget.existingData == null) disposeDraft();
     for (final c in _controllers.values) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  // ── SPRINT 7 : Implémentation FormDraftMixin ──
+
+  @override
+  String get draftKey => DraftService.buildDraftKey(
+        formType: 'srm_ligne',
+        metier: widget.metier,
+        entityType: widget.entityType,
+      );
+
+  @override
+  Map<String, String> collectFormData() {
+    final data = <String, String>{};
+    for (final entry in _controllers.entries) {
+      data[entry.key] = entry.value.text;
+    }
+    return data;
+  }
+
+  @override
+  Map<int, String?> collectPhotoPaths() => Map.from(_photoPaths);
+
+  @override
+  Map<String, dynamic> collectExtraState() => {
+        'hasAnomalie': _hasAnomalie,
+        'typeAnomalie': _typeAnomalie,
+      };
+
+  @override
+  void restoreFormData(Map<String, String> data) {
+    for (final entry in data.entries) {
+      if (_controllers.containsKey(entry.key)) {
+        _controllers[entry.key]!.text = entry.value;
+      }
+    }
+  }
+
+  @override
+  void restorePhotoPaths(Map<int, String?> photos) {
+    _photoPaths.addAll(photos);
+  }
+
+  @override
+  void restoreExtraState(Map<String, dynamic> extra) {
+    _hasAnomalie = extra['hasAnomalie'] == true;
+    _typeAnomalie = extra['typeAnomalie'] as String?;
   }
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
@@ -272,6 +330,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
       await DatabaseHelper().insertEntitySrm(tableName, data);
 
       if (mounted) {
+        await clearDraftAfterSave();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
               '✅ ${widget.entityType} enregistré (${_distanceTotaleM.toStringAsFixed(1)} m, ${widget.linePoints.length} pts)'),
@@ -504,7 +563,12 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
   Widget build(BuildContext context) {
     final distKm = (_distanceTotaleM / 1000).toStringAsFixed(3);
 
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (widget.existingData == null) await saveDraftBeforeExit();
+      },
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: _metierColor,
         foregroundColor: Colors.white,
@@ -728,6 +792,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage> {
             const SizedBox(height: 32),
           ],
         ),
+      ),
       ),
     );
   }

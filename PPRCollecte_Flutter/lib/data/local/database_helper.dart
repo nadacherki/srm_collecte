@@ -4,13 +4,14 @@
 //   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom_prenom, role)
 //   projet_local      → public.projet      (id_projet, code_affaire, nom, srm, region, metier, statut)
 //   mission_local     → public.mission     (id_mission, id_agent, id_projet, etat_mission)
-// Version DB: 15
+// Version DB: 16
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:io';
 import '../../core/config/srm_config.dart';
 import '../remote/api_service.dart';
+import '../../services/draft_service.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -61,7 +62,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 15,
+      version: 16,
       onCreate: (db, version) async {
         print('🆕 Création tables v$version');
         await _createAllTables(db);
@@ -163,11 +164,16 @@ class DatabaseHelper {
 
     await _createAllSrmEntityTables(db);
 
+    // ── SPRINT 7 : Table brouillons automatiques ──
+    await DraftService.createTable(db);
+
     print('🎉 Toutes les tables SRM créées !');
   }
 
   Future<void> _migrateExistingSrmTables(Database db) async {
     await _createAllSrmEntityTables(db);
+    // ── SPRINT 7 : S'assurer que la table brouillons existe ──
+    await DraftService.createTable(db);
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
     for (final tableName in _allowedSrmTables()) {
@@ -991,9 +997,18 @@ class DatabaseHelper {
       [tableName],
     );
     if (tables.isEmpty) {
-      throw Exception(
-        'Table locale SRM absente: $tableName. Le schema SQLite doit etre aligne avec le serveur.',
+      // Créer la table automatiquement avec colonnes fixes
+      final cols = <String>['id INTEGER PRIMARY KEY AUTOINCREMENT'];
+      for (final entry in _migratableFixedSrmColumns.entries) {
+        cols.add('${entry.key} ${entry.value}');
+      }
+      await db.execute(
+        'CREATE TABLE IF NOT EXISTS $tableName (${cols.join(', ')})',
       );
+      print('✅ Table SRM créée automatiquement: $tableName');
+    } else {
+      // Table existe → migrer les colonnes manquantes
+      await _ensureSrmFixedColumns(db, tableName);
     }
 
     // Table existe → migrer uniquement les colonnes fixes connues
