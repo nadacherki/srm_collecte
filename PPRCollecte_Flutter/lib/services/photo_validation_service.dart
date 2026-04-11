@@ -145,4 +145,101 @@ class PhotoValidationService {
         return false;
     }
   }
+
+  // ── Détection de doublon ─────────────────────────────────────────────────
+  //
+  // Compare une photo nouvellement sélectionnée [candidate] contre toutes les
+  // photos déjà présentes dans le formulaire [existingPaths].
+  //
+  // Stratégie : deux photos sont considérées identiques si elles partagent
+  // le même chemin absolu OU si leurs empreintes binaires concordent
+  // (taille + 64 premiers octets + 64 derniers octets).  Cette approche
+  // fonctionne sans dépendance externe et couvre les cas où le même fichier
+  // est référencé par deux chemins différents (ex : cache temporaire).
+  //
+  // Retourne l'index (1-based) du slot déjà occupé par la même photo,
+  // ou null si aucun doublon n'est détecté.
+  static Future<int?> findDuplicateSlot({
+    required String candidatePath,
+    required Map<int, String?> existingPaths,
+    int? currentSlot, // slot en cours de remplacement (ignoré dans la comparaison)
+  }) async {
+    final candidateFile = File(candidatePath);
+    if (!await candidateFile.exists()) return null;
+
+    final candidateSize   = await candidateFile.length();
+    final candidateHeader = await _readFingerprint(candidateFile, candidateSize);
+
+    for (final entry in existingPaths.entries) {
+      final slot      = entry.key;
+      final slotPath  = entry.value;
+
+      // Ignorer le slot qu'on est en train de remplacer et les slots vides
+      if (slot == currentSlot || slotPath == null) continue;
+
+      // 1) Comparaison rapide par chemin absolu
+      if (slotPath == candidatePath) return slot;
+
+      // 2) Comparaison par empreinte binaire
+      final slotFile = File(slotPath);
+      if (!await slotFile.exists()) continue;
+
+      final slotSize = await slotFile.length();
+      if (slotSize != candidateSize) continue; // tailles différentes → pas un doublon
+
+      final slotHeader = await _readFingerprint(slotFile, slotSize);
+      if (_fingerprintsMatch(candidateHeader, slotHeader)) return slot;
+    }
+
+    return null; // aucun doublon
+  }
+
+  /// Lit jusqu'à 64 octets au début ET 64 octets à la fin du fichier.
+  /// Cette empreinte légère suffit à discriminer des photos distinctes tout
+  /// en restant rapide (pas de lecture intégrale du fichier).
+  static Future<_PhotoFingerprint> _readFingerprint(File file, int size) async {
+    const sampleSize = 64;
+    final header = await _readHeader(file, sampleSize);
+
+    Uint8List footer = Uint8List(0);
+    if (size > sampleSize) {
+      final start  = size - sampleSize;
+      final stream = file.openRead(start, size);
+      final chunks = <int>[];
+      await for (final chunk in stream) {
+        chunks.addAll(chunk);
+      }
+      footer = Uint8List.fromList(chunks);
+    }
+
+    return _PhotoFingerprint(size: size, header: header, footer: footer);
+  }
+
+  static bool _fingerprintsMatch(
+      _PhotoFingerprint a, _PhotoFingerprint b) {
+    if (a.size != b.size) return false;
+    if (a.header.length != b.header.length) return false;
+    for (int i = 0; i < a.header.length; i++) {
+      if (a.header[i] != b.header[i]) return false;
+    }
+    if (a.footer.length != b.footer.length) return false;
+    for (int i = 0; i < a.footer.length; i++) {
+      if (a.footer[i] != b.footer[i]) return false;
+    }
+    return true;
+  }
+}
+
+/// Empreinte légère d'une photo pour détecter les doublons sans lire le
+/// fichier entier en mémoire.
+class _PhotoFingerprint {
+  final int size;
+  final Uint8List header;
+  final Uint8List footer;
+
+  const _PhotoFingerprint({
+    required this.size,
+    required this.header,
+    required this.footer,
+  });
 }
