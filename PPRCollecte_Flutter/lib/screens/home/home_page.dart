@@ -35,6 +35,7 @@ import '../../controllers/home_controller.dart';
 // SERVICES
 // ============================================================
 import '../../services/sync_service.dart';
+import '../../services/collection_manager.dart';
 
 // ============================================================
 // DATA
@@ -255,6 +256,9 @@ class _HomePageState extends State<HomePage> {
 
     homeController.initialize();
 
+    // ── SPRINT 7 : Vérifier s'il y a une collecte en pause sauvegardée ──
+    _checkPausedCollectionDraft();
+
     // Données de test initiales
     /* collectedMarkers.addAll([
       Marker(
@@ -275,6 +279,114 @@ class _HomePageState extends State<HomePage> {
       color: Colors.blue,
       width: 3,
     ));*/
+  }
+
+  // ══════════════════════════════════════════════════════
+  // ██ SPRINT 7 : Restauration collecte en pause
+  // ══════════════════════════════════════════════════════
+
+  Future<void> _checkPausedCollectionDraft() async {
+    final draft = await CollectionManager.loadPausedDraft();
+    if (draft == null || !mounted) return;
+
+    final type = draft['collectionType'] as String? ?? '?';
+    final nbPoints = (draft['points'] as List?)?.length ?? 0;
+    final pausedAt = draft['pausedAt'] as String?;
+    final timeAgo = pausedAt != null
+        ? CollectionManager.pauseTimeAgo(pausedAt)
+        : '?';
+
+    final shouldRestore = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.pause_circle_filled, color: Colors.orange, size: 36),
+        title: Text('Collecte en pause'),
+        content: Text(
+          'Une collecte de $type avec $nbPoints points a été '
+          'mise en pause il y a $timeAgo.\n\n'
+          'Voulez-vous la reprendre ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Ignorer et supprimer'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: Icon(Icons.play_arrow),
+            label: Text('Reprendre'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (shouldRestore == true) {
+      _restorePausedCollection(draft);
+    } else {
+      await homeController.collectionManager.clearPausedDraft();
+    }
+  }
+
+  void _restorePausedCollection(Map<String, dynamic> draft) {
+    final type = draft['collectionType'] as String;
+    final srmMeta = draft['srmMetadata'] as Map<String, dynamic>?;
+
+    switch (type) {
+      case 'ligne':
+        homeController.collectionManager.restoreLigneCollection(draft);
+        // Restaurer la sélection SRM
+        if (srmMeta != null && srmMeta['srmMetier'] != null) {
+          _pendingSrmLigneSelection = SrmSelection(
+            metier: srmMeta['srmMetier'] as String,
+            entityType: srmMeta['srmEntityType'] as String? ?? '',
+            tableName: srmMeta['srmTableName'] as String? ?? '',
+            schema: srmMeta['srmSchema'] as String? ?? '',
+            isLine: true,
+          );
+        }
+        // Restaurer le code piste actif
+        final codePiste = draft['codePiste'] as String?;
+        if (codePiste != null) {
+          homeController.setActivePisteCode(codePiste);
+        }
+        break;
+
+      case 'chaussee':
+        homeController.collectionManager.restoreChausseeCollection(draft);
+        break;
+
+      case 'special':
+        homeController.collectionManager.restoreSpecialCollection(draft);
+        // Restaurer les flags polygon/special
+        if (srmMeta != null) {
+          _pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
+          _pendingSrmPolygoneEntityType = srmMeta['srmEntityType'] as String?;
+          _isPolygonCollection = srmMeta['isPolygonCollection'] == true;
+          _isSpecialCollection = srmMeta['isSpecialCollection'] == true;
+          _specialCollectionType = srmMeta['specialCollectionType'] as String?;
+        }
+        break;
+    }
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '✅ Collecte de $type restaurée '
+          '(${(draft['points'] as List).length} points)',
+        ),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   String _safe(dynamic v, {String empty = '----'}) {
@@ -2742,6 +2854,16 @@ class _HomePageState extends State<HomePage> {
 
   void toggleSpecialCollection() {
     try {
+      // ── SPRINT 7 : sauver les métadonnées SRM avant la pause ──
+      if (homeController.specialCollection?.isActive ?? false) {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': _pendingSrmPolygoneMetier,
+          'srmEntityType': _pendingSrmPolygoneEntityType,
+          'isPolygonCollection': _isPolygonCollection,
+          'isSpecialCollection': _isSpecialCollection,
+          'specialCollectionType': _specialCollectionType,
+        });
+      }
       homeController.toggleSpecialCollection();
       setState(() {});
     } catch (e) {
@@ -2753,6 +2875,16 @@ class _HomePageState extends State<HomePage> {
 
   void toggleLigneCollection() {
     try {
+      // ── SPRINT 7 : sauver les métadonnées SRM avant la pause ──
+      if (homeController.ligneCollection?.isActive ?? false) {
+        final sel = _pendingSrmLigneSelection;
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': sel?.metier,
+          'srmEntityType': sel?.entityType,
+          'srmTableName': sel?.tableName,
+          'srmSchema': sel?.schema,
+        });
+      }
       homeController.toggleLigneCollection();
     } catch (e) {
       ScaffoldMessenger.of(

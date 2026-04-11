@@ -1,7 +1,11 @@
 // lib/services/collection_manager.dart - SPRINT 5 : SRM + Altitude Z
+// ── SPRINT 7 : Brouillon collecte en pause + levé point pendant pause ──
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
+import 'package:sqflite/sqflite.dart';
+import '../data/local/database_helper.dart';
 import '../models/collection_models.dart';
 import 'collection_service.dart';
 
@@ -86,6 +90,7 @@ class CollectionManager extends ChangeNotifier {
 
     _specialCollection = null;
     _collectionService.stopCollection();
+    _clearPausedDraft(); // SPRINT 7
     notifyListeners();
 
     return result;
@@ -187,6 +192,7 @@ class CollectionManager extends ChangeNotifier {
         status: CollectionStatus.paused,
       );
       _collectionService.stopCollection();
+      _savePausedDraft(); // SPRINT 7
       notifyListeners();
     }
   }
@@ -198,6 +204,7 @@ class CollectionManager extends ChangeNotifier {
         status: CollectionStatus.paused,
       );
       _collectionService.stopCollection();
+      _savePausedDraft(); // SPRINT 7
       notifyListeners();
     }
   }
@@ -239,6 +246,7 @@ class CollectionManager extends ChangeNotifier {
         status: CollectionStatus.paused,
       );
       _collectionService.stopCollection();
+      _savePausedDraft(); // SPRINT 7
       notifyListeners();
     }
   }
@@ -286,6 +294,7 @@ class CollectionManager extends ChangeNotifier {
 
     _ligneCollection = null;
     _collectionService.stopCollection();
+    _clearPausedDraft(); // SPRINT 7
     notifyListeners();
 
     return result;
@@ -296,6 +305,7 @@ class CollectionManager extends ChangeNotifier {
     _ligneCollection = null;
     _countdown = 0;
     _collectionService.stopCollection();
+    _clearPausedDraft(); // SPRINT 7
     notifyListeners();
   }
 
@@ -319,6 +329,7 @@ class CollectionManager extends ChangeNotifier {
 
     _chausseeCollection = null;
     _collectionService.stopCollection();
+    _clearPausedDraft(); // SPRINT 7
     notifyListeners();
 
     return result;
@@ -329,6 +340,7 @@ class CollectionManager extends ChangeNotifier {
     _chausseeCollection = null;
     _countdown = 0;
     _collectionService.stopCollection();
+    _clearPausedDraft(); // SPRINT 7
     notifyListeners();
   }
 
@@ -368,12 +380,204 @@ class CollectionManager extends ChangeNotifier {
     return true;
   }
 
+  // ══════════════════════════════════════════════════════
+  // ██ SPRINT 7 : Restauration collecte en pause
+  // ══════════════════════════════════════════════════════
+
+  /// Restaure une collecte de ligne en état paused (depuis brouillon SQLite).
+  void restorePausedLigneCollection(LigneCollection paused) {
+    _ligneCollection = paused;
+    notifyListeners();
+  }
+
+  /// Restaure une collecte spéciale en état paused (depuis brouillon SQLite).
+  void restorePausedSpecialCollection(SpecialCollection paused) {
+    _specialCollection = paused;
+    notifyListeners();
+  }
+
   void cancelSpecialCollection() {
     if (_specialCollection == null) return;
     _specialCollection = null;
     _countdown = 0;
     _collectionService.stopCollection();
+    _clearPausedDraft(); // SPRINT 7
     notifyListeners();
+  }
+
+  // ══════════════════════════════════════════════════════
+  // ██ SPRINT 7 : Brouillon collecte en pause
+  // ══════════════════════════════════════════════════════
+
+  /// Métadonnées SRM stockées par le HomeController avant la pause
+  Map<String, dynamic>? _srmMetadata;
+
+  /// Définir les métadonnées SRM pour le brouillon
+  void setSrmMetadata(Map<String, dynamic> metadata) {
+    _srmMetadata = metadata;
+  }
+
+  /// Sauvegarde la collecte en pause dans SQLite
+  Future<void> _savePausedDraft() async {
+    try {
+      final data = <String, dynamic>{};
+
+      if (_ligneCollection?.isPaused ?? false) {
+        data['collectionType'] = 'ligne';
+        data['id'] = _ligneCollection!.id;
+        data['codePiste'] = _ligneCollection!.codePiste;
+        data['points'] = _ligneCollection!.points
+            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+            .toList();
+        data['startTime'] = _ligneCollection!.startTime.toIso8601String();
+        data['lastPointTime'] = _ligneCollection!.lastPointTime?.toIso8601String();
+        data['totalDistance'] = _ligneCollection!.totalDistance;
+      } else if (_chausseeCollection?.isPaused ?? false) {
+        data['collectionType'] = 'chaussee';
+        data['id'] = _chausseeCollection!.id;
+        data['points'] = _chausseeCollection!.points
+            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+            .toList();
+        data['startTime'] = _chausseeCollection!.startTime.toIso8601String();
+        data['lastPointTime'] = _chausseeCollection!.lastPointTime?.toIso8601String();
+        data['totalDistance'] = _chausseeCollection!.totalDistance;
+      } else if (_specialCollection?.isPaused ?? false) {
+        data['collectionType'] = 'special';
+        data['id'] = _specialCollection!.id;
+        data['specialType'] = _specialCollection!.specialType;
+        data['points'] = _specialCollection!.points
+            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+            .toList();
+        data['startTime'] = _specialCollection!.startTime.toIso8601String();
+        data['lastPointTime'] = _specialCollection!.lastPointTime?.toIso8601String();
+        data['totalDistance'] = _specialCollection!.totalDistance;
+      } else {
+        return;
+      }
+
+      // Inclure les métadonnées SRM si disponibles
+      if (_srmMetadata != null) {
+        data['srmMetadata'] = _srmMetadata;
+      }
+
+      data['pausedAt'] = DateTime.now().toIso8601String();
+
+      final db = await DatabaseHelper().database;
+      await db.insert(
+        'app_metadata',
+        {'key': 'paused_collection_draft', 'value': jsonEncode(data)},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('💾 Collecte en pause sauvegardée (${data['collectionType']}, ${(data['points'] as List).length} pts)');
+    } catch (e) {
+      print('⚠️ Erreur sauvegarde brouillon collecte: $e');
+    }
+  }
+
+  /// Charge le brouillon de collecte en pause depuis SQLite
+  /// Retourne les données brutes (le HomeController restaure les objets)
+  static Future<Map<String, dynamic>?> loadPausedDraft() async {
+    try {
+      final db = await DatabaseHelper().database;
+      final rows = await db.query(
+        'app_metadata',
+        where: 'key = ?',
+        whereArgs: ['paused_collection_draft'],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      final raw = rows.first['value'] as String?;
+      if (raw == null) return null;
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (e) {
+      print('⚠️ Erreur chargement brouillon collecte: $e');
+      return null;
+    }
+  }
+
+  /// Restaure une collecte ligne en pause depuis les données JSON
+  void restoreLigneCollection(Map<String, dynamic> data) {
+    final points = (data['points'] as List)
+        .map((p) => LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
+        .toList();
+
+    _ligneCollection = LigneCollection(
+      id: data['id'] as int,
+      codePiste: data['codePiste'] as String,
+      status: CollectionStatus.paused,
+      points: points,
+      startTime: DateTime.parse(data['startTime'] as String),
+      lastPointTime: data['lastPointTime'] != null
+          ? DateTime.parse(data['lastPointTime'] as String)
+          : null,
+      totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
+    );
+    notifyListeners();
+  }
+
+  /// Restaure une collecte chaussée en pause
+  void restoreChausseeCollection(Map<String, dynamic> data) {
+    final points = (data['points'] as List)
+        .map((p) => LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
+        .toList();
+
+    _chausseeCollection = ChausseeCollection(
+      id: data['id'] as int,
+      status: CollectionStatus.paused,
+      points: points,
+      startTime: DateTime.parse(data['startTime'] as String),
+      lastPointTime: data['lastPointTime'] != null
+          ? DateTime.parse(data['lastPointTime'] as String)
+          : null,
+      totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
+    );
+    notifyListeners();
+  }
+
+  /// Restaure une collecte spéciale (polygone) en pause
+  void restoreSpecialCollection(Map<String, dynamic> data) {
+    final points = (data['points'] as List)
+        .map((p) => LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
+        .toList();
+
+    _specialCollection = SpecialCollection(
+      id: data['id'] as int,
+      specialType: data['specialType'] as String? ?? 'Zone de Plaine',
+      status: CollectionStatus.paused,
+      points: points,
+      startTime: DateTime.parse(data['startTime'] as String),
+      lastPointTime: data['lastPointTime'] != null
+          ? DateTime.parse(data['lastPointTime'] as String)
+          : null,
+      totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
+    );
+    notifyListeners();
+  }
+
+  /// Supprime le brouillon de collecte en pause
+  Future<void> _clearPausedDraft() async {
+    try {
+      final db = await DatabaseHelper().database;
+      await db.delete(
+        'app_metadata',
+        where: 'key = ?',
+        whereArgs: ['paused_collection_draft'],
+      );
+    } catch (e) {
+      print('⚠️ Erreur suppression brouillon collecte: $e');
+    }
+  }
+
+  /// Supprime le brouillon (accessible publiquement)
+  Future<void> clearPausedDraft() => _clearPausedDraft();
+
+  /// Temps écoulé depuis la pause (pour la dialog)
+  static String pauseTimeAgo(String pausedAt) {
+    final diff = DateTime.now().difference(DateTime.parse(pausedAt));
+    if (diff.inSeconds < 60) return 'quelques secondes';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    return '${diff.inDays} jour${diff.inDays > 1 ? 's' : ''}';
   }
 
   @override

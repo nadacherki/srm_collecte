@@ -40,9 +40,12 @@ class MapControlsWidget extends StatelessWidget {
     final hasLigneContext = controller.ligneCollection != null;
     final hasPolygonContext =
         isSpecialCollection && isPolygonCollection && controller.specialCollection != null;
-    final showAddPointForLigne = controller.ligneCollection?.isActive ?? false;
-    final showAddPointForPolygon =
-        isPolygonCollection && (controller.specialCollection?.isActive ?? false);
+    // SPRINT 7 fix : le bouton Point doit apparaître aussi quand la collecte est en PAUSE
+    final showAddPointForLigne = (controller.ligneCollection?.isActive ?? false) ||
+        (controller.ligneCollection?.isPaused ?? false);
+    final showAddPointForPolygon = isPolygonCollection &&
+        ((controller.specialCollection?.isActive ?? false) ||
+            (controller.specialCollection?.isPaused ?? false));
 
     return Stack(
       children: [
@@ -131,8 +134,12 @@ class MapControlsWidget extends StatelessWidget {
       );
     }
 
-    if (hasManualCollectionContext || controller.hasActiveCollection || controller.hasPausedCollection) {
-      return const SizedBox.shrink();
+    // ── SPRINT 7 : Quand une collecte est en PAUSE, afficher le bouton Point
+    // pour permettre le levé de points indépendants ──
+    if (!controller.hasPausedCollection) {
+      if (hasManualCollectionContext || controller.hasActiveCollection) {
+        return const SizedBox.shrink();
+      }
     }
 
     return FloatingActionButton.extended(
