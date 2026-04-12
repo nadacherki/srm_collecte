@@ -89,6 +89,62 @@ class CustomMarkerIcons {
       icon: Icons.crop_square,
       color: const Color(0xFF2E7D32),
     ),
+    'bouche_cles': MarkerIconConfig(
+      icon: Icons.vpn_key,
+      color: const Color(0xFF0288D1),
+    ),
+    'bouche_darrosage': MarkerIconConfig(
+      icon: Icons.yard,
+      color: const Color(0xFF00897B),
+    ),
+    'compteur_reseau': MarkerIconConfig(
+      icon: Icons.speed,
+      color: const Color(0xFF5C6BC0),
+    ),
+    'compteur_abonne': MarkerIconConfig(
+      icon: Icons.person_pin,
+      color: const Color(0xFF7E57C2),
+    ),
+    'cone_de_reduction': MarkerIconConfig(
+      icon: Icons.change_circle,
+      color: const Color(0xFF039BE5),
+    ),
+    'centre_tampon': MarkerIconConfig(
+      icon: Icons.adjust,
+      color: const Color(0xFF26A69A),
+    ),
+    'obturateur': MarkerIconConfig(
+      icon: Icons.block,
+      color: const Color(0xFF1976D2),
+    ),
+    'reducteur_de_pression': MarkerIconConfig(
+      icon: Icons.compress,
+      color: const Color(0xFF0097A7),
+    ),
+    'noeud': MarkerIconConfig(
+      icon: Icons.scatter_plot,
+      color: const Color(0xFF29B6F6),
+    ),
+    'reservoir': MarkerIconConfig(
+      icon: Icons.water_damage,
+      color: const Color(0xFF1565C0),
+    ),
+    'station_de_pompage': MarkerIconConfig(
+      icon: Icons.sync,
+      color: const Color(0xFF283593),
+    ),
+    'forage': MarkerIconConfig(
+      icon: Icons.arrow_downward,
+      color: const Color(0xFF0277BD),
+    ),
+    'puit': MarkerIconConfig(
+      icon: Icons.circle_outlined,
+      color: const Color(0xFF01579B),
+    ),
+    'pompe': MarkerIconConfig(
+      icon: Icons.rotate_right,
+      color: const Color(0xFF006064),
+    ),
     'autre_objet': MarkerIconConfig(
       icon: Icons.place,
       color: const Color(0xFF78909C),
@@ -203,8 +259,25 @@ class CustomMarkerIcons {
   }
 
   // Méthodes de compatibilité (pour ne pas casser le code existant)
-  static int getCacheSize() => 0; // Plus de cache nécessaire
-  static void clearCache() {} // Plus de cache nécessaire
+  static int getCacheSize() => 0;
+  static void clearCache() {}
+
+  // ── Marqueur Anomalie ────────────────────────────────────────────────────
+  // Panneau danger terrain : triangle rouge comme un vrai panneau de signalisation.
+  // Immédiatement reconnaissable sur le terrain sans ambiguïté.
+  static Widget getAnomalieMarkerWidget(String tableName,
+      {double size = 44.0, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          painter: _WarningSignPainter(),
+        ),
+      ),
+    );
+  }
 }
 
 class MarkerIconConfig {
@@ -215,4 +288,73 @@ class MarkerIconConfig {
     required this.icon,
     required this.color,
   });
+}
+
+// ── Panneau danger terrain (triangle rouge) ──────────────────────────────
+// Dessiné avec CustomPainter pour ressembler exactement à un panneau
+// de signalisation routière : triangle blanc bordé rouge + point d'exclamation.
+class _WarningSignPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Ombre portée
+    final shadowPath = Path()
+      ..moveTo(w * 0.50, h * 0.04)
+      ..lineTo(w * 0.97, h * 0.94)
+      ..lineTo(w * 0.03, h * 0.94)
+      ..close();
+    canvas.drawPath(
+      shadowPath.shift(const Offset(1.5, 2)),
+      Paint()
+        ..color = Colors.black.withOpacity(0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+
+    // Triangle blanc (fond)
+    final bgPath = Path()
+      ..moveTo(w * 0.50, h * 0.04)
+      ..lineTo(w * 0.97, h * 0.94)
+      ..lineTo(w * 0.03, h * 0.94)
+      ..close();
+    canvas.drawPath(bgPath, Paint()..color = Colors.white);
+
+    // Bordure rouge épaisse
+    canvas.drawPath(
+      bgPath,
+      Paint()
+        ..color = const Color(0xFFE53935)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.10
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Point d'exclamation — trait
+    final excPaint = Paint()
+      ..color = Colors.black
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.fill;
+
+    // Corps du !
+    final excRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(w * 0.50, h * 0.52),
+        width: w * 0.115,
+        height: h * 0.30,
+      ),
+      Radius.circular(w * 0.06),
+    );
+    canvas.drawRRect(excRect, excPaint);
+
+    // Point du !
+    canvas.drawCircle(
+      Offset(w * 0.50, h * 0.80),
+      w * 0.072,
+      excPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

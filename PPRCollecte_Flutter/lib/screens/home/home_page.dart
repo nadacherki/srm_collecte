@@ -148,6 +148,8 @@ class _HomePageState extends State<HomePage> {
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
   Map<String, int> _pointCountsByTable = {};
+  // Compteur d'anomalies par table — alimenté par _loadDisplayedPoints
+  Map<String, int> _anomalieCountsByTable = {};
   MapController? _mapController;
   LatLng? _lastCameraPosition;
   late final HomeController homeController;
@@ -182,6 +184,7 @@ class _HomePageState extends State<HomePage> {
   Timer? _onlineWatchTimer;
 // Dans _HomePageState
   Map<String, bool> _legendVisibility = {
+    // ── Compatibilité GeoDNGR (conservé pour ne pas casser les refs existantes) ──
     'points': true,
     'pistes': true,
     'chaussee_bitume': true,
@@ -196,6 +199,12 @@ class _HomePageState extends State<HomePage> {
     'bac': true,
     'passage_submersible': true,
     'zone_plaine': true,
+    // ── SRM : visibilité par métier (parent) ──
+    'srm_metier_Eau Potable': true,
+    'srm_metier_Assainissement': true,
+    'srm_metier_Électricité': true,
+    // ── SRM : filtre anomalie ──
+    'srm_anomalie': false,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -1245,23 +1254,26 @@ class _HomePageState extends State<HomePage> {
 
 // Méthode pour filtrer les markers selon la légende
   List<Marker> _getFilteredMarkers() {
-    if (_legendVisibility['points'] != true) {
-      return <Marker>[];
-    }
-
+    final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
     final List<Marker> filtered = <Marker>[];
 
-    // === Points locaux ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
+    // === Points SRM locaux — filtrés par entité + filtre anomalie === ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
     for (final entry in _displayedPointsByTable.entries) {
-      final subKey = 'point_${entry.key}';
-      if (_legendVisibility[subKey] != false) {
+      final tableName = entry.key;
+      final srmKey = 'srm_$tableName';
+      final legacyKey = 'point_$tableName';
+      final isVisible = _legendVisibility.containsKey(srmKey)
+          ? (_legendVisibility[srmKey] ?? true)
+          : (_legendVisibility[legacyKey] ?? true);
+      if (!isVisible) continue;
+
+      if (anomalieFilterOn) {
+        // Mode isolement : afficher uniquement les marqueurs anomalie (width == 44)
+        filtered.addAll(entry.value.where((m) => m.width == 44));
+      } else {
         filtered.addAll(entry.value);
       }
     }
-
-    //  FIX: NE PLUS ajouter les markers "orphelins" sans vérification
-    // Avant: tous les markers non catégorisés étaient toujours affichés
-    // Maintenant: on les ignore (ils seront catégorisés correctement)
 
     // === Points tÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©lÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©chargÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©s ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
     if (_showDownloadedPoints) {
@@ -2372,6 +2384,7 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final Map<String, List<Marker>> callbackByTable = {};
+      final Map<String, int> anomalieCounts = {};
       final markers = await _pointsService.getDisplayedPointsMarkers(
         onTapDetails: (data) {
           _suspendAutoCenterFor(const Duration(seconds: 10));
@@ -2392,6 +2405,12 @@ class _HomePageState extends State<HomePage> {
         onMarkerCreated: (tableName, marker) {
           callbackByTable.putIfAbsent(tableName, () => []);
           callbackByTable[tableName]!.add(marker);
+        },
+        onAnomalieDetected: (tableName, hasAnomalie) {
+          if (hasAnomalie) {
+            anomalieCounts.putIfAbsent(tableName, () => 0);
+            anomalieCounts[tableName] = (anomalieCounts[tableName] ?? 0) + 1;
+          }
         },
       );
       // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â FILTRER SEULEMENT LES MARQUEURS VALIDES ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
@@ -2464,6 +2483,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _displayedPointsMarkers = validMarkers;
         _displayedPointsByTable = byTable;
+        _anomalieCountsByTable = anomalieCounts;
       });
 
       // Compter depuis les tables réelles (inclut locaux + téléchargés)
@@ -5392,6 +5412,7 @@ class _HomePageState extends State<HomePage> {
                     allMarkers: filteredMarkers,
                     polygonCount: _displayedPolygons.length,
                     pointCountsByTable: _pointCountsByTable,
+                    anomalieCountsByTable: _anomalieCountsByTable,
                   ),
                   if (isSyncing)
                     BackdropFilter(

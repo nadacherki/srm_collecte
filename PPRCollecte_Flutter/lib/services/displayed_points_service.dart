@@ -15,6 +15,7 @@ class DisplayedPointsService {
   Future<List<Marker>> getDisplayedPointsMarkers({
     required void Function(Map<String, dynamic>) onTapDetails,
     void Function(String tableName, Marker marker)? onMarkerCreated,
+    void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
   }) async {
     try {
       final db = await _dbHelper.database;
@@ -36,10 +37,14 @@ class DisplayedPointsService {
             final latLng = _extractLatLng(row, metier);
             if (latLng == null) continue;
 
+            // Détecter l'anomalie (stockée comme 1 / true en base)
+            final hasAnomalie =
+                row['anomalie'] == 1 || row['anomalie'] == true;
+
             final marker = Marker(
               point: latLng,
-              width: 40,
-              height: 40,
+              width: hasAnomalie ? 44 : 40,
+              height: hasAnomalie ? 44 : 40,
               child: GestureDetector(
                 onTap: () {
                   onTapDetails({
@@ -47,6 +52,9 @@ class DisplayedPointsService {
                     'name': _resolvePointName(row, entityType),
                     'metier': metier,
                     'table_name': tableName,
+                    'anomalie': hasAnomalie,
+                    'type_anomalie':
+                        (row['type_anomalie'] ?? '').toString(),
                     'enqueteur': (row['enqueteur'] ??
                             ApiService.nomPrenom ??
                             ApiService.userLogin ??
@@ -64,15 +72,21 @@ class DisplayedPointsService {
                             ApiService.currentProjetNom ??
                             '')
                         .toString(),
-                    'commune_name': (row['commune_name'] ?? '').toString(),
+                    'commune_name':
+                        (row['commune_name'] ?? '').toString(),
                   });
                 },
-                child: CustomMarkerIcons.getMarkerWidget(tableName),
+                // Marqueur rouge danger si anomalie, sinon marqueur normal
+                child: hasAnomalie
+                    ? CustomMarkerIcons.getAnomalieMarkerWidget(tableName)
+                    : CustomMarkerIcons.getMarkerWidget(tableName),
               ),
             );
 
             markers.add(marker);
             onMarkerCreated?.call(tableName, marker);
+            // Notifier home_page pour comptage anomalies → légende
+            onAnomalieDetected?.call(tableName, hasAnomalie);
           }
         }
       }
@@ -89,10 +103,12 @@ class DisplayedPointsService {
   Future<List<Marker>> refreshDisplayedPoints({
     required void Function(Map<String, dynamic>) onTapDetails,
     void Function(String tableName, Marker marker)? onMarkerCreated,
+    void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
   }) async {
     return await getDisplayedPointsMarkers(
       onTapDetails: onTapDetails,
       onMarkerCreated: onMarkerCreated,
+      onAnomalieDetected: onAnomalieDetected,
     );
   }
 
