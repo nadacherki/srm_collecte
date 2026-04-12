@@ -1,7 +1,4 @@
-// lib/screens/auth/login_page.dart
-// ── SPRINT 3 : Login SRM (login + mot_de_passe en clair) ──
-// L'API retourne { success, user: { id_user, login, nom_prenom, role,
-//   id_projet_actif }, projet_actif: { id_projet, nom, statut, metier… } }
+
 
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -249,242 +246,376 @@ class _LoginPageState extends State<LoginPage> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-      prefixIcon: Icon(icon, color: const Color(0xFF64748B)),
+      hintStyle: const TextStyle(color: Color(0xFFB0BEC5), fontSize: 14),
+      prefixIcon: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Icon(icon, color: const Color(0xFF90A4AE), size: 20),
+      ),
       suffixIcon: suffix,
       filled: true,
-      fillColor: const Color(0xFFF1F5F9),
-      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+      fillColor: const Color(0xFFF5F7FA),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 6),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFE8EDF2), width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 2),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFEF5350), width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFEF5350), width: 2),
+      ),
+      errorStyle: const TextStyle(color: Color(0xFFEF5350), fontSize: 11),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF0F4F8),
       resizeToAvoidBottomInset: true,
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF2563EB), Color(0xFF10B981)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  padding: EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        child: Stack(
+          children: [
+            // ── Fond haut bleu ──
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.of(context).size.height * 0.42,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minHeight: constraints.maxHeight),
-                    child: Center(
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(40),
+                    bottomRight: Radius.circular(40),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Cercle décoratif haut-droite
+                    Positioned(
+                      top: -40,
+                      right: -40,
                       child: Container(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        margin: const EdgeInsets.symmetric(vertical: 24),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 24),
+                        width: 160,
+                        height: 160,
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          autovalidateMode:
-                              AutovalidateMode.onUserInteraction,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // ── Logo SRM ──
-                              Container(
-                                width: 84,
-                                height: 84,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(18),
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFE0F2FE),
-                                      Color(0xFFCCFBF1)
-                                    ],
-                                  ),
-                                ),
-                                child: const SrmLoginEmblem(),
-                              ),
-                              const SizedBox(height: 10),
-                              const Text("SRM Collecte",
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      color: Color(0xFF0F172A))),
-                              const SizedBox(height: 14),
-                              const Text(
-                                "Connexion à SRM Collecte",
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF0F172A)),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // ── Champ Login ──
-                              const Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text("Login",
-                                    style: TextStyle(
-                                        color: Color(0xFF0F172A),
-                                        fontWeight: FontWeight.w600)),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                controller: loginController,
-                                keyboardType: TextInputType.text,
-                                decoration: _inputDeco(
-                                    hint: "Votre identifiant SRM",
-                                    icon: Icons.person_rounded),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return "Entrez votre login";
-                                  }
-                                  return null;
-                                },
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // ── Mot de passe ──
-                              const Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text("Mot de passe",
-                                    style: TextStyle(
-                                        color: Color(0xFF0F172A),
-                                        fontWeight: FontWeight.w600)),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                controller: passwordController,
-                                obscureText: _obscurePwd,
-                                decoration: _inputDeco(
-                                  hint: "••••••••",
-                                  icon: Icons.lock_rounded,
-                                  suffix: IconButton(
-                                    icon: Icon(_obscurePwd
-                                        ? Icons.visibility_off
-                                        : Icons.visibility),
-                                    onPressed: () => setState(
-                                        () => _obscurePwd = !_obscurePwd),
-                                  ),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return "Entrez votre mot de passe";
-                                  }
-                                  if (v.length < 4) {
-                                    return "Mot de passe trop court";
-                                  }
-                                  return null;
-                                },
-                              ),
-
-                              const SizedBox(height: 10),
-
-                              // Se souvenir + Mot de passe oublié
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: Checkbox(
-                                      value: rememberMe,
-                                      onChanged: (val) {
-                                        setState(() {
-                                          rememberMe = val ?? false;
-                                          if (!rememberMe) {
-                                            loginController.clear();
-                                            passwordController.clear();
-                                          }
-                                        });
-                                      },
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(4)),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text("Se souvenir",
-                                      style: TextStyle(
-                                          color: Color(0xFF334155))),
-                                  const Spacer(),
-                                  TextButton(
-                                    onPressed: _showForgotPasswordDialog,
-                                    child:
-                                        const Text("Mot de passe oublié ?"),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 12),
-
-                              // Bouton connexion
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed:
-                                      _isLoading ? null : _handleLogin,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF38BDF8),
-                                    foregroundColor: const Color(0xFF0F172A),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 14),
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                  ),
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        )
-                                      : const Text("Se connecter",
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.w700)),
-                                ),
-                              ),
-                            ],
-                          ),
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.07),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                    // Cercle décoratif bas-gauche
+                    Positioned(
+                      bottom: -20,
+                      left: -30,
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.06),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+
+            // ── Contenu scrollable ──
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 32),
+
+                          // ── Logo grand ──
+                          _buildLogo(),
+
+                          const SizedBox(height: 14),
+
+                          // ── Titre ──
+                          const Text(
+                            'Bienvenue !',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Connectez-vous pour accéder\nà votre espace SRM Collecte',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white70,
+                              height: 1.5,
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // ── Card formulaire ──
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 420),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(28),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF1976D2).withOpacity(0.10),
+                                    blurRadius: 32,
+                                    offset: const Offset(0, 12),
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
+                              child: Form(
+                                key: _formKey,
+                                autovalidateMode: AutovalidateMode.onUserInteraction,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Titre card
+                                    const Center(
+                                      child: Text(
+                                        'Connexion',
+                                        style: TextStyle(
+                                          fontSize: 19,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF1A2340),
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+
+                                    // ── Champ Login ──
+                                    TextFormField(
+                                      controller: loginController,
+                                      keyboardType: TextInputType.text,
+                                      style: const TextStyle(
+                                          color: Color(0xFF1A2340), fontSize: 14),
+                                      decoration: _inputDeco(
+                                        hint: 'Identifiant SRM',
+                                        icon: Icons.person_outline_rounded,
+                                      ),
+                                      validator: (v) {
+                                        if (v == null || v.trim().isEmpty) {
+                                          return 'Entrez votre login';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    // ── Mot de passe ──
+                                    TextFormField(
+                                      controller: passwordController,
+                                      obscureText: _obscurePwd,
+                                      style: const TextStyle(
+                                          color: Color(0xFF1A2340), fontSize: 14),
+                                      decoration: _inputDeco(
+                                        hint: 'Mot de passe',
+                                        icon: Icons.lock_outline_rounded,
+                                        suffix: IconButton(
+                                          icon: Icon(
+                                            _obscurePwd
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
+                                            color: const Color(0xFF90A4AE),
+                                            size: 20,
+                                          ),
+                                          onPressed: () => setState(
+                                              () => _obscurePwd = !_obscurePwd),
+                                        ),
+                                      ),
+                                      validator: (v) {
+                                        if (v == null || v.isEmpty) {
+                                          return 'Entrez votre mot de passe';
+                                        }
+                                        if (v.length < 4) {
+                                          return 'Mot de passe trop court';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+
+                                    const SizedBox(height: 14),
+
+                                    // ── Se souvenir + Mot de passe oublié ──
+                                    Row(
+                                      children: [
+                                        SizedBox(
+                                          height: 22,
+                                          width: 22,
+                                          child: Checkbox(
+                                            value: rememberMe,
+                                            activeColor: const Color(0xFF2196F3),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(5)),
+                                            side: const BorderSide(
+                                                color: Color(0xFFB0BEC5),
+                                                width: 1.5),
+                                            onChanged: (val) {
+                                              setState(() {
+                                                rememberMe = val ?? false;
+                                                if (!rememberMe) {
+                                                  loginController.clear();
+                                                  passwordController.clear();
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Se souvenir',
+                                          style: TextStyle(
+                                              color: Color(0xFF607D8B),
+                                              fontSize: 13),
+                                        ),
+                                        const Spacer(),
+                                        GestureDetector(
+                                          onTap: _showForgotPasswordDialog,
+                                          child: const Text(
+                                            'Mot de passe oublié ?',
+                                            style: TextStyle(
+                                              color: Color(0xFF2196F3),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 24),
+
+                                    // ── Bouton connexion ──
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 52,
+                                      child: ElevatedButton(
+                                        onPressed: _isLoading ? null : _handleLogin,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF1976D2),
+                                          foregroundColor: Colors.white,
+                                          elevation: 4,
+                                          shadowColor: const Color(0xFF1976D2)
+                                              .withOpacity(0.4),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                        ),
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                height: 22,
+                                                width: 22,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2.5,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : const Text(
+                                                'Se connecter',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 15,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 28),
+
+                          // ── Pied de page ──
+                          const Text(
+                            'Collecter. Organiser. Exploiter vos données en toute simplicité.',
+                            style: TextStyle(
+                              color: Color(0xFF90A4AE),
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'EP  •  ASS  •  ELEC',
+                            style: TextStyle(
+                              color: Color(0xFFB0BEC5),
+                              fontSize: 10,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLogo() {
+    return Container(
+      width: 110,
+      height: 110,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: const SrmLoginEmblem(),
     );
   }
 }
@@ -498,12 +629,10 @@ class SrmLoginEmblem extends StatelessWidget {
     return Center(
       child: Image.asset(
         "assets/srm_collecte_logo.png",
-        width: 104,
-        height: 104,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => const Icon(
           Icons.water_drop,
-          size: 48,
+          size: 52,
           color: Color(0xFF2196F3),
         ),
       ),
