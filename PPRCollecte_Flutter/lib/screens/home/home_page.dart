@@ -148,6 +148,8 @@ class _HomePageState extends State<HomePage> {
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
   Map<String, int> _pointCountsByTable = {};
+  Map<String, int> _anomalieCountsByTable = {};
+  Map<String, int> _incompletCountsByTable = {};
   MapController? _mapController;
   LatLng? _lastCameraPosition;
   late final HomeController homeController;
@@ -159,6 +161,8 @@ class _HomePageState extends State<HomePage> {
   bool _showDownloadedPoints = true;
   // Markers séparés par table pour le filtrage par sous-type
   Map<String, List<Marker>> _displayedPointsByTable = {};
+  Map<String, List<Marker>> _displayedAnomalieByTable = {};
+  Map<String, List<Marker>> _displayedIncompletByTable = {};
   Map<String, List<Marker>> _downloadedPointsByTable = {};
   bool _isSatellite = false;
   final DownloadedSpecialLinesService _downloadedSpecialLinesService = DownloadedSpecialLinesService();
@@ -1245,28 +1249,62 @@ class _HomePageState extends State<HomePage> {
 
 // Méthode pour filtrer les markers selon la légende
   List<Marker> _getFilteredMarkers() {
-    if (_legendVisibility['points'] != true) {
-      return <Marker>[];
-    }
-
+    final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
+    final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
     final List<Marker> filtered = <Marker>[];
 
-    // === Points locaux ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
-    for (final entry in _displayedPointsByTable.entries) {
-      final subKey = 'point_${entry.key}';
-      if (_legendVisibility[subKey] != false) {
-        filtered.addAll(entry.value);
+    // === Mode isolement anomalie ===
+    if (anomalieFilterOn && !incompletFilterOn) {
+      for (final entry in _displayedAnomalieByTable.entries) {
+        final srmKey = 'srm_\${entry.key}';
+        if (_legendVisibility[srmKey] != false) {
+          filtered.addAll(entry.value);
+        }
       }
+      return filtered;
     }
 
-    //  FIX: NE PLUS ajouter les markers "orphelins" sans vérification
-    // Avant: tous les markers non catégorisés étaient toujours affichés
-    // Maintenant: on les ignore (ils seront catégorisés correctement)
+    // === Mode isolement incomplet ===
+    if (incompletFilterOn && !anomalieFilterOn) {
+      for (final entry in _displayedIncompletByTable.entries) {
+        final srmKey = 'srm_\${entry.key}';
+        if (_legendVisibility[srmKey] != false) {
+          filtered.addAll(entry.value);
+        }
+      }
+      return filtered;
+    }
 
-    // === Points tÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©lÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©chargÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©s ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
+    // === Mode isolement anomalie + incomplet ===
+    if (anomalieFilterOn && incompletFilterOn) {
+      final Set<Marker> combined = {};
+      for (final entry in _displayedAnomalieByTable.entries) {
+        final srmKey = 'srm_\${entry.key}';
+        if (_legendVisibility[srmKey] != false) combined.addAll(entry.value);
+      }
+      for (final entry in _displayedIncompletByTable.entries) {
+        final srmKey = 'srm_\${entry.key}';
+        if (_legendVisibility[srmKey] != false) combined.addAll(entry.value);
+      }
+      return combined.toList();
+    }
+
+    // === Mode normal : tout afficher selon visibilité entité ===
+    for (final entry in _displayedPointsByTable.entries) {
+      final tableName = entry.key;
+      final srmKey = 'srm_\$tableName';
+      final legacyKey = 'point_\$tableName';
+      final isVisible = _legendVisibility.containsKey(srmKey)
+          ? (_legendVisibility[srmKey] ?? true)
+          : (_legendVisibility[legacyKey] ?? true);
+      if (!isVisible) continue;
+      filtered.addAll(entry.value);
+    }
+
+    // === Points téléchargés (GeoDNGR) ===
     if (_showDownloadedPoints) {
       for (final entry in _downloadedPointsByTable.entries) {
-        final subKey = 'point_${entry.key}';
+        final subKey = 'point_\${entry.key}';
         if (_legendVisibility[subKey] != false) {
           filtered.addAll(entry.value);
         }
@@ -2354,6 +2392,10 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final Map<String, List<Marker>> callbackByTable = {};
+      final Map<String, List<Marker>> anomalieByTable = {};
+      final Map<String, List<Marker>> incompletByTable = {};
+      final Map<String, int> anomalieCounts = {};
+      final Map<String, int> incompletCounts = {};
       final markers = await _pointsService.getDisplayedPointsMarkers(
         onTapDetails: (data) {
           _suspendAutoCenterFor(const Duration(seconds: 10));
@@ -2371,9 +2413,27 @@ class _HomePageState extends State<HomePage> {
             statut: (data['synced'].toString() == '1') ? 'Synchronisée' : 'Enregistrée localement',
           );
         },
-        onMarkerCreated: (tableName, marker) {
+        onMarkerCreated: (tableName, marker, {bool hasAnomalie = false, bool hasIncomplet = false}) {
           callbackByTable.putIfAbsent(tableName, () => []);
           callbackByTable[tableName]!.add(marker);
+          if (hasAnomalie) {
+            anomalieByTable.putIfAbsent(tableName, () => []).add(marker);
+          }
+          if (hasIncomplet) {
+            incompletByTable.putIfAbsent(tableName, () => []).add(marker);
+          }
+        },
+        onAnomalieDetected: (tableName, hasAnomalie) {
+          if (hasAnomalie) {
+            anomalieCounts.putIfAbsent(tableName, () => 0);
+            anomalieCounts[tableName] = (anomalieCounts[tableName] ?? 0) + 1;
+          }
+        },
+        onIncompletDetected: (tableName, hasIncomplet) {
+          if (hasIncomplet) {
+            incompletCounts.putIfAbsent(tableName, () => 0);
+            incompletCounts[tableName] = (incompletCounts[tableName] ?? 0) + 1;
+          }
         },
       );
       // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â FILTRER SEULEMENT LES MARQUEURS VALIDES ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
@@ -2446,6 +2506,10 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _displayedPointsMarkers = validMarkers;
         _displayedPointsByTable = byTable;
+        _displayedAnomalieByTable = anomalieByTable;
+        _displayedIncompletByTable = incompletByTable;
+        _anomalieCountsByTable = anomalieCounts;
+        _incompletCountsByTable = incompletCounts;
       });
 
       // Compter depuis les tables réelles (inclut locaux + téléchargés)
@@ -5373,6 +5437,8 @@ class _HomePageState extends State<HomePage> {
                     allMarkers: filteredMarkers,
                     polygonCount: _displayedPolygons.length,
                     pointCountsByTable: _pointCountsByTable,
+                    anomalieCountsByTable: _anomalieCountsByTable,
+                    incompletCountsByTable: _incompletCountsByTable,
                   ),
                   if (isSyncing)
                     BackdropFilter(

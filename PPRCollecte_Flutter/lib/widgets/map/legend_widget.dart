@@ -24,6 +24,9 @@ class LegendWidget extends StatefulWidget {
   /// Compteur d'anomalies par table (fourni par home_page)
   final Map<String, int> anomalieCountsByTable;
 
+  /// Compteur d'objets incomplets par table (fourni par home_page)
+  final Map<String, int> incompletCountsByTable;
+
   // Paramètres de compatibilité GeoDNGR conservés pour ne pas casser
   // la signature existante dans home_page
   final List<dynamic> allPolylines;
@@ -36,6 +39,7 @@ class LegendWidget extends StatefulWidget {
     required this.onVisibilityChanged,
     this.pointCountsByTable = const {},
     this.anomalieCountsByTable = const {},
+    this.incompletCountsByTable = const {},
     this.allPolylines = const [],
     this.allMarkers = const [],
     this.polygonCount = 0,
@@ -49,6 +53,7 @@ class _LegendWidgetState extends State<LegendWidget> {
   late Map<String, bool> _visibility;
   bool _isExpanded = false;
   bool _anomalieFilterActive = false;
+  bool _incompletFilterActive = false;
 
   final Map<String, bool> _metierExpanded = {};
 
@@ -82,6 +87,7 @@ class _LegendWidgetState extends State<LegendWidget> {
       }
     }
     _anomalieFilterActive = _visibility['srm_anomalie'] == true;
+    _incompletFilterActive = _visibility['srm_incomplet'] == true;
   }
 
   void _toggle(String key, bool value) {
@@ -110,8 +116,17 @@ class _LegendWidgetState extends State<LegendWidget> {
     });
   }
 
+  void _toggleIncompletFilter(bool value) {
+    setState(() {
+      _incompletFilterActive = value;
+      _visibility['srm_incomplet'] = value;
+      widget.onVisibilityChanged(Map.from(_visibility));
+    });
+  }
+
   int _countForTable(String table) => widget.pointCountsByTable[table] ?? 0;
   int _anomaliesForTable(String table) => widget.anomalieCountsByTable[table] ?? 0;
+  int _incompletForTable(String table) => widget.incompletCountsByTable[table] ?? 0;
 
   int _totalForMetier(String metier) {
     int t = 0;
@@ -136,6 +151,9 @@ class _LegendWidgetState extends State<LegendWidget> {
 
   int get _totalAnomalies =>
       widget.anomalieCountsByTable.values.fold(0, (a, b) => a + b);
+
+  int get _totalIncompletes =>
+      widget.incompletCountsByTable.values.fold(0, (a, b) => a + b);
 
   bool _isMetierFullyChecked(String metier) {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
@@ -207,6 +225,11 @@ class _LegendWidgetState extends State<LegendWidget> {
               _badge(_totalObjects, color: Colors.grey.shade600),
             ],
             // Badge anomalie toujours visible dans le header si des anomalies existent
+            if (_totalIncompletes > 0) ...[              const SizedBox(width: 4),
+              _badge(_totalIncompletes,
+                  color: const Color(0xFFF57C00),
+                  icon: Icons.edit_off),
+            ],
             if (_totalAnomalies > 0) ...[
               const SizedBox(width: 4),
               _badge(_totalAnomalies,
@@ -233,6 +256,8 @@ class _LegendWidgetState extends State<LegendWidget> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAnomalieFilter(),
+                const SizedBox(height: 8),
+                _buildIncompletFilter(),
                 const SizedBox(height: 10),
                 Divider(height: 1, color: Colors.grey.shade200),
                 const SizedBox(height: 6),
@@ -311,6 +336,98 @@ class _LegendWidgetState extends State<LegendWidget> {
               value: _anomalieFilterActive,
               onChanged: _toggleAnomalieFilter,
               activeColor: const Color(0xFFD32F2F),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Filtre Objet Incomplet ──
+  Widget _buildIncompletFilter() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: _incompletFilterActive
+            ? const Color(0xFFF57C00).withOpacity(0.07)
+            : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: _incompletFilterActive
+              ? const Color(0xFFF57C00).withOpacity(0.45)
+              : Colors.grey.shade200,
+          width: 1.2,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: Row(
+        children: [
+          // Mini cercle orange avec ?
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF57C00),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.4),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text(
+                '?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Isoler les incomplets',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _incompletFilterActive
+                        ? const Color(0xFFF57C00)
+                        : Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  _incompletFilterActive
+                      ? 'Uniquement les objets incomplets'
+                      : 'Incomplets toujours visibles en orange',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          if (_totalIncompletes > 0) ...[
+            _badge(_totalIncompletes,
+                color: const Color(0xFFF57C00),
+                icon: Icons.edit_off),
+            const SizedBox(width: 4),
+          ],
+          Transform.scale(
+            scale: 0.82,
+            child: Switch(
+              value: _incompletFilterActive,
+              onChanged: _toggleIncompletFilter,
+              activeColor: const Color(0xFFF57C00),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),

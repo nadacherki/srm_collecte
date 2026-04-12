@@ -14,8 +14,9 @@ class DisplayedPointsService {
 
   Future<List<Marker>> getDisplayedPointsMarkers({
     required void Function(Map<String, dynamic>) onTapDetails,
-    void Function(String tableName, Marker marker)? onMarkerCreated,
+    void Function(String tableName, Marker marker, {bool hasAnomalie, bool hasIncomplet})? onMarkerCreated,
     void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
+    void Function(String tableName, bool hasIncomplet)? onIncompletDetected,
   }) async {
     try {
       final db = await _dbHelper.database;
@@ -40,11 +41,13 @@ class DisplayedPointsService {
             // Détecter l'anomalie (stockée comme 1 / true en base)
             final hasAnomalie =
                 row['anomalie'] == 1 || row['anomalie'] == true;
+            final hasIncomplet =
+                row['objet_incomplet'] == 1 || row['objet_incomplet'] == true;
 
             final marker = Marker(
               point: latLng,
-              width: hasAnomalie ? 44 : 40,
-              height: hasAnomalie ? 44 : 40,
+              width: (hasAnomalie || hasIncomplet) ? 44 : 40,
+              height: (hasAnomalie || hasIncomplet) ? 44 : 40,
               child: GestureDetector(
                 onTap: () {
                   onTapDetails({
@@ -53,6 +56,7 @@ class DisplayedPointsService {
                     'metier': metier,
                     'table_name': tableName,
                     'anomalie': hasAnomalie,
+                    'objet_incomplet': hasIncomplet,
                     'type_anomalie':
                         (row['type_anomalie'] ?? '').toString(),
                     'enqueteur': (row['enqueteur'] ??
@@ -79,14 +83,17 @@ class DisplayedPointsService {
                 // Marqueur rouge danger si anomalie, sinon marqueur normal
                 child: hasAnomalie
                     ? CustomMarkerIcons.getAnomalieMarkerWidget(tableName)
-                    : CustomMarkerIcons.getMarkerWidget(tableName),
+                    : hasIncomplet
+                        ? CustomMarkerIcons.getIncompletMarkerWidget(tableName)
+                        : CustomMarkerIcons.getMarkerWidget(tableName),
               ),
             );
 
             markers.add(marker);
-            onMarkerCreated?.call(tableName, marker);
+            onMarkerCreated?.call(tableName, marker, hasAnomalie: hasAnomalie, hasIncomplet: hasIncomplet);
             // Notifier home_page pour comptage anomalies → légende
             onAnomalieDetected?.call(tableName, hasAnomalie);
+            onIncompletDetected?.call(tableName, hasIncomplet);
           }
         }
       }
@@ -102,8 +109,9 @@ class DisplayedPointsService {
 
   Future<List<Marker>> refreshDisplayedPoints({
     required void Function(Map<String, dynamic>) onTapDetails,
-    void Function(String tableName, Marker marker)? onMarkerCreated,
+    void Function(String tableName, Marker marker, {bool hasAnomalie, bool hasIncomplet})? onMarkerCreated,
     void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
+    void Function(String tableName, bool hasIncomplet)? onIncompletDetected,
   }) async {
     return await getDisplayedPointsMarkers(
       onTapDetails: onTapDetails,

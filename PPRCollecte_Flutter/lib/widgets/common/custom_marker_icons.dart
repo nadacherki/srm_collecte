@@ -278,6 +278,23 @@ class CustomMarkerIcons {
       ),
     );
   }
+
+  // ── Marqueur Objet Incomplet ─────────────────────────────────────────────
+  // Cercle orange avec icône de l'entité + badge ✏ en haut à droite.
+  // Signal clair : objet collecté mais données incomplètes.
+  static Widget getIncompletMarkerWidget(String tableName,
+      {double size = 44.0, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          painter: _IncompletSignPainter(),
+        ),
+      ),
+    );
+  }
 }
 
 class MarkerIconConfig {
@@ -352,6 +369,69 @@ class _WarningSignPainter extends CustomPainter {
       Offset(w * 0.50, h * 0.80),
       w * 0.072,
       excPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Panneau objet incomplet (cercle orange + ?) ───────────────────────────
+// Cercle orange avec point d'interrogation — évoque un objet à compléter.
+class _IncompletSignPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w / 2, h / 2);
+    final radius = w * 0.46;
+
+    // Ombre
+    canvas.drawCircle(
+      center.translate(1.5, 2),
+      radius,
+      Paint()
+        ..color = Colors.black.withOpacity(0.22)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+
+    // Cercle orange fond
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()..color = const Color(0xFFF57C00),
+    );
+
+    // Bordure blanche
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.09,
+    );
+
+    // Point d'interrogation — corps
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: '?',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 26,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2 - 1,
+      ),
     );
   }
 
