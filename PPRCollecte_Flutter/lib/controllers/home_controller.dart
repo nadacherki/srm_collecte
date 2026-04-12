@@ -19,7 +19,7 @@ class HomeController extends ChangeNotifier {
   int? gpsAccuracy;
   String? lastSync;
   bool isOnline = true;
-  LatLng userPosition = const LatLng(7.5, 10.5);
+  LatLng userPosition = const LatLng(33.5731, -7.5898); // Casablanca-Settat
   List<Marker> formMarkers = []; // Marqueurs des formulaires enregistrés
   final List<Polyline> collectedPolylines = <Polyline>[];
   // Anciens états ligne pour compatibilité
