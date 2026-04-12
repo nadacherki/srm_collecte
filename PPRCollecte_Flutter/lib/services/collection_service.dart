@@ -536,7 +536,6 @@ class CollectionService {
   Map<String, dynamic> getSrmFkData() {
     return {
       'id_projet': ApiService.currentProjetId,
-      'id_mission': ApiService.currentMissionId,
       'id_agent_crea': ApiService.userId,
       'synced': 0,
       'date_collecte': DateTime.now().toIso8601String(),

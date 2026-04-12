@@ -76,11 +76,9 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
   bool _matchesCurrentContext(Map<String, dynamic> item) {
     final currentProjetId = ApiService.currentProjetId;
-    final currentMissionId = ApiService.currentMissionId;
     final rowProjetId = _toInt(item['id_projet']);
     final rowMissionId = _toInt(item['id_mission']);
     if (currentProjetId != null && rowProjetId != currentProjetId) return false;
-    if (currentMissionId != null && rowMissionId != currentMissionId) return false;
     return true;
   }
 

@@ -323,7 +323,6 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           'nb_points': widget.polygonPoints.length,
           // FK SRM
           'id_projet': ApiService.currentProjetId,
-          'id_mission': ApiService.currentMissionId,
           'id_agent_crea': ApiService.userId,
           'mode_localisation': 'gnss',
           'synced': 0,

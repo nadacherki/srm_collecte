@@ -30,7 +30,7 @@ class ApiService {
   static String? currentProjetSrm;
 
   // ── Mission (choisi/créé après login) ──
-  static int? currentMissionId; // id_mission
+  // SUPPRIMÉ : plus de gestion de mission — chaque objet porte sa date_collecte
 
   // ══════════════════════════════════════════════════════
   // ██ LOGIN SRM
@@ -201,9 +201,6 @@ class ApiService {
       if (currentProjetId != null && !data.containsKey('id_projet')) {
         data['id_projet'] = currentProjetId;
       }
-      if (currentMissionId != null && !data.containsKey('id_mission')) {
-        data['id_mission'] = currentMissionId;
-      }
       if (userId != null && !data.containsKey('id_agent_crea')) {
         data['id_agent_crea'] = userId;
       }
@@ -257,9 +254,6 @@ class ApiService {
     final params = <String, String>{};
     if (currentProjetId != null) {
       params['id_projet'] = currentProjetId.toString();
-    }
-    if (currentMissionId != null) {
-      params['id_mission'] = currentMissionId.toString();
     }
     if (updatedAfter != null) {
       params['updated_after'] = updatedAfter.toUtc().toIso8601String();
@@ -387,7 +381,6 @@ class ApiService {
     userLogin = null;
     nomPrenom = null;
     currentProjetId = null;
-    currentMissionId = null;
     currentProjetNom = null;
     currentProjetCode = null;
     currentProjetStatut = null;

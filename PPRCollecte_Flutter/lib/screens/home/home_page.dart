@@ -148,8 +148,6 @@ class _HomePageState extends State<HomePage> {
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
   Map<String, int> _pointCountsByTable = {};
-  // Compteur d'anomalies par table — alimenté par _loadDisplayedPoints
-  Map<String, int> _anomalieCountsByTable = {};
   MapController? _mapController;
   LatLng? _lastCameraPosition;
   late final HomeController homeController;
@@ -184,7 +182,6 @@ class _HomePageState extends State<HomePage> {
   Timer? _onlineWatchTimer;
 // Dans _HomePageState
   Map<String, bool> _legendVisibility = {
-    // ── Compatibilité GeoDNGR (conservé pour ne pas casser les refs existantes) ──
     'points': true,
     'pistes': true,
     'chaussee_bitume': true,
@@ -199,12 +196,6 @@ class _HomePageState extends State<HomePage> {
     'bac': true,
     'passage_submersible': true,
     'zone_plaine': true,
-    // ── SRM : visibilité par métier (parent) ──
-    'srm_metier_Eau Potable': true,
-    'srm_metier_Assainissement': true,
-    'srm_metier_Électricité': true,
-    // ── SRM : filtre anomalie ──
-    'srm_anomalie': false,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -1254,26 +1245,23 @@ class _HomePageState extends State<HomePage> {
 
 // Méthode pour filtrer les markers selon la légende
   List<Marker> _getFilteredMarkers() {
-    final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
+    if (_legendVisibility['points'] != true) {
+      return <Marker>[];
+    }
+
     final List<Marker> filtered = <Marker>[];
 
-    // === Points SRM locaux — filtrés par entité + filtre anomalie === ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
+    // === Points locaux ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
     for (final entry in _displayedPointsByTable.entries) {
-      final tableName = entry.key;
-      final srmKey = 'srm_$tableName';
-      final legacyKey = 'point_$tableName';
-      final isVisible = _legendVisibility.containsKey(srmKey)
-          ? (_legendVisibility[srmKey] ?? true)
-          : (_legendVisibility[legacyKey] ?? true);
-      if (!isVisible) continue;
-
-      if (anomalieFilterOn) {
-        // Mode isolement : afficher uniquement les marqueurs anomalie (width == 44)
-        filtered.addAll(entry.value.where((m) => m.width == 44));
-      } else {
+      final subKey = 'point_${entry.key}';
+      if (_legendVisibility[subKey] != false) {
         filtered.addAll(entry.value);
       }
     }
+
+    //  FIX: NE PLUS ajouter les markers "orphelins" sans vérification
+    // Avant: tous les markers non catégorisés étaient toujours affichés
+    // Maintenant: on les ignore (ils seront catégorisés correctement)
 
     // === Points tÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©lÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©chargÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©s ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filtrer par sous-type ===
     if (_showDownloadedPoints) {
@@ -1360,7 +1348,7 @@ class _HomePageState extends State<HomePage> {
   /// (nécessaire après un login offline suivi d'un retour de connectivité)
   Future<void> _restoreApiServiceFromLocal() async {
     // Sprint 4: SRM utilise utilisateur_local (id_user, login, role).
-    // Sprint 6 fix: restaure aussi currentProjetId + currentMissionId
+    // Sprint 6 fix: restaure currentProjetId depuis SQLite
     // pour que id_projet ne soit pas null en mode offline.
     try {
       if (ApiService.userId != null) return; // déjà rempli
@@ -1396,26 +1384,9 @@ class _HomePageState extends State<HomePage> {
       }
 
       // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ CORRECTIF : restaurer la mission active depuis mission_local ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-      if (ApiService.currentMissionId == null &&
-          ApiService.currentProjetId != null) {
-        final missions = await DatabaseHelper()
-            .getMissionsLocal(ApiService.currentProjetId!);
-        if (missions.isNotEmpty) {
-          // Prendre la dernière mission EN_COURS si elle existe
-          final enCours = missions.where(
-              (m) => m['etat_mission']?.toString() == 'EN_COURS').toList();
-          final mission =
-              enCours.isNotEmpty ? enCours.last : missions.last;
-          ApiService.currentMissionId = mission['id_mission'] is int
-              ? mission['id_mission']
-              : int.tryParse(mission['id_mission']?.toString() ?? '');
-        }
-      }
-
       print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ ApiService restaurÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© depuis SQLite SRM: '
           'userId=${ApiService.userId} '
           'projetId=${ApiService.currentProjetId} '
-          'missionId=${ApiService.currentMissionId} '
           'role=${ApiService.userRole}');
     } catch (e) {
       print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur restauration ApiService SRM: $e');
@@ -2342,10 +2313,9 @@ class _HomePageState extends State<HomePage> {
 
     // Sprint 4: SRM utilise id_projet, id_mission, id_agent au lieu de commune/prefecture/region.
     final projetId = ApiService.currentProjetId ?? 0;
-    final missionId = ApiService.currentMissionId ?? 0;
     final agentId = ApiService.userId ?? 0;
 
-    final code = 'Piste_${projetId}_${missionId}_${agentId}_$ts';
+    final code = 'Piste_${projetId}_${agentId}_$ts';
     print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Code piste gÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© (IDs): $code');
     return code;
   }
@@ -2384,7 +2354,6 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final Map<String, List<Marker>> callbackByTable = {};
-      final Map<String, int> anomalieCounts = {};
       final markers = await _pointsService.getDisplayedPointsMarkers(
         onTapDetails: (data) {
           _suspendAutoCenterFor(const Duration(seconds: 10));
@@ -2405,12 +2374,6 @@ class _HomePageState extends State<HomePage> {
         onMarkerCreated: (tableName, marker) {
           callbackByTable.putIfAbsent(tableName, () => []);
           callbackByTable[tableName]!.add(marker);
-        },
-        onAnomalieDetected: (tableName, hasAnomalie) {
-          if (hasAnomalie) {
-            anomalieCounts.putIfAbsent(tableName, () => 0);
-            anomalieCounts[tableName] = (anomalieCounts[tableName] ?? 0) + 1;
-          }
         },
       );
       // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â FILTRER SEULEMENT LES MARQUEURS VALIDES ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
@@ -2483,7 +2446,6 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _displayedPointsMarkers = validMarkers;
         _displayedPointsByTable = byTable;
-        _anomalieCountsByTable = anomalieCounts;
       });
 
       // Compter depuis les tables réelles (inclut locaux + téléchargés)
@@ -4469,7 +4431,6 @@ class _HomePageState extends State<HomePage> {
 
       final downloadedLocalCount = await DatabaseHelper().countDownloadedSrmRows(
         projetId: ApiService.currentProjetId,
-        missionId: ApiService.currentMissionId,
       );
       final bool alreadyDownloaded =
           result.successCount == 0 &&
@@ -5412,7 +5373,6 @@ class _HomePageState extends State<HomePage> {
                     allMarkers: filteredMarkers,
                     polygonCount: _displayedPolygons.length,
                     pointCountsByTable: _pointCountsByTable,
-                    anomalieCountsByTable: _anomalieCountsByTable,
                   ),
                   if (isSyncing)
                     BackdropFilter(

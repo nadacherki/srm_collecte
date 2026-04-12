@@ -33,7 +33,6 @@ class _ProfilePageState extends State<ProfilePage> {
   String _projetNom = '';
   String _projetCode = '';
   String _projetRegion = '';
-  int _missionId = 0;
 
   // Compteurs par métier
   int _totalEP = 0;
@@ -65,7 +64,6 @@ class _ProfilePageState extends State<ProfilePage> {
       _projetNom = ApiService.currentProjetNom ?? '';
       _projetCode = ApiService.currentProjetCode ?? '';
       _projetRegion = ApiService.currentProjetRegion ?? '';
-      _missionId = ApiService.currentMissionId ?? 0;
 
       // ── Compteurs entités ──
       int epCount = 0, assCount = 0, elecCount = 0;
@@ -281,14 +279,12 @@ class _ProfilePageState extends State<ProfilePage> {
   // ── Carte Projet ──────────────────────────────────────────────────
   Widget _buildProjetCard() {
     return _buildSection(
-      title: '📋 Projet & Mission',
+      title: '📋 Projet',
       color: const Color(0xFF1976D2),
       children: [
         _buildInfoRow(Icons.work_outline, 'Projet', _projetNom),
         _buildInfoRow(Icons.tag, 'Code affaire', _projetCode),
         _buildInfoRow(Icons.map_outlined, 'Région', _projetRegion),
-        _buildInfoRow(
-            Icons.assignment, 'Mission N°', _missionId > 0 ? '$_missionId' : '—'),
       ],
     );
   }

@@ -256,43 +256,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       return;
     }
 
-    // ── Vérification anti-doublon ────────────────────────────────────────
-    // On compare la photo sélectionnée avec toutes les autres slots déjà remplis.
-    // Si une photo identique est détectée (même chemin ou même contenu binaire),
-    // on rejette la sélection avec un message explicite.
-    final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
-      candidatePath: picked.path,
-      existingPaths: _photoPaths,
-      currentSlot: index,
-    );
-    if (duplicateSlot != null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.content_copy, color: Colors.white, size: 18),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Photo déjà utilisée dans le slot Photo $duplicateSlot. '
-                  'Veuillez sélectionner une photo différente.',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.orange.shade800,
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-      return;
-    }
-    // ────────────────────────────────────────────────────────────────────
-
     if (!mounted) return;
     setState(() => _photoPaths[index] = picked.path);
   }
@@ -366,7 +329,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
       // ── Clés étrangères (injectées automatiquement) ──
       data['id_projet']     = ApiService.currentProjetId;
-      data['id_mission']    = ApiService.currentMissionId;
       data['id_agent_crea'] = ApiService.userId;
       data['mode_localisation'] = 'gnss';
       data['synced']        = 0;
@@ -399,7 +361,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           'date_signalement':  DateTime.now().toIso8601String(),
           'id_agent_signal':   ApiService.userId,
           'statut':            'A_COMPLETER',
-          'id_mission':        ApiService.currentMissionId,
           'id_projet':         ApiService.currentProjetId,
           'synced':            0,
           'date_collecte':     DateTime.now().toIso8601String(),

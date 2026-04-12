@@ -132,27 +132,6 @@ class DatabaseHelper {
     ''');
     print('✅ Table projet_local');
 
-    // ── mission_local ──
-    // Miroir de public.mission
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS mission_local (
-        id_mission INTEGER PRIMARY KEY,
-        id_agent INTEGER,
-        id_projet INTEGER NOT NULL,
-        etat_mission TEXT DEFAULT 'EN_COURS',
-        date_debut TEXT,
-        date_fin TEXT,
-        heure_debut TEXT,
-        heure_fin TEXT,
-        nb_objets_collectes INTEGER DEFAULT 0,
-        nb_objets_incomplets INTEGER DEFAULT 0,
-        nb_photos_prises INTEGER DEFAULT 0,
-        date_sync TEXT,
-        FOREIGN KEY (id_projet) REFERENCES projet_local(id_projet)
-      )
-    ''');
-    print('✅ Table mission_local');
-
     // ── Métadonnées ──
     await db.execute('''
       CREATE TABLE IF NOT EXISTS app_metadata (
@@ -608,8 +587,8 @@ class DatabaseHelper {
     final enriched = {
       ...data,
       'id_agent_crea': await resolveLoginId(),
-      'id_projet': ApiService.currentProjetId,
-      'id_mission': ApiService.currentMissionId,
+      'id_projet':     ApiService.currentProjetId,
+      // id_mission supprimé — chaque objet porte sa propre date_collecte
     };
     final id = await db.insert(tableName, enriched);
     print('✅ Entité insérée dans $tableName (ID: $id)');

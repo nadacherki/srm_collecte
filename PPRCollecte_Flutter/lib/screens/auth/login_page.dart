@@ -1,9 +1,13 @@
-
+// lib/screens/auth/login_page.dart
+// ── Login SRM — Navigation directe vers HomePage après connexion ──
+// Plus de ProjectSelectionPage : le projet actif est chargé depuis
+// utilisateur.id_projet_actif au login. La date de collecte est
+// automatiquement enregistrée à chaque objet créé (DateTime.now()).
 
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
-import '../../screens/project/project_selection_page.dart';
+import '../home/home_page.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 
@@ -24,7 +28,6 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePwd = true;
   bool _isLoading = false;
 
-  // ── Tester si le serveur est joignable ──
   Future<bool> _isApiReachable() async {
     try {
       final uri = Uri.parse(ApiService.baseUrl);
@@ -65,21 +68,18 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ── Login hors-ligne (SQLite) ──
   Future<void> _loginOffline(String login, String password) async {
     final isValidLocal = await DatabaseHelper().validateUser(login, password);
     if (isValidLocal) {
       await DatabaseHelper().setCurrentUserLogin(login, remember: rememberMe);
 
-      // Restaurer ApiService depuis SQLite
       final user = await DatabaseHelper().getCurrentUserSrm();
       if (user != null) {
-        ApiService.userId = user['api_id'] as int?;
+        ApiService.userId    = user['api_id'] as int?;
         ApiService.userLogin = user['login'] as String?;
         ApiService.nomPrenom = user['nom_prenom'] as String?;
-        ApiService.userRole = user['role'] as String?;
+        ApiService.userRole  = user['role'] as String?;
 
-        // Restaurer le projet actif depuis SQLite
         final projetId = user['id_projet_actif'];
         if (projetId != null) {
           ApiService.currentProjetId = projetId is int
@@ -88,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
           final projet = await DatabaseHelper()
               .getProjetLocal(ApiService.currentProjetId!);
           if (projet != null) {
-            ApiService.currentProjetNom = projet['nom'] as String?;
+            ApiService.currentProjetNom    = projet['nom'] as String?;
             ApiService.currentProjetStatut = projet['statut'] as String?;
             ApiService.currentProjetMetier = projet['metier'] as String?;
           }
@@ -98,71 +98,62 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final fullName = ApiService.nomPrenom ?? 'Utilisateur Local';
-
       if (!mounted) return;
-      _navigateToProjectSelection(fullName, isOnline: false);
+      _navigateToHome(fullName, isOnline: false);
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              "Mode hors-ligne : identifiants introuvables localement."),
+          content: Text('Mode hors-ligne : identifiants introuvables localement.'),
         ),
       );
     }
   }
 
-  // ── Login principal ──
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final login = loginController.text.trim();
+    final login    = loginController.text.trim();
     final password = passwordController.text;
 
     setState(() => _isLoading = true);
 
     try {
-      // (A) Serveur disponible ?
       final apiUp = await _isApiReachable();
       if (!apiUp) {
         await _loginOffline(login, password);
         return;
       }
 
-      // (B) POST /api/login/ avec login + mot_de_passe (en clair)
       final userData =
           await ApiService.login(login, password).timeout(_loginTimeout);
 
-      // (C) Session "Se souvenir"
       await DatabaseHelper().setCurrentUserLogin(login, remember: rememberMe);
 
-      // (D) Sauvegarder l'utilisateur localement (pour le mode offline)
       await DatabaseHelper().upsertUserSrm(
-        login: login,
-        motDePasse: password, // en clair, comme dans la base PostgreSQL
-        nomPrenom: userData['nom_prenom'],
-        role: userData['role'],
-        apiId: userData['id_user'],
+        login:         login,
+        motDePasse:    password,
+        nomPrenom:     userData['nom_prenom'],
+        role:          userData['role'],
+        apiId:         userData['id_user'],
         idProjetActif: userData['id_projet_actif'],
       );
 
-      // (E) Sauvegarder le projet actif localement
       if (userData['projet_id'] != null) {
         await DatabaseHelper().upsertProjetLocal(
-          idProjet: userData['projet_id'],
-          nom: userData['projet_nom'],
+          idProjet:    userData['projet_id'],
+          nom:         userData['projet_nom'],
           codeAffaire: userData['projet_code'],
-          srm: userData['projet_srm'],
-          region: userData['projet_region'],
-          metier: userData['projet_metier'],
-          statut: userData['projet_statut'],
+          srm:         userData['projet_srm'],
+          region:      userData['projet_region'],
+          metier:      userData['projet_metier'],
+          statut:      userData['projet_statut'],
         );
       }
 
       final fullName = userData['nom_prenom'] ?? 'Agent SRM';
-
       if (!mounted) return;
-      _navigateToProjectSelection(fullName, isOnline: true);
+      _navigateToHome(fullName, isOnline: true);
     } on TimeoutException catch (_) {
       await _loginOffline(login, password);
     } on SocketException catch (_) {
@@ -177,14 +168,14 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _navigateToProjectSelection(String agentName,
-      {required bool isOnline}) {
+  // ── Navigation directe vers la carte ──
+  void _navigateToHome(String agentName, {required bool isOnline}) {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => ProjectSelectionPage(
+        builder: (_) => HomePage(
           agentName: agentName,
-          isOnline: isOnline,
+          isOnline:  isOnline,
           onLogout: () {
             ApiService.resetSession();
             DatabaseHelper().clearSrmSession();
@@ -198,7 +189,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ===== Dialog "Mot de passe oublié" =====
   void _showForgotPasswordDialog() {
     showDialog(
       context: context,
@@ -217,7 +207,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(width: 12),
             const Expanded(
-              child: Text("Mot de passe oublié ?",
+              child: Text('Mot de passe oublié ?',
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -226,13 +216,13 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
         content: const Text(
-          "Contactez votre administrateur SRM pour réinitialiser votre mot de passe.",
+          'Contactez votre administrateur SRM pour réinitialiser votre mot de passe.',
           style: TextStyle(fontSize: 14, color: Color(0xFF475569), height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Compris"),
+            child: const Text('Compris'),
           ),
         ],
       ),
@@ -286,9 +276,7 @@ class _LoginPageState extends State<LoginPage> {
           children: [
             // ── Fond haut bleu ──
             Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
+              top: 0, left: 0, right: 0,
               height: MediaQuery.of(context).size.height * 0.42,
               child: Container(
                 decoration: const BoxDecoration(
@@ -298,32 +286,26 @@ class _LoginPageState extends State<LoginPage> {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(40),
+                    bottomLeft:  Radius.circular(40),
                     bottomRight: Radius.circular(40),
                   ),
                 ),
                 child: Stack(
                   children: [
-                    // Cercle décoratif haut-droite
                     Positioned(
-                      top: -40,
-                      right: -40,
+                      top: -40, right: -40,
                       child: Container(
-                        width: 160,
-                        height: 160,
+                        width: 160, height: 160,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withOpacity(0.07),
                         ),
                       ),
                     ),
-                    // Cercle décoratif bas-gauche
                     Positioned(
-                      bottom: -20,
-                      left: -30,
+                      bottom: -20, left: -30,
                       child: Container(
-                        width: 120,
-                        height: 120,
+                        width: 120, height: 120,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withOpacity(0.06),
@@ -351,12 +333,26 @@ class _LoginPageState extends State<LoginPage> {
                         children: [
                           const SizedBox(height: 32),
 
-                          // ── Logo grand ──
-                          _buildLogo(),
+                          // Logo
+                          Container(
+                            width: 110, height: 110,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(14),
+                            child: const SrmLoginEmblem(),
+                          ),
 
                           const SizedBox(height: 14),
 
-                          // ── Titre ──
                           const Text(
                             'Bienvenue !',
                             style: TextStyle(
@@ -379,7 +375,7 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 32),
 
-                          // ── Card formulaire ──
+                          // Card formulaire
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Container(
@@ -407,7 +403,6 @@ class _LoginPageState extends State<LoginPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Titre card
                                     const Center(
                                       child: Text(
                                         'Connexion',
@@ -421,32 +416,28 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                     const SizedBox(height: 24),
 
-                                    // ── Champ Login ──
+                                    // Login
                                     TextFormField(
                                       controller: loginController,
                                       keyboardType: TextInputType.text,
-                                      style: const TextStyle(
-                                          color: Color(0xFF1A2340), fontSize: 14),
+                                      style: const TextStyle(color: Color(0xFF1A2340), fontSize: 14),
                                       decoration: _inputDeco(
                                         hint: 'Identifiant SRM',
                                         icon: Icons.person_outline_rounded,
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Entrez votre login';
-                                        }
+                                        if (v == null || v.trim().isEmpty) return 'Entrez votre login';
                                         return null;
                                       },
                                     ),
 
                                     const SizedBox(height: 16),
 
-                                    // ── Mot de passe ──
+                                    // Mot de passe
                                     TextFormField(
                                       controller: passwordController,
                                       obscureText: _obscurePwd,
-                                      style: const TextStyle(
-                                          color: Color(0xFF1A2340), fontSize: 14),
+                                      style: const TextStyle(color: Color(0xFF1A2340), fontSize: 14),
                                       decoration: _inputDeco(
                                         hint: 'Mot de passe',
                                         icon: Icons.lock_outline_rounded,
@@ -458,38 +449,31 @@ class _LoginPageState extends State<LoginPage> {
                                             color: const Color(0xFF90A4AE),
                                             size: 20,
                                           ),
-                                          onPressed: () => setState(
-                                              () => _obscurePwd = !_obscurePwd),
+                                          onPressed: () =>
+                                              setState(() => _obscurePwd = !_obscurePwd),
                                         ),
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.isEmpty) {
-                                          return 'Entrez votre mot de passe';
-                                        }
-                                        if (v.length < 4) {
-                                          return 'Mot de passe trop court';
-                                        }
+                                        if (v == null || v.isEmpty) return 'Entrez votre mot de passe';
+                                        if (v.length < 4) return 'Mot de passe trop court';
                                         return null;
                                       },
                                     ),
 
                                     const SizedBox(height: 14),
 
-                                    // ── Se souvenir + Mot de passe oublié ──
+                                    // Se souvenir + oublié
                                     Row(
                                       children: [
                                         SizedBox(
-                                          height: 22,
-                                          width: 22,
+                                          height: 22, width: 22,
                                           child: Checkbox(
                                             value: rememberMe,
                                             activeColor: const Color(0xFF2196F3),
                                             shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(5)),
+                                                borderRadius: BorderRadius.circular(5)),
                                             side: const BorderSide(
-                                                color: Color(0xFFB0BEC5),
-                                                width: 1.5),
+                                                color: Color(0xFFB0BEC5), width: 1.5),
                                             onChanged: (val) {
                                               setState(() {
                                                 rememberMe = val ?? false;
@@ -502,12 +486,9 @@ class _LoginPageState extends State<LoginPage> {
                                           ),
                                         ),
                                         const SizedBox(width: 8),
-                                        const Text(
-                                          'Se souvenir',
-                                          style: TextStyle(
-                                              color: Color(0xFF607D8B),
-                                              fontSize: 13),
-                                        ),
+                                        const Text('Se souvenir',
+                                            style: TextStyle(
+                                                color: Color(0xFF607D8B), fontSize: 13)),
                                         const Spacer(),
                                         GestureDetector(
                                           onTap: _showForgotPasswordDialog,
@@ -525,7 +506,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                     const SizedBox(height: 24),
 
-                                    // ── Bouton connexion ──
+                                    // Bouton connexion
                                     SizedBox(
                                       width: double.infinity,
                                       height: 52,
@@ -535,16 +516,13 @@ class _LoginPageState extends State<LoginPage> {
                                           backgroundColor: const Color(0xFF1976D2),
                                           foregroundColor: Colors.white,
                                           elevation: 4,
-                                          shadowColor: const Color(0xFF1976D2)
-                                              .withOpacity(0.4),
+                                          shadowColor: const Color(0xFF1976D2).withOpacity(0.4),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(14),
-                                          ),
+                                              borderRadius: BorderRadius.circular(14)),
                                         ),
                                         child: _isLoading
                                             ? const SizedBox(
-                                                height: 22,
-                                                width: 22,
+                                                height: 22, width: 22,
                                                 child: CircularProgressIndicator(
                                                   strokeWidth: 2.5,
                                                   color: Colors.white,
@@ -568,13 +546,9 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 28),
 
-                          // ── Pied de page ──
                           const Text(
                             'Collecter. Organiser. Exploiter vos données en toute simplicité.',
-                            style: TextStyle(
-                              color: Color(0xFF90A4AE),
-                              fontSize: 11,
-                            ),
+                            style: TextStyle(color: Color(0xFF90A4AE), fontSize: 11),
                           ),
                           const SizedBox(height: 4),
                           const Text(
@@ -598,26 +572,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  Widget _buildLogo() {
-    return Container(
-      width: 110,
-      height: 110,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(14),
-      child: const SrmLoginEmblem(),
-    );
-  }
 }
 
 /// Logo SRM (fallback vers icône si asset manquant)
@@ -628,7 +582,7 @@ class SrmLoginEmblem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Image.asset(
-        "assets/srm_collecte_logo.png",
+        'assets/srm_collecte_logo.png',
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => const Icon(
           Icons.water_drop,
