@@ -256,6 +256,40 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       return;
     }
 
+    // ── Vérification anti-doublon ────────────────────────────────────────
+    final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
+      candidatePath: picked.path,
+      existingPaths: _photoPaths,
+      currentSlot: index,
+    );
+    if (duplicateSlot != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.content_copy, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Photo déjà utilisée dans le slot Photo $duplicateSlot. '
+                  'Veuillez sélectionner une photo différente.',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade800,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     if (!mounted) return;
     setState(() => _photoPaths[index] = picked.path);
   }
