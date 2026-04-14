@@ -214,7 +214,7 @@ ON displayed_pistes(login_id, code_piste);
     }
   }
 
-  Future<List<Map<String, dynamic>>> loadDisplayedChausseesMaps() async {
+  Future<List<Map<String, dynamic>>> loadDisplayedChausseeMaps() async {
     try {
       final db = await database;
       final loginId = await DatabaseHelper().resolveLoginId();
@@ -227,7 +227,7 @@ ON displayed_pistes(login_id, code_piste);
         orderBy: 'created_at DESC',
       );
     } catch (e) {
-      print('[PISTE-STORAGE] Erreur loadDisplayedChausseesMaps: $e');
+      print('[PISTE-STORAGE] erreur chargement displayed_chaussees: $e');
       return [];
     }
   }
@@ -331,7 +331,7 @@ ON displayed_pistes(login_id, code_piste);
       final loginId = await DatabaseHelper().resolveLoginId();
 
       if (loginId == null) {
-        print('âŒ [loadDisplayedPistesMaps] loginId null');
+        print('[PISTE-STORAGE] loadDisplayedPistesMaps: login_id introuvable');
         return [];
       }
 
@@ -344,7 +344,7 @@ ON displayed_pistes(login_id, code_piste);
         orderBy: 'created_at DESC',
       );
     } catch (e) {
-      print('âŒ Erreur loadDisplayedPistesMaps: $e');
+      print('[PISTE-STORAGE] erreur loadDisplayedPistesMaps: $e');
       return [];
     }
   }
@@ -405,18 +405,18 @@ ON displayed_pistes(login_id, code_piste);
       final db = await database;
       final List<Map<String, dynamic>> pistes = await db.query('pistes');
 
-      print('ðŸ“Š === LISTE COMPLÃˆTE DES PISTES ===');
-      print('ðŸ“ˆ Nombre total de pistes: ${pistes.length}');
+      print('[PISTE-STORAGE] liste complete des pistes');
+      print('[PISTE-STORAGE] nombre total de pistes: ${pistes.length}');
 
       for (var i = 0; i < pistes.length; i++) {
         final piste = pistes[i];
-        print('\nðŸŽ¯ PISTE #${i + 1}');
+        print('\n[PISTE-STORAGE] piste #${i + 1}');
         piste.forEach((key, value) {
           if (key != 'points_json') {
             print('   $key: $value');
           } else {
             final pointsJson = value.toString();
-            print('   $key: [${pointsJson.length} caractÃ¨res]');
+            print('   $key: [${pointsJson.length} caracteres]');
             // Pour voir un extrait du JSON :
             if (pointsJson.length > 50) {
               print('        Extrait: ${pointsJson.substring(0, 50)}...');
@@ -426,7 +426,7 @@ ON displayed_pistes(login_id, code_piste);
       }
       print('====================================');
     } catch (e) {
-      print('âŒ Erreur lecture pistes: $e');
+      print('[PISTE-STORAGE] erreur lecture pistes: $e');
     }
   }
 
@@ -439,7 +439,7 @@ ON displayed_pistes(login_id, code_piste);
       */
       return null;
     } catch (e) {
-      print('âŒ Erreur _getCommuneId: $e');
+      print('[PISTE-STORAGE] erreur _getCommuneId: $e');
       return null;
     }
   }
@@ -450,7 +450,7 @@ ON displayed_pistes(login_id, code_piste);
       final List<Map<String, dynamic>> maps = await db.query('pistes', orderBy: 'created_at DESC');
       return maps.map((map) => PisteModel.fromMap(map)).toList();
     } catch (e) {
-      print('âŒ Erreur lecture pistes: $e');
+      print('[PISTE-STORAGE] erreur lecture pistes: $e');
       return [];
     }
   }
@@ -465,7 +465,7 @@ ON displayed_pistes(login_id, code_piste);
         'total': pisteCount,
       };
     } catch (e) {
-      print('âŒ Erreur comptage: $e');
+      print('[PISTE-STORAGE] erreur comptage: $e');
       return {
         'pistes': 0,
         'total': 0

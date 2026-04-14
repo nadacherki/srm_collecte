@@ -240,6 +240,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
   Timer? _draftTimer;
   final DraftService _draftService = DraftService();
   bool _draftRestored = false;
+  bool _draftCleared = false;
 
   /// À implémenter : clé du brouillon.
   String get draftKey;
@@ -289,6 +290,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
 
   /// Appeler après un enregistrement réussi.
   Future<void> clearDraftAfterSave() async {
+    _draftCleared = true;
     _draftTimer?.cancel();
     await _draftService.deleteDraft(draftKey);
   }
@@ -302,6 +304,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
 
   Future<void> _saveDraftNow() async {
     if (!mounted) return;
+    if (_draftCleared) return;
     final data = collectFormData();
     // Ne pas sauvegarder si tous les champs sont vides
     if (data.values.every((v) => v.isEmpty)) return;
@@ -379,7 +382,8 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
         ),
       );
     } else {
-      // Ignorer → supprimer le brouillon
+      // Ignorer → supprimer le brouillon et bloquer toute future sauvegarde
+      _draftCleared = true;
       await _draftService.deleteDraft(draftKey);
       _draftRestored = true;
     }

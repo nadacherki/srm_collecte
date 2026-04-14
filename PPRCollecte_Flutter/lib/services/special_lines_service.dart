@@ -14,6 +14,8 @@ class SpecialLinesService {
 
   Future<List<Polyline>> getDisplayedSpecialLines({
     required void Function(Map<String, dynamic>) onTapDetails,
+    void Function(String tableName, String metier, Polyline polyline)?
+        onPolylineCreated,
   }) async {
     try {
       final db = await _dbHelper.database;
@@ -69,6 +71,7 @@ class SpecialLinesService {
             );
 
             polylines.add(polyline);
+            onPolylineCreated?.call(tableName, metier, polyline);
           }
         }
       }
@@ -225,7 +228,7 @@ class DownloadedSpecialLinesService {
       final loginId = await DatabaseHelper().resolveLoginId();
 
       if (loginId == null) {
-        print('[DL-SPECIAL] Impossible de determiner login_id (viewer)');
+        print('[SPECIAL-DOWNLOAD] impossible de determiner login_id');
         return [];
       }
 
@@ -301,10 +304,10 @@ class DownloadedSpecialLinesService {
         added++;
       }
 
-      print('[DL-SPECIAL] ajoutees: $added | ignorees: $skipped');
+      print('[SPECIAL-DOWNLOAD] ajoutees: $added | ignorees: $skipped');
       return polylines.toList();
     } catch (e) {
-      print('[DL-SPECIAL] Erreur chargement: $e');
+      print('[SPECIAL-DOWNLOAD] erreur chargement: $e');
       return [];
     }
   }

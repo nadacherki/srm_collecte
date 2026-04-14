@@ -155,6 +155,7 @@ class _HomePageState extends State<HomePage> {
   final DisplayedPointsService _pointsService = DisplayedPointsService();
   final SpecialLinesService _specialLinesService = SpecialLinesService();
   List<Polyline> _displayedSpecialLines = [];
+  Map<String, List<Polyline>> _displayedSrmLinesByTable = {};
   final DownloadedPointsService _downloadedPointsService = DownloadedPointsService();
   List<Marker> _downloadedPointsMarkers = [];
   bool _showDownloadedPoints = true;
@@ -226,11 +227,11 @@ class _HomePageState extends State<HomePage> {
     //_cleanupDisplayedPoints();
     _loadDisplayedPistes();
     _loadDisplayedPoints();
-    _loadDisplayedChaussees();
+    _loadDisplayedChausseeOverlays();
     _loadDisplayedSpecialLines();
     _loadDownloadedPoints();
-    _loadDownloadedPistePolylines();
-    _loadDownloadedChausseePolylines();
+    _loadDownloadedPisteOverlays();
+    _loadDownloadedChausseeOverlays();
     _isOnlineDynamic = widget.isOnline;
     _loadLastSyncTime();
     _startOnlineWatcher();
@@ -1093,6 +1094,27 @@ class _HomePageState extends State<HomePage> {
     return 'inconnu';
   }
 
+  bool _isSrmTableVisible(String tableName) {
+    final entityKey = 'srm_$tableName';
+    if (_legendVisibility.containsKey(entityKey)) {
+      return _legendVisibility[entityKey] != false;
+    }
+
+    for (final metier in SrmConfig.getMetiers()) {
+      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
+        if (SrmConfig.getTableName(metier, entity) == tableName) {
+          final metierKey = 'srm_metier_$metier';
+          if (_legendVisibility.containsKey(metierKey)) {
+            return _legendVisibility[metierKey] != false;
+          }
+          return true;
+        }
+      }
+    }
+
+    return true;
+  }
+
 // Méthode pour filtrer les polylines selon la légende
   List<Polyline> _getFilteredPolylines() {
     final List<Polyline> filtered = List<Polyline>.from(collectedPolylines);
@@ -1123,20 +1145,26 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    for (final l in _displayedSpecialLines) {
-      // flutter_map n'a pas d'ID sur Polyline, on utilise la couleur pour identifier
-      final color = l.color;
+    final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
+    final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
 
-      // Bac = purple, Passage submersible = cyan
+    if (!(anomalieFilterOn || incompletFilterOn)) {
+      for (final entry in _displayedSrmLinesByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          filtered.addAll(entry.value);
+        }
+      }
+    }
+
+    for (final l in _displayedSpecialLines) {
+      final color = l.color;
       final isBac = color == Colors.purple;
       final isPassage = color == Colors.cyan;
 
       if (isBac && (_legendVisibility['bac'] == true)) {
         filtered.add(l);
-      } else if (isPassage && (_legendVisibility['passage_submersible'] == true)) {
-        filtered.add(l);
-      } else if (!isBac && !isPassage) {
-        // fallback si jamais
+      } else if (isPassage &&
+          (_legendVisibility['passage_submersible'] == true)) {
         filtered.add(l);
       }
     }
@@ -1231,8 +1259,7 @@ class _HomePageState extends State<HomePage> {
     // === Mode isolement anomalie ===
     if (anomalieFilterOn && !incompletFilterOn) {
       for (final entry in _displayedAnomalieByTable.entries) {
-        final srmKey = 'srm_\${entry.key}';
-        if (_legendVisibility[srmKey] != false) {
+        if (_isSrmTableVisible(entry.key)) {
           filtered.addAll(entry.value);
         }
       }
@@ -1242,8 +1269,7 @@ class _HomePageState extends State<HomePage> {
     // === Mode isolement incomplet ===
     if (incompletFilterOn && !anomalieFilterOn) {
       for (final entry in _displayedIncompletByTable.entries) {
-        final srmKey = 'srm_\${entry.key}';
-        if (_legendVisibility[srmKey] != false) {
+        if (_isSrmTableVisible(entry.key)) {
           filtered.addAll(entry.value);
         }
       }
@@ -1254,23 +1280,21 @@ class _HomePageState extends State<HomePage> {
     if (anomalieFilterOn && incompletFilterOn) {
       final Set<Marker> combined = {};
       for (final entry in _displayedAnomalieByTable.entries) {
-        final srmKey = 'srm_\${entry.key}';
-        if (_legendVisibility[srmKey] != false) combined.addAll(entry.value);
+        if (_isSrmTableVisible(entry.key)) combined.addAll(entry.value);
       }
       for (final entry in _displayedIncompletByTable.entries) {
-        final srmKey = 'srm_\${entry.key}';
-        if (_legendVisibility[srmKey] != false) combined.addAll(entry.value);
+        if (_isSrmTableVisible(entry.key)) combined.addAll(entry.value);
       }
       return combined.toList();
     }
 
-    // === Mode normal : tout afficher selon visibilité entité ===
+    // === Mode normal : tout afficher selon visibilité entité ou métier ===
     for (final entry in _displayedPointsByTable.entries) {
       final tableName = entry.key;
-      final srmKey = 'srm_\$tableName';
-      final legacyKey = 'point_\$tableName';
+      final srmKey = 'srm_$tableName';
+      final legacyKey = 'point_$tableName';
       final isVisible = _legendVisibility.containsKey(srmKey)
-          ? (_legendVisibility[srmKey] ?? true)
+          ? _isSrmTableVisible(tableName)
           : (_legendVisibility[legacyKey] ?? true);
       if (!isVisible) continue;
       filtered.addAll(entry.value);
@@ -1279,7 +1303,7 @@ class _HomePageState extends State<HomePage> {
     // === Points téléchargés (GeoDNGR) ===
     if (_showDownloadedPoints) {
       for (final entry in _downloadedPointsByTable.entries) {
-        final subKey = 'point_\${entry.key}';
+        final subKey = 'point_${entry.key}';
         if (_legendVisibility[subKey] != false) {
           filtered.addAll(entry.value);
         }
@@ -1438,7 +1462,7 @@ class _HomePageState extends State<HomePage> {
     return '$h:$m'; // "HH:MM"
   }
 
-  Future<void> _loadDownloadedPistePolylines() async {
+  Future<void> _loadDownloadedPisteOverlays() async {
     print('[PISTE-DOWNLOAD] chargement des polylignes telechargees');
     try {
       final polylines = await _downloadedPistesService.getDownloadedPistesPolylines(
@@ -1506,7 +1530,7 @@ class _HomePageState extends State<HomePage> {
     return sum / 1000.0;
   }
 
-  Future<void> _loadDownloadedChausseePolylines() async {
+  Future<void> _loadDownloadedChausseeOverlays() async {
     print('[CHAUSSEE-DOWNLOAD] chargement des polylignes telechargees');
     try {
       final lines = await _downloadedChausseesService.getDownloadedChausseesPolylines(
@@ -1656,7 +1680,7 @@ class _HomePageState extends State<HomePage> {
     );
     await _loadDisplayedPoints(); // Points locaux (rouges)
     await _loadDownloadedPoints();
-    await _loadDownloadedPistePolylines();
+    await _loadDownloadedPisteOverlays();
 // Points téléchargés (verts)
   }
 
@@ -1683,6 +1707,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadDisplayedSpecialLines() async {
     try {
+      final srmLinesByTable = <String, List<Polyline>>{};
       final lines = await _specialLinesService.getDisplayedSpecialLines(
         onTapDetails: (data) {
           final start = LatLng(
@@ -1714,10 +1739,14 @@ class _HomePageState extends State<HomePage> {
             endLng: end.longitude,
           );
         },
+        onPolylineCreated: (tableName, metier, polyline) {
+          srmLinesByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+        },
       );
 
       setState(() {
         _displayedSpecialLines = lines;
+        _displayedSrmLinesByTable = srmLinesByTable;
       });
 
       print('✅ ${lines.length} lignes spéciales affichées');
@@ -2212,10 +2241,10 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _loadDisplayedChaussees() async {
+  Future<void> _loadDisplayedChausseeOverlays() async {
     try {
       final storageHelper = PisteStorageHelper();
-      final rows = await storageHelper.loadDisplayedChausseesMaps();
+      final rows = await storageHelper.loadDisplayedChausseeMaps();
 
       final displayedChaussees = <Polyline>[];
 
@@ -2299,9 +2328,9 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _finishedChaussees = displayedChaussees;
       });
-      print('✅ ${displayedChaussees.length} chaussées rechargées');
+      print('[CHAUSSEE-OVERLAY] ${displayedChaussees.length} chaussee(s) rechargee(s)');
     } catch (e) {
-      print('[CHAUSSEES] Error reloading downloaded chaussées: $e');
+      print('[CHAUSSEE-OVERLAY] erreur rechargement: $e');
     }
   }
 
@@ -4138,8 +4167,8 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.pop(ctx);
                 _loadDownloadedPoints();
-                _loadDownloadedPistePolylines();
-                _loadDownloadedChausseePolylines();
+                _loadDownloadedPisteOverlays();
+                _loadDownloadedChausseeOverlays();
                 _loadDownloadedSpecialLines();
               },
               child: const Text('OK'),
@@ -4270,8 +4299,8 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.pop(ctx);
                 _loadDownloadedPoints();
-                _loadDownloadedPistePolylines();
-                _loadDownloadedChausseePolylines();
+                _loadDownloadedPisteOverlays();
+                _loadDownloadedChausseeOverlays();
                 _loadDownloadedSpecialLines();
               },
               child: const Text('OK'),
@@ -4379,7 +4408,7 @@ class _HomePageState extends State<HomePage> {
       _refreshAllPoints();
       _loadDisplayedPoints();
       _loadDisplayedPistes();
-      _loadDisplayedChaussees();
+      _loadDisplayedChausseeOverlays();
       _loadDisplayedSpecialLines();
       if (_legendVisibility['zone_plaine'] != false) {
         _loadDisplayedPolygons();
