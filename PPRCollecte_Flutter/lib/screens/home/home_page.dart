@@ -1749,7 +1749,7 @@ class _HomePageState extends State<HomePage> {
         _displayedSrmLinesByTable = srmLinesByTable;
       });
 
-      print('✅ ${lines.length} lignes spéciales affichées');
+      print('[SRM-LINES] ${lines.length} ligne(s) speciale(s) affichee(s)');
     } catch (e) {
       print('[SPECIAL] Error loading special lines: $e');
     }
@@ -2138,7 +2138,7 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _displayedPolygons = mapPolygons;
         });
-        print('✅ ${mapPolygons.length} polygones affichés');
+        print('[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
       }
     } catch (e) {
       print('[POLYGONE] Error loading polygons: $e');
@@ -2520,7 +2520,7 @@ class _HomePageState extends State<HomePage> {
       await _loadPointCountsByTable();
 
       print(
-        '[SRM-POINTS] ${validMarkers.length} points affiches valides',
+        '[SRM-POINTS] ${validMarkers.length} point(s) valides affiches',
       );
     } catch (e) {
       print(
@@ -2593,7 +2593,7 @@ class _HomePageState extends State<HomePage> {
           _pointCountsByTable = counts;
         });
       }
-      print('📊 Compteurs points: $counts');
+      print('[SRM-POINTS] compteurs par table: $counts');
     } catch (e) {
       print('[COUNTS] Error counting points: $e');
     }
@@ -3953,7 +3953,7 @@ class _HomePageState extends State<HomePage> {
         _finishedPistes = displayedPistes;
       });
 
-      print('✅ ${displayedPistes.length} pistes rechargées (HomePage build + onTap OK)');
+      print('[PISTE-OVERLAY] ${displayedPistes.length} piste(s) rechargee(s)');
     } catch (e) {
       print('[PISTE] Error reloading displayed tracks: $e');
     }

@@ -30,7 +30,7 @@ class DraftService {
         updated_at TEXT NOT NULL
       )
     ''');
-    print('✅ Table form_drafts créée');
+    print('[DRAFT] table form_drafts creee');
   }
 
   // ══════════════════════════════════════════════════════
@@ -99,7 +99,7 @@ class DraftService {
         },
       );
     } catch (e) {
-      print('⚠️ DraftService.saveDraft erreur: $e');
+      print('[DRAFT] erreur saveDraft: $e');
     }
   }
 
@@ -148,7 +148,7 @@ class DraftService {
         updatedAt: DateTime.parse(row['updated_at'] as String),
       );
     } catch (e) {
-      print('⚠️ DraftService.loadDraft erreur: $e');
+      print('[DRAFT] erreur loadDraft: $e');
       return null;
     }
   }
@@ -172,9 +172,9 @@ class DraftService {
         cleLigne: draftKey,
         payload: {'draft_key': draftKey},
       );
-      print('🗑️ Brouillon supprimé: $draftKey');
+      print('[DRAFT] brouillon supprime: $draftKey');
     } catch (e) {
-      print('⚠️ DraftService.deleteDraft erreur: $e');
+      print('[DRAFT] erreur deleteDraft: $e');
     }
   }
 
@@ -187,9 +187,9 @@ class DraftService {
         eventType: 'DELETE_ALL_FORM_DRAFTS',
         tableName: 'form_drafts',
       );
-      print('🗑️ Tous les brouillons supprimés');
+      print('[DRAFT] tous les brouillons supprimes');
     } catch (e) {
-      print('⚠️ DraftService.deleteAllDrafts erreur: $e');
+      print('[DRAFT] erreur deleteAllDrafts: $e');
     }
   }
 

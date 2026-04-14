@@ -97,7 +97,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pistes_api_user
 ON pistes(api_id, saved_by_user_id);
 
 ''');
-        // Table pour le cache des pistes affichÃ©es
+        // Table de cache des pistes affichees
         await db.execute('''
 CREATE TABLE IF NOT EXISTS displayed_pistes (
   id INTEGER PRIMARY KEY,
@@ -231,7 +231,7 @@ ON displayed_pistes(login_id, code_piste);
       return [];
     }
   }
-// Sauvegarder une piste affichÃ©e
+// Sauvegarder une piste affichee
   Future<void> saveDisplayedPiste(
     String codePiste,
     List<LatLng> points,
@@ -259,13 +259,13 @@ ON displayed_pistes(login_id, code_piste);
         'displayed_pistes',
         {
           'login_id': loginId,
-          'code_piste': codePiste, // âœ… IMPORTANT
+          'code_piste': codePiste, // champ de liaison principal
           'points_json': pointsJson,
           'color': color.value,
-          'width': width, // âœ… REAL, pas toInt
+          'width': width, // conserver la largeur reelle
           'created_at': DateTime.now().toIso8601String(),
         },
-        conflictAlgorithm: ConflictAlgorithm.replace, // âœ… UPSERT
+        conflictAlgorithm: ConflictAlgorithm.replace, // upsert
       );
 
       print('[PISTE-STORAGE] piste affichee sauvegardee: $codePiste (user=$loginId)');
@@ -273,7 +273,7 @@ ON displayed_pistes(login_id, code_piste);
       print('[PISTE-STORAGE] erreur sauvegarde displayed_pistes: $e');
     }
   }
-  // Charger toutes les pistes affichÃ©es
+  // Charger toutes les pistes affichees
   Future<List<Polyline>> loadDisplayedPistes() async {
     try {
       final db = await database;
@@ -284,13 +284,13 @@ ON displayed_pistes(login_id, code_piste);
         print('[PISTE-STORAGE] login_id introuvable, aucune piste affichee rechargee');
         return [];
       }
-      //  FILTRER PAR UTILISATEUR
+      // Filtrer par utilisateur
       final List<Map<String, dynamic>> maps = await db.query(
         'displayed_pistes',
-        where: 'login_id = ?', // â† FILTRE IMPORTANT
+        where: 'login_id = ?',
         whereArgs: [
           loginId
-        ], // â† ID de l'utilisateur connectÃ©
+        ],
       );
 
       final List<Polyline> polylines = [];
@@ -430,11 +430,11 @@ ON displayed_pistes(login_id, code_piste);
     }
   }
 
-// Dans la classe PisteStorageHelper
+// Attribution de commune laissee au serveur lors de la synchronisation
   Future<int?> _getCommuneId() async {
     try {
       /* GPS-BASED ATTRIBUTION: 
-         On retourne null pour laisser le backend dÃ©terminer la commune 
+         On retourne null pour laisser le backend determiner la commune
          spatialement via ST_Contains lors de la synchronisation.
       */
       return null;
@@ -454,7 +454,7 @@ ON displayed_pistes(login_id, code_piste);
       return [];
     }
   }
-  /// Compter le total d'Ã©lÃ©ments sauvegardÃ©s (optionnel pour debug)
+  /// Compter le total d'elements sauvegardes (optionnel pour debug)
   Future<Map<String, int>> getCount() async {
     try {
       final db = await database;
@@ -473,7 +473,7 @@ ON displayed_pistes(login_id, code_piste);
     }
   }
 
-// RÃ©cupÃ©rer seulement les pistes crÃ©Ã©es par l'utilisateur (Ã  synchroniser)
+// Recuperer seulement les pistes creees par l'utilisateur
   Future<List<Map<String, dynamic>>> getUserPistes() async {
     final db = await database;
     return await db.query(
@@ -482,11 +482,11 @@ ON displayed_pistes(login_id, code_piste);
       whereArgs: [
         0,
         0
-      ], // CrÃ©Ã©es par user, pas encore synchronisÃ©es
+      ],
     );
   }
 
-// RÃ©cupÃ©rer seulement les pistes tÃ©lÃ©chargÃ©es (autres users)
+// Recuperer seulement les pistes telechargees
   Future<List<Map<String, dynamic>>> getDownloadedPistes() async {
     final db = await database;
     return await db.query(
@@ -495,7 +495,7 @@ ON displayed_pistes(login_id, code_piste);
       whereArgs: [
         0,
         1
-      ], // TÃ©lÃ©chargÃ©es, pas crÃ©Ã©es par cet user
+      ],
     );
   }
 
