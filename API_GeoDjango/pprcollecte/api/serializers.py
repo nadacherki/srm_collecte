@@ -15,7 +15,10 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from .models import (
     # Public
     Utilisateur, Projet, Mission, Commune,
-    HistoriqueAttribut, ObjetIncomplet, FondDePlan, EvaluationAgent,
+    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, FondDePlan, EvaluationAgent,
+    MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
+    MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
+    MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
     # EP ponctuels
     EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
     EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
@@ -212,6 +215,38 @@ class LoginRequestSerializer(serializers.Serializer):
     login = serializers.CharField(max_length=100, trim_whitespace=True)
     mot_de_passe = serializers.CharField(max_length=255, trim_whitespace=True)
 
+
+class PhotoUploadSerializer(serializers.Serializer):
+    schema_name = serializers.CharField(max_length=20, trim_whitespace=True)
+    table_name = serializers.CharField(max_length=100, trim_whitespace=True)
+    uuid_objet = serializers.CharField(max_length=254, trim_whitespace=True)
+    photo_slot = serializers.IntegerField(min_value=1, max_value=4)
+    id_projet = serializers.IntegerField(required=False, allow_null=True)
+    id_mission = serializers.IntegerField(required=False, allow_null=True)
+    id_agent_crea = serializers.IntegerField(required=False, allow_null=True)
+    file = serializers.FileField()
+
+    allowed_photo_extensions = {
+        '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'
+    }
+    max_photo_bytes = 5 * 1024 * 1024
+
+    def validate_file(self, value):
+        file_name = getattr(value, 'name', '') or ''
+        lowered = file_name.lower()
+        if not any(lowered.endswith(ext) for ext in self.allowed_photo_extensions):
+            raise serializers.ValidationError(
+                'Extension photo non autorisee (jpg, jpeg, png, webp, heic, heif)'
+            )
+
+        if getattr(value, 'size', 0) <= 0:
+            raise serializers.ValidationError('Fichier photo vide')
+
+        if value.size > self.max_photo_bytes:
+            raise serializers.ValidationError('Photo trop volumineuse (maximum 5 Mo)')
+
+        return value
+
 # =====================================================================
 #  SCHÃ‰MA PUBLIC
 # =====================================================================
@@ -248,6 +283,55 @@ class HistoriqueAttributSerializer(StrictModelSerializer):
         fields = '__all__'
 
 
+class HistoriqueMobileSerializer(StrictModelSerializer):
+    class Meta:
+        model = HistoriqueMobile
+        fields = '__all__'
+
+
+class MobileHistoryAttributeUploadSerializer(serializers.Serializer):
+    sync_uuid = serializers.CharField(max_length=64)
+    id_historique_local = serializers.IntegerField(required=False, allow_null=True)
+    id_objet = serializers.IntegerField(required=False, allow_null=True)
+    cle_ligne = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    uuid_objet = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    nom_schema = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    nom_table = serializers.CharField(max_length=100)
+    nom_classe = serializers.CharField(max_length=100)
+    nom_attribut = serializers.CharField(max_length=100)
+    ancienne_valeur = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    nouvelle_valeur = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    date_action = serializers.DateTimeField()
+    id_agent = serializers.IntegerField(required=False, allow_null=True)
+    type_action = serializers.CharField(max_length=50)
+
+
+class MobileHistoryEventUploadSerializer(serializers.Serializer):
+    sync_uuid = serializers.CharField(max_length=64)
+    id_evenement_local = serializers.IntegerField(required=False, allow_null=True)
+    type_evenement = serializers.CharField(max_length=100)
+    nom_schema = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    nom_table = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    cle_ligne = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    uuid_objet = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    id_objet = serializers.IntegerField(required=False, allow_null=True)
+    id_agent = serializers.IntegerField(required=False, allow_null=True)
+    payload_json = serializers.JSONField(required=False, allow_null=True)
+    date_action = serializers.DateTimeField()
+
+
+class MobileHistoryUploadSerializer(serializers.Serializer):
+    attributes = MobileHistoryAttributeUploadSerializer(many=True, required=False, default=list)
+    events = MobileHistoryEventUploadSerializer(many=True, required=False, default=list)
+
+    def validate(self, attrs):
+        if not attrs.get('attributes') and not attrs.get('events'):
+            raise serializers.ValidationError(
+                'Le journal local doit contenir au moins une entree.'
+            )
+        return attrs
+
+
 class ObjetIncompletSerializer(StrictModelSerializer):
     class Meta:
         model = ObjetIncomplet
@@ -263,6 +347,72 @@ class FondDePlanSerializer(StrictModelSerializer):
 class EvaluationAgentSerializer(StrictModelSerializer):
     class Meta:
         model = EvaluationAgent
+        fields = '__all__'
+
+
+class MetricAgentJourSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentJour
+        fields = '__all__'
+
+
+class MetricAgentSemaineSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentSemaine
+        fields = '__all__'
+
+
+class MetricAgentMoisSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentMois
+        fields = '__all__'
+
+
+class MetricAgentPublicJourSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentPublicJour
+        fields = '__all__'
+
+
+class MetricAgentPublicSemaineSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentPublicSemaine
+        fields = '__all__'
+
+
+class MetricAgentPublicMoisSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentPublicMois
+        fields = '__all__'
+
+
+class MetricAgentPublicResumeSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentPublicResume
+        fields = '__all__'
+
+
+class MetricProjetJourSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricProjetJour
+        fields = '__all__'
+
+
+class MetricProjetSemaineSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricProjetSemaine
+        fields = '__all__'
+
+
+class MetricProjetMoisSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricProjetMois
+        fields = '__all__'
+
+
+class MetricProjetResumeSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricProjetResume
         fields = '__all__'
 
 

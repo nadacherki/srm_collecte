@@ -13,16 +13,12 @@ class CollectionManager extends ChangeNotifier {
   final CollectionService _collectionService = CollectionService();
   static const double _duplicatePointThresholdMeters = 0.1;
   static int _nextPisteId = 1;
-  static int _nextChausseeId = 1;
-
   LigneCollection? _ligneCollection;
-  ChausseeCollection? _chausseeCollection;
   SpecialCollection? _specialCollection;
   int _countdown = 0;
 
   // Getters
   LigneCollection? get ligneCollection => _ligneCollection;
-  ChausseeCollection? get chausseeCollection => _chausseeCollection;
   SpecialCollection? get specialCollection => _specialCollection;
   int get countdown => _countdown;
 
@@ -39,12 +35,11 @@ class CollectionManager extends ChangeNotifier {
   /// FK SRM à injecter à la sauvegarde
   Map<String, dynamic> get srmFkData => _collectionService.getSrmFkData();
 
-  bool get hasActiveCollection => (_ligneCollection?.isActive ?? false) || (_chausseeCollection?.isActive ?? false) || (_specialCollection?.isActive ?? false);
-  bool get hasPausedCollection => (_ligneCollection?.isPaused ?? false) || (_chausseeCollection?.isPaused ?? false) || (_specialCollection?.isPaused ?? false);
+  bool get hasActiveCollection => (_ligneCollection?.isActive ?? false) || (_specialCollection?.isActive ?? false);
+  bool get hasPausedCollection => (_ligneCollection?.isPaused ?? false) || (_specialCollection?.isPaused ?? false);
 
   String? get activeCollectionType {
     if (_ligneCollection?.isActive ?? false) return 'ligne';
-    if (_chausseeCollection?.isActive ?? false) return 'chaussée';
     if (_specialCollection?.isActive ?? false) return 'spéciale';
     return null;
   }
@@ -119,27 +114,6 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Démarre une collecte de chaussée
-  void startChausseeCollection({
-    required LatLng initialPosition,
-    required Stream<LocationData> locationStream,
-  }) {
-    if (hasActiveCollection) {
-      throw Exception('Une collecte est déjà en cours. Veuillez la mettre en pause d\'abord.');
-    }
-
-    _chausseeCollection = ChausseeCollection(
-      id: _nextChausseeId++, // ✅ Générer ID automatiquement
-      status: CollectionStatus.active,
-      points: const [],
-      startTime: DateTime.now(),
-      lastPointTime: DateTime.now(),
-    );
-
-    _startCollectionService(locationStream);
-    notifyListeners();
-  }
-
   /// Démarre le service de collecte pour une collection donnée
   void _startCollectionService(Stream<LocationData> locationStream) {
     _collectionService.startCollection(
@@ -158,15 +132,6 @@ class CollectionManager extends ChangeNotifier {
       final newDistance = _ligneCollection!.totalDistance + distance;
 
       _ligneCollection = _ligneCollection!.copyWith(
-        points: updatedPoints,
-        totalDistance: newDistance,
-        lastPointTime: DateTime.now(),
-      );
-    } else if (type == CollectionType.chaussee && _chausseeCollection != null) {
-      final updatedPoints = List<LatLng>.from(_chausseeCollection!.points)..add(point);
-      final newDistance = _chausseeCollection!.totalDistance + distance;
-
-      _chausseeCollection = _chausseeCollection!.copyWith(
         points: updatedPoints,
         totalDistance: newDistance,
         lastPointTime: DateTime.now(),
@@ -193,18 +158,16 @@ class CollectionManager extends ChangeNotifier {
       );
       _collectionService.stopCollection();
       _savePausedDraft(); // SPRINT 7
-      notifyListeners();
-    }
-  }
-
-  /// Met en pause une collecte de chaussée
-  void pauseChausseeCollection() {
-    if (_chausseeCollection?.isActive ?? false) {
-      _chausseeCollection = _chausseeCollection!.copyWith(
-        status: CollectionStatus.paused,
+      DatabaseHelper().recordLocalEvent(
+        eventType: 'PAUSE_COLLECTION',
+        tableName: 'app_metadata',
+        cleLigne: 'paused_collection_draft',
+        payload: {
+          'collection_type': 'ligne',
+          'point_count': _ligneCollection!.points.length,
+          'collection_id': _ligneCollection!.id,
+        },
       );
-      _collectionService.stopCollection();
-      _savePausedDraft(); // SPRINT 7
       notifyListeners();
     }
   }
@@ -220,21 +183,16 @@ class CollectionManager extends ChangeNotifier {
         status: CollectionStatus.active,
       );
       _startCollectionService(locationStream);
-      notifyListeners();
-    }
-  }
-
-  /// Reprend une collecte de chaussée
-  void resumeChausseeCollection(Stream<LocationData> locationStream) {
-    if (_chausseeCollection?.isPaused ?? false) {
-      if (hasActiveCollection) {
-        throw Exception('Une autre collecte est en cours. Veuillez la mettre en pause d\'abord.');
-      }
-
-      _chausseeCollection = _chausseeCollection!.copyWith(
-        status: CollectionStatus.active,
+      DatabaseHelper().recordLocalEvent(
+        eventType: 'RESUME_COLLECTION',
+        tableName: 'app_metadata',
+        cleLigne: 'paused_collection_draft',
+        payload: {
+          'collection_type': 'ligne',
+          'point_count': _ligneCollection!.points.length,
+          'collection_id': _ligneCollection!.id,
+        },
       );
-      _startCollectionService(locationStream);
       notifyListeners();
     }
   }
@@ -247,6 +205,17 @@ class CollectionManager extends ChangeNotifier {
       );
       _collectionService.stopCollection();
       _savePausedDraft(); // SPRINT 7
+      DatabaseHelper().recordLocalEvent(
+        eventType: 'PAUSE_COLLECTION',
+        tableName: 'app_metadata',
+        cleLigne: 'paused_collection_draft',
+        payload: {
+          'collection_type': 'special',
+          'point_count': _specialCollection!.points.length,
+          'collection_id': _specialCollection!.id,
+          'special_type': _specialCollection!.specialType,
+        },
+      );
       notifyListeners();
     }
   }
@@ -262,6 +231,17 @@ class CollectionManager extends ChangeNotifier {
         status: CollectionStatus.active,
       );
       _startCollectionService(locationStream);
+      DatabaseHelper().recordLocalEvent(
+        eventType: 'RESUME_COLLECTION',
+        tableName: 'app_metadata',
+        cleLigne: 'paused_collection_draft',
+        payload: {
+          'collection_type': 'special',
+          'point_count': _specialCollection!.points.length,
+          'collection_id': _specialCollection!.id,
+          'special_type': _specialCollection!.specialType,
+        },
+      );
       notifyListeners();
     }
   }
@@ -309,41 +289,6 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Termine une collecte de chaussée
-  CollectionResult? finishChausseeCollection() {
-    if (_chausseeCollection == null) return null;
-
-    if (!_collectionService.canFinishCollection(_chausseeCollection!)) {
-      return null;
-    }
-
-    final result = CollectionResult(
-      id: _chausseeCollection!.id,
-      codePiste: null, // ✅ Pas de code piste pour chaussée
-      type: CollectionType.chaussee,
-      points: List<LatLng>.from(_chausseeCollection!.points),
-      totalDistance: _chausseeCollection!.totalDistance,
-      startTime: _chausseeCollection!.startTime,
-      endTime: DateTime.now(),
-    );
-
-    _chausseeCollection = null;
-    _collectionService.stopCollection();
-    _clearPausedDraft(); // SPRINT 7
-    notifyListeners();
-
-    return result;
-  }
-
-  void cancelChausseeCollection() {
-    if (_chausseeCollection == null) return;
-    _chausseeCollection = null;
-    _countdown = 0;
-    _collectionService.stopCollection();
-    _clearPausedDraft(); // SPRINT 7
-    notifyListeners();
-  }
-
   /// Ajoute un point manuellement sur la position courante.
   /// Retourne false si la collecte n'est pas active ou si le point duplique
   /// exactement le dernier point déjà capturé.
@@ -352,8 +297,6 @@ class CollectionManager extends ChangeNotifier {
 
     if (type == CollectionType.ligne) {
       collection = _ligneCollection;
-    } else if (type == CollectionType.chaussee) {
-      collection = _chausseeCollection;
     } else if (type == CollectionType.special) {
       collection = _specialCollection;
     }
@@ -432,15 +375,6 @@ class CollectionManager extends ChangeNotifier {
         data['startTime'] = _ligneCollection!.startTime.toIso8601String();
         data['lastPointTime'] = _ligneCollection!.lastPointTime?.toIso8601String();
         data['totalDistance'] = _ligneCollection!.totalDistance;
-      } else if (_chausseeCollection?.isPaused ?? false) {
-        data['collectionType'] = 'chaussee';
-        data['id'] = _chausseeCollection!.id;
-        data['points'] = _chausseeCollection!.points
-            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-            .toList();
-        data['startTime'] = _chausseeCollection!.startTime.toIso8601String();
-        data['lastPointTime'] = _chausseeCollection!.lastPointTime?.toIso8601String();
-        data['totalDistance'] = _chausseeCollection!.totalDistance;
       } else if (_specialCollection?.isPaused ?? false) {
         data['collectionType'] = 'special';
         data['id'] = _specialCollection!.id;
@@ -467,6 +401,15 @@ class CollectionManager extends ChangeNotifier {
         'app_metadata',
         {'key': 'paused_collection_draft', 'value': jsonEncode(data)},
         conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      await DatabaseHelper().recordLocalEvent(
+        eventType: 'SAVE_PAUSED_COLLECTION_DRAFT',
+        tableName: 'app_metadata',
+        cleLigne: 'paused_collection_draft',
+        payload: {
+          'collection_type': data['collectionType'],
+          'point_count': (data['points'] as List).length,
+        },
       );
       print('💾 Collecte en pause sauvegardée (${data['collectionType']}, ${(data['points'] as List).length} pts)');
     } catch (e) {
@@ -512,24 +455,15 @@ class CollectionManager extends ChangeNotifier {
           : null,
       totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
     );
-    notifyListeners();
-  }
-
-  /// Restaure une collecte chaussée en pause
-  void restoreChausseeCollection(Map<String, dynamic> data) {
-    final points = (data['points'] as List)
-        .map((p) => LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
-        .toList();
-
-    _chausseeCollection = ChausseeCollection(
-      id: data['id'] as int,
-      status: CollectionStatus.paused,
-      points: points,
-      startTime: DateTime.parse(data['startTime'] as String),
-      lastPointTime: data['lastPointTime'] != null
-          ? DateTime.parse(data['lastPointTime'] as String)
-          : null,
-      totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
+    DatabaseHelper().recordLocalEvent(
+      eventType: 'RESTORE_PAUSED_COLLECTION',
+      tableName: 'app_metadata',
+      cleLigne: 'paused_collection_draft',
+      payload: {
+        'collection_type': 'ligne',
+        'point_count': points.length,
+        'collection_id': data['id'],
+      },
     );
     notifyListeners();
   }
@@ -551,6 +485,17 @@ class CollectionManager extends ChangeNotifier {
           : null,
       totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
     );
+    DatabaseHelper().recordLocalEvent(
+      eventType: 'RESTORE_PAUSED_COLLECTION',
+      tableName: 'app_metadata',
+      cleLigne: 'paused_collection_draft',
+      payload: {
+        'collection_type': 'special',
+        'point_count': points.length,
+        'collection_id': data['id'],
+        'special_type': data['specialType'],
+      },
+    );
     notifyListeners();
   }
 
@@ -562,6 +507,11 @@ class CollectionManager extends ChangeNotifier {
         'app_metadata',
         where: 'key = ?',
         whereArgs: ['paused_collection_draft'],
+      );
+      await DatabaseHelper().recordLocalEvent(
+        eventType: 'DELETE_PAUSED_COLLECTION_DRAFT',
+        tableName: 'app_metadata',
+        cleLigne: 'paused_collection_draft',
       );
     } catch (e) {
       print('⚠️ Erreur suppression brouillon collecte: $e');

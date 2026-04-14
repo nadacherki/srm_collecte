@@ -41,7 +41,7 @@ import '../../services/collection_manager.dart';
 // DATA
 // ============================================================
 import '../../data/local/database_helper.dart';
-import '../../data/local/piste_chaussee_db_helper.dart';
+import '../../data/local/piste_storage_helper.dart';
 import '../../data/remote/api_service.dart';
 
 // ============================================================
@@ -56,7 +56,6 @@ import '../auth/login_page.dart';
 import '../data/data_categories_page.dart';
 import '../forms/special_line_form_page.dart';
 import '../forms/formulaire_ligne_page.dart';
-import '../forms/formulaire_chaussee_page.dart';
 import '../forms/polygon_form_page.dart';
 import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
@@ -230,8 +229,8 @@ class _HomePageState extends State<HomePage> {
     _loadDisplayedChaussees();
     _loadDisplayedSpecialLines();
     _loadDownloadedPoints();
-    _loadDownloadedPistes();
-    _loadDownloadedChaussees();
+    _loadDownloadedPistePolylines();
+    _loadDownloadedChausseePolylines();
     _isOnlineDynamic = widget.isOnline;
     _loadLastSyncTime();
     _startOnlineWatcher();
@@ -360,10 +359,6 @@ class _HomePageState extends State<HomePage> {
         if (codePiste != null) {
           homeController.setActivePisteCode(codePiste);
         }
-        break;
-
-      case 'chaussee':
-        homeController.collectionManager.restoreChausseeCollection(draft);
         break;
 
       case 'special':
@@ -1186,26 +1181,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // Chaussée en cours
-    if (homeController.chausseeCollection != null) {
-      final chausseePoints = homeController.chausseeCollection!.points;
-      if (chausseePoints.length > 1) {
-        filtered.add(
-          Polyline(
-            points: chausseePoints,
-            color: homeController.chausseeCollection!.isPaused ? Colors.deepOrange : const Color(0xFFFF9800),
-            strokeWidth: 5.0,
-            pattern: homeController.chausseeCollection!.isPaused
-                ? StrokePattern.dashed(segments: const [
-                    15,
-                    5
-                  ])
-                : const StrokePattern.solid(),
-          ),
-        );
-      }
-    }
-
     // Ligne/polygone spécial en cours
     if (homeController.specialCollection != null) {
       final specialPoints = homeController.specialCollection!.points;
@@ -1422,12 +1397,12 @@ class _HomePageState extends State<HomePage> {
       }
 
       // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ CORRECTIF : restaurer la mission active depuis mission_local ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ ApiService restaurÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© depuis SQLite SRM: '
+      print('[SRM] ApiService restored from SQLite: '
           'userId=${ApiService.userId} '
           'projetId=${ApiService.currentProjetId} '
           'role=${ApiService.userRole}');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur restauration ApiService SRM: $e');
+      print('[SRM] Error restoring ApiService from SQLite: $e');
     }
   }
 
@@ -1463,8 +1438,8 @@ class _HomePageState extends State<HomePage> {
     return '$h:$m'; // "HH:MM"
   }
 
-  Future<void> _loadDownloadedPistes() async {
-    print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ [_loadDownloadedPistes] start');
+  Future<void> _loadDownloadedPistePolylines() async {
+    print('[PISTE-DOWNLOAD] chargement des polylignes telechargees');
     try {
       final polylines = await _downloadedPistesService.getDownloadedPistesPolylines(
         onTapDetails: (data) {
@@ -1491,12 +1466,12 @@ class _HomePageState extends State<HomePage> {
 
       final total = collectedPolylines.length + _finishedPistes.length + _finishedChaussees.length + _downloadedPistesPolylines.length;
 
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â [_loadDownloadedPistes] ${polylines.length} polylines reÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ues du service');
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  [_loadDownloadedPistes] total polylines (avant rendu): $total');
+      print('[PISTE-DOWNLOAD] ${polylines.length} polyligne(s) chargee(s)');
+      print('[PISTE-DOWNLOAD] total avant rendu: $total');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ [_loadDownloadedPistes] $e');
+      print('[PISTE-DOWNLOAD] erreur: $e');
     }
-    print('✅ [_loadDownloadedPistes] done');
+    print('[PISTE-DOWNLOAD] chargement termine');
   }
 
   LatLngBounds _boundsFor(List<LatLng> pts) {
@@ -1531,8 +1506,8 @@ class _HomePageState extends State<HomePage> {
     return sum / 1000.0;
   }
 
-  Future<void> _loadDownloadedChaussees() async {
-    print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ [_loadDownloadedChaussees] start');
+  Future<void> _loadDownloadedChausseePolylines() async {
+    print('[CHAUSSEE-DOWNLOAD] chargement des polylignes telechargees');
     try {
       final lines = await _downloadedChausseesService.getDownloadedChausseesPolylines(
         onTapDetails: (data) {
@@ -1554,16 +1529,16 @@ class _HomePageState extends State<HomePage> {
           );
         },
       );
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â [_loadDownloadedChaussees] ${lines.length} polylines reÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ues du service');
+      print('[CHAUSSEE-DOWNLOAD] ${lines.length} polyligne(s) chargee(s)');
       setState(() {
         _downloadedChausseesPolylines = lines;
       });
       final total = collectedPolylines.length + _finishedPistes.length + _finishedChaussees.length + _downloadedPistesPolylines.length + _downloadedChausseesPolylines.length;
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  [_loadDownloadedChaussees] total polylines (avant rendu): $total');
+      print('[CHAUSSEE-DOWNLOAD] total avant rendu: $total');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ [_loadDownloadedChaussees] $e');
+      print('[CHAUSSEE-DOWNLOAD] erreur: $e');
     }
-    print('✅ [_loadDownloadedChaussees] done');
+    print('[CHAUSSEE-DOWNLOAD] chargement termine');
   }
 
   // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
@@ -1677,11 +1652,11 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _refreshAllPoints() async {
     print(
-      'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ RafraÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â®chissement de tous les points...',
+      '[SRM-POINTS] rafraichissement manuel de tous les points',
     );
     await _loadDisplayedPoints(); // Points locaux (rouges)
     await _loadDownloadedPoints();
-    await _loadDownloadedPistes();
+    await _loadDownloadedPistePolylines();
 // Points téléchargés (verts)
   }
 
@@ -1747,7 +1722,7 @@ class _HomePageState extends State<HomePage> {
 
       print('✅ ${lines.length} lignes spéciales affichées');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur chargement lignes spÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ciales: $e');
+      print('[SPECIAL] Error loading special lines: $e');
     }
   }
 
@@ -1839,7 +1814,7 @@ class _HomePageState extends State<HomePage> {
       }
 
       final current = homeController.userPosition;
-      final nearestPisteCode = await SimpleStorageHelper().findNearestPisteCode(
+      final nearestPisteCode = await PisteStorageHelper().findNearestPisteCode(
         current,
         activePisteCode: homeController.activePisteCode,
       );
@@ -1915,12 +1890,12 @@ class _HomePageState extends State<HomePage> {
     print('HomeController activePisteCode: ${homeController.activePisteCode}');
     print('Special type: $_specialCollectionType');
     final current = homeController.userPosition;
-    final nearestPisteCode = await SimpleStorageHelper().findNearestPisteCode(
+    final nearestPisteCode = await PisteStorageHelper().findNearestPisteCode(
       current,
       activePisteCode: homeController.activePisteCode,
     );
 
-    print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Code piste pour spÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©cial: $nearestPisteCode');
+    print('[SPECIAL] Nearest piste code: $nearestPisteCode');
 
     final formResult = await Navigator.push(
       context,
@@ -2125,7 +2100,7 @@ class _HomePageState extends State<HomePage> {
               );
             }
           } catch (e) {
-            print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur chargement polygone SRM $tableName: $e');
+            print('[POLYGONE] Error loading SRM polygon $tableName: $e');
           }
         }
       }
@@ -2137,7 +2112,7 @@ class _HomePageState extends State<HomePage> {
         print('✅ ${mapPolygons.length} polygones affichés');
       }
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur chargement polygones: $e');
+      print('[POLYGONE] Error loading polygons: $e');
     }
   }
 
@@ -2239,7 +2214,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadDisplayedChaussees() async {
     try {
-      final storageHelper = SimpleStorageHelper();
+      final storageHelper = PisteStorageHelper();
       final rows = await storageHelper.loadDisplayedChausseesMaps();
 
       final displayedChaussees = <Polyline>[];
@@ -2267,7 +2242,7 @@ class _HomePageState extends State<HomePage> {
         String chCommune = '';
         String chEnqueteur = '';
         try {
-          final chDb = await SimpleStorageHelper().database;
+          final chDb = await PisteStorageHelper().database;
           final chRows = await chDb.query(
             'chaussees',
             columns: [
@@ -2326,7 +2301,7 @@ class _HomePageState extends State<HomePage> {
       });
       print('✅ ${displayedChaussees.length} chaussées rechargées');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur rechargement chaussÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©es: $e');
+      print('[CHAUSSEES] Error reloading downloaded chaussées: $e');
     }
   }
 
@@ -2354,7 +2329,7 @@ class _HomePageState extends State<HomePage> {
     final agentId = ApiService.userId ?? 0;
 
     final code = 'Piste_${projetId}_${agentId}_$ts';
-    print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Code piste gÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© (IDs): $code');
+    print('[PISTE] Generated code (IDs): $code');
     return code;
   }
 
@@ -2364,7 +2339,7 @@ class _HomePageState extends State<HomePage> {
     Timer.periodic(const Duration(seconds: 2), (timer) {
       if (mounted) {
         _loadDisplayedPoints();
-        print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ RafraÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â®chissement automatique des points');
+        print('[SRM-POINTS] rafraichissement automatique des points');
       }
     });
   }*/
@@ -2516,11 +2491,11 @@ class _HomePageState extends State<HomePage> {
       await _loadPointCountsByTable();
 
       print(
-        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ${validMarkers.length} points affichÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©s valides',
+        '[SRM-POINTS] ${validMarkers.length} points affiches valides',
       );
     } catch (e) {
       print(
-        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur chargement points: $e',
+        '[SRM-POINTS] erreur de chargement: $e',
       );
     }
   }
@@ -2591,7 +2566,7 @@ class _HomePageState extends State<HomePage> {
       }
       print('📊 Compteurs points: $counts');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur comptage points: $e');
+      print('[COUNTS] Error counting points: $e');
     }
   }
 
@@ -2647,7 +2622,6 @@ class _HomePageState extends State<HomePage> {
   // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
   Future<void> addPointOfInterest() async {
     if ((homeController.ligneCollection?.isActive ?? false) ||
-        (homeController.chausseeCollection?.isActive ?? false) ||
         (homeController.specialCollection?.isActive ?? false)) {
       _addCurrentPointToActiveCollection();
       return;
@@ -2699,7 +2673,6 @@ class _HomePageState extends State<HomePage> {
     }
 
     final pointCount = homeController.ligneCollection?.points.length ??
-        homeController.chausseeCollection?.points.length ??
         homeController.specialCollection?.points.length ??
         0;
 
@@ -3043,7 +3016,7 @@ class _HomePageState extends State<HomePage> {
 
     const double seuilProximite = 150.0; // 150 mètres
 
-    print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Continuation piste $codePiste:');
+    print('[PISTE] Continuation check for $codePiste:');
     print('   Distance au départ: ${distToStartM.round()}m');
     print('   Distance à l\'arrivée: ${distToEndM.round()}m');
 
@@ -3313,7 +3286,7 @@ class _HomePageState extends State<HomePage> {
 
       if (_haversineMeters(pisteStart, pisteEnd) < 5.0) {
         try {
-          final storageHelper = SimpleStorageHelper();
+          final storageHelper = PisteStorageHelper();
           final db = await storageHelper.database;
           final loginId = await DatabaseHelper().resolveLoginId();
           final rows = await db.query(
@@ -3341,13 +3314,13 @@ class _HomePageState extends State<HomePage> {
                 ((last['latitude'] ?? last['lat']) as num).toDouble(),
                 ((last['longitude'] ?? last['lng']) as num).toDouble(),
               );
-              print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ CoordonnÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©es corrigÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©es depuis points_json');
+              print('[PISTE] Coordinates corrected from points_json');
               print('   effectiveStart: (${effectiveStart.latitude.toStringAsFixed(6)}, ${effectiveStart.longitude.toStringAsFixed(6)})');
               print('   effectiveEnd: (${effectiveEnd.latitude.toStringAsFixed(6)}, ${effectiveEnd.longitude.toStringAsFixed(6)})');
             }
           }
         } catch (e) {
-          print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Erreur chargement vrais points: $e');
+          print('[PISTE] Error loading actual points: $e');
         }
       }
 
@@ -3386,7 +3359,7 @@ class _HomePageState extends State<HomePage> {
         print('   Bearing interdit: ${forbiddenBearing.toStringAsFixed(1)}°');
         print('   Différence angulaire: ${angleDiff.toStringAsFixed(1)}°');
         print('   Seuil: 30°');
-        print('   RÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©sultat: ${angleDiff < 30.0 ? "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ BLOQUÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â° (duplication)" : "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ OK (direction diffÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rente)"}');
+        print('   Result: ${angleDiff < 30.0 ? "BLOCKED (duplication)" : "OK (different direction)"}');
         print('🧭 =======================================');
 
         // Si angle < 30° → vraiment même direction → duplication !
@@ -3409,7 +3382,7 @@ class _HomePageState extends State<HomePage> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Collecte refusÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©e ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Duplication',
+                        'Collecte refus\u00E9e - Duplication',
                         style: TextStyle(fontSize: 16),
                       ),
                     ),
@@ -3479,14 +3452,14 @@ class _HomePageState extends State<HomePage> {
         }
       } else if (newPts.length >= 5) {
         // La piste existante est trop courte pour un bearing fiable → skip la vérification
-        print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Piste existante trop courte (< 10m entre start/end), vÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rification colinÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©aritÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© ignorÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©e');
+        print('[PISTE] Existing track too short (<10m between start/end), skipping collinearity check');
       }
 
       // -----------------------------------------------------------
       //  FUSION DES POINTS + OUVERTURE DU FORMULAIRE
       // -----------------------------------------------------------
       try {
-        final storageHelper = SimpleStorageHelper();
+        final storageHelper = PisteStorageHelper();
         final db = await storageHelper.database;
         final loginId = await DatabaseHelper().resolveLoginId();
 
@@ -3524,7 +3497,7 @@ class _HomePageState extends State<HomePage> {
           return LatLng(lat, lng);
         }).toList();
 
-        print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Fusion piste $continuationCode:');
+        print('[PISTE] Merge continuation into $continuationCode:');
         print('   Points existants: ${existingPts.length}');
         print('   Nouveaux points: ${newPts.length}');
         print('   Côté: $fromSide');
@@ -3663,7 +3636,7 @@ class _HomePageState extends State<HomePage> {
           }
         }
       } catch (e) {
-        print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur continuation piste: $e');
+        print('[PISTE] Error while merging continuation: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -3709,7 +3682,7 @@ class _HomePageState extends State<HomePage> {
         collectedPolylines.clear();
       });
 
-      final storageHelper = SimpleStorageHelper();
+      final storageHelper = PisteStorageHelper();
       await storageHelper.saveDisplayedPiste(result['codePiste'], pts, Colors.brown, 5.0);
 
       // Recharger les pistes affichées depuis la base (inclura la nouvelle)
@@ -3773,7 +3746,7 @@ class _HomePageState extends State<HomePage> {
     try {
       if (polyPts.length < 2) return '----';
 
-      final storageHelper = SimpleStorageHelper();
+      final storageHelper = PisteStorageHelper();
       final db = await storageHelper.database;
 
       // On prend le 1er point comme "signature"
@@ -3816,7 +3789,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ _resolveLocalPisteCodeFromPolyline: $e');
+      print('[PISTE] _resolveLocalPisteCodeFromPolyline error: $e');
     }
     return '----';
   }
@@ -3826,7 +3799,7 @@ class _HomePageState extends State<HomePage> {
   // Remplacer l'ancienne méthode par la nouvelle
   Future<void> _loadDisplayedPistes() async {
     try {
-      final storageHelper = SimpleStorageHelper();
+      final storageHelper = PisteStorageHelper();
 
       // ✅ au lieu de loadDisplayedPistes() (Polyline), on récupère les maps
       final rows = await storageHelper.loadDisplayedPistesMaps();
@@ -3871,7 +3844,7 @@ class _HomePageState extends State<HomePage> {
         String piProjet = '';
         String piEntreprise = '';
         try {
-          final pisteDb = await SimpleStorageHelper().database;
+          final pisteDb = await PisteStorageHelper().database;
           final pisteRows = await pisteDb.query(
             'pistes',
             columns: [
@@ -3953,203 +3926,7 @@ class _HomePageState extends State<HomePage> {
 
       print('✅ ${displayedPistes.length} pistes rechargées (HomePage build + onTap OK)');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Erreur rechargement pistes: $e');
-    }
-  }
-
-  // === GESTION DE LA COLLECTE CHAUSSÉE ===
-  Future<void> startChausseeCollection() async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Veuillez activer le GPS",
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Vérifier si une collecte est active
-    if (homeController.hasActiveCollection) {
-      final activeType = homeController.activeCollectionType;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Veuillez mettre en pause la collecte de $activeType en cours',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    try {
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â TROUVER LE CODE PISTE LE PLUS PROCHE ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-      _currentNearestPisteCode = homeController.activePisteCode ??
-          await SimpleStorageHelper().findNearestPisteCode(
-            homeController.userPosition,
-          );
-      await homeController.startChausseeCollection(); // ✅ Aucun paramètre requis
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Collecte de chaussée démarrée',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void toggleChausseeCollection() {
-    try {
-      homeController.toggleChausseeCollection();
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Color getChausseeColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'bitume':
-        return Colors.black;
-      case 'terre':
-        return const Color(0xFFD2691E);
-      case 'latérite':
-        return Colors.red.shade700;
-      case 'bouwal':
-      case 'bowal':
-        return Colors.yellow.shade700;
-      case 'déviation':
-      case 'deviation':
-        return Colors.orange.shade700;
-      case 'coupure':
-        return Colors.deepPurple;
-      case 'submersible':
-        return Colors.teal;
-      case 'col':
-        return Colors.green.shade800;
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
-  Future<void> finishChausseeCollection() async {
-    final result = homeController.finishChausseeCollection();
-    if (result == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Une chaussée doit contenir au moins 2 points.",
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Ouvrir le formulaire principal avec les données provisoires
-    final formResult = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (
-          _,
-        ) =>
-            FormulaireChausseePage(
-          chausseePoints: result['points'],
-          provisionalId: result['id'],
-          agentName: widget.agentName,
-          nearestPisteCode: _currentNearestPisteCode, // ✅ Utiliser l'ID correct
-        ),
-      ),
-    );
-
-    if (formResult != null) {
-      final List<LatLng> pts = List<LatLng>.from(result['points'] as List<LatLng>);
-      final distanceKm = pts.length >= 2 ? polylineDistanceKm(pts) : 0.0;
-      final typeChaussee = (formResult['type_chaussee'] ?? 'inconnu').toString();
-      final endroit = (formResult['endroit'] ?? '').toString();
-      final codePiste = (formResult['code_piste'] ?? '').toString();
-
-      setState(
-        () {
-          _finishedChaussees.add(
-            Polyline<PolylineTapData>(
-              points: pts,
-              color: getChausseeColor(typeChaussee),
-              strokeWidth: 4.0,
-              pattern: getChausseePattern(typeChaussee) ?? const StrokePattern.solid(),
-              hitValue: PolylineTapData(
-                type: 'chaussee_local',
-                data: {
-                  'type_chaussee': typeChaussee,
-                  'endroit': endroit,
-                  'code_piste': codePiste,
-                  'nb_points': pts.length,
-                  'distance_km': distanceKm,
-                  'start_lat': pts.first.latitude,
-                  'start_lng': pts.first.longitude,
-                  'end_lat': pts.last.latitude,
-                  'end_lng': pts.last.longitude,
-                  'synced': '0',
-                  'region_name': '',
-                  'prefecture_name': '',
-                  'commune_name': '',
-                  'enqueteur': formResult['user_login'] ?? widget.agentName ?? '',
-                },
-              ),
-            ),
-          );
-        },
-      );
-      final storageHelper = SimpleStorageHelper();
-      await storageHelper.saveDisplayedChaussee(
-        pts,
-        typeChaussee,
-        4.0,
-        codePiste,
-        endroit,
-      );
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Chaussée enregistrée avec succès',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
+      print('[PISTE] Error reloading displayed tracks: $e');
     }
   }
 
@@ -4194,6 +3971,8 @@ class _HomePageState extends State<HomePage> {
       builder: (ctx) {
         final errorsToShow = result.errors.take(10).toList();
         final remaining = result.errors.length - errorsToShow.length;
+        final warningsToShow = result.warnings.take(10).toList();
+        final remainingWarnings = result.warnings.length - warningsToShow.length;
 
         final bool hasConnectionErrors = result.errors.any(
           (e) =>
@@ -4207,10 +3986,16 @@ class _HomePageState extends State<HomePage> {
         final IconData titleIcon;
         final Color titleColor;
 
-        if (result.failedCount == 0 && result.successCount > 0) {
+        if (result.failedCount == 0 &&
+            result.warningCount == 0 &&
+            result.successCount > 0) {
           title = 'Synchronisation réussie';
           titleIcon = Icons.check_circle;
           titleColor = Colors.green;
+        } else if (result.failedCount == 0 && result.warningCount > 0) {
+          title = 'Synchronisation terminee avec avertissements';
+          titleIcon = Icons.info_outline;
+          titleColor = Colors.orange;
         } else if (result.successCount > 0 && result.failedCount > 0) {
           title = 'Synchronisation partielle';
           titleIcon = Icons.warning_amber;
@@ -4262,6 +4047,17 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
+                if (result.warningCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      'Attention: ${result.warningCount} avertissement(s) sur le journal local',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 if (hasConnectionErrors && result.successCount > 0) ...[
                   const SizedBox(height: 10),
                   Container(
@@ -4309,6 +4105,31 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                 ],
+                if (warningsToShow.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Remarques non bloquantes :',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 5),
+                  ...warningsToShow.map(
+                    (warning) => Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '• $warning',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                  if (remainingWarnings > 0)
+                    Text(
+                      '• ... et $remainingWarnings autres remarques.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -4317,8 +4138,8 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.pop(ctx);
                 _loadDownloadedPoints();
-                _loadDownloadedPistes();
-                _loadDownloadedChaussees();
+                _loadDownloadedPistePolylines();
+                _loadDownloadedChausseePolylines();
                 _loadDownloadedSpecialLines();
               },
               child: const Text('OK'),
@@ -4449,8 +4270,8 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.pop(ctx);
                 _loadDownloadedPoints();
-                _loadDownloadedPistes();
-                _loadDownloadedChaussees();
+                _loadDownloadedPistePolylines();
+                _loadDownloadedChausseePolylines();
                 _loadDownloadedSpecialLines();
               },
               child: const Text('OK'),
@@ -5377,26 +5198,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // Ajouter la chaussée en cours si active (nouveau système)
-    if (homeController.chausseeCollection != null) {
-      final chausseePoints = homeController.chausseeCollection!.points;
-      if (chausseePoints.length > 1) {
-        filteredPolylines.add(
-          Polyline(
-            points: chausseePoints,
-            color: homeController.chausseeCollection!.isPaused ? Colors.deepOrange : const Color(0xFFFF9800),
-            strokeWidth: 5.0,
-            pattern: homeController.chausseeCollection!.isPaused
-                ? StrokePattern.dashed(segments: const [
-                    15,
-                    5
-                  ])
-                : const StrokePattern.solid(),
-          ),
-        );
-      }
-    }
-
     return Scaffold(
       backgroundColor: const Color(
         0xFFF0F8FF,
@@ -5632,7 +5433,7 @@ class _HomePageState extends State<HomePage> {
                     count: _downloadedPistesPolylines.length, // optionnel
                     onChanged: (value) {
                       setState(() => _showDownloadedPistes = value);
-                      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â½ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â [_UI] _showDownloadedPistes = $_showDownloadedPistes '
+                      print('[UI] pistes telechargees visibles=$_showDownloadedPistes '
                           '(count=${_downloadedPistesPolylines.length})');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -5648,7 +5449,8 @@ class _HomePageState extends State<HomePage> {
                     count: _downloadedChausseesPolylines.length,
                     onChanged: (value) {
                       setState(() => _showDownloadedChaussees = value);
-                      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â½ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â [_UI] _showDownloadedChaussees = $_showDownloadedChaussees (count=${_downloadedChausseesPolylines.length})');
+                      print('[UI] chaussees telechargees visibles=$_showDownloadedChaussees '
+                          '(count=${_downloadedChausseesPolylines.length})');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(value ? 'Chaussées téléchargées : AFFICHÉES' : 'Chaussées téléchargées : MASQUÉES'),
@@ -5667,21 +5469,11 @@ class _HomePageState extends State<HomePage> {
                       topOffset: 16,
                     ),
 
-                  // Afficher le statut de chaussée si active
-                  if (homeController.chausseeCollection != null)
-                    ChausseeStatusWidget(
-                      collection: homeController.chausseeCollection!,
-                      topOffset: homeController.ligneCollection != null ? 70 : 16,
-                    ),
                   // Afficher le statut de spécial (Bac / Passage) si active
                   if (homeController.specialCollection != null)
                     SpecialStatusWidget(
                       collection: homeController.specialCollection!,
-                      topOffset: homeController.ligneCollection != null && homeController.chausseeCollection != null
-                          ? 124 // décalé sous les deux autres
-                          : (homeController.ligneCollection != null || homeController.chausseeCollection != null)
-                              ? 70 // décalé sous l’un des deux
-                              : 16, // position par défaut
+                      topOffset: homeController.ligneCollection != null ? 70 : 16,
                     ),
 
                   // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
@@ -5777,7 +5569,7 @@ String getEntityTypeFromTable(String tableName) {
 }
 
 class DownloadedPistesService {
-  final SimpleStorageHelper _storageHelper = SimpleStorageHelper();
+  final PisteStorageHelper _storageHelper = PisteStorageHelper();
 
   // Brun proche orange
   static const Color downloadedPisteColor = Color(0xFFB86E1D);
@@ -5917,10 +5709,10 @@ class DownloadedPistesService {
       final db = await _storageHelper.database;
       final loginId = await DatabaseHelper().resolveLoginId();
       if (loginId == null) {
-        print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ [DL-PISTES] Impossible de dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©terminer login_id (viewer)');
+        print('[PISTE-DOWNLOAD] impossible de resoudre le login_id courant');
         return [];
       }
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â½ [DL-PISTES] Chargement (downloaded=1, saved_by_user_id=${ApiService.userId})');
+      print('[PISTE-DOWNLOAD] chargement des pistes downloaded=1 pour login_id=$loginId');
       final pistes = await db.query(
         'pistes',
         where: 'downloaded = ? AND saved_by_user_id = ?',
@@ -5929,7 +5721,7 @@ class DownloadedPistesService {
           loginId
         ],
       );
-      print('📦 [DL-PISTES] ${pistes.length} ligne(s) trouvée(s) en SQLite (table pistes)');
+      print('[PISTE-DOWNLOAD] ${pistes.length} ligne(s) trouvee(s) en SQLite (table pistes)');
 
       // Stats rapides
       int withPointsJson = 0, withGeom = 0, unusable = 0;
@@ -5943,7 +5735,7 @@ class DownloadedPistesService {
         else
           unusable++;
       }
-      print('🧮 [DL-PISTES] points_json OK: $withPointsJson | geom GeoJSON OK: $withGeom | sans exploitable: $unusable');
+      print('[PISTE-DOWNLOAD] points_json OK=$withPointsJson | geom OK=$withGeom | inutilisables=$unusable');
 
       final polylines = <Polyline>{};
       int added = 0, skipped = 0;
@@ -5960,14 +5752,14 @@ class DownloadedPistesService {
         if (pointsJson is String && pointsJson.trim().isNotEmpty) {
           // debug: petit aperçu
           final preview = pointsJson.length > 120 ? '${pointsJson.substring(0, 120)}…' : pointsJson;
-          print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ [DL-PISTE:$id] $code -> points_json len=${pointsJson.length} preview="$preview"');
+          print('[PISTE-DOWNLOAD:$id] $code -> points_json len=${pointsJson.length} preview="$preview"');
 
           try {
             final decoded = jsonDecode(pointsJson);
             points = _toLatLngList(decoded);
-            print('✅ [DL-PISTE:$id] $code -> points_json converti: ${points.length} pts');
+            print('[PISTE-DOWNLOAD:$id] $code -> points_json converti: ${points.length} pts');
           } catch (e) {
-            print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  [DL-PISTE:$id] $code -> points_json non dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©codable: $e');
+            print('[PISTE-DOWNLOAD:$id] $code -> erreur decode points_json: $e');
           }
         }
 
@@ -5981,29 +5773,29 @@ class DownloadedPistesService {
               final line = _extractLineCoordsFromGeoJson(gj);
               if (line != null) {
                 final preview = line is List ? (line.isNotEmpty ? line.first.toString() : '[]') : line.toString();
-                print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ [DL-PISTE:$id] $code -> geom.gj sample="$preview"');
+                print('[PISTE-DOWNLOAD:$id] $code -> geom.gj sample="$preview"');
                 points = _toLatLngList(line);
-                print('✅ [DL-PISTE:$id] $code -> geom converti: ${points.length} pts');
+                print('[PISTE-DOWNLOAD:$id] $code -> geom converti: ${points.length} pts');
               } else {
-                print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  [DL-PISTE:$id] $code -> GeoJSON type/structure non gÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©e');
+                print('[PISTE-DOWNLOAD:$id] $code -> structure GeoJSON non supportee');
               }
             } catch (e) {
-              print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  [DL-PISTE:$id] $code -> geom non dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©codable: $e');
+              print('[PISTE-DOWNLOAD:$id] $code -> erreur decode geom: $e');
             }
           } else if (gs.isNotEmpty) {
-            print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  [DL-PISTE:$id] $code -> geom non-GeoJSON (ex: WKT/UTM), ignorÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© offline');
+            print('[PISTE-DOWNLOAD:$id] $code -> geom non GeoJSON ignore en offline');
           }
         }
 
         if (points.length < 2) {
-          print('🚫 [DL-PISTE:$id] $code -> moins de 2 points (${points.length}), skip (created_at=$createdAt)');
+          print('[PISTE-DOWNLOAD:$id] $code -> moins de 2 points (${points.length}), ignore');
           skipped++;
           continue;
         }
 
         final first = points.first;
         final last = points.last;
-        print('➕ [DL-PISTE:$id] $code -> polyline ${points.length} pts | '
+        print('[PISTE-DOWNLOAD:$id] $code -> polyline ${points.length} pts | '
             'start=(${first.latitude},${first.longitude}) end=(${last.latitude},${last.longitude})');
         final distanceKm = _polylineDistanceKm(points);
 
@@ -6044,17 +5836,17 @@ class DownloadedPistesService {
         added++;
       }
 
-      print('🎯 [DL-PISTES] ajoutées: $added | ignorées: $skipped');
+      print('[PISTE-DOWNLOAD] ajoutees=$added | ignorees=$skipped');
       return polylines.toList();
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ [DL-PISTES] Erreur chargement: $e');
+      print('[PISTE-DOWNLOAD] erreur de chargement: $e');
       return [];
     }
   }
 }
 
 class DownloadedChausseesService {
-  final SimpleStorageHelper _storageHelper = SimpleStorageHelper();
+  final PisteStorageHelper _storageHelper = PisteStorageHelper();
 
   // Couleur par défaut pour les chaussées téléchargées (tu peux changer)
   static const Color downloadedChausseeColor = Color(0xFF1A7F5A); // vert foncé
@@ -6154,7 +5946,7 @@ class DownloadedChausseesService {
       final db = await _storageHelper.database;
       final loginId = await DatabaseHelper().resolveLoginId();
       if (loginId == null) {
-        print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ [DL-CHAUSSEES] Impossible de dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©terminer login_id (viewer)');
+        print('[CHAUSSEE-DOWNLOAD] impossible de resoudre le login_id courant');
         return [];
       }
       // même filtre que pour les pistes téléchargées
@@ -6188,7 +5980,7 @@ class DownloadedChausseesService {
         }
 
         // Style : utilise tes helpers existants si tu veux des patterns/couleurs par type
-        final helper = SimpleStorageHelper();
+        final helper = PisteStorageHelper();
         final color = helper.getChausseeColor(type); // mapping déjà présent chez toi
         final pattern = helper.getChausseePattern(type); // idem
         const width = 6;
@@ -6225,9 +6017,9 @@ class DownloadedChausseesService {
         added++;
       }
 
-      print('🎯 [DL-CHAUSSEES] ajoutées: $added | ignorées: $skipped');
+      print('[CHAUSSEE-DOWNLOAD] ajoutees=$added | ignorees=$skipped');
     } catch (e) {
-      print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ [DL-CHAUSSEES] Erreur chargement: $e');
+      print('[CHAUSSEE-DOWNLOAD] erreur de chargement: $e');
     }
     return polylines.toList();
   }

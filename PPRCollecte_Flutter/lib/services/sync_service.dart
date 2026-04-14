@@ -1,16 +1,24 @@
+import 'dart:io';
+import 'dart:convert';
+
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
+import 'photo_reference_service.dart';
 
 class SyncResult {
   int successCount = 0;
   int failedCount = 0;
   int skippedCount = 0;
   final List<String> errors = [];
+  final List<String> warnings = [];
+
+  int get warningCount => warnings.length;
 
   @override
   String toString() =>
-      'Synchronisation: $successCount succes, $failedCount echecs, $skippedCount ignores';
+      'Synchronisation: $successCount succes, $failedCount echecs, '
+      '$skippedCount ignores, $warningCount avertissements';
 }
 
 class _TableInfo {
@@ -79,7 +87,11 @@ class SyncService {
           map['synced'] = 1;
           map['date_sync'] = nowIso;
 
-          await dbHelper.upsertDownloadedEntitySrm(info.table, map);
+          await dbHelper.upsertDownloadedEntitySrm(
+            info.table,
+            map,
+            recordHistory: true,
+          );
           result.successCount++;
         }
       } catch (e) {
@@ -106,6 +118,16 @@ class SyncService {
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
       final current = index + 1;
+      if (await _syncRowsForTableV2(
+        info: info,
+        current: current,
+        total: total,
+        nowIso: nowIso,
+        result: result,
+        onProgress: onProgress,
+      )) {
+        continue;
+      }
 
       onProgress?.call(
         (current - 1) / total,
@@ -135,10 +157,15 @@ class SyncService {
           }
 
           final payload = Map<String, dynamic>.from(row);
+          final localPhotos = _extractLocalPhotos(payload);
           payload.remove('id');
           payload.remove('downloaded');
           payload.remove('synced');
           payload.remove('date_sync');
+          payload.remove('photo_1');
+          payload.remove('photo_2');
+          payload.remove('photo_3');
+          payload.remove('photo_4');
           _removeKnownObsoleteKeys(info, payload);
           _normalizeSyncPayload(payload);
 
@@ -151,8 +178,8 @@ class SyncService {
             throw Exception('reponse vide API');
           }
 
-          final localId = row['id'];
-          if (localId is int) {
+          final localId = _asIntOrNull(row['id']);
+          if (localId != null) {
             await dbHelper.updateEntitySrm(
               info.table,
               localId,
@@ -160,17 +187,22 @@ class SyncService {
                 'synced': 1,
                 'date_sync': nowIso,
               },
+              recordHistory: true,
             );
           } else {
-            final db = await dbHelper.database;
-            await db.update(
-              info.table,
-              {
-                'synced': 1,
-                'date_sync': nowIso,
-              },
-              where: 'uuid = ?',
-              whereArgs: [row['uuid']],
+            await _markRowSyncedByUuid(
+              tableName: info.table,
+              uuid: row['uuid']?.toString(),
+              nowIso: nowIso,
+            );
+          }
+
+          final uuid = row['uuid']?.toString().trim();
+          if (uuid != null && uuid.isNotEmpty) {
+            await _enqueuePhotosForRow(
+              info,
+              row,
+              localPhotos,
             );
           }
 
@@ -189,7 +221,124 @@ class SyncService {
       );
     }
 
+    await _processPendingPhotoQueue(result);
+    await _syncLocalHistoryJournal(result);
+
     return result;
+  }
+
+  Future<bool> _syncRowsForTableV2({
+    required _TableInfo info,
+    required int current,
+    required int total,
+    required String nowIso,
+    required SyncResult result,
+    required Function(double, String, int, int)? onProgress,
+  }) async {
+    onProgress?.call(
+      (current - 1) / total,
+      'Synchronisation ${info.geometryLabel} · ${info.endpoint}',
+      current - 1,
+      total,
+    );
+
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = await dbHelper.getUnsyncedSrm(info.table);
+    } catch (e) {
+      result.failedCount++;
+      result.errors.add('Sync ${info.table}: lecture impossible - ${_short(e)}');
+      onProgress?.call(
+        current / total,
+        'Synchronisation ${info.geometryLabel} · ${info.endpoint}',
+        current,
+        total,
+      );
+      return true;
+    }
+
+    if (rows.isEmpty) {
+      result.skippedCount++;
+      onProgress?.call(
+        current / total,
+        'Synchronisation ${info.geometryLabel} · ${info.endpoint}',
+        current,
+        total,
+      );
+      return true;
+    }
+
+    for (final row in rows) {
+      if (_isDownloadedRow(row)) {
+        result.skippedCount++;
+        continue;
+      }
+
+      try {
+        final payload = Map<String, dynamic>.from(row);
+        final localPhotos = _extractLocalPhotos(payload);
+        payload.remove('id');
+        payload.remove('downloaded');
+        payload.remove('synced');
+        payload.remove('date_sync');
+        payload.remove('photo_1');
+        payload.remove('photo_2');
+        payload.remove('photo_3');
+        payload.remove('photo_4');
+        _removeKnownObsoleteKeys(info, payload);
+        _normalizeSyncPayload(payload);
+
+        final response = await ApiService.postData(
+          info.endpoint,
+          payload,
+          throwOnError: true,
+        );
+        if (response == null) {
+          throw Exception('reponse vide API');
+        }
+
+        final localId = _asIntOrNull(row['id']);
+        if (localId != null) {
+          await dbHelper.updateEntitySrm(
+            info.table,
+            localId,
+            {
+              'synced': 1,
+              'date_sync': nowIso,
+            },
+            recordHistory: true,
+          );
+        } else {
+          await _markRowSyncedByUuid(
+            tableName: info.table,
+            uuid: row['uuid']?.toString(),
+            nowIso: nowIso,
+          );
+        }
+
+        final uuid = row['uuid']?.toString().trim();
+        if (uuid != null && uuid.isNotEmpty) {
+          await _enqueuePhotosForRow(
+            info,
+            row,
+            localPhotos,
+          );
+        }
+
+        result.successCount++;
+      } catch (e) {
+        result.failedCount++;
+        result.errors.add(_formatRowSyncError(info, row, e));
+      }
+    }
+
+    onProgress?.call(
+      current / total,
+      'Synchronisation ${info.geometryLabel} · ${info.endpoint}',
+      current,
+      total,
+    );
+    return true;
   }
 
   List<_TableInfo> _collectSrmTables() {
@@ -294,6 +443,41 @@ class SyncService {
     return value.length > 180 ? value.substring(0, 180) : value;
   }
 
+  Future<void> _markRowSyncedByUuid({
+    required String tableName,
+    required String? uuid,
+    required String nowIso,
+  }) async {
+    final cleanUuid = uuid?.trim();
+    if (cleanUuid == null || cleanUuid.isEmpty) {
+      return;
+    }
+
+    final db = await dbHelper.database;
+    final rows = await db.query(
+      tableName,
+      columns: ['id'],
+      where: 'uuid = ?',
+      whereArgs: [cleanUuid],
+      limit: 1,
+    );
+
+    final localId = rows.isEmpty ? null : rows.first['id'];
+    if (localId is! int) {
+      return;
+    }
+
+    await dbHelper.updateEntitySrm(
+      tableName,
+      localId,
+      {
+        'synced': 1,
+        'date_sync': nowIso,
+      },
+      recordHistory: true,
+    );
+  }
+
   String _geometryLabel(String metier, String entity) {
     if (SrmConfig.isPolygonEntity(metier, entity)) {
       return 'Polygones';
@@ -308,6 +492,295 @@ class SyncService {
     final value = row['downloaded'];
     if (value is int) return value == 1;
     return value?.toString() == '1';
+  }
+
+  Map<int, String> _extractLocalPhotos(Map<String, dynamic> payload) {
+    final photos = <int, String>{};
+    for (var slot = 1; slot <= 4; slot++) {
+      final raw = payload['photo_$slot']?.toString().trim() ?? '';
+      if (raw.isEmpty || !PhotoReferenceService.isLocalReference(raw)) {
+        continue;
+      }
+
+      final localPath = PhotoReferenceService.toLocalFilePath(raw);
+      if (!File(localPath).existsSync()) {
+        continue;
+      }
+      photos[slot] = localPath;
+    }
+    if (photos.isNotEmpty) {
+      print('[PHOTO] Photos locales detectees: ${photos.keys.join(',')}');
+    }
+    return photos;
+  }
+
+  Future<void> _enqueuePhotosForRow(
+    _TableInfo info,
+    Map<String, dynamic> row,
+    Map<int, String> localPhotos,
+  ) async {
+    final uuid = row['uuid']?.toString().trim();
+    if (uuid == null || uuid.isEmpty || localPhotos.isEmpty) {
+      return;
+    }
+
+    for (final entry in localPhotos.entries) {
+      print('[PHOTO] Enqueue ${info.table} uuid=$uuid slot=${entry.key}');
+      await dbHelper.enqueuePhotoSyncItem(
+        schemaName: info.schema,
+        tableName: info.table,
+        uuidObjet: uuid,
+        photoSlot: entry.key,
+        localPath: entry.value,
+        idProjet: _asIntOrNull(row['id_projet']),
+        idMission: _asIntOrNull(row['id_mission']),
+        idAgentCrea: _asIntOrNull(row['id_agent_crea']),
+      );
+    }
+  }
+
+  Future<void> _processPendingPhotoQueue(SyncResult result) async {
+    final items = await dbHelper.getPendingPhotoSyncItems();
+    print('[PHOTO] Queue pending count=${items.length}');
+    for (final item in items) {
+      final id = _asIntOrNull(item['id']);
+      final schemaName = item['schema_name']?.toString().trim() ?? '';
+      final tableName = item['table_name']?.toString().trim() ?? '';
+      final uuidObjet = item['uuid_objet']?.toString().trim() ?? '';
+      final localPath = item['local_path']?.toString().trim() ?? '';
+      final photoSlot = _asIntOrNull(item['photo_slot']);
+
+      if (id == null ||
+          schemaName.isEmpty ||
+          tableName.isEmpty ||
+          uuidObjet.isEmpty ||
+          localPath.isEmpty ||
+          photoSlot == null) {
+        continue;
+      }
+
+      try {
+        print('[PHOTO] Upload $tableName uuid=$uuidObjet slot=$photoSlot');
+        final response = await ApiService.uploadPhoto(
+          schemaName: schemaName,
+          tableName: tableName,
+          uuidObjet: uuidObjet,
+          photoSlot: photoSlot,
+          localPath: localPath,
+          idProjet: _asIntOrNull(item['id_projet']),
+          idMission: _asIntOrNull(item['id_mission']),
+          idAgentCrea: _asIntOrNull(item['id_agent_crea']),
+        );
+
+        final remotePath = response['relative_path']?.toString().trim() ?? '';
+        if (remotePath.isEmpty) {
+          throw Exception('chemin photo distant vide');
+        }
+
+        await dbHelper.markPhotoSyncItemSynced(id, remotePath: remotePath);
+        await dbHelper.updatePhotoReferenceByUuid(
+          tableName,
+          uuidObjet,
+          photoSlot,
+          remotePath,
+          recordHistory: true,
+        );
+        result.successCount++;
+      } catch (e) {
+        await dbHelper.markPhotoSyncItemFailed(id, _short(e));
+        result.failedCount++;
+        result.errors.add(
+          'Photo $tableName#$uuidObjet:$photoSlot: ${_short(e)}',
+        );
+      }
+    }
+  }
+
+  Future<void> _syncLocalHistoryJournal(SyncResult result) async {
+    await _syncLocalAttributeHistory(result);
+    await _syncLocalEventHistory(result);
+  }
+
+  Future<void> _syncLocalAttributeHistory(SyncResult result) async {
+    final rows = await dbHelper.getPendingLocalAttributeHistory(limit: 500);
+    if (rows.isEmpty) {
+      return;
+    }
+
+    await _syncLocalHistoryChunks(
+      rows: rows,
+      syncLabel: 'historique attributaire local',
+      buildPayload: (row) => _buildAttributeHistoryPayload(row),
+      sendBatch: (chunk) => ApiService.uploadLocalHistory(
+        attributes: chunk,
+        events: const [],
+      ),
+      markSynced: dbHelper.markLocalAttributeHistorySynced,
+      markFailed: dbHelper.markLocalAttributeHistoryFailed,
+      result: result,
+    );
+  }
+
+  Future<void> _syncLocalEventHistory(SyncResult result) async {
+    final rows = await dbHelper.getPendingLocalEventHistory(limit: 500);
+    if (rows.isEmpty) {
+      return;
+    }
+
+    await _syncLocalHistoryChunks(
+      rows: rows,
+      syncLabel: 'historique evenementiel local',
+      buildPayload: (row) => _buildEventHistoryPayload(row),
+      sendBatch: (chunk) => ApiService.uploadLocalHistory(
+        attributes: const [],
+        events: chunk,
+      ),
+      markSynced: dbHelper.markLocalEventHistorySynced,
+      markFailed: dbHelper.markLocalEventHistoryFailed,
+      result: result,
+    );
+  }
+
+  Future<void> _syncLocalHistoryChunks({
+    required List<Map<String, dynamic>> rows,
+    required String syncLabel,
+    required Map<String, dynamic> Function(Map<String, dynamic>) buildPayload,
+    required Future<Map<String, dynamic>> Function(List<Map<String, dynamic>>) sendBatch,
+    required Future<void> Function(List<String>) markSynced,
+    required Future<void> Function(List<String>, String) markFailed,
+    required SyncResult result,
+  }) async {
+    const batchSize = 100;
+    for (var start = 0; start < rows.length; start += batchSize) {
+      final end = (start + batchSize > rows.length) ? rows.length : start + batchSize;
+      final chunkRows = rows.sublist(start, end);
+      final payloadChunk = chunkRows.map(buildPayload).toList();
+      final syncUuids = payloadChunk
+          .map((item) => item['sync_uuid']?.toString().trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toList();
+
+      try {
+        await sendBatch(payloadChunk);
+        await markSynced(syncUuids);
+      } catch (e) {
+        if (chunkRows.length == 1) {
+          final warning = '$syncLabel: ${_short(e)}';
+          await markFailed(syncUuids, warning);
+          result.warnings.add(warning);
+          continue;
+        }
+
+        for (final row in chunkRows) {
+          final payload = buildPayload(row);
+          final rowSyncUuid = payload['sync_uuid']?.toString().trim() ?? '';
+          try {
+            await sendBatch([payload]);
+            if (rowSyncUuid.isNotEmpty) {
+              await markSynced([rowSyncUuid]);
+            }
+          } catch (rowError) {
+            final warning = '$syncLabel: ${_describeLocalHistoryRow(row)} - ${_short(rowError)}';
+            if (rowSyncUuid.isNotEmpty) {
+              await markFailed([rowSyncUuid], warning);
+            }
+            result.warnings.add(warning);
+          }
+        }
+      }
+    }
+  }
+
+  Map<String, dynamic> _buildAttributeHistoryPayload(Map<String, dynamic> row) {
+    return {
+      'sync_uuid': row['sync_uuid'],
+      'id_historique_local': _asIntOrNull(row['id_historique_local']),
+      'id_objet': _asIntOrNull(row['id_objet']),
+      'cle_ligne': row['cle_ligne']?.toString(),
+      'uuid_objet': row['uuid_objet']?.toString(),
+      'nom_schema': row['nom_schema']?.toString(),
+      'nom_table': row['nom_table']?.toString(),
+      'nom_classe': row['nom_classe']?.toString(),
+      'nom_attribut': row['nom_attribut']?.toString(),
+      'ancienne_valeur': row['ancienne_valeur']?.toString(),
+      'nouvelle_valeur': row['nouvelle_valeur']?.toString(),
+      'date_action': row['date_action']?.toString(),
+      'id_agent': _asIntOrNull(row['id_agent']),
+      'type_action': row['type_action']?.toString(),
+    };
+  }
+
+  Map<String, dynamic> _buildEventHistoryPayload(Map<String, dynamic> row) {
+    dynamic payloadJson;
+    final rawPayload = row['payload_json'];
+    if (rawPayload is String && rawPayload.trim().isNotEmpty) {
+      try {
+        payloadJson = jsonDecode(rawPayload);
+      } catch (_) {
+        payloadJson = {'raw_payload': rawPayload};
+      }
+    }
+
+    return {
+      'sync_uuid': row['sync_uuid'],
+      'id_evenement_local': _asIntOrNull(row['id_evenement_local']),
+      'type_evenement': row['type_evenement']?.toString(),
+      'nom_schema': row['nom_schema']?.toString(),
+      'nom_table': row['nom_table']?.toString(),
+      'cle_ligne': row['cle_ligne']?.toString(),
+      'uuid_objet': row['uuid_objet']?.toString(),
+      'id_objet': _asIntOrNull(row['id_objet']),
+      'id_agent': _asIntOrNull(row['id_agent']),
+      'payload_json': payloadJson,
+      'date_action': row['date_action']?.toString(),
+    };
+  }
+
+  String _describeLocalHistoryRow(Map<String, dynamic> row) {
+    final typeEvenement = row['type_evenement']?.toString().trim();
+    if (typeEvenement != null && typeEvenement.isNotEmpty) {
+      return typeEvenement;
+    }
+
+    final table = row['nom_table']?.toString().trim();
+    final attribute = row['nom_attribut']?.toString().trim();
+    final uuid = row['uuid_objet']?.toString().trim();
+    final localId = row['id_objet']?.toString().trim();
+
+    final parts = <String>[
+      if (table != null && table.isNotEmpty) table,
+      if (attribute != null && attribute.isNotEmpty) attribute,
+      if (uuid != null && uuid.isNotEmpty) 'uuid=$uuid',
+      if ((uuid == null || uuid.isEmpty) && localId != null && localId.isNotEmpty)
+        'id=$localId',
+    ];
+    return parts.isEmpty ? 'entree locale' : parts.join(' | ');
+  }
+
+  int? _asIntOrNull(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
+  }
+
+  String _formatRowSyncError(
+    _TableInfo info,
+    Map<String, dynamic> row,
+    Object error,
+  ) {
+    final uuid = row['uuid']?.toString().trim();
+    final localId = row['id']?.toString().trim();
+    final label = row['display_title']?.toString().trim();
+
+    final parts = <String>[
+      info.table,
+      if (label != null && label.isNotEmpty) '"$label"',
+      if (uuid != null && uuid.isNotEmpty) 'uuid=$uuid',
+      if ((uuid == null || uuid.isEmpty) && localId != null && localId.isNotEmpty)
+        'id=$localId',
+    ];
+
+    return 'Sync ${parts.join(' · ')}: ${_short(error)}';
   }
 
   void _normalizeSyncPayload(Map<String, dynamic> payload) {

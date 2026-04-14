@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../models/collection_models.dart';
 
 class LigneStatusWidget extends StatelessWidget {
@@ -31,26 +32,40 @@ class LigneStatusWidget extends StatelessWidget {
               color: Colors.black.withOpacity(0.2),
               offset: const Offset(0, 2),
               blurRadius: 4,
-            )
+            ),
           ],
         ),
         child: Row(
           children: [
             Icon(
-              collection.isActive ? Icons.radio_button_checked : Icons.pause_circle_filled,
-              color: collection.isActive ? const Color(0xFF1976D2) : Colors.orange,
+              collection.isActive
+                  ? Icons.radio_button_checked
+                  : Icons.pause_circle_filled,
+              color: collection.isActive
+                  ? const Color(0xFF1976D2)
+                  : Colors.orange,
               size: 16,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                collection.isActive ? "Collecte ligne active" : "Ligne en pause",
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87),
+                collection.isActive
+                    ? 'Collecte ligne active'
+                    : 'Ligne en pause',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
               ),
             ),
             Text(
-              "${collection.points.length} pts • ${collection.totalDistance.round()}m",
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey[700]),
+              '${collection.points.length} pts • ${collection.totalDistance.round()}m',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Colors.grey[700],
+              ),
             ),
           ],
         ),
@@ -59,65 +74,6 @@ class LigneStatusWidget extends StatelessWidget {
   }
 }
 
-class ChausseeStatusWidget extends StatelessWidget {
-  final ChausseeCollection collection;
-  final double? topOffset;
-
-  const ChausseeStatusWidget({
-    super.key,
-    required this.collection,
-    this.topOffset,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: topOffset ?? 16,
-      left: 16,
-      right: 16,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.95),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: collection.isActive ? const Color(0xFFFF9800) : Colors.deepOrange,
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              offset: const Offset(0, 2),
-              blurRadius: 4,
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              collection.isActive ? Icons.radio_button_checked : Icons.pause_circle_filled,
-              color: collection.isActive ? const Color(0xFFFF9800) : Colors.deepOrange,
-              size: 16,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                collection.isActive ? "Collecte chaussée active" : "Chaussée en pause",
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87),
-              ),
-            ),
-            Text(
-              "${collection.points.length} pts • ${collection.totalDistance.round()}m",
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey[700]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Ajouter après ChausseeStatusWidget
 class SpecialStatusWidget extends StatelessWidget {
   final SpecialCollection collection;
   final double? topOffset;
@@ -148,7 +104,7 @@ class SpecialStatusWidget extends StatelessWidget {
               color: Colors.black.withOpacity(0.2),
               offset: const Offset(0, 2),
               blurRadius: 4,
-            )
+            ),
           ],
         ),
         child: Row(
@@ -161,13 +117,21 @@ class SpecialStatusWidget extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                "Collecte ${collection.specialType} active",
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87),
+                'Collecte ${collection.specialType} active',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
               ),
             ),
             Text(
-              "${collection.points.length} pts • ${collection.totalDistance.round()}m",
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey[700]),
+              '${collection.points.length} pts • ${collection.totalDistance.round()}m',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Colors.grey[700],
+              ),
             ),
           ],
         ),
@@ -175,7 +139,7 @@ class SpecialStatusWidget extends StatelessWidget {
     );
   }
 }
-// Ajouter à la fin de collection_status_widgets.dart
+
 class GlobalCountdownWidget extends StatelessWidget {
   final int seconds;
   final bool isVisible;
@@ -190,11 +154,10 @@ class GlobalCountdownWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isVisible) return const SizedBox.shrink();
 
-    // Couleur changeante selon l'urgence
-    final Color color = seconds <= 4 ? Colors.red : const Color(0xFF1976D2);
+    final color = seconds <= 4 ? Colors.red : const Color(0xFF1976D2);
 
     return Positioned(
-      bottom: 120, // Position au-dessus des boutons du bas
+      bottom: 120,
       right: 16,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -220,7 +183,7 @@ class GlobalCountdownWidget extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              "Capture : ${seconds}s",
+              'Capture : ${seconds}s',
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

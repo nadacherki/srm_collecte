@@ -1,14 +1,14 @@
-// lib/screens/project/project_selection_page.dart
-// ── SPRINT 3 : Sélection du projet et de la mission après login ──
+﻿// lib/screens/project/project_selection_page.dart
+// â”€â”€ SPRINT 3 : SÃ©lection du projet et de la mission aprÃ¨s login â”€â”€
 //
-// Flux : Login → projet_actif déjà chargé dans ApiService → on affiche
-// le projet actif + les missions de ce projet → l'agent choisit/crée
-// une mission → accès à la carte (HomePage).
+// Flux : Login â†’ projet_actif dÃ©jÃ  chargÃ© dans ApiService â†’ on affiche
+// le projet actif + les missions de ce projet â†’ l'agent choisit/crÃ©e
+// une mission â†’ accÃ¨s Ã  la carte (HomePage).
 //
 // Tables PostgreSQL :
 //   public.projet  (id_projet, code_affaire, nom, srm, region, metier, statut)
 //   public.mission (id_mission, id_agent, id_projet, etat_mission,
-//                   date_debut, date_fin, nb_objets_collectes…)
+//                   date_debut, date_fin, nb_objets_collectesâ€¦)
 
 import 'package:flutter/material.dart';
 import '../../data/remote/api_service.dart';
@@ -54,7 +54,7 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
       _error = null;
     });
 
-    // ── Le projet actif est déjà dans ApiService (renvoyé par /api/login/) ──
+    // â”€â”€ Le projet actif est dÃ©jÃ  dans ApiService (renvoyÃ© par /api/login/) â”€â”€
     if (ApiService.currentProjetId != null) {
       _projetActif = {
         'id_projet': ApiService.currentProjetId,
@@ -67,7 +67,7 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
       };
     }
 
-    // ── Charger les missions du projet ──
+    // â”€â”€ Charger les missions du projet â”€â”€
     if (ApiService.currentProjetId != null) {
       await _loadMissions(ApiService.currentProjetId!);
     } else {
@@ -111,7 +111,7 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
     }
   }
 
-  // ── Créer une nouvelle mission ──
+  // â”€â”€ CrÃ©er une nouvelle mission â”€â”€
   Future<void> _createNewMission() async {
     if (!widget.isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -149,7 +149,7 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
     }
   }
 
-  // ── Valider et aller à la carte ──
+  // â”€â”€ Valider et aller Ã  la carte â”€â”€
   void _onValidate() {
     if (_selectedMission == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,12 +160,13 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
 
     // Stocker l'id_mission dans ApiService
     final missionId = _selectedMission!['id_mission'];
-    ApiService.currentMissionId =
+    final parsedMissionId =
         missionId is int ? missionId : int.tryParse(missionId.toString());
+    ApiService.currentMissionId = parsedMissionId;
 
-    print('📌 Projet: ${ApiService.currentProjetNom} '
+    print('[MISSION] Projet: ${ApiService.currentProjetNom} '
         '(id=${ApiService.currentProjetId})');
-    print('📌 Mission: id_mission=${ApiService.currentMissionId}');
+    print('[MISSION] Mission: id_mission=${ApiService.currentMissionId}');
 
     Navigator.pushReplacement(
       context,
@@ -232,11 +233,11 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── En-tête agent ──
+          // â”€â”€ En-tÃªte agent â”€â”€
           _buildAgentHeader(),
           const SizedBox(height: 24),
 
-          // ── Projet actif (pas de choix — déjà assigné par l'admin) ──
+          // â”€â”€ Projet actif (pas de choix â€” dÃ©jÃ  assignÃ© par l'admin) â”€â”€
           const Text('Projet actif',
               style: TextStyle(
                   fontSize: 16,
@@ -250,7 +251,7 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
 
           const SizedBox(height: 24),
 
-          // ── Missions ──
+          // â”€â”€ Missions â”€â”€
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -296,7 +297,7 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
 
           const SizedBox(height: 30),
 
-          // ── Bouton Valider ──
+          // â”€â”€ Bouton Valider â”€â”€
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -598,3 +599,4 @@ class _ProjectSelectionPageState extends State<ProjectSelectionPage> {
     }
   }
 }
+

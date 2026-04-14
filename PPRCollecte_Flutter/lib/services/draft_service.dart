@@ -88,6 +88,16 @@ class DraftService {
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      await DatabaseHelper().recordLocalEvent(
+        eventType: 'SAVE_FORM_DRAFT',
+        tableName: 'form_drafts',
+        cleLigne: draftKey,
+        payload: {
+          'draft_key': draftKey,
+          'field_count': formData.length,
+          'photo_count': photoPaths?.values.where((p) => p != null && p.isNotEmpty).length ?? 0,
+        },
+      );
     } catch (e) {
       print('⚠️ DraftService.saveDraft erreur: $e');
     }
@@ -156,6 +166,12 @@ class DraftService {
         where: 'draft_key = ?',
         whereArgs: [draftKey],
       );
+      await DatabaseHelper().recordLocalEvent(
+        eventType: 'DELETE_FORM_DRAFT',
+        tableName: 'form_drafts',
+        cleLigne: draftKey,
+        payload: {'draft_key': draftKey},
+      );
       print('🗑️ Brouillon supprimé: $draftKey');
     } catch (e) {
       print('⚠️ DraftService.deleteDraft erreur: $e');
@@ -167,6 +183,10 @@ class DraftService {
     try {
       final db = await DatabaseHelper().database;
       await db.delete('form_drafts');
+      await DatabaseHelper().recordLocalEvent(
+        eventType: 'DELETE_ALL_FORM_DRAFTS',
+        tableName: 'form_drafts',
+      );
       print('🗑️ Tous les brouillons supprimés');
     } catch (e) {
       print('⚠️ DraftService.deleteAllDrafts erreur: $e');
@@ -342,6 +362,15 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
         }
         _draftRestored = true;
       });
+      await DatabaseHelper().recordLocalEvent(
+        eventType: 'RESTORE_FORM_DRAFT',
+        tableName: 'form_drafts',
+        cleLigne: draft.draftKey,
+        payload: {
+          'draft_key': draft.draftKey,
+          'updated_at': draft.updatedAt.toIso8601String(),
+        },
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Brouillon restauré'),

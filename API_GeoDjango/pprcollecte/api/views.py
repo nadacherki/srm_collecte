@@ -5,19 +5,32 @@ Chaque ViewSet filtre par id_projet et id_mission via query params.
 Le login vérifie le mot de passe hashé PBKDF2 via Django.
 """
 
+import hashlib
+import os
+import re
+from pathlib import Path
+
+from django.conf import settings
+from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import check_password
 from rest_framework import viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, parser_classes
 from rest_framework.exceptions import ValidationError
-from django.utils.dateparse import parse_datetime
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 import json
 
 from .models import (
     Utilisateur, Projet, Mission, Commune,
-    HistoriqueAttribut, ObjetIncomplet, FondDePlan, EvaluationAgent,
+    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto, FondDePlan, EvaluationAgent,
+    MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
+    MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
+    MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
     EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
     EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
     EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
@@ -33,8 +46,14 @@ from .models import (
 )
 from .serializers import (
     ProjetSerializer, MissionSerializer, CommuneSerializer,
-    HistoriqueAttributSerializer, ObjetIncompletSerializer,
+    HistoriqueAttributSerializer, HistoriqueMobileSerializer,
+    MobileHistoryUploadSerializer, ObjetIncompletSerializer,
     FondDePlanSerializer, EvaluationAgentSerializer,
+    MetricAgentJourSerializer, MetricAgentSemaineSerializer, MetricAgentMoisSerializer,
+    MetricAgentPublicJourSerializer, MetricAgentPublicSemaineSerializer,
+    MetricAgentPublicMoisSerializer, MetricAgentPublicResumeSerializer,
+    MetricProjetJourSerializer, MetricProjetSemaineSerializer,
+    MetricProjetMoisSerializer, MetricProjetResumeSerializer,
     EpVanneSerializer, EpVanneDeVidangeSerializer, EpVentouseSerializer,
     EpHydrantSerializer, EpBorneFontaineSerializer, EpBorneOnepSerializer,
     EpBoucheClesSerializer, EpBoucheDarrosageSerializer,
@@ -55,8 +74,44 @@ from .serializers import (
     ElecTransformateurSerializer, ElecCelluleSerializer,
     ElecDepartBtSerializer, ElecDepartHtaSerializer,
     ElecTronconBtSerializer, ElecTronconHtaSerializer,
-    LoginRequestSerializer,
+    LoginRequestSerializer, PhotoUploadSerializer,
 )
+
+
+def _normalized_db_table(model):
+    return str(model._meta.db_table).replace('"', '')
+
+
+def _set_local_audit_user_id(user_id):
+    if user_id is None:
+        return
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT set_config('app.current_user_id', %s, true)",
+            [str(user_id)],
+        )
+
+
+_SRM_PHOTO_MODELS = [
+    EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
+    EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
+    EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
+    EpNoeud, EpObturateur, EpReducteurDePression,
+    EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
+    EpRegardEp, EpAutreObjet,
+    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
+    AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
+    AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
+    ElecSupport, ElecPoste, ElecCoffretBt, ElecNoeudRaccord, ElecPointDesserte,
+    ElecTransformateur, ElecCellule, ElecDepartBt, ElecDepartHta,
+    ElecTronconBt, ElecTronconHta,
+]
+
+_SRM_MODEL_BY_SCHEMA_TABLE = {
+    tuple(_normalized_db_table(model).split('.', 1)): model
+    for model in _SRM_PHOTO_MODELS
+}
 
 
 # =====================================================================
@@ -100,6 +155,62 @@ class ProjetMissionFilterMixin:
     def _has_model_field(self, qs, field_name):
         return any(field.name == field_name for field in qs.model._meta.fields)
 
+    def _coerce_positive_int(self, value):
+        if value in (None, ''):
+            return None
+
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+
+        return parsed if parsed > 0 else None
+
+    def _extract_audit_user_id(self, serializer=None, instance=None):
+        candidate_keys = (
+            'id_agent_modif',
+            'id_agent',
+            'id_agent_crea',
+            'id_agent_signal',
+            'id_agent_retour',
+            'id_user',
+        )
+
+        validated_data = getattr(serializer, 'validated_data', None) or {}
+        request_data = getattr(self.request, 'data', None)
+
+        for source in (validated_data, request_data):
+            if not hasattr(source, 'get'):
+                continue
+            for key in candidate_keys:
+                parsed = self._coerce_positive_int(source.get(key))
+                if parsed is not None:
+                    return parsed
+
+        current_instance = instance or getattr(serializer, 'instance', None)
+        if current_instance is not None:
+            for key in candidate_keys:
+                parsed = self._coerce_positive_int(getattr(current_instance, key, None))
+                if parsed is not None:
+                    return parsed
+
+        return None
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            _set_local_audit_user_id(self._extract_audit_user_id(serializer))
+            serializer.save()
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            _set_local_audit_user_id(self._extract_audit_user_id(serializer))
+            serializer.save()
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            _set_local_audit_user_id(self._extract_audit_user_id(instance=instance))
+            instance.delete()
+
     def get_queryset(self):
         qs = super().get_queryset()
         id_projet = self._parse_positive_int_param('id_projet')
@@ -117,6 +228,48 @@ class ProjetMissionFilterMixin:
         return qs
 
 
+class MetricFilterMixin(ProjetMissionFilterMixin):
+    metric_text_filters = {
+        'nom_schema': 'nom_schema',
+        'nom_table': 'nom_table',
+        'metier': 'metier',
+        'type_geometrie': 'type_geometrie',
+        'famille_geometrie': 'famille_geometrie',
+    }
+
+    def _parse_date_only_param(self, name):
+        raw_value = self.request.query_params.get(name)
+        if raw_value in (None, ''):
+            return None
+
+        value = parse_date(raw_value)
+        if value is None:
+            raise ValidationError({name: 'Date YYYY-MM-DD attendue'})
+
+        return value
+
+    def _apply_metric_common_filters(self, qs):
+        for param, field_name in self.metric_text_filters.items():
+            value = self.request.query_params.get(param)
+            if value not in (None, ''):
+                qs = qs.filter(**{field_name: value})
+
+        for param in ('id_agent', 'id_projet', 'id_mission'):
+            value = self._parse_positive_int_param(param)
+            if value is not None:
+                qs = qs.filter(**{param: value})
+
+        return qs
+
+
+class ProjectMetricFilterMixin(ProjetMissionFilterMixin):
+    def _apply_project_metric_filters(self, qs):
+        id_projet = self._parse_positive_int_param('id_projet')
+        if id_projet is not None:
+            qs = qs.filter(id_projet=id_projet)
+        return qs
+
+
 # =====================================================================
 #  AUTHENTIFICATION
 # =====================================================================
@@ -127,9 +280,8 @@ def login_view(request):
     """
     POST /api/login/
     Body: { "login": "username", "mot_de_passe": "password" }
-    Vérifie le mot de passe avec Argon2 (check_password).
-    Si le mot de passe est encore en clair (ancien compte), il est
-    automatiquement migré vers Argon2 lors du premier login.
+    Vérifie le mot de passe via les hashers Django configurés.
+    Le backend ne modifie jamais automatiquement la base des mots de passe.
     """
     try:
         payload = json.loads(request.body)
@@ -154,20 +306,11 @@ def login_view(request):
     if not user.mot_de_passe:
         return JsonResponse({'error': 'Aucun mot de passe configuré pour ce compte'}, status=401)
 
-    # ── Vérification mot de passe avec migration automatique ──
-    mot_de_passe_valide = False
+    # Le mot de passe doit déjà être stocké hashé en base.
+    if not user.mot_de_passe.startswith(('argon2', 'pbkdf2', 'bcrypt')):
+        return JsonResponse({'error': 'Compte non configuré pour l’authentification sécurisée'}, status=401)
 
-    if user.mot_de_passe.startswith(('argon2', 'pbkdf2', 'bcrypt')):
-        # Mot de passe déjà hashé → vérification standard
-        mot_de_passe_valide = check_password(mot_de_passe, user.mot_de_passe)
-    else:
-        # Mot de passe encore en clair (anciens comptes)
-        # Comparaison directe + migration automatique vers Argon2
-        if mot_de_passe == user.mot_de_passe:
-            mot_de_passe_valide = True
-            # Migration : hasher le mot de passe avec Argon2
-            user.mot_de_passe = make_password(mot_de_passe)
-            user.save(update_fields=['mot_de_passe'])
+    mot_de_passe_valide = check_password(mot_de_passe, user.mot_de_passe)
 
     if not mot_de_passe_valide:
         return JsonResponse({'error': 'Login ou mot de passe incorrect'}, status=401)
@@ -209,6 +352,193 @@ def login_view(request):
     })
 
 
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def photo_upload_view(request):
+    serializer = PhotoUploadSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    schema_name = data['schema_name'].strip().lower()
+    table_name = data['table_name'].strip().lower()
+    uuid_objet = data['uuid_objet'].strip()
+    photo_slot = data['photo_slot']
+    uploaded_file = data['file']
+
+    model = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, table_name))
+    if model is None:
+        return Response(
+            {'error': f'Objet SRM inconnu: {schema_name}.{table_name}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    instance = model.objects.filter(uuid=uuid_objet).first()
+    if instance is None:
+        return Response(
+            {'error': f'Objet introuvable pour uuid={uuid_objet}'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    field_name = f'photo_{photo_slot}'
+    model_fields = {field.name for field in model._meta.fields}
+    if field_name not in model_fields:
+        return Response(
+            {'error': f'Le champ {field_name} n’existe pas sur {schema_name}.{table_name}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    safe_uuid = re.sub(r'[^A-Za-z0-9._-]+', '_', uuid_objet)
+    extension = Path(uploaded_file.name).suffix.lower()
+    file_name = f'{safe_uuid}_{photo_slot}{extension}'
+    relative_dir = Path('srm_photos') / schema_name / table_name
+    absolute_dir = Path(settings.MEDIA_ROOT) / relative_dir
+    absolute_dir.mkdir(parents=True, exist_ok=True)
+
+    existing_photo = ObjetPhoto.objects.filter(
+        nom_schema=schema_name,
+        nom_table=table_name,
+        uuid_objet=uuid_objet,
+        num_photo=photo_slot,
+    ).first()
+    if existing_photo and existing_photo.chemin_relatif:
+        previous_file = Path(settings.MEDIA_ROOT) / existing_photo.chemin_relatif
+        if previous_file.exists() and previous_file.name != file_name:
+            previous_file.unlink(missing_ok=True)
+
+    final_path = absolute_dir / file_name
+    temp_path = absolute_dir / f'.tmp_{file_name}'
+    sha256 = hashlib.sha256()
+
+    with temp_path.open('wb') as destination:
+        for chunk in uploaded_file.chunks():
+            destination.write(chunk)
+            sha256.update(chunk)
+
+    os.replace(temp_path, final_path)
+
+    relative_path = (relative_dir / file_name).as_posix()
+    with transaction.atomic():
+        _set_local_audit_user_id(data.get('id_agent_crea'))
+        setattr(instance, field_name, relative_path)
+        instance.save(update_fields=[field_name])
+
+        ObjetPhoto.objects.update_or_create(
+            nom_schema=schema_name,
+            nom_table=table_name,
+            uuid_objet=uuid_objet,
+            num_photo=photo_slot,
+            defaults={
+                'nom_fichier': file_name,
+                'chemin_relatif': relative_path,
+                'hash_sha256': sha256.hexdigest(),
+                'mime_type': getattr(uploaded_file, 'content_type', '') or None,
+                'taille_octets': getattr(uploaded_file, 'size', None),
+                'id_projet': data.get('id_projet'),
+                'id_mission': data.get('id_mission'),
+                'id_agent_crea': data.get('id_agent_crea'),
+                'date_upload': timezone.now(),
+                'actif': True,
+            },
+        )
+
+    media_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{relative_path}')
+    return Response(
+        {
+            'success': True,
+            'schema_name': schema_name,
+            'table_name': table_name,
+            'uuid_objet': uuid_objet,
+            'photo_slot': photo_slot,
+            'field_name': field_name,
+            'relative_path': relative_path,
+            'media_url': media_url,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST'])
+def mobile_history_upload_view(request):
+    serializer = MobileHistoryUploadSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    attributes = data.get('attributes', [])
+    events = data.get('events', [])
+    created_count = 0
+    updated_count = 0
+
+    with transaction.atomic():
+        for item in attributes:
+            _, created = HistoriqueMobile.objects.update_or_create(
+                sync_uuid=item['sync_uuid'],
+                defaults={
+                    'type_entree': 'ATTRIBUT',
+                    'source_table_locale': 'historique_local_attribut',
+                    'source_id_local': item.get('id_historique_local'),
+                    'id_objet': item.get('id_objet'),
+                    'cle_ligne': item.get('cle_ligne'),
+                    'uuid_objet': item.get('uuid_objet'),
+                    'nom_schema': item.get('nom_schema'),
+                    'nom_table': item.get('nom_table'),
+                    'nom_classe': item.get('nom_classe'),
+                    'nom_attribut': item.get('nom_attribut'),
+                    'ancienne_valeur': item.get('ancienne_valeur'),
+                    'nouvelle_valeur': item.get('nouvelle_valeur'),
+                    'type_action': item.get('type_action'),
+                    'type_evenement': None,
+                    'payload_json': None,
+                    'date_action': item.get('date_action'),
+                    'date_reception': timezone.now(),
+                    'id_agent': item.get('id_agent'),
+                },
+            )
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
+
+        for item in events:
+            _, created = HistoriqueMobile.objects.update_or_create(
+                sync_uuid=item['sync_uuid'],
+                defaults={
+                    'type_entree': 'EVENEMENT',
+                    'source_table_locale': 'historique_local_evenement',
+                    'source_id_local': item.get('id_evenement_local'),
+                    'id_objet': item.get('id_objet'),
+                    'cle_ligne': item.get('cle_ligne'),
+                    'uuid_objet': item.get('uuid_objet'),
+                    'nom_schema': item.get('nom_schema'),
+                    'nom_table': item.get('nom_table'),
+                    'nom_classe': None,
+                    'nom_attribut': None,
+                    'ancienne_valeur': None,
+                    'nouvelle_valeur': None,
+                    'type_action': None,
+                    'type_evenement': item.get('type_evenement'),
+                    'payload_json': item.get('payload_json'),
+                    'date_action': item.get('date_action'),
+                    'date_reception': timezone.now(),
+                    'id_agent': item.get('id_agent'),
+                },
+            )
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
+
+    return Response(
+        {
+            'success': True,
+            'attributes_received': len(attributes),
+            'events_received': len(events),
+            'created_count': created_count,
+            'updated_count': updated_count,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
 # =====================================================================
 #  PUBLIC
 # =====================================================================
@@ -242,6 +572,72 @@ class HistoriqueAttributViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoriqueAttribut.objects.all()
     serializer_class = HistoriqueAttributSerializer
 
+    def get_queryset(self):
+        qs = HistoriqueAttribut.objects.all().order_by('-date_action', '-id_historique')
+        query_params = self.request.query_params
+
+        text_filters = {
+            'nom_schema': 'nom_schema',
+            'nom_table': 'nom_table',
+            'nom_classe': 'nom_classe',
+            'nom_attribut': 'nom_attribut',
+            'uuid_objet': 'uuid_objet',
+            'cle_ligne': 'cle_ligne',
+            'type_action': 'type_action',
+        }
+        for param, field_name in text_filters.items():
+            value = query_params.get(param)
+            if value not in (None, ''):
+                qs = qs.filter(**{field_name: value})
+
+        for param in ('id_objet', 'id_agent'):
+            raw_value = query_params.get(param)
+            if raw_value in (None, ''):
+                continue
+            try:
+                qs = qs.filter(**{param: int(raw_value)})
+            except (TypeError, ValueError):
+                continue
+
+        return qs
+
+
+class HistoriqueMobileViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = HistoriqueMobile.objects.all()
+    serializer_class = HistoriqueMobileSerializer
+
+    def get_queryset(self):
+        qs = HistoriqueMobile.objects.all().order_by('-date_action', '-id_historique_mobile')
+        query_params = self.request.query_params
+
+        text_filters = {
+            'type_entree': 'type_entree',
+            'type_evenement': 'type_evenement',
+            'type_action': 'type_action',
+            'nom_schema': 'nom_schema',
+            'nom_table': 'nom_table',
+            'nom_attribut': 'nom_attribut',
+            'uuid_objet': 'uuid_objet',
+            'cle_ligne': 'cle_ligne',
+            'source_table_locale': 'source_table_locale',
+            'sync_uuid': 'sync_uuid',
+        }
+        for param, field_name in text_filters.items():
+            value = query_params.get(param)
+            if value not in (None, ''):
+                qs = qs.filter(**{field_name: value})
+
+        for param in ('id_objet', 'id_agent', 'source_id_local'):
+            raw_value = query_params.get(param)
+            if raw_value in (None, ''):
+                continue
+            try:
+                qs = qs.filter(**{param: int(raw_value)})
+            except (TypeError, ValueError):
+                continue
+
+        return qs
+
 
 class ObjetIncompletViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
     queryset = ObjetIncomplet.objects.all()
@@ -263,6 +659,233 @@ class FondDePlanViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet)
 class EvaluationAgentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EvaluationAgent.objects.all()
     serializer_class = EvaluationAgentSerializer
+
+
+class MetricAgentJourViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentJour.objects.all()
+    serializer_class = MetricAgentJourSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentJour.objects.all().order_by('-jour', 'id_agent', 'nom_schema', 'nom_table')
+        qs = self._apply_metric_common_filters(qs)
+
+        jour = self._parse_date_only_param('jour')
+        date_from = self._parse_date_only_param('date_from')
+        date_to = self._parse_date_only_param('date_to')
+
+        if jour is not None:
+            qs = qs.filter(jour=jour)
+        if date_from is not None:
+            qs = qs.filter(jour__gte=date_from)
+        if date_to is not None:
+            qs = qs.filter(jour__lte=date_to)
+
+        return qs
+
+
+class MetricAgentSemaineViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentSemaine.objects.all()
+    serializer_class = MetricAgentSemaineSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentSemaine.objects.all().order_by('-semaine_debut', 'id_agent', 'nom_schema', 'nom_table')
+        qs = self._apply_metric_common_filters(qs)
+
+        semaine_debut = self._parse_date_only_param('semaine_debut')
+        annee_iso = self._parse_positive_int_param('annee_iso')
+        semaine_iso = self._parse_positive_int_param('semaine_iso')
+
+        if semaine_debut is not None:
+            qs = qs.filter(semaine_debut=semaine_debut)
+        if annee_iso is not None:
+            qs = qs.filter(annee_iso=annee_iso)
+        if semaine_iso is not None:
+            qs = qs.filter(semaine_iso=semaine_iso)
+
+        return qs
+
+
+class MetricAgentMoisViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentMois.objects.all()
+    serializer_class = MetricAgentMoisSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentMois.objects.all().order_by('-mois', 'id_agent', 'nom_schema', 'nom_table')
+        qs = self._apply_metric_common_filters(qs)
+
+        mois = self._parse_date_only_param('mois')
+        annee = self._parse_positive_int_param('annee')
+        mois_numero = self._parse_positive_int_param('mois_numero')
+
+        if mois is not None:
+            qs = qs.filter(mois=mois)
+        if annee is not None:
+            qs = qs.filter(annee=annee)
+        if mois_numero is not None:
+            if not 1 <= mois_numero <= 12:
+                raise ValidationError({'mois_numero': 'Valeur entre 1 et 12 attendue'})
+            qs = qs.filter(mois_numero=mois_numero)
+
+        return qs
+
+
+class MetricAgentPublicJourViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentPublicJour.objects.all()
+    serializer_class = MetricAgentPublicJourSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentPublicJour.objects.all().order_by('-jour', 'id_agent')
+        qs = self._apply_metric_common_filters(qs)
+
+        jour = self._parse_date_only_param('jour')
+        date_from = self._parse_date_only_param('date_from')
+        date_to = self._parse_date_only_param('date_to')
+
+        if jour is not None:
+            qs = qs.filter(jour=jour)
+        if date_from is not None:
+            qs = qs.filter(jour__gte=date_from)
+        if date_to is not None:
+            qs = qs.filter(jour__lte=date_to)
+
+        return qs
+
+
+class MetricAgentPublicSemaineViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentPublicSemaine.objects.all()
+    serializer_class = MetricAgentPublicSemaineSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentPublicSemaine.objects.all().order_by('-semaine_debut', 'id_agent')
+        qs = self._apply_metric_common_filters(qs)
+
+        semaine_debut = self._parse_date_only_param('semaine_debut')
+        annee_iso = self._parse_positive_int_param('annee_iso')
+        semaine_iso = self._parse_positive_int_param('semaine_iso')
+
+        if semaine_debut is not None:
+            qs = qs.filter(semaine_debut=semaine_debut)
+        if annee_iso is not None:
+            qs = qs.filter(annee_iso=annee_iso)
+        if semaine_iso is not None:
+            qs = qs.filter(semaine_iso=semaine_iso)
+
+        return qs
+
+
+class MetricAgentPublicMoisViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentPublicMois.objects.all()
+    serializer_class = MetricAgentPublicMoisSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentPublicMois.objects.all().order_by('-mois', 'id_agent')
+        qs = self._apply_metric_common_filters(qs)
+
+        mois = self._parse_date_only_param('mois')
+        annee = self._parse_positive_int_param('annee')
+        mois_numero = self._parse_positive_int_param('mois_numero')
+
+        if mois is not None:
+            qs = qs.filter(mois=mois)
+        if annee is not None:
+            qs = qs.filter(annee=annee)
+        if mois_numero is not None:
+            if not 1 <= mois_numero <= 12:
+                raise ValidationError({'mois_numero': 'Valeur entre 1 et 12 attendue'})
+            qs = qs.filter(mois_numero=mois_numero)
+
+        return qs
+
+
+class MetricAgentPublicResumeViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentPublicResume.objects.all()
+    serializer_class = MetricAgentPublicResumeSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentPublicResume.objects.all().order_by('id_agent', 'id_projet')
+        for param in ('id_agent', 'id_projet'):
+            value = self._parse_positive_int_param(param)
+            if value is not None:
+                qs = qs.filter(**{param: value})
+        return qs
+
+
+class MetricProjetJourViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricProjetJour.objects.all()
+    serializer_class = MetricProjetJourSerializer
+
+    def get_queryset(self):
+        qs = MetricProjetJour.objects.all().order_by('-jour', 'id_projet')
+        qs = self._apply_project_metric_filters(qs)
+
+        jour = self._parse_date_only_param('jour')
+        date_from = self._parse_date_only_param('date_from')
+        date_to = self._parse_date_only_param('date_to')
+
+        if jour is not None:
+            qs = qs.filter(jour=jour)
+        if date_from is not None:
+            qs = qs.filter(jour__gte=date_from)
+        if date_to is not None:
+            qs = qs.filter(jour__lte=date_to)
+
+        return qs
+
+
+class MetricProjetSemaineViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricProjetSemaine.objects.all()
+    serializer_class = MetricProjetSemaineSerializer
+
+    def get_queryset(self):
+        qs = MetricProjetSemaine.objects.all().order_by('-semaine_debut', 'id_projet')
+        qs = self._apply_project_metric_filters(qs)
+
+        semaine_debut = self._parse_date_only_param('semaine_debut')
+        annee_iso = self._parse_positive_int_param('annee_iso')
+        semaine_iso = self._parse_positive_int_param('semaine_iso')
+
+        if semaine_debut is not None:
+            qs = qs.filter(semaine_debut=semaine_debut)
+        if annee_iso is not None:
+            qs = qs.filter(annee_iso=annee_iso)
+        if semaine_iso is not None:
+            qs = qs.filter(semaine_iso=semaine_iso)
+
+        return qs
+
+
+class MetricProjetMoisViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricProjetMois.objects.all()
+    serializer_class = MetricProjetMoisSerializer
+
+    def get_queryset(self):
+        qs = MetricProjetMois.objects.all().order_by('-mois', 'id_projet')
+        qs = self._apply_project_metric_filters(qs)
+
+        mois = self._parse_date_only_param('mois')
+        annee = self._parse_positive_int_param('annee')
+        mois_numero = self._parse_positive_int_param('mois_numero')
+
+        if mois is not None:
+            qs = qs.filter(mois=mois)
+        if annee is not None:
+            qs = qs.filter(annee=annee)
+        if mois_numero is not None:
+            if not 1 <= mois_numero <= 12:
+                raise ValidationError({'mois_numero': 'Valeur entre 1 et 12 attendue'})
+            qs = qs.filter(mois_numero=mois_numero)
+
+        return qs
+
+
+class MetricProjetResumeViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricProjetResume.objects.all()
+    serializer_class = MetricProjetResumeSerializer
+
+    def get_queryset(self):
+        qs = MetricProjetResume.objects.all().order_by('id_projet')
+        qs = self._apply_project_metric_filters(qs)
+        return qs
 
 
 # =====================================================================

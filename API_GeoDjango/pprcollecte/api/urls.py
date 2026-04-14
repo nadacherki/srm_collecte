@@ -75,9 +75,21 @@ router.register(r'projets', views.ProjetViewSet, basename='projet')
 router.register(r'missions', views.MissionViewSet, basename='mission')
 router.register(r'communes', views.CommuneViewSet, basename='commune')
 router.register(r'historique', views.HistoriqueAttributViewSet, basename='historique')
+router.register(r'historique-mobile', views.HistoriqueMobileViewSet, basename='historique-mobile')
 router.register(r'objets-incomplets', views.ObjetIncompletViewSet, basename='objet-incomplet')
 router.register(r'fonds-de-plan', views.FondDePlanViewSet, basename='fond-de-plan')
 router.register(r'evaluations', views.EvaluationAgentViewSet, basename='evaluation')
+router.register(r'metrics-agent-jour', views.MetricAgentJourViewSet, basename='metrics-agent-jour')
+router.register(r'metrics-agent-semaine', views.MetricAgentSemaineViewSet, basename='metrics-agent-semaine')
+router.register(r'metrics-agent-mois', views.MetricAgentMoisViewSet, basename='metrics-agent-mois')
+router.register(r'metrics-agent-public-jour', views.MetricAgentPublicJourViewSet, basename='metrics-agent-public-jour')
+router.register(r'metrics-agent-public-semaine', views.MetricAgentPublicSemaineViewSet, basename='metrics-agent-public-semaine')
+router.register(r'metrics-agent-public-mois', views.MetricAgentPublicMoisViewSet, basename='metrics-agent-public-mois')
+router.register(r'metrics-agent-public-resume', views.MetricAgentPublicResumeViewSet, basename='metrics-agent-public-resume')
+router.register(r'metrics-projet-jour', views.MetricProjetJourViewSet, basename='metrics-projet-jour')
+router.register(r'metrics-projet-semaine', views.MetricProjetSemaineViewSet, basename='metrics-projet-semaine')
+router.register(r'metrics-projet-mois', views.MetricProjetMoisViewSet, basename='metrics-projet-mois')
+router.register(r'metrics-projet-resume', views.MetricProjetResumeViewSet, basename='metrics-projet-resume')
 
 # =====================================================================
 #  EP — Eau Potable (27 endpoints)
@@ -144,6 +156,8 @@ router.register(r'elec/troncons-hta', views.ElecTronconHtaViewSet, basename='ele
 urlpatterns = [
     # Login (vue fonction, pas un ViewSet)
     path('api/login/', views.login_view, name='login'),
+    path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),
+    path('api/historique-mobile/upload/', views.mobile_history_upload_view, name='historique-mobile-upload'),
 
     # Toutes les routes du router sous /api/
     path('api/', include(router.urls)),

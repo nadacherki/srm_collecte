@@ -1,14 +1,14 @@
-// legend_widget.dart
-// ── Légende SRM — 100 % dynamique basée sur SrmConfig ──
+﻿// legend_widget.dart
+// â”€â”€ LÃ©gende SRM â€” 100 % dynamique basÃ©e sur SrmConfig â”€â”€
 //
-// Fonctionnalités :
-//   • 3 sections dépliables (Eau Potable / Assainissement / Électricité)
-//   • Checkbox par entité → afficher/masquer sur la carte
-//   • Checkbox parent par métier avec état tristate (tout/partiel/rien)
-//   • Filtre Anomalie : mode isolement → seuls les objets en anomalie visibles
-//     (les anomalies s'affichent TOUJOURS en rouge danger, même sans filtre)
-//   • Compteurs en temps réel par entité et par métier
-//   • 100 % dynamique : suit SrmConfig automatiquement
+// FonctionnalitÃ©s :
+//   â€¢ 3 sections dÃ©pliables (Eau Potable / Assainissement / Ã‰lectricitÃ©)
+//   â€¢ Checkbox par entitÃ© â†’ afficher/masquer sur la carte
+//   â€¢ Checkbox parent par mÃ©tier avec Ã©tat tristate (tout/partiel/rien)
+//   â€¢ Filtre Anomalie : mode isolement â†’ seuls les objets en anomalie visibles
+//     (les anomalies s'affichent TOUJOURS en rouge danger, mÃªme sans filtre)
+//   â€¢ Compteurs en temps rÃ©el par entitÃ© et par mÃ©tier
+//   â€¢ 100 % dynamique : suit SrmConfig automatiquement
 
 import 'package:flutter/material.dart';
 import '../../core/config/srm_config.dart';
@@ -27,7 +27,7 @@ class LegendWidget extends StatefulWidget {
   /// Compteur d'objets incomplets par table (fourni par home_page)
   final Map<String, int> incompletCountsByTable;
 
-  // Paramètres de compatibilité GeoDNGR conservés pour ne pas casser
+  // ParamÃ¨tres de compatibilitÃ© GeoDNGR conservÃ©s pour ne pas casser
   // la signature existante dans home_page
   final List<dynamic> allPolylines;
   final List<dynamic> allMarkers;
@@ -173,9 +173,9 @@ class _LegendWidgetState extends State<LegendWidget> {
     return anyOn && anyOff;
   }
 
-  // ══════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  BUILD
-  // ══════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   @override
   Widget build(BuildContext context) {
     return Positioned(
@@ -200,7 +200,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ── Header bouton ──
+  // â”€â”€ Header bouton â”€â”€
   Widget _buildHeader() {
     return InkWell(
       onTap: () => setState(() => _isExpanded = !_isExpanded),
@@ -242,7 +242,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ── Corps ──
+  // â”€â”€ Corps â”€â”€
   Widget _buildBody() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -270,9 +270,9 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  FILTRE ANOMALIE
-  // ══════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildAnomalieFilter() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -344,7 +344,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ── Filtre Objet Incomplet ──
+  // â”€â”€ Filtre Objet Incomplet â”€â”€
   Widget _buildIncompletFilter() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -436,9 +436,9 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  SECTION MÉTIER
-  // ══════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  SECTION MÃ‰TIER
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildMetierSection(String metier) {
     final color = _metierColor[metier] ?? Colors.grey;
     final icon = _metierIcon[metier] ?? Icons.category;
@@ -451,7 +451,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header métier cliquable
+        // Header mÃ©tier cliquable
         InkWell(
           onTap: () =>
               setState(() => _metierExpanded[metier] = !isExpanded),
@@ -475,7 +475,7 @@ class _LegendWidgetState extends State<LegendWidget> {
                   ),
                 ),
                 const SizedBox(width: 5),
-                // Icône métier
+                // IcÃ´ne mÃ©tier
                 Container(
                   width: 22,
                   height: 22,
@@ -518,7 +518,7 @@ class _LegendWidgetState extends State<LegendWidget> {
           ),
         ),
 
-        // Entités du métier
+        // EntitÃ©s du mÃ©tier
         if (isExpanded)
           Padding(
             padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
@@ -534,9 +534,9 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  LIGNE ENTITÉ
-  // ══════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  LIGNE ENTITÃ‰
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildEntityRow(String metier, String entity, Color metierColor) {
     final tableName = SrmConfig.getTableName(metier, entity);
     if (tableName == null) return const SizedBox.shrink();
@@ -552,7 +552,7 @@ class _LegendWidgetState extends State<LegendWidget> {
         ? (iconCfg?.color ?? metierColor)
         : Colors.grey.shade300;
 
-    // Déterminer si c'est une ligne ou un polygone
+    // DÃ©terminer si c'est une ligne ou un polygone
     final isLine = SrmConfig.isLineEntity(metier, entity);
     final isPolygon = SrmConfig.isPolygonEntity(metier, entity);
 
@@ -572,7 +572,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             ),
           ),
           const SizedBox(width: 5),
-          // Symbole selon le type de géométrie
+          // Symbole selon le type de gÃ©omÃ©trie
           if (isLine)
             _lineSymbol(entityColor)
           else if (isPolygon)
@@ -607,7 +607,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ── Symboles géométrie ──
+  // â”€â”€ Symboles gÃ©omÃ©trie â”€â”€
   Widget _pointSymbol(IconData icon, Color color) {
     return Container(
       width: 20,
@@ -650,7 +650,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // ── Badge compteur ──
+  // â”€â”€ Badge compteur â”€â”€
   Widget _badge(int count,
       {required Color color, IconData? icon, bool small = false}) {
     if (count <= 0) return const SizedBox.shrink();
@@ -681,7 +681,7 @@ class _LegendWidgetState extends State<LegendWidget> {
   }
 }
 
-// ── Mini panneau danger pour la légende ──────────────────────────────────
+// â”€â”€ Mini panneau danger pour la lÃ©gende â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _MiniWarningPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -724,3 +724,4 @@ class _MiniWarningPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

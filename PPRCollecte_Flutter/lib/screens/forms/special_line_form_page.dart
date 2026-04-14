@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../widgets/forms/point_form_widget.dart';
-import '../../data/local/piste_chaussee_db_helper.dart';
+import '../../data/local/piste_storage_helper.dart';
 
 class SpecialLineFormPage extends StatefulWidget {
   final List<LatLng> linePoints;
@@ -60,7 +60,7 @@ class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
       // 3. FALLBACK : recherche géographique
       else {
         print('🔍 Recherche géographique de piste...');
-        nearestCode = await SimpleStorageHelper().findNearestPisteCode(firstPoint);
+        nearestCode = await PisteStorageHelper().findNearestPisteCode(firstPoint);
         print('📍 Piste la plus proche trouvée: $nearestCode');
       }
 

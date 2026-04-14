@@ -19,6 +19,7 @@ import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/photo_validation_service.dart';
+import '../../services/photo_reference_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 
@@ -299,6 +300,23 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   void _removePhoto(int index) => setState(() => _photoPaths[index] = null);
 
+  Widget _buildPhotoPreview(String path) {
+    final remoteUrl = PhotoReferenceService.buildRemoteUrl(path);
+    if (remoteUrl != null) {
+      return Image.network(
+        remoteUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+      );
+    }
+
+    return Image.file(
+      File(PhotoReferenceService.toLocalFilePath(path)),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+    );
+  }
+
   // ────────────────────────────────────────────
   // Sauvegarde
   // ────────────────────────────────────────────
@@ -375,11 +393,24 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
       // ── INSERT ou UPDATE dans la table métier ──
       if (widget.existingData != null && widget.existingData!['id'] != null) {
-        final dbRaw = await db.database;
-        await dbRaw.update(tableName, data,
-            where: 'id = ?', whereArgs: [widget.existingData!['id']]);
+        final existingId = widget.existingData!['id'] is int
+            ? widget.existingData!['id'] as int
+            : int.tryParse(widget.existingData!['id'].toString());
+        if (existingId == null) {
+          throw Exception('Identifiant local invalide pour la mise à jour');
+        }
+        await db.updateEntitySrm(
+          tableName,
+          existingId,
+          data,
+          recordHistory: true,
+        );
       } else {
-        await db.insertEntitySrm(tableName, data);
+        await db.insertEntitySrm(
+          tableName,
+          data,
+          recordHistory: true,
+        );
       }
 
       // ── INSERT dans objet_incomplet si toggle activé ──
@@ -402,7 +433,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           'synced':            0,
           'date_collecte':     DateTime.now().toIso8601String(),
         };
-        await db.insertEntitySrm('objet_incomplet', incompletData);
+        await db.insertEntitySrm(
+          'objet_incomplet',
+          incompletData,
+          recordHistory: true,
+        );
       }
 
       if (mounted) {
@@ -760,8 +795,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                       child: path != null
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(7),
-                              child:
-                                  Image.file(File(path), fit: BoxFit.cover))
+                              child: _buildPhotoPreview(path))
                           : Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

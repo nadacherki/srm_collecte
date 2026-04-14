@@ -37,7 +37,6 @@ class HomeController extends ChangeNotifier {
 
   // Getters pour les nouvelles collectes
   LigneCollection? get ligneCollection => _collectionManager.ligneCollection;
-  ChausseeCollection? get chausseeCollection => _collectionManager.chausseeCollection;
   bool get hasActiveCollection => _collectionManager.hasActiveCollection;
   bool get hasPausedCollection => _collectionManager.hasPausedCollection;
   String? get activeCollectionType => _collectionManager.activeCollectionType;
@@ -188,7 +187,6 @@ class HomeController extends ChangeNotifier {
   // Vérifier que la collection spéciale est bien mise à jour
   void _onCollectionChanged() {
     final ligne = _collectionManager.ligneCollection;
-    final chaussee = _collectionManager.chausseeCollection;
     final special = _collectionManager.specialCollection;
 
     if (ligne != null) {
@@ -272,9 +270,7 @@ class HomeController extends ChangeNotifier {
       _collectionManager.addManualPoint(
         activeCollectionType == 'ligne'
             ? CollectionType.ligne
-            : activeCollectionType == 'chaussée'
-                ? CollectionType.chaussee
-                : CollectionType.special,
+            : CollectionType.special,
         point,
       );
     }
@@ -348,21 +344,6 @@ class HomeController extends ChangeNotifier {
     }
   }
 
-  Future<void> startChausseeCollection() async {
-    if (!gpsEnabled) {
-      throw Exception('Le GPS doit être activé pour commencer la collecte');
-    }
-    try {
-      _collectionManager.startChausseeCollection(
-        initialPosition: userPosition,
-        locationStream: _locationService.onLocationChanged(),
-      );
-      notifyListeners();
-    } catch (e) {
-      throw Exception(e.toString());
-    }
-  }
-
   void toggleLigneCollection() {
     final ligne = _collectionManager.ligneCollection;
     if (ligne == null) return;
@@ -372,21 +353,6 @@ class HomeController extends ChangeNotifier {
     } else if (ligne.isPaused) {
       try {
         _collectionManager.resumeLigneCollection(_locationService.onLocationChanged());
-      } catch (e) {
-        rethrow;
-      }
-    }
-  }
-
-  void toggleChausseeCollection() {
-    final chaussee = _collectionManager.chausseeCollection;
-    if (chaussee == null) return;
-
-    if (chaussee.isActive) {
-      _collectionManager.pauseChausseeCollection();
-    } else if (chaussee.isPaused) {
-      try {
-        _collectionManager.resumeChausseeCollection(_locationService.onLocationChanged());
       } catch (e) {
         rethrow;
       }
@@ -412,17 +378,6 @@ class HomeController extends ChangeNotifier {
     if (_collectionManager.ligneCollection?.isActive ?? false) {
       final added = _collectionManager.addManualPoint(
         CollectionType.ligne,
-        userPosition,
-      );
-      if (!added) {
-        return 'Le point courant existe déjà dans ce tracé.';
-      }
-      return null;
-    }
-
-    if (_collectionManager.chausseeCollection?.isActive ?? false) {
-      final added = _collectionManager.addManualPoint(
-        CollectionType.chaussee,
         userPosition,
       );
       if (!added) {
@@ -473,24 +428,6 @@ class HomeController extends ChangeNotifier {
   void cancelLigneCollection() {
     _collectionManager.cancelLigneCollection();
     _activePisteCode = null;
-    notifyListeners();
-  }
-
-  Map<String, dynamic>? finishChausseeCollection() {
-    final result = _collectionManager.finishChausseeCollection();
-    if (result == null) return null;
-
-    return {
-      'points': result.points,
-      'id': result.id,
-      'totalDistance': result.totalDistance,
-      'startTime': result.startTime,
-      'endTime': result.endTime,
-    };
-  }
-
-  void cancelChausseeCollection() {
-    _collectionManager.cancelChausseeCollection();
     notifyListeners();
   }
 

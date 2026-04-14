@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/local/database_helper.dart';
-import '../../data/local/piste_chaussee_db_helper.dart';
+import '../../data/local/piste_storage_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../core/config/srm_config.dart';
 import '../../services/projection_service.dart';
@@ -177,7 +177,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             widget.nearestPisteCode!.isNotEmpty) {
           _nearestPisteCode = widget.nearestPisteCode;
         } else {
-          _nearestPisteCode = await SimpleStorageHelper()
+          _nearestPisteCode = await PisteStorageHelper()
               .findNearestPisteCode(widget.polygonPoints.first);
         }
       } catch (e) {
@@ -329,7 +329,27 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           'date_collecte': now.toIso8601String(),
         };
 
-        await DatabaseHelper().insertEntitySrm(_tableName, data);
+        final dbHelper = DatabaseHelper();
+        if (_isEditing) {
+          final existingId = widget.existingData!['id'] is int
+              ? widget.existingData!['id'] as int
+              : int.tryParse(widget.existingData!['id'].toString());
+          if (existingId == null) {
+            throw Exception('Identifiant local invalide pour la mise à jour');
+          }
+          await dbHelper.updateEntitySrm(
+            _tableName,
+            existingId,
+            data,
+            recordHistory: true,
+          );
+        } else {
+          await dbHelper.insertEntitySrm(
+            _tableName,
+            data,
+            recordHistory: true,
+          );
+        }
 
         if (mounted) {
           await clearDraftAfterSave();
@@ -344,12 +364,13 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       }
 
       // ── Comportement historique GeoDNGR (Zone de Plaine) ──
-      final db = await DatabaseHelper().database;
+      final dbHelper = DatabaseHelper();
 
       if (_isEditing) {
         final id = widget.existingData!['id'];
-        await db.update(
+        await dbHelper.updateEntityLocal(
           'enquete_polygone',
+          id,
           {
             'nom': _nomController.text.isEmpty ? null : _nomController.text,
             'points_json': jsonEncode(_closedCoordinates),
@@ -361,11 +382,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             'code_piste': _nearestPisteCode,
             'synced': 0,
           },
-          where: 'id = ?',
-          whereArgs: [id],
+          recordHistory: true,
         );
       } else {
-        await db.insert('enquete_polygone', {
+        await dbHelper.insertEntityLocal('enquete_polygone', {
           'nom': _nomController.text.isEmpty ? null : _nomController.text,
           'points_json': jsonEncode(_closedCoordinates),
           'superficie_en_ha': _superficieHa,
@@ -382,7 +402,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               ApiService.userId ?? await DatabaseHelper().resolveLoginId(),
           'saved_by_user_id': ApiService.userId,
           'commune_id': null,
-        });
+        }, recordHistory: true);
       }
 
       if (mounted) {

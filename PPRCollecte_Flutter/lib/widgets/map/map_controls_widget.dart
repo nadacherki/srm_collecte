@@ -101,11 +101,9 @@ class MapControlsWidget extends StatelessWidget {
   Widget _buildPointControls() {
     final isManualCollectionActive =
         (controller.ligneCollection?.isActive ?? false) ||
-        (controller.chausseeCollection?.isActive ?? false) ||
         (isPolygonCollection && (controller.specialCollection?.isActive ?? false));
     final hasManualCollectionContext =
         controller.ligneCollection != null ||
-        controller.chausseeCollection != null ||
         (isPolygonCollection && controller.specialCollection != null);
 
     if (isSpecialCollection && !isPolygonCollection) {
@@ -158,7 +156,7 @@ class MapControlsWidget extends StatelessWidget {
     final ligneCollection = controller.ligneCollection;
 
     if (ligneCollection == null || ligneCollection.isInactive) {
-      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.specialCollection != null || controller.chausseeCollection != null) {
+      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.specialCollection != null) {
         return const SizedBox.shrink();
       }
 
@@ -224,7 +222,7 @@ class MapControlsWidget extends StatelessWidget {
         isSpecialCollection && isPolygonCollection && specialCollection != null;
 
     if (!isPolygonActive) {
-      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.ligneCollection != null || controller.chausseeCollection != null || controller.specialCollection != null) {
+      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.ligneCollection != null || controller.specialCollection != null) {
         return const SizedBox.shrink();
       }
 

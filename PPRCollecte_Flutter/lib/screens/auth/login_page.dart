@@ -1,8 +1,8 @@
-// lib/screens/auth/login_page.dart
-// ── Login SRM — Navigation directe vers HomePage après connexion ──
-// Plus de ProjectSelectionPage : le projet actif est chargé depuis
+﻿// lib/screens/auth/login_page.dart
+// â”€â”€ Login SRM â€” Navigation directe vers HomePage aprÃ¨s connexion â”€â”€
+// Plus de ProjectSelectionPage : le projet actif est chargÃ© depuis
 // utilisateur.id_projet_actif au login. La date de collecte est
-// automatiquement enregistrée à chaque objet créé (DateTime.now()).
+// automatiquement enregistrÃ©e Ã  chaque objet crÃ©Ã© (DateTime.now()).
 
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -10,6 +10,7 @@ import 'dart:io';
 import '../home/home_page.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../services/password_hash_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -55,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
       if (user != null) {
         setState(() {
           loginController.text = user['login'] ?? '';
-          passwordController.text = user['mot_de_passe'] ?? '';
+          passwordController.clear();
           rememberMe = true;
         });
       }
@@ -71,11 +72,21 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _loginOffline(String login, String password) async {
     final isValidLocal = await DatabaseHelper().validateUser(login, password);
     if (isValidLocal) {
-      await DatabaseHelper().setCurrentUserLogin(login, remember: rememberMe);
+      final dbHelper = DatabaseHelper();
+      await dbHelper.setCurrentUserLogin(login, remember: rememberMe);
+      await dbHelper.recordLocalEvent(
+        eventType: 'LOGIN_SUCCESS_OFFLINE',
+        tableName: 'utilisateur_local',
+        cleLigne: login,
+        payload: {'login': login},
+      );
 
-      final user = await DatabaseHelper().getCurrentUserSrm();
+      final user = await dbHelper.getCurrentUserSrm();
       if (user != null) {
-        ApiService.userId    = user['api_id'] as int?;
+        final rawUserId = user['id_user'];
+        ApiService.userId = rawUserId is int
+            ? rawUserId
+            : int.tryParse(rawUserId?.toString() ?? '');
         ApiService.userLogin = user['login'] as String?;
         ApiService.nomPrenom = user['nom_prenom'] as String?;
         ApiService.userRole  = user['role'] as String?;
@@ -93,8 +104,9 @@ class _LoginPageState extends State<LoginPage> {
             ApiService.currentProjetMetier = projet['metier'] as String?;
           }
         }
-        print('🔄 ApiService restauré (offline): '
-            'userId=${ApiService.userId} projet=${ApiService.currentProjetId}');
+        print(
+          '[LOGIN] ApiService restore (offline): userId=${ApiService.userId} projet=${ApiService.currentProjetId}',
+        );
       }
 
       final fullName = ApiService.nomPrenom ?? 'Utilisateur Local';
@@ -128,11 +140,14 @@ class _LoginPageState extends State<LoginPage> {
       final userData =
           await ApiService.login(login, password).timeout(_loginTimeout);
 
-      await DatabaseHelper().setCurrentUserLogin(login, remember: rememberMe);
+      final dbHelper = DatabaseHelper();
+      await dbHelper.setCurrentUserLogin(login, remember: rememberMe);
 
-      await DatabaseHelper().upsertUserSrm(
+      final passwordHash = await PasswordHashService.hashPassword(password);
+
+      await dbHelper.upsertUserSrm(
         login:         login,
-        motDePasse:    password,
+        motDePasseHash: passwordHash,
         nomPrenom:     userData['nom_prenom'],
         role:          userData['role'],
         apiId:         userData['id_user'],
@@ -140,7 +155,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (userData['projet_id'] != null) {
-        await DatabaseHelper().upsertProjetLocal(
+        await dbHelper.upsertProjetLocal(
           idProjet:    userData['projet_id'],
           nom:         userData['projet_nom'],
           codeAffaire: userData['projet_code'],
@@ -150,6 +165,17 @@ class _LoginPageState extends State<LoginPage> {
           statut:      userData['projet_statut'],
         );
       }
+
+      await dbHelper.recordLocalEvent(
+        eventType: 'LOGIN_SUCCESS_ONLINE',
+        tableName: 'utilisateur_local',
+        cleLigne: login,
+        payload: {
+          'login': login,
+          'id_user': userData['id_user'],
+          'id_projet_actif': userData['id_projet_actif'],
+        },
+      );
 
       final fullName = userData['nom_prenom'] ?? 'Agent SRM';
       if (!mounted) return;
@@ -168,7 +194,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ── Navigation directe vers la carte ──
+  // â”€â”€ Navigation directe vers la carte â”€â”€
   void _navigateToHome(String agentName, {required bool isOnline}) {
     Navigator.pushReplacement(
       context,
@@ -274,7 +300,7 @@ class _LoginPageState extends State<LoginPage> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Stack(
           children: [
-            // ── Fond haut bleu ──
+            // â”€â”€ Fond haut bleu â”€â”€
             Positioned(
               top: 0, left: 0, right: 0,
               height: MediaQuery.of(context).size.height * 0.42,
@@ -317,7 +343,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
 
-            // ── Contenu scrollable ──
+            // â”€â”€ Contenu scrollable â”€â”€
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -462,7 +488,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                     const SizedBox(height: 14),
 
-                                    // Se souvenir + oublié
+                                    // Se souvenir + oubliÃ©
                                     Row(
                                       children: [
                                         SizedBox(
@@ -574,7 +600,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-/// Logo SRM (fallback vers icône si asset manquant)
+/// Logo SRM (fallback vers icÃ´ne si asset manquant)
 class SrmLoginEmblem extends StatelessWidget {
   const SrmLoginEmblem({super.key});
 

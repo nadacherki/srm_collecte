@@ -14,6 +14,7 @@ import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/photo_validation_service.dart';
+import '../../services/photo_reference_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 
@@ -161,6 +162,23 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   String _formatTime(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  Widget _buildPhotoPreview(String path) {
+    final remoteUrl = PhotoReferenceService.buildRemoteUrl(path);
+    if (remoteUrl != null) {
+      return Image.network(
+        remoteUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+      );
+    }
+
+    return Image.file(
+      File(PhotoReferenceService.toLocalFilePath(path)),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+    );
+  }
 
   @override
   void dispose() {
@@ -360,7 +378,27 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       data['synced'] = 0;
       data['date_collecte'] = DateTime.now().toIso8601String();
 
-      await DatabaseHelper().insertEntitySrm(tableName, data);
+      final dbHelper = DatabaseHelper();
+      if (widget.existingData != null && widget.existingData!['id'] != null) {
+        final existingId = widget.existingData!['id'] is int
+            ? widget.existingData!['id'] as int
+            : int.tryParse(widget.existingData!['id'].toString());
+        if (existingId == null) {
+          throw Exception('Identifiant local invalide pour la mise à jour');
+        }
+        await dbHelper.updateEntitySrm(
+          tableName,
+          existingId,
+          data,
+          recordHistory: true,
+        );
+      } else {
+        await dbHelper.insertEntitySrm(
+          tableName,
+          data,
+          recordHistory: true,
+        );
+      }
 
       if (mounted) {
         await clearDraftAfterSave();
@@ -751,8 +789,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                           child: path != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(7),
-                                  child: Image.file(File(path),
-                                      fit: BoxFit.cover))
+                                  child: _buildPhotoPreview(path))
                               : Column(
                                   mainAxisAlignment:
                                       MainAxisAlignment.center,

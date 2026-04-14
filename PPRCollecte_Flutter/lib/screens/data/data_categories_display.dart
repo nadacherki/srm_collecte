@@ -7,9 +7,6 @@ import '../../widgets/forms/type_selector_widget.dart';
 import '../../widgets/forms/point_form_widget.dart';
 import '../../widgets/lists/data_list_view.dart';
 import '../../data/local/database_helper.dart';
-import '../../data/local/piste_chaussee_db_helper.dart';
-import '../forms/formulaire_ligne_page.dart';
-import '../forms/formulaire_chaussee_page.dart';
 import '../home/home_page.dart';
 import '../forms/polygon_form_page.dart';
 
@@ -687,6 +684,15 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     );
   }
 
+  void _showLegacyRemovedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Le flux legacy pistes/chaussees est en cours de retrait.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
   Future<void> _fetchData() async {
     if (selectedCategory == null) return;
 
@@ -694,63 +700,32 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     List<Map<String, dynamic>> filteredData = [];
 
     try {
+      if (selectedCategory == "Pistes" || selectedCategory == "ChaussÃ©es") {
+        setState(() => currentData = []);
+        return;
+      }
+
       final dbHelper = DatabaseHelper();
       final loginId = await dbHelper.resolveLoginId();
-      // CAS SPÉCIAL PISTES/CHAUSSÉES
-      if (selectedCategory == "Pistes" || selectedCategory == "Chaussées") {
-        final storageHelper = SimpleStorageHelper();
+      final config = InfrastructureConfig.getEntityConfig(selectedCategory!, selectedType!);
+      final tableName = config?['tableName'] ?? '';
 
-        if (selectedCategory == "Pistes") {
-          List<Map<String, dynamic>> allPistes = await storageHelper.getAllPistesMaps();
-
-          // FILTRAGE PISTES
-          if (widget.dataFilter == "unsynced") {
-            filteredData = allPistes.where((piste) => (piste['synced'] == 0 || piste['synced'] == null) && (piste['downloaded'] == 0 || piste['downloaded'] == null) && piste['login_id'] == loginId).toList();
-          } else if (widget.dataFilter == "synced") {
-            filteredData = allPistes.where((piste) => piste['synced'] == 1 && (piste['downloaded'] == 0 || piste['downloaded'] == null) && piste['login_id'] == loginId).toList();
-          } else if (widget.dataFilter == "saved") {
-            filteredData = allPistes.where((piste) => piste['downloaded'] == 1 && piste['saved_by_user_id'] == loginId).toList();
-          } else {
-            filteredData = allPistes.where((p) => p['login_id'] == loginId || p['saved_by_user_id'] == loginId).toList();
-          }
-        } else if (selectedCategory == "Chaussées") {
-          List<Map<String, dynamic>> allChaussees = await storageHelper.getAllChausseesMaps();
-
-          // FILTRAGE CHAUSSÉES
-          if (widget.dataFilter == "unsynced") {
-            filteredData = allChaussees.where((ch) => (ch['synced'] == 0 || ch['synced'] == null) && (ch['downloaded'] == 0 || ch['downloaded'] == null) && ch['login_id'] == loginId).toList();
-          } else if (widget.dataFilter == "synced") {
-            filteredData = allChaussees.where((ch) => ch['synced'] == 1 && (ch['downloaded'] == 0 || ch['downloaded'] == null) && ch['login_id'] == loginId).toList();
-          } else if (widget.dataFilter == "saved") {
-            filteredData = allChaussees.where((ch) => ch['downloaded'] == 1 && ch['saved_by_user_id'] == loginId).toList();
-          } else {
-            filteredData = allChaussees.where((ch) => ch['login_id'] == loginId || ch['saved_by_user_id'] == loginId).toList();
-          }
-        }
+      if (tableName.isEmpty) {
+        setState(() => currentData = []);
+        return;
       }
-      //  CAS NORMAL - POINTS (LOGIQUE EXISTANTE)
-      else {
-        final dbHelper = DatabaseHelper();
-        final config = InfrastructureConfig.getEntityConfig(selectedCategory!, selectedType!);
-        final tableName = config?['tableName'] ?? '';
 
-        if (tableName.isEmpty) {
-          setState(() => currentData = []);
-          return;
-        }
+      List<Map<String, dynamic>> allData = await dbHelper.getEntities(tableName);
 
-        List<Map<String, dynamic>> allData = await dbHelper.getEntities(tableName);
-
-        // FILTRAGE STANDARD POUR POINTS
-        if (widget.dataFilter == "unsynced") {
-          filteredData = allData.where((item) => (item['synced'] == 0 || item['synced'] == null) && (item['downloaded'] == 0 || item['downloaded'] == null) && item['login_id'] == loginId).toList();
-        } else if (widget.dataFilter == "synced") {
-          filteredData = allData.where((item) => item['synced'] == 1 && (item['downloaded'] == 0 || item['downloaded'] == null) && item['login_id'] == loginId).toList();
-        } else if (widget.dataFilter == "saved") {
-          filteredData = allData.where((item) => item['downloaded'] == 1 && item['saved_by_user_id'] == loginId).toList();
-        } else {
-          filteredData = allData.where((item) => item['login_id'] == loginId || item['saved_by_user_id'] == loginId).toList();
-        }
+      // FILTRAGE STANDARD POUR POINTS
+      if (widget.dataFilter == "unsynced") {
+        filteredData = allData.where((item) => (item['synced'] == 0 || item['synced'] == null) && (item['downloaded'] == 0 || item['downloaded'] == null) && item['login_id'] == loginId).toList();
+      } else if (widget.dataFilter == "synced") {
+        filteredData = allData.where((item) => item['synced'] == 1 && (item['downloaded'] == 0 || item['downloaded'] == null) && item['login_id'] == loginId).toList();
+      } else if (widget.dataFilter == "saved") {
+        filteredData = allData.where((item) => item['downloaded'] == 1 && item['saved_by_user_id'] == loginId).toList();
+      } else {
+        filteredData = allData.where((item) => item['login_id'] == loginId || item['saved_by_user_id'] == loginId).toList();
       }
 
       //  METTRE À JOUR L'ÉTAT
@@ -761,103 +736,11 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     }
   }
 
-// Dans data_categories_display.dart
-  Future<void> _editChaussee(Map<String, dynamic> chaussee) async {
-    try {
-      // Convertir les données SQLite vers format formulaire
-      final formData = {
-        'id': chaussee['id'],
-        'code_piste': chaussee['code_piste'],
-        'code_gps': chaussee['code_gps'],
-        'endroit': chaussee['endroit'],
-        'type_chaussee': chaussee['type_chaussee'],
-        'etat_piste': chaussee['etat_piste'],
-        'user_login': chaussee['user_login'],
-        'x_debut_chaussee': chaussee['x_debut_chaussee'],
-        'y_debut_chaussee': chaussee['y_debut_chaussee'],
-        'x_fin_chaussee': chaussee['x_fin_chaussee'],
-        'y_fin_chaussee': chaussee['y_fin_chaussee'],
-        'points_collectes': jsonDecode(chaussee['points_json']),
-        'distance_totale_m': chaussee['distance_totale_m'],
-        'nombre_points': chaussee['nombre_points'],
-        'created_at': chaussee['created_at'],
-        'updated_at': chaussee['updated_at'],
-        'is_editing': true, // mode édition
-      };
-
-      // Convertir les points JSON en List<LatLng>
-      final pointsList = (formData['points_collectes'] as List).map((p) => LatLng(p['latitude'], p['longitude'])).toList();
-
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => FormulaireChausseePage(
-            chausseePoints: pointsList,
-            provisionalId: formData['id'],
-            agentName: formData['user_login'],
-            initialData: formData,
-            isEditingMode: true,
-          ),
-        ),
-      );
-
-      if (result != null) {
-        _fetchData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chaussée modifiée avec succès')),
-        );
-      }
-    } catch (e) {
-      print('❌ Erreur édition chaussée: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la modification: $e')),
-      );
-    }
-  }
-
-  Future<void> _deleteChaussee(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmer la suppression'),
-        content: const Text('Êtes-vous sûr de vouloir supprimer cette chaussée ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        final storageHelper = SimpleStorageHelper();
-        await storageHelper.deleteDisplayedChaussee(id);
-        await storageHelper.deleteChaussee(id);
-        _fetchData(); // Rafraîchir la liste
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chaussée supprimée avec succès')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la suppression: $e')),
-        );
-      }
-    }
-  }
-
   Future<void> _editItem(Map<String, dynamic> item) async {
     if (selectedCategory == "Pistes") {
-      await _editPiste(item);
+      _showLegacyRemovedMessage();
     } else if (selectedCategory == "Chaussées") {
-      await _editChaussee(item);
+      _showLegacyRemovedMessage();
     } else if (selectedType == "Zone de Plaine") {
       await _editZoneDePlaine(item);
     } else {
@@ -953,130 +836,11 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     }
   }
 
-  Future<void> _editPiste(Map<String, dynamic> piste) async {
-    try {
-      // Convertir les points JSON en List<LatLng>
-      final pointsJson = piste['points_json'];
-      List<LatLng> points = [];
-
-      if (pointsJson != null && pointsJson is String) {
-        try {
-          final pointsData = jsonDecode(pointsJson) as List;
-          points = pointsData.map((p) => LatLng(p['latitude'] ?? p['lat'] ?? 0.0, p['longitude'] ?? p['lng'] ?? 0.0)).toList();
-        } catch (e) {
-          print('❌ Erreur décodage points: $e');
-        }
-      }
-
-      // Préparer les données pour le formulaire
-      final formData = {
-        'id': piste['id'],
-        'code_piste': piste['code_piste'],
-        'commune_rurale_id': piste['commune_rurale_id'],
-        'user_login': piste['user_login'],
-        'heure_debut': piste['heure_debut'],
-        'heure_fin': piste['heure_fin'],
-        'nom_origine_piste': piste['nom_origine_piste'],
-        'x_origine': piste['x_origine'],
-        'y_origine': piste['y_origine'],
-        'nom_destination_piste': piste['nom_destination_piste'],
-        'x_destination': piste['x_destination'],
-        'y_destination': piste['y_destination'],
-        'existence_intersection': piste['existence_intersection'],
-        'nombre_intersections': piste['nombre_intersections'],
-        'intersections_json': piste['intersections_json'],
-        'type_occupation': piste['type_occupation'],
-        'debut_occupation': piste['debut_occupation'],
-        'fin_occupation': piste['fin_occupation'],
-        'largeur_emprise': piste['largeur_emprise'],
-        'frequence_trafic': piste['frequence_trafic'],
-        'type_trafic': piste['type_trafic'],
-        'travaux_realises': piste['travaux_realises'],
-        'date_travaux': piste['date_travaux'],
-        'entreprise': piste['entreprise'],
-        'points': points,
-        'created_at': piste['created_at'],
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => FormulaireLignePage(
-            linePoints: points,
-            provisionalCode: piste['code_piste'],
-            startTime: piste['created_at'] != null ? DateTime.parse(piste['created_at']) : DateTime.now(),
-            endTime: DateTime.now(),
-            agentName: piste['user_login'] ?? 'Utilisateur',
-            initialData: formData,
-            isEditingMode: true,
-          ),
-        ),
-      );
-
-      if (result != null) {
-        _fetchData(); // Rafraîchir la liste
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Piste modifiée avec succès')),
-        );
-      }
-    } catch (e) {
-      print('❌ Erreur édition piste: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la modification: $e')),
-      );
-    }
-  }
-
-  Future<void> _deletePiste(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmer la suppression'),
-        content: const Text('Êtes-vous sûr de vouloir supprimer cette piste ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        final storageHelper = SimpleStorageHelper();
-
-        // 1. SUPPRIMER LA PISTE AFFICHÉE
-        await storageHelper.deleteDisplayedPiste(id);
-
-        // 2. SUPPRIMER LA PISTE PRINCIPALE
-        await storageHelper.deletePiste(id);
-
-        // 3. ⭐⭐ SIMPLEMENT RAFRAÎCHIR LES DONNÉES ⭐⭐
-        _fetchData();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Piste supprimée avec succès')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la suppression: $e')),
-        );
-      }
-    }
-  }
-
   Future<void> _deleteItem(int id) async {
     if (selectedCategory == "Pistes") {
-      await _deletePiste(id);
+      _showLegacyRemovedMessage();
     } else if (selectedCategory == "Chaussées") {
-      await _deleteChaussee(id); // ← APPELER LA NOUVELLE MÉTHODE
+      _showLegacyRemovedMessage();
     } else {
       final config = InfrastructureConfig.getEntityConfig(selectedCategory!, selectedType!);
       final tableName = config?['tableName'] ?? '';
@@ -1119,8 +883,11 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
             print('🗑️ Ligne spéciale supprimée de displayed_special_lines: $id / $tableName');
           }
           // Sprint 4: deleteDisplayedPoint et deleteEntity remplacés par db.delete direct
-          final db = await dbHelper.database;
-          await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+          await dbHelper.deleteEntitySrm(
+            tableName,
+            id,
+            recordHistory: true,
+          );
           _fetchData(); // Rafraîchir la liste
 
           ScaffoldMessenger.of(context).showSnackBar(

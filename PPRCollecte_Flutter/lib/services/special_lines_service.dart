@@ -73,7 +73,7 @@ class SpecialLinesService {
         }
       }
 
-      print('Loaded ${polylines.length} displayed SRM line polylines');
+      print('[SRM-LIGNES] ${polylines.length} polyligne(s) affichee(s)');
       return polylines;
     } catch (e) {
       print('Error loading displayed SRM lines: $e');

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:dargon2_flutter/dargon2_flutter.dart';
 import 'screens/auth/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  DArgon2Flutter.init();
   runApp(const MyApp());
 }
 

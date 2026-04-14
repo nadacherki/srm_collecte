@@ -1,6 +1,7 @@
 // lib/point_form_widget.dart
 import 'package:flutter/material.dart';
 import '../../data/local/database_helper.dart';
+import '../../data/remote/api_service.dart';
 import '../../core/config/infrastructure_config.dart';
 
 class PointFormWidget extends StatefulWidget {
@@ -289,18 +290,25 @@ class _PointFormWidgetState extends State<PointFormWidget> {
       if (widget.pointData != null && widget.pointData!['id'] != null) {
         // MISE À JOUR de l'entité existante
         // Sprint 4: updateEntity remplacé par db.update direct
-        final db = await dbHelper.database;
-        await db.update(
+        await dbHelper.updateEntityLocal(
           tableName,
+          widget.pointData!['id'] as int,
           entityData,
-          where: 'id = ?',
-          whereArgs: [widget.pointData!['id']],
+          recordHistory: true,
         );
         id = widget.pointData!['id'] as int;
         print('✅ Entité mise à jour avec ID: $id');
       } else {
         // INSERTION d'une nouvelle entité
-        id = await dbHelper.insertEntity(tableName, entityData);
+        id = await dbHelper.insertEntityLocal(
+          tableName,
+          {
+            ...entityData,
+            'id_agent_crea': await dbHelper.resolveLoginId(),
+            'id_projet': ApiService.currentProjetId,
+          },
+          recordHistory: true,
+        );
         print('✅ Nouvelle entité enregistrée avec ID: $id');
         // ⭐⭐ DEBUG DÉTAILLÉ ⭐⭐
         print('🔍 === DEBUG LIGNE SPÉCIALE ===');

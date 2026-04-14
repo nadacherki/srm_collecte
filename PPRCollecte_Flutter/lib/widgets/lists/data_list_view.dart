@@ -230,7 +230,7 @@ class _DataListViewState extends State<DataListView> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Rechercher par nom, type, metier ou table...',
+          hintText: 'Rechercher par nom, type, m\u00E9tier ou table...',
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -356,11 +356,11 @@ class _DataListViewState extends State<DataListView> {
   String _getFilterText() {
     switch (widget.dataFilter) {
       case "unsynced":
-        return "enregistree localement";
+        return "enregistr\u00E9e localement";
       case "synced":
-        return "synchronisee";
+        return "synchronis\u00E9e";
       case "saved":
-        return "telechargee";
+        return "t\u00E9l\u00E9charg\u00E9e";
       default:
         return "";
     }
@@ -369,7 +369,7 @@ class _DataListViewState extends State<DataListView> {
   Widget _buildListItem(Map<String, dynamic> item, BuildContext context) {
     final hasModification = item['updated_at'] != null && item['updated_at'] != item['created_at'];
     final isChaussee = widget.entityType == "Chaussées";
-    final titleText = (item['display_title']?.toString().trim().isNotEmpty ?? false) ? item['display_title'].toString() : isChaussee ? 'Chaussee - ${(item['type_chaussee'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})' : (item['nom'] ?? item['code_piste'] ?? 'Sans nom').toString();
+    final titleText = (item['display_title']?.toString().trim().isNotEmpty ?? false) ? item['display_title'].toString() : isChaussee ? 'Chauss\u00E9e - ${(item['type_chaussee'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})' : (item['nom'] ?? item['code_piste'] ?? 'Sans nom').toString();
     return Card(
       elevation: 0.8, // au lieu de default / gros shadow
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -385,11 +385,11 @@ class _DataListViewState extends State<DataListView> {
             if (item['code_piste'] != null) Text('Code: ${item['code_piste']}'),
             if (item['type'] != null) Text('Type: ${item['type']}'),
 
-            if (item['created_at'] != null) Text('Cree: ${_formatDate(item['created_at'])}'),
+            if (item['created_at'] != null) Text('Cr\u00E9\u00E9 : ${_formatDate(item['created_at'])}'),
 
             if (hasModification)
               Text(
-                'Modifie: ${_formatDate(item['updated_at'])}',
+                'Modifi\u00E9 : ${_formatDate(item['updated_at'])}',
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
               ),
 
@@ -397,10 +397,10 @@ class _DataListViewState extends State<DataListView> {
             if (item['commune_id'] != null) Text('Commune ID: ${item['commune_id']}'),
 
             item['synced'] == 1
-                ? const Text('Statut: Synchronise', style: TextStyle(color: Colors.green))
+                ? const Text('Statut : Synchronis\u00E9', style: TextStyle(color: Colors.green))
                 : item['downloaded'] == 1
-                    ? const Text('Statut: Telecharge', style: TextStyle(color: Colors.blue))
-                    : const Text('Statut: Non synchronise', style: TextStyle(color: Colors.orange)),
+                    ? const Text('Statut : T\u00E9l\u00E9charg\u00E9', style: TextStyle(color: Colors.blue))
+                    : const Text('Statut : Non synchronis\u00E9', style: TextStyle(color: Colors.orange)),
 
             //  INTERSECTION — affiché seulement si existence_intersection > 0
             if (_hasIntersection(item)) _buildIntersectionBadge(item),
@@ -805,3 +805,4 @@ class _AdminNames {
     required this.commune,
   });
 }
+

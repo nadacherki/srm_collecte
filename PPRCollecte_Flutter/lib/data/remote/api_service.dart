@@ -28,6 +28,7 @@ class ApiService {
   static String? currentProjetMetier; // EP, ASS, ELEC, ALL
   static String? currentProjetRegion;
   static String? currentProjetSrm;
+  static int? currentMissionId;
 
   // ── Mission (choisi/créé après login) ──
   // SUPPRIMÉ : plus de gestion de mission — chaque objet porte sa date_collecte
@@ -242,6 +243,65 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> uploadPhoto({
+    required String schemaName,
+    required String tableName,
+    required String uuidObjet,
+    required int photoSlot,
+    required String localPath,
+    int? idProjet,
+    int? idMission,
+    int? idAgentCrea,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/photos/upload/');
+    final request = http.MultipartRequest('POST', uri);
+
+    if (authToken != null) {
+      request.headers['Authorization'] = 'Bearer $authToken';
+    }
+
+    request.fields['schema_name'] = schemaName;
+    request.fields['table_name'] = tableName;
+    request.fields['uuid_objet'] = uuidObjet;
+    request.fields['photo_slot'] = photoSlot.toString();
+    if (idProjet != null) {
+      request.fields['id_projet'] = idProjet.toString();
+    }
+    if (idMission != null) {
+      request.fields['id_mission'] = idMission.toString();
+    }
+    if (idAgentCrea != null) {
+      request.fields['id_agent_crea'] = idAgentCrea.toString();
+    }
+
+    request.files.add(await http.MultipartFile.fromPath('file', localPath));
+
+    try {
+      final streamed = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamed);
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse upload photo invalide');
+      }
+
+      try {
+        final decoded = jsonDecode(body);
+        throw Exception(decoded['error'] ?? 'Erreur upload photo ${response.statusCode}');
+      } catch (_) {
+        throw Exception('Erreur upload photo ${response.statusCode}');
+      }
+    } on TimeoutException {
+      throw Exception('Timeout upload photo');
+    } on SocketException {
+      throw Exception('Erreur reseau upload photo');
+    }
+  }
+
   // ══════════════════════════════════════════════════════
   // ██ GET GÉNÉRIQUE (GeoJSON / liste)
   // ══════════════════════════════════════════════════════
@@ -297,6 +357,121 @@ class ApiService {
     } catch (e) {
       throw Exception('Erreur GET $endpoint: $e');
     }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchMetricsList(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final params = <String, String>{};
+    (queryParameters ?? const {}).forEach((key, value) {
+      if (value == null) return;
+      final text = value.toString().trim();
+      if (text.isEmpty) return;
+      params[key] = text;
+    });
+
+    final uri = Uri.parse('$baseUrl/api/$endpoint/')
+        .replace(queryParameters: params.isNotEmpty ? params : null);
+
+    try {
+      final response = await http
+          .get(uri, headers: _headers())
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        throw Exception('Erreur GET $endpoint: ${response.statusCode}');
+      }
+
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      final List items =
+          decoded is List ? decoded : (decoded['results'] ?? const []);
+
+      return items
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } on TimeoutException {
+      throw Exception('Timeout GET $endpoint');
+    } on SocketException {
+      throw Exception('Erreur reseau GET $endpoint');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Erreur GET $endpoint: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchMetricsFirst(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final rows = await fetchMetricsList(
+      endpoint,
+      queryParameters: queryParameters,
+    );
+    return rows.isNotEmpty ? rows.first : null;
+  }
+
+  static Future<Map<String, dynamic>?> fetchAgentPublicResume({
+    int? idAgent,
+    int? idProjet,
+  }) {
+    return fetchMetricsFirst(
+      'metrics-agent-public-resume',
+      queryParameters: {
+        'id_agent': idAgent ?? userId,
+        'id_projet': idProjet ?? currentProjetId,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>?> fetchAgentPublicJour({
+    int? idAgent,
+    int? idProjet,
+    DateTime? jour,
+  }) {
+    return fetchMetricsFirst(
+      'metrics-agent-public-jour',
+      queryParameters: {
+        'id_agent': idAgent ?? userId,
+        'id_projet': idProjet ?? currentProjetId,
+        if (jour != null) 'jour': _formatDateParam(jour),
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>?> fetchAgentPublicSemaine({
+    int? idAgent,
+    int? idProjet,
+    int? anneeIso,
+    int? semaineIso,
+  }) {
+    return fetchMetricsFirst(
+      'metrics-agent-public-semaine',
+      queryParameters: {
+        'id_agent': idAgent ?? userId,
+        'id_projet': idProjet ?? currentProjetId,
+        'annee_iso': anneeIso,
+        'semaine_iso': semaineIso,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>?> fetchAgentPublicMois({
+    int? idAgent,
+    int? idProjet,
+    int? annee,
+    int? moisNumero,
+  }) {
+    return fetchMetricsFirst(
+      'metrics-agent-public-mois',
+      queryParameters: {
+        'id_agent': idAgent ?? userId,
+        'id_projet': idProjet ?? currentProjetId,
+        'annee': annee,
+        'mois_numero': moisNumero,
+      },
+    );
   }
 
   // ══════════════════════════════════════════════════════
@@ -359,10 +534,58 @@ class ApiService {
   // ██ UTILITAIRES
   // ══════════════════════════════════════════════════════
 
+  static Future<Map<String, dynamic>> uploadLocalHistory({
+    List<Map<String, dynamic>> attributes = const [],
+    List<Map<String, dynamic>> events = const [],
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/historique-mobile/upload/');
+    final payload = <String, dynamic>{
+      'attributes': attributes,
+      'events': events,
+    };
+
+    try {
+      final response = await http
+          .post(uri, headers: _headers(), body: jsonEncode(payload))
+          .timeout(const Duration(seconds: 30));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse historique mobile invalide');
+      }
+
+      try {
+        final decoded = jsonDecode(body);
+        throw Exception(
+          decoded['error'] ??
+              decoded['detail'] ??
+              'Erreur upload historique ${response.statusCode}',
+        );
+      } catch (_) {
+        throw Exception('Erreur upload historique ${response.statusCode}');
+      }
+    } on TimeoutException {
+      throw Exception('Timeout upload historique');
+    } on SocketException {
+      throw Exception('Erreur reseau upload historique');
+    }
+  }
+
   static Map<String, String> _headers() => {
         'Content-Type': 'application/json',
         if (authToken != null) 'Authorization': 'Bearer $authToken',
       };
+
+  static String _formatDateParam(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
 
   static Map<String, dynamic> extractFromGeoJson(
       Map<String, dynamic> geoJson) {
@@ -387,5 +610,6 @@ class ApiService {
     currentProjetMetier = null;
     currentProjetRegion = null;
     currentProjetSrm = null;
+    currentMissionId = null;
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math';
-import '../../data/local/piste_chaussee_db_helper.dart';
+import '../../data/local/piste_storage_helper.dart';
 import '../../data/local/database_helper.dart';
 
 class FormulaireLignePage extends StatefulWidget {
@@ -852,7 +852,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       print('🔍 Données envoyées à savePiste:');
       print('   commune_rurale_id (nom): ${pisteData['commune_rurale_id']}');
       print('   commune_rurales (id): ${pisteData['commune_rurales']}');
-      final storageHelper = SimpleStorageHelper();
+      final storageHelper = PisteStorageHelper();
       if (widget.isEditingMode || widget.isContinuation) {
         // ✅ MODE ÉDITION / CONTINUATION: Mise à jour
         await storageHelper.updatePiste(pisteData);

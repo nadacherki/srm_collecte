@@ -34,3 +34,6 @@ srmenv/
 *.dump
 *.backup
 *.sql
+
+# Django uploaded media
+API_GeoDjango/pprcollecte/media/

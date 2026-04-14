@@ -15,6 +15,20 @@ Toutes les géométries sont en EPSG:26191 (Merchich Nord).
 
 from django.contrib.gis.db import models
 
+from .metrics_models import (
+    MetricAgentJour,
+    MetricAgentSemaine,
+    MetricAgentMois,
+    MetricAgentPublicJour,
+    MetricAgentPublicSemaine,
+    MetricAgentPublicMois,
+    MetricAgentPublicResume,
+    MetricProjetJour,
+    MetricProjetSemaine,
+    MetricProjetMois,
+    MetricProjetResume,
+)
+
 
 class SrmTrackedModel(models.Model):
     updated_at = models.DateTimeField(null=True, blank=True)
@@ -106,11 +120,15 @@ class Commune(models.Model):
 class HistoriqueAttribut(models.Model):
     id_historique = models.AutoField(primary_key=True)
     id_objet = models.IntegerField(null=True, blank=True)
+    cle_ligne = models.CharField(max_length=254, null=True, blank=True)
+    uuid_objet = models.CharField(max_length=254, null=True, blank=True)
+    nom_schema = models.CharField(max_length=30, null=True, blank=True)
+    nom_table = models.CharField(max_length=100, null=True, blank=True)
     nom_classe = models.CharField(max_length=100, null=True, blank=True)
     nom_attribut = models.CharField(max_length=100, null=True, blank=True)
     ancienne_valeur = models.TextField(null=True, blank=True)
     nouvelle_valeur = models.TextField(null=True, blank=True)
-    date_action = models.DateTimeField(auto_now_add=True)
+    date_action = models.DateTimeField(null=True, blank=True)
     id_agent = models.IntegerField(null=True, blank=True)
     type_action = models.CharField(max_length=50, null=True, blank=True)
     commentaire_correction = models.TextField(null=True, blank=True)
@@ -118,6 +136,33 @@ class HistoriqueAttribut(models.Model):
     class Meta:
         managed = False
         db_table = 'historique_attribut'
+
+
+class HistoriqueMobile(models.Model):
+    id_historique_mobile = models.BigAutoField(primary_key=True)
+    sync_uuid = models.CharField(max_length=64, unique=True)
+    type_entree = models.CharField(max_length=20)
+    source_table_locale = models.CharField(max_length=64)
+    source_id_local = models.BigIntegerField(null=True, blank=True)
+    id_objet = models.IntegerField(null=True, blank=True)
+    cle_ligne = models.CharField(max_length=254, null=True, blank=True)
+    uuid_objet = models.CharField(max_length=254, null=True, blank=True)
+    nom_schema = models.CharField(max_length=30, null=True, blank=True)
+    nom_table = models.CharField(max_length=100, null=True, blank=True)
+    nom_classe = models.CharField(max_length=100, null=True, blank=True)
+    nom_attribut = models.CharField(max_length=100, null=True, blank=True)
+    ancienne_valeur = models.TextField(null=True, blank=True)
+    nouvelle_valeur = models.TextField(null=True, blank=True)
+    type_action = models.CharField(max_length=50, null=True, blank=True)
+    type_evenement = models.CharField(max_length=100, null=True, blank=True)
+    payload_json = models.JSONField(null=True, blank=True)
+    date_action = models.DateTimeField()
+    date_reception = models.DateTimeField(null=True, blank=True)
+    id_agent = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'historique_mobile'
 
 
 class ObjetIncomplet(models.Model):
@@ -139,6 +184,31 @@ class ObjetIncomplet(models.Model):
     class Meta:
         managed = False
         db_table = 'objet_incomplet'
+
+
+class ObjetPhoto(models.Model):
+    id_photo = models.BigAutoField(primary_key=True)
+    uuid_objet = models.CharField(max_length=254)
+    nom_schema = models.CharField(max_length=20)
+    nom_table = models.CharField(max_length=100)
+    num_photo = models.SmallIntegerField()
+    nom_fichier = models.CharField(max_length=255)
+    chemin_relatif = models.TextField()
+    hash_sha256 = models.CharField(max_length=64, null=True, blank=True)
+    mime_type = models.CharField(max_length=100, null=True, blank=True)
+    taille_octets = models.BigIntegerField(null=True, blank=True)
+    id_projet = models.IntegerField(null=True, blank=True)
+    id_mission = models.IntegerField(null=True, blank=True)
+    id_agent_crea = models.IntegerField(null=True, blank=True)
+    date_upload = models.DateTimeField(null=True, blank=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = 'objet_photo'
+
+    def __str__(self):
+        return f"{self.nom_schema}.{self.nom_table} {self.uuid_objet} photo {self.num_photo}"
 
 
 class FondDePlan(models.Model):

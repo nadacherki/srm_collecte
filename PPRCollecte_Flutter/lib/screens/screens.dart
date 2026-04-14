@@ -6,7 +6,6 @@ export 'home/home_page.dart';
 
 // Forms
 export 'forms/formulaire_ligne_page.dart';
-export 'forms/formulaire_chaussee_page.dart';
 export 'forms/point_form_screen.dart';
 export 'forms/special_line_form_page.dart';
 export 'forms/polygon_form_page.dart';

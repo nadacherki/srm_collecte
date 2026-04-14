@@ -4,14 +4,17 @@
 //   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom_prenom, role)
 //   projet_local      → public.projet      (id_projet, code_affaire, nom, srm, region, metier, statut)
 //   mission_local     → public.mission     (id_mission, id_agent, id_projet, etat_mission)
-// Version DB: 16
+// Version DB: 17
 
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/config/srm_config.dart';
 import '../remote/api_service.dart';
 import '../../services/draft_service.dart';
+import '../../services/password_hash_service.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -62,7 +65,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 16,
+      version: 17,
       onCreate: (db, version) async {
         print('🆕 Création tables v$version');
         await _createAllTables(db);
@@ -141,6 +144,9 @@ class DatabaseHelper {
     ''');
     print('✅ Table app_metadata');
 
+    await _createPhotoSyncQueueTable(db);
+    await _createLocalHistoryTable(db);
+    await _createLocalEventHistoryTable(db);
     await _createAllSrmEntityTables(db);
 
     // ── SPRINT 7 : Table brouillons automatiques ──
@@ -151,10 +157,15 @@ class DatabaseHelper {
 
   Future<void> _migrateExistingSrmTables(Database db) async {
     await _createAllSrmEntityTables(db);
+    await _createPhotoSyncQueueTable(db);
+    await _createLocalHistoryTable(db);
+    await _createLocalEventHistoryTable(db);
     // ── SPRINT 7 : S'assurer que la table brouillons existe ──
+    await _migrateLocalHistoryTables(db);
     await DraftService.createTable(db);
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
+    await _migratePhotoSyncQueueTable(db);
     for (final tableName in _allowedSrmTables()) {
       if (tableName == 'objet_incomplet' || tableName == 'raison_incomplet') {
         continue; // gérées séparément
@@ -237,6 +248,235 @@ class DatabaseHelper {
     }
   }
 
+  Future<void> _createPhotoSyncQueueTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS photo_sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        schema_name TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        uuid_objet TEXT NOT NULL,
+        photo_slot INTEGER NOT NULL,
+        local_path TEXT NOT NULL,
+        remote_path TEXT,
+        id_projet INTEGER,
+        id_mission INTEGER,
+        id_agent_crea INTEGER,
+        synced INTEGER DEFAULT 0,
+        retry_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        UNIQUE(schema_name, table_name, uuid_objet, photo_slot)
+      )
+    ''');
+  }
+
+  Future<void> _createLocalHistoryTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS historique_local_attribut (
+        id_historique_local INTEGER PRIMARY KEY AUTOINCREMENT,
+        sync_uuid TEXT,
+        id_objet INTEGER,
+        cle_ligne TEXT,
+        uuid_objet TEXT,
+        nom_schema TEXT,
+        nom_table TEXT NOT NULL,
+        nom_classe TEXT NOT NULL,
+        nom_attribut TEXT NOT NULL,
+        ancienne_valeur TEXT,
+        nouvelle_valeur TEXT,
+        date_action TEXT NOT NULL,
+        id_agent INTEGER,
+        type_action TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        date_sync TEXT,
+        last_error TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_date_action_idx
+      ON historique_local_attribut (date_action DESC)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_schema_table_idx
+      ON historique_local_attribut (nom_schema, nom_table)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_uuid_objet_idx
+      ON historique_local_attribut (uuid_objet)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_cle_ligne_idx
+      ON historique_local_attribut (cle_ligne)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_synced_idx
+      ON historique_local_attribut (synced, date_action DESC)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS historique_local_sync_uuid_idx
+      ON historique_local_attribut (sync_uuid)
+    ''');
+  }
+
+  Future<void> _createLocalEventHistoryTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS historique_local_evenement (
+        id_evenement_local INTEGER PRIMARY KEY AUTOINCREMENT,
+        sync_uuid TEXT,
+        type_evenement TEXT NOT NULL,
+        nom_schema TEXT,
+        nom_table TEXT,
+        cle_ligne TEXT,
+        uuid_objet TEXT,
+        id_objet INTEGER,
+        id_agent INTEGER,
+        payload_json TEXT,
+        date_action TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        date_sync TEXT,
+        last_error TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_evt_date_idx
+      ON historique_local_evenement (date_action DESC)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_evt_type_idx
+      ON historique_local_evenement (type_evenement)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_evt_table_idx
+      ON historique_local_evenement (nom_schema, nom_table)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS historique_local_evt_synced_idx
+      ON historique_local_evenement (synced, date_action DESC)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS historique_local_evt_sync_uuid_idx
+      ON historique_local_evenement (sync_uuid)
+    ''');
+  }
+
+  Future<void> _migrateLocalHistoryTables(Database db) async {
+    await _migrateLocalHistoryTable(
+      db,
+      tableName: 'historique_local_attribut',
+      idColumn: 'id_historique_local',
+    );
+    await _migrateLocalHistoryTable(
+      db,
+      tableName: 'historique_local_evenement',
+      idColumn: 'id_evenement_local',
+    );
+  }
+
+  Future<void> _migrateLocalHistoryTable(
+    Database db, {
+    required String tableName,
+    required String idColumn,
+  }) async {
+    final existing = await db.rawQuery('PRAGMA table_info($tableName)');
+    if (existing.isEmpty) return;
+
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+    final requiredColumns = <String, String>{
+      'sync_uuid': 'TEXT',
+      'synced': 'INTEGER DEFAULT 0',
+      'date_sync': 'TEXT',
+      'last_error': 'TEXT',
+    };
+
+    for (final entry in requiredColumns.entries) {
+      if (existingCols.contains(entry.key)) continue;
+      try {
+        await db.execute(
+          'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
+        );
+      } catch (_) {}
+    }
+
+    final missingSyncRows = await db.query(
+      tableName,
+      columns: [idColumn],
+      where: 'sync_uuid IS NULL OR TRIM(sync_uuid) = ?',
+      whereArgs: [''],
+    );
+    if (missingSyncRows.isNotEmpty) {
+      final batch = db.batch();
+      for (final row in missingSyncRows) {
+        final localId = _asInt(row[idColumn]);
+        if (localId == null) continue;
+        batch.update(
+          tableName,
+          {
+            'sync_uuid': _newHistorySyncUuid(),
+            'synced': 0,
+          },
+          where: '$idColumn = ?',
+          whereArgs: [localId],
+        );
+      }
+      await batch.commit(noResult: true);
+    }
+
+    if (tableName == 'historique_local_attribut') {
+      await db.execute('''
+        CREATE INDEX IF NOT EXISTS historique_local_synced_idx
+        ON historique_local_attribut (synced, date_action DESC)
+      ''');
+      await db.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS historique_local_sync_uuid_idx
+        ON historique_local_attribut (sync_uuid)
+      ''');
+    } else {
+      await db.execute('''
+        CREATE INDEX IF NOT EXISTS historique_local_evt_synced_idx
+        ON historique_local_evenement (synced, date_action DESC)
+      ''');
+      await db.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS historique_local_evt_sync_uuid_idx
+        ON historique_local_evenement (sync_uuid)
+      ''');
+    }
+  }
+
+  Future<void> _migratePhotoSyncQueueTable(Database db) async {
+    final existing = await db.rawQuery('PRAGMA table_info(photo_sync_queue)');
+    if (existing.isEmpty) return;
+
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+    final requiredColumns = <String, String>{
+      'schema_name': 'TEXT',
+      'table_name': 'TEXT',
+      'uuid_objet': 'TEXT',
+      'photo_slot': 'INTEGER',
+      'local_path': 'TEXT',
+      'remote_path': 'TEXT',
+      'id_projet': 'INTEGER',
+      'id_mission': 'INTEGER',
+      'id_agent_crea': 'INTEGER',
+      'synced': 'INTEGER DEFAULT 0',
+      'retry_count': 'INTEGER DEFAULT 0',
+      'last_error': 'TEXT',
+      'created_at': 'TEXT',
+      'updated_at': 'TEXT',
+    };
+
+    for (final entry in requiredColumns.entries) {
+      if (existingCols.contains(entry.key)) continue;
+      try {
+        await db.execute(
+          'ALTER TABLE photo_sync_queue ADD COLUMN ${entry.key} ${entry.value}',
+        );
+      } catch (_) {}
+    }
+  }
+
   Future<void> _createAllSrmEntityTables(Database db) async {
     for (final metier in SrmConfig.getMetiers()) {
       for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
@@ -260,7 +500,7 @@ class DatabaseHelper {
   /// Insert ou update un utilisateur SRM
   Future<int> upsertUserSrm({
     required String login,
-    required String motDePasse,
+    required String motDePasseHash,
     String? nomPrenom,
     String? role,
     int? apiId,
@@ -273,7 +513,7 @@ class DatabaseHelper {
         {
           'id_user': apiId,
           'login': login,
-          'mot_de_passe': motDePasse, // en clair
+          'mot_de_passe': motDePasseHash,
           'nom_prenom': nomPrenom,
           'role': role ?? 'editeur_terrain',
           'id_projet_actif': idProjetActif,
@@ -287,19 +527,26 @@ class DatabaseHelper {
     }
   }
 
-  /// Valide un login/mot_de_passe en local (mode offline)
-  /// Comparaison en clair comme côté serveur :
-  ///   if mot_de_passe != user.mot_de_passe
   Future<bool> validateUser(String login, String password) async {
     try {
       final db = await database;
       final result = await db.query(
         'utilisateur_local',
-        where: 'login = ? AND mot_de_passe = ?',
-        whereArgs: [login, password], // comparaison en clair
+        columns: ['mot_de_passe'],
+        where: 'login = ?',
+        whereArgs: [login],
         limit: 1,
       );
-      return result.isNotEmpty;
+      if (result.isEmpty) return false;
+
+      final storedValue = (result.first['mot_de_passe'] ?? '').toString().trim();
+      if (storedValue.isEmpty) return false;
+
+      if (PasswordHashService.looksLikePasswordHash(storedValue)) {
+        return await PasswordHashService.verifyPassword(password, storedValue);
+      }
+
+      return storedValue == password;
     } catch (e) {
       print('❌ Erreur validateUser: $e');
       return false;
@@ -372,6 +619,15 @@ class DatabaseHelper {
         await db.update('srm_session', values,
             where: 'id = ?', whereArgs: [existing.first['id']]);
       }
+      await recordLocalEvent(
+        eventType: 'SESSION_LOGIN',
+        tableName: 'srm_session',
+        cleLigne: login,
+        payload: {
+          'login': login,
+          'remember_me': remember ? 1 : 0,
+        },
+      );
       print('✅ Session: $login | remember=$remember');
     } catch (e) {
       print('❌ Erreur setCurrentUserLogin: $e');
@@ -430,6 +686,15 @@ class DatabaseHelper {
       } else {
         await db.delete('srm_session');
       }
+      await recordLocalEvent(
+        eventType: 'SESSION_LOGOUT',
+        tableName: 'srm_session',
+        cleLigne: row['current_login']?.toString(),
+        payload: {
+          'login': row['current_login'],
+          'remember_me': remember,
+        },
+      );
       print('✅ Session SRM effacée');
     } catch (e) {
       print('❌ Erreur clearSrmSession: $e');
@@ -595,8 +860,89 @@ class DatabaseHelper {
     return id;
   }
 
+  Future<int> insertEntityLocal(
+    String tableName,
+    Map<String, dynamic> data, {
+    bool recordHistory = false,
+  }) async {
+    final db = await database;
+    final id = await db.insert(tableName, data);
+    if (recordHistory) {
+      final insertedRow = Map<String, dynamic>.from(data)..['id'] = id;
+      await _recordLocalInsertHistory(
+        db,
+        tableName: tableName,
+        row: insertedRow,
+      );
+    }
+    return id;
+  }
+
+  Future<void> updateEntityLocal(
+    String tableName,
+    int id,
+    Map<String, dynamic> data, {
+    bool recordHistory = false,
+  }) async {
+    final db = await database;
+    Map<String, dynamic>? beforeRow;
+    if (recordHistory) {
+      final existing = await db.query(
+        tableName,
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        beforeRow = Map<String, dynamic>.from(existing.first);
+      }
+    }
+
+    await db.update(tableName, data, where: 'id = ?', whereArgs: [id]);
+
+    if (recordHistory && beforeRow != null) {
+      final afterRow = Map<String, dynamic>.from(beforeRow)..addAll(data);
+      await _recordLocalUpdateHistory(
+        db,
+        tableName: tableName,
+        beforeRow: beforeRow,
+        afterRow: afterRow,
+      );
+    }
+  }
+
+  Future<void> deleteEntityLocal(
+    String tableName,
+    int id, {
+    bool recordHistory = false,
+  }) async {
+    final db = await database;
+    Map<String, dynamic>? existingRow;
+    if (recordHistory) {
+      final existing = await db.query(
+        tableName,
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        existingRow = Map<String, dynamic>.from(existing.first);
+      }
+    }
+
+    await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+
+    if (recordHistory && existingRow != null) {
+      await _recordLocalDeleteHistory(
+        db,
+        tableName: tableName,
+        row: existingRow,
+      );
+    }
+  }
+
   Future<int> upsertDownloadedEntitySrm(
-      String tableName, Map<String, dynamic> data) async {
+      String tableName, Map<String, dynamic> data, {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
@@ -624,12 +970,22 @@ class DatabaseHelper {
           merged['downloaded'] = 0;
         }
 
+        final sanitizedMerged = _sanitizeSrmPayload(tableName, merged);
         await db.update(
           tableName,
-          _sanitizeSrmPayload(tableName, merged),
+          sanitizedMerged,
           where: 'id = ?',
           whereArgs: [localId],
         );
+        if (recordHistory) {
+          final afterRow = Map<String, dynamic>.from(existing)..addAll(sanitizedMerged);
+          await _recordLocalUpdateHistory(
+            db,
+            tableName: tableName,
+            beforeRow: existing,
+            afterRow: afterRow,
+          );
+        }
         print('SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid');
         return localId is int ? localId : 0;
       }
@@ -640,6 +996,14 @@ class DatabaseHelper {
       cleaned,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (recordHistory) {
+      final insertedRow = Map<String, dynamic>.from(cleaned)..['id'] = id;
+      await _recordLocalInsertHistory(
+        db,
+        tableName: tableName,
+        row: insertedRow,
+      );
+    }
     print('SRM upsertDownloadedEntitySrm -> $tableName (ID: $id)');
     return id;
   }
@@ -722,7 +1086,7 @@ class DatabaseHelper {
 
   /// Insert une entité SRM dans sa table (crée la table si besoin).
   Future<int> insertEntitySrm(
-      String tableName, Map<String, dynamic> data) async {
+      String tableName, Map<String, dynamic> data, {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
@@ -734,27 +1098,378 @@ class DatabaseHelper {
       cleaned,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (recordHistory) {
+      final insertedRow = Map<String, dynamic>.from(cleaned)..['id'] = id;
+      await _recordLocalInsertHistory(
+        db,
+        tableName: tableName,
+        row: insertedRow,
+      );
+    }
     print('✅ SRM insertEntitySrm → $tableName (ID: $id)');
     return id;
   }
 
   /// Met à jour une entité SRM.
   Future<void> updateEntitySrm(
-      String tableName, int id, Map<String, dynamic> data) async {
+      String tableName, int id, Map<String, dynamic> data, {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
     final cleaned = _sanitizeSrmPayload(tableName, data);
+    Map<String, dynamic>? beforeRow;
+    if (recordHistory) {
+      final existing = await db.query(
+        tableName,
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        beforeRow = Map<String, dynamic>.from(existing.first);
+      }
+    }
     await db.update(tableName, cleaned, where: 'id = ?', whereArgs: [id]);
+    if (recordHistory && beforeRow != null) {
+      final afterRow = Map<String, dynamic>.from(beforeRow)..addAll(cleaned);
+      await _recordLocalUpdateHistory(
+        db,
+        tableName: tableName,
+        beforeRow: beforeRow,
+        afterRow: afterRow,
+      );
+    }
     print('✅ SRM updateEntitySrm → $tableName id=$id');
   }
 
   /// Supprime une entité SRM.
-  Future<void> deleteEntitySrm(String tableName, int id) async {
+  Future<void> deleteEntitySrm(String tableName, int id, {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
+    Map<String, dynamic>? existingRow;
+    if (recordHistory) {
+      final rows = await db.query(
+        tableName,
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        existingRow = Map<String, dynamic>.from(rows.first);
+      }
+    }
     await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+    if (recordHistory && existingRow != null) {
+      await _recordLocalDeleteHistory(
+        db,
+        tableName: tableName,
+        row: existingRow,
+      );
+    }
     print('✅ SRM deleteEntitySrm → $tableName id=$id');
+  }
+
+  Future<void> _recordLocalInsertHistory(
+    Database db, {
+    required String tableName,
+    required Map<String, dynamic> row,
+  }) async {
+    final historyMeta = _buildLocalHistoryMeta(tableName, row);
+    final batch = db.batch();
+    final rowWithId = Map<String, dynamic>.from(row);
+    final keys = rowWithId.keys.toList()..sort();
+    final nowIso = DateTime.now().toIso8601String();
+
+    for (final key in keys) {
+      final newValue = _stringifyHistoryValue(rowWithId[key]);
+      if (newValue == null) continue;
+      batch.insert('historique_local_attribut', {
+        'sync_uuid': _newHistorySyncUuid(),
+        ...historyMeta,
+        'nom_attribut': key,
+        'ancienne_valeur': null,
+        'nouvelle_valeur': newValue,
+        'date_action': nowIso,
+        'type_action': 'INSERT',
+        'synced': 0,
+        'date_sync': null,
+        'last_error': null,
+      });
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> _recordLocalUpdateHistory(
+    Database db, {
+    required String tableName,
+    required Map<String, dynamic> beforeRow,
+    required Map<String, dynamic> afterRow,
+  }) async {
+    final historyMeta = _buildLocalHistoryMeta(tableName, afterRow.isNotEmpty ? afterRow : beforeRow);
+    final batch = db.batch();
+    final keys = <String>{...beforeRow.keys, ...afterRow.keys}.toList()..sort();
+    final nowIso = DateTime.now().toIso8601String();
+
+    for (final key in keys) {
+      final oldValue = _stringifyHistoryValue(beforeRow[key]);
+      final newValue = _stringifyHistoryValue(afterRow[key]);
+      if (oldValue == newValue) continue;
+      batch.insert('historique_local_attribut', {
+        'sync_uuid': _newHistorySyncUuid(),
+        ...historyMeta,
+        'nom_attribut': key,
+        'ancienne_valeur': oldValue,
+        'nouvelle_valeur': newValue,
+        'date_action': nowIso,
+        'type_action': 'UPDATE',
+        'synced': 0,
+        'date_sync': null,
+        'last_error': null,
+      });
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> _recordLocalDeleteHistory(
+    Database db, {
+    required String tableName,
+    required Map<String, dynamic> row,
+  }) async {
+    final historyMeta = _buildLocalHistoryMeta(tableName, row);
+    final batch = db.batch();
+    final keys = row.keys.toList()..sort();
+    final nowIso = DateTime.now().toIso8601String();
+
+    for (final key in keys) {
+      final oldValue = _stringifyHistoryValue(row[key]);
+      if (oldValue == null) continue;
+      batch.insert('historique_local_attribut', {
+        'sync_uuid': _newHistorySyncUuid(),
+        ...historyMeta,
+        'nom_attribut': key,
+        'ancienne_valeur': oldValue,
+        'nouvelle_valeur': null,
+        'date_action': nowIso,
+        'type_action': 'DELETE',
+        'synced': 0,
+        'date_sync': null,
+        'last_error': null,
+      });
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Map<String, dynamic> _buildLocalHistoryMeta(
+    String tableName,
+    Map<String, dynamic> row,
+  ) {
+    final localId = _asInt(row['id']);
+    final uuidObjet =
+        row['uuid']?.toString().trim() ?? row['uuid_objet']?.toString().trim();
+    final schemaName = _resolveSchemaNameForTable(tableName);
+    final cleLigne = (uuidObjet != null && uuidObjet.isNotEmpty)
+        ? uuidObjet
+        : localId?.toString();
+
+    return {
+      'id_objet': localId,
+      'cle_ligne': cleLigne,
+      'uuid_objet': uuidObjet?.isEmpty ?? true ? null : uuidObjet,
+      'nom_schema': schemaName,
+      'nom_table': tableName,
+      'nom_classe': schemaName != null ? '$schemaName.$tableName' : tableName,
+      'id_agent': _resolveHistoryAgentId(row),
+    };
+  }
+
+  String? _resolveSchemaNameForTable(String tableName) {
+    if (tableName == 'objet_incomplet') return 'public';
+    for (final metier in SrmConfig.getMetiers()) {
+      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
+        final currentTable = SrmConfig.getTableName(metier, entity);
+        if (currentTable != tableName) continue;
+        final config = SrmConfig.getEntityConfig(metier, entity);
+        final schema = config?['schema']?.toString().trim();
+        if (schema != null && schema.isNotEmpty) {
+          return schema;
+        }
+      }
+    }
+    return null;
+  }
+
+  int? _resolveHistoryAgentId(Map<String, dynamic> row) {
+    return _asInt(row['id_agent_modif']) ??
+        _asInt(row['id_agent']) ??
+        _asInt(row['id_agent_crea']) ??
+        _asInt(row['id_agent_signal']) ??
+        _asInt(row['id_user']) ??
+        ApiService.userId;
+  }
+
+  int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString().trim());
+  }
+
+  String? _stringifyHistoryValue(dynamic value) {
+    if (value == null) return null;
+    if (value is String) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (value is bool) return value ? '1' : '0';
+    if (value is num) return value.toString();
+    if (value is DateTime) return value.toIso8601String();
+    if (value is Map || value is Iterable) return jsonEncode(value);
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  String _newHistorySyncUuid() => const Uuid().v4();
+
+  Future<void> recordLocalEvent({
+    required String eventType,
+    String? schemaName,
+    String? tableName,
+    String? cleLigne,
+    String? uuidObjet,
+    int? idObjet,
+    int? idAgent,
+    Map<String, dynamic>? payload,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'historique_local_evenement',
+      {
+        'sync_uuid': _newHistorySyncUuid(),
+        'type_evenement': eventType,
+        'nom_schema': schemaName,
+        'nom_table': tableName,
+        'cle_ligne': cleLigne,
+        'uuid_objet': uuidObjet,
+        'id_objet': idObjet,
+        'id_agent': idAgent ?? ApiService.userId,
+        'payload_json': payload == null ? null : jsonEncode(payload),
+        'date_action': DateTime.now().toIso8601String(),
+        'synced': 0,
+        'date_sync': null,
+        'last_error': null,
+      },
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingLocalAttributeHistory({
+    int limit = 200,
+  }) async {
+    final db = await database;
+    return db.query(
+      'historique_local_attribut',
+      where: 'synced IS NULL OR synced = 0',
+      orderBy: 'date_action ASC, id_historique_local ASC',
+      limit: limit,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingLocalEventHistory({
+    int limit = 200,
+  }) async {
+    final db = await database;
+    return db.query(
+      'historique_local_evenement',
+      where: 'synced IS NULL OR synced = 0',
+      orderBy: 'date_action ASC, id_evenement_local ASC',
+      limit: limit,
+    );
+  }
+
+  Future<void> markLocalAttributeHistorySynced(List<String> syncUuids) async {
+    await _markLocalHistoryRowsSynced(
+      tableName: 'historique_local_attribut',
+      syncUuids: syncUuids,
+    );
+  }
+
+  Future<void> markLocalEventHistorySynced(List<String> syncUuids) async {
+    await _markLocalHistoryRowsSynced(
+      tableName: 'historique_local_evenement',
+      syncUuids: syncUuids,
+    );
+  }
+
+  Future<void> markLocalAttributeHistoryFailed(
+    List<String> syncUuids,
+    String errorMessage,
+  ) async {
+    await _markLocalHistoryRowsFailed(
+      tableName: 'historique_local_attribut',
+      syncUuids: syncUuids,
+      errorMessage: errorMessage,
+    );
+  }
+
+  Future<void> markLocalEventHistoryFailed(
+    List<String> syncUuids,
+    String errorMessage,
+  ) async {
+    await _markLocalHistoryRowsFailed(
+      tableName: 'historique_local_evenement',
+      syncUuids: syncUuids,
+      errorMessage: errorMessage,
+    );
+  }
+
+  Future<void> _markLocalHistoryRowsSynced({
+    required String tableName,
+    required List<String> syncUuids,
+  }) async {
+    if (syncUuids.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    final nowIso = DateTime.now().toIso8601String();
+    for (final syncUuid in syncUuids) {
+      batch.update(
+        tableName,
+        {
+          'synced': 1,
+          'date_sync': nowIso,
+          'last_error': null,
+        },
+        where: 'sync_uuid = ?',
+        whereArgs: [syncUuid],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> _markLocalHistoryRowsFailed({
+    required String tableName,
+    required List<String> syncUuids,
+    required String errorMessage,
+  }) async {
+    if (syncUuids.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    final nowIso = DateTime.now().toIso8601String();
+    for (final syncUuid in syncUuids) {
+      batch.update(
+        tableName,
+        {
+          'synced': 0,
+          'last_error': errorMessage,
+          'date_sync': nowIso,
+        },
+        where: 'sync_uuid = ?',
+        whereArgs: [syncUuid],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   /// Récupère toutes les entités d'une table SRM.
@@ -802,6 +1517,175 @@ class DatabaseHelper {
     final db = await database;
     await db.update(tableName, {'synced': 1, 'date_sync': DateTime.now().toIso8601String()},
         where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> enqueuePhotoSyncItem({
+    required String schemaName,
+    required String tableName,
+    required String uuidObjet,
+    required int photoSlot,
+    required String localPath,
+    int? idProjet,
+    int? idMission,
+    int? idAgentCrea,
+  }) async {
+    final db = await database;
+    final nowIso = DateTime.now().toIso8601String();
+    final existing = await db.query(
+      'photo_sync_queue',
+      where: 'schema_name = ? AND table_name = ? AND uuid_objet = ? AND photo_slot = ?',
+      whereArgs: [schemaName, tableName, uuidObjet, photoSlot],
+      limit: 1,
+    );
+
+    final payload = <String, dynamic>{
+      'schema_name': schemaName,
+      'table_name': tableName,
+      'uuid_objet': uuidObjet,
+      'photo_slot': photoSlot,
+      'local_path': localPath,
+      'id_projet': idProjet,
+      'id_mission': idMission,
+      'id_agent_crea': idAgentCrea,
+      'synced': 0,
+      'last_error': null,
+      'updated_at': nowIso,
+    };
+
+    if (existing.isEmpty) {
+      payload['retry_count'] = 0;
+      payload['created_at'] = nowIso;
+      final id = await db.insert('photo_sync_queue', payload);
+      await recordLocalEvent(
+        eventType: 'ENQUEUE_PHOTO_SYNC',
+        tableName: 'photo_sync_queue',
+        cleLigne: '$tableName|$uuidObjet|$photoSlot',
+        uuidObjet: uuidObjet,
+        payload: {
+          'schema_name': schemaName,
+          'table_name': tableName,
+          'photo_slot': photoSlot,
+        },
+      );
+      return id;
+    }
+
+    final existingId = _toInt(existing.first['id']);
+    await db.update(
+      'photo_sync_queue',
+      payload,
+      where: 'id = ?',
+      whereArgs: [existingId],
+    );
+    await recordLocalEvent(
+      eventType: 'ENQUEUE_PHOTO_SYNC',
+      tableName: 'photo_sync_queue',
+      cleLigne: '$tableName|$uuidObjet|$photoSlot',
+      uuidObjet: uuidObjet,
+      payload: {
+        'schema_name': schemaName,
+        'table_name': tableName,
+        'photo_slot': photoSlot,
+      },
+    );
+    return existingId;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingPhotoSyncItems({
+    int limit = 200,
+  }) async {
+    final db = await database;
+    return db.query(
+      'photo_sync_queue',
+      where: 'synced IS NULL OR synced = 0',
+      orderBy: 'id ASC',
+      limit: limit,
+    );
+  }
+
+  Future<void> markPhotoSyncItemSynced(
+    int id, {
+    required String remotePath,
+  }) async {
+    final db = await database;
+    await db.update(
+      'photo_sync_queue',
+      {
+        'synced': 1,
+        'remote_path': remotePath,
+        'last_error': null,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await recordLocalEvent(
+      eventType: 'PHOTO_SYNC_SUCCESS',
+      tableName: 'photo_sync_queue',
+      idObjet: id,
+      payload: {'remote_path': remotePath},
+    );
+  }
+
+  Future<void> markPhotoSyncItemFailed(int id, String errorMessage) async {
+    final db = await database;
+    await db.rawUpdate(
+      '''
+      UPDATE photo_sync_queue
+      SET synced = 0,
+          retry_count = COALESCE(retry_count, 0) + 1,
+          last_error = ?,
+          updated_at = ?
+      WHERE id = ?
+      ''',
+      [errorMessage, DateTime.now().toIso8601String(), id],
+    );
+    await recordLocalEvent(
+      eventType: 'PHOTO_SYNC_FAILED',
+      tableName: 'photo_sync_queue',
+      idObjet: id,
+      payload: {'error': errorMessage},
+    );
+  }
+
+  Future<void> updatePhotoReferenceByUuid(
+    String tableName,
+    String uuid,
+    int photoSlot,
+    String photoReference,
+    {bool recordHistory = false}
+  ) async {
+    _assertAllowedSrmTable(tableName);
+    final db = await database;
+    final fieldName = 'photo_$photoSlot';
+    Map<String, dynamic>? beforeRow;
+    if (recordHistory) {
+      final rows = await db.query(
+        tableName,
+        where: 'uuid = ?',
+        whereArgs: [uuid],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        beforeRow = Map<String, dynamic>.from(rows.first);
+      }
+    }
+    await db.update(
+      tableName,
+      {fieldName: photoReference},
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    if (recordHistory && beforeRow != null) {
+      final afterRow = Map<String, dynamic>.from(beforeRow)
+        ..[fieldName] = photoReference;
+      await _recordLocalUpdateHistory(
+        db,
+        tableName: tableName,
+        beforeRow: beforeRow,
+        afterRow: afterRow,
+      );
+    }
   }
 
   Set<String> _allowedSrmTables() {
@@ -1025,6 +1909,12 @@ class DatabaseHelper {
       {'key': 'last_sync_time', 'value': dt.toIso8601String()},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    await recordLocalEvent(
+      eventType: 'SAVE_LAST_SYNC_TIME',
+      tableName: 'app_metadata',
+      cleLigne: 'last_sync_time',
+      payload: {'value': dt.toIso8601String()},
+    );
   }
 
   Future<DateTime?> getLastSyncTime() async {
@@ -1047,6 +1937,12 @@ class DatabaseHelper {
       'app_metadata',
       {'key': 'last_download_time', 'value': dt.toIso8601String()},
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    await recordLocalEvent(
+      eventType: 'SAVE_LAST_DOWNLOAD_TIME',
+      tableName: 'app_metadata',
+      cleLigne: 'last_download_time',
+      payload: {'value': dt.toIso8601String()},
     );
   }
 
