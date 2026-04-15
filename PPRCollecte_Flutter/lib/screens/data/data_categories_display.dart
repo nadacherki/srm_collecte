@@ -9,6 +9,7 @@ import '../../widgets/lists/data_list_view.dart';
 import '../../data/local/database_helper.dart';
 import '../home/home_page.dart';
 import '../forms/polygon_form_page.dart';
+import '../../services/form_lock_service.dart';
 
 const bool _DBG_FOCUS_POINT = true;
 
@@ -741,36 +742,52 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
       _showLegacyRemovedMessage();
     } else if (selectedCategory == "Chaussées") {
       _showLegacyRemovedMessage();
-    } else if (selectedType == "Zone de Plaine") {
-      await _editZoneDePlaine(item);
     } else {
-      final config = InfrastructureConfig.getEntityConfig(selectedCategory!, selectedType!);
-      final tableName = config?['tableName'] ?? '';
+      // ── SPRINT 8 : garde — impossible d'éditer une donnée verrouillée ──
+      if (FormLockService.isLocked(item)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(children: [
+              const Icon(Icons.lock_outline, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(FormLockService.lockReason(item))),
+            ]),
+            backgroundColor: Colors.grey.shade700,
+          ),
+        );
+        return;
+      }
+      if (selectedType == "Zone de Plaine") {
+        await _editZoneDePlaine(item);
+      } else {
+        final config = InfrastructureConfig.getEntityConfig(selectedCategory!, selectedType!);
+        final tableName = config?['tableName'] ?? '';
 
-      if (tableName.isEmpty) return;
-      final String agentName = item['enqueteur'] ?? 'Agent';
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => Scaffold(
-            // ✅ Ajout du Scaffold ici
-            body: PointFormWidget(
-              category: selectedCategory!,
-              type: selectedType!,
-              pointData: item, // ✅ Données à modifier
-              onBack: () => Navigator.pop(context),
-              onSaved: () {
-                _fetchData();
-                Navigator.pop(context);
-              },
-              agentName: agentName,
+        if (tableName.isEmpty) return;
+        final String agentName = item['enqueteur'] ?? 'Agent';
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => Scaffold(
+              // ✅ Ajout du Scaffold ici
+              body: PointFormWidget(
+                category: selectedCategory!,
+                type: selectedType!,
+                pointData: item, // ✅ Données à modifier
+                onBack: () => Navigator.pop(context),
+                onSaved: () {
+                  _fetchData();
+                  Navigator.pop(context);
+                },
+                agentName: agentName,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      if (result != null) {
-        _fetchData();
+        if (result != null) {
+          _fetchData();
+        }
       }
     }
   }
@@ -833,72 +850,6 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $e')),
       );
-    }
-  }
-
-  Future<void> _deleteItem(int id) async {
-    if (selectedCategory == "Pistes") {
-      _showLegacyRemovedMessage();
-    } else if (selectedCategory == "Chaussées") {
-      _showLegacyRemovedMessage();
-    } else {
-      final config = InfrastructureConfig.getEntityConfig(selectedCategory!, selectedType!);
-      final tableName = config?['tableName'] ?? '';
-
-      if (tableName.isEmpty) return;
-
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Confirmer la suppression'),
-          content: const Text('Êtes-vous sûr de vouloir supprimer cet élément ?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Supprimer'),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmed == true) {
-        try {
-          final dbHelper = DatabaseHelper();
-
-          if (tableName == 'bacs' || tableName == 'passages_submersibles') {
-            final db = await dbHelper.database;
-            await db.delete(
-              'displayed_special_lines',
-              where: 'original_id = ? AND original_table = ?',
-              whereArgs: [
-                id,
-                tableName
-              ],
-            );
-            print('🗑️ Ligne spéciale supprimée de displayed_special_lines: $id / $tableName');
-          }
-          // Sprint 4: deleteDisplayedPoint et deleteEntity remplacés par db.delete direct
-          await dbHelper.deleteEntitySrm(
-            tableName,
-            id,
-            recordHistory: true,
-          );
-          _fetchData(); // Rafraîchir la liste
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Élément supprimé avec succès')),
-          );
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur lors de la suppression: $e')),
-          );
-        }
-      }
     }
   }
 
@@ -1063,7 +1014,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
             dataFilter: widget.dataFilter,
             tableName: _getCurrentTableName(),
             onEdit: _editItem,
-            onDelete: _deleteItem,
+            onDelete: null,
             onView: (item) => _goToMapForItem(item),
           ),
         ),

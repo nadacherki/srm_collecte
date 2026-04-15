@@ -17,6 +17,7 @@ import '../../services/photo_validation_service.dart';
 import '../../services/photo_reference_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
+import '../../services/form_lock_service.dart';
 
 class SrmLigneFormPage extends StatefulWidget {
   final String metier;       // "Eau Potable" | "Assainissement" | "Électricité"
@@ -51,6 +52,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   bool _hasAnomalie = false;
   String? _typeAnomalie;
   bool _isSaving = false;
+  // ── SPRINT 8 : Verrouillage ──
+  bool _isLocked = false;
   final _picker = ImagePicker();
   final Map<int, String?> _photoPaths = {1: null, 2: null};
 
@@ -99,6 +102,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       for (int i = 1; i <= 2; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
+      // ── SPRINT 8 : Verrouillage ──
+      _isLocked = FormLockService.isLocked(widget.existingData!);
     }
 
     // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
@@ -313,6 +318,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   Future<void> _save() async {
+    // ── SPRINT 8 : garde de sécurité ──
+    if (_isLocked) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
@@ -434,21 +441,25 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     if (isTypeField) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: DropdownButtonFormField<String>(
-          initialValue: controller.text.isEmpty ? null : controller.text,
-          decoration: _deco(label),
-          isExpanded: true,
-          items: _typeOptions
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: (v) => controller.text = v ?? '',
-          validator: (v) =>
-              (v == null || v.isEmpty) ? 'Champ requis' : null,
+        child: Opacity(
+          opacity: _isLocked ? 0.55 : 1.0,
+          child: DropdownButtonFormField<String>(
+            initialValue: controller.text.isEmpty ? null : controller.text,
+            decoration: _deco(label),
+            isExpanded: true,
+            items: _typeOptions
+                .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                .toList(),
+            onChanged: _isLocked ? null : (v) => controller.text = v ?? '',
+            validator: _isLocked ? null : (v) =>
+                (v == null || v.isEmpty) ? 'Champ requis' : null,
+          ),
         ),
       );
     }
 
     if (isDistanceField) {
+      // Distance : TOUJOURS readOnly (calculée GPS)
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(
@@ -467,14 +478,21 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        decoration: _deco(label),
-        keyboardType: _kbType(rule),
-        maxLines: rule.multiline ? 3 : 1,
-        maxLength: rule.maxLength,
-        inputFormatters: _inputFormatters(rule),
-        validator: (value) => _validateField(field, value),
+      child: Opacity(
+        opacity: _isLocked ? 0.55 : 1.0,
+        child: TextFormField(
+          controller: controller,
+          decoration: _deco(label).copyWith(
+            filled: _isLocked,
+            fillColor: _isLocked ? Colors.grey.shade50 : null,
+          ),
+          keyboardType: _kbType(rule),
+          maxLines: rule.multiline ? 3 : 1,
+          maxLength: rule.maxLength,
+          inputFormatters: _inputFormatters(rule),
+          readOnly: _isLocked,
+          validator: _isLocked ? null : (value) => _validateField(field, value),
+        ),
       ),
     );
   }
@@ -641,14 +659,37 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       },
       child: Scaffold(
       appBar: AppBar(
-        backgroundColor: _metierColor,
+        backgroundColor: _isLocked ? Colors.grey.shade700 : _metierColor,
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.entityType,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                Text(widget.entityType,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
+                if (_isLocked) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_outline, size: 10, color: Colors.white),
+                        SizedBox(width: 3),
+                        Text('VERROUILLÉ',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
             Text('${widget.metier} — tracé GPS',
                 style: const TextStyle(
                     fontSize: 12, color: Colors.white70)),
@@ -664,11 +705,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                   child: CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2)),
             )
-          else
+          else if (!_isLocked)
             IconButton(
                 icon: const Icon(Icons.check),
                 tooltip: 'Enregistrer',
-                onPressed: _save),
+                onPressed: _save)
+          else
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Icon(Icons.lock_outline, color: Colors.white70),
+            ),
         ],
       ),
       body: Form(
@@ -676,6 +722,34 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // ── Bannière VERROUILLAGE (SPRINT 8) ──
+            if (_isLocked)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade400),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline, color: Colors.grey.shade600, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        FormLockService.lockReason(widget.existingData!),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Bandeau tracé
             Container(
               padding: const EdgeInsets.all(10),
@@ -720,40 +794,43 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             ..._fields.map(_buildField),
 
             // Anomalie
-            const Divider(height: 24),
-            SwitchListTile(
-              title: const Text('Anomalie détectée',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              value: _hasAnomalie,
-              activeThumbColor: Colors.red,
-              onChanged: (v) => setState(() {
-                _hasAnomalie = v;
-                if (!v) _typeAnomalie = null;
-              }),
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (_hasAnomalie)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: DropdownButtonFormField<String>(
-                  initialValue: _typeAnomalie,
-                  decoration: _deco('Type d\'anomalie'),
-                  hint: const Text('Sélectionner'),
-                  items: const [
-                    DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
-                    DropdownMenuItem(
-                        value: 'Corrosion', child: Text('Corrosion')),
-                    DropdownMenuItem(
-                        value: 'Obstruction', child: Text('Obstruction')),
-                    DropdownMenuItem(
-                        value: 'Dommage physique',
-                        child: Text('Dommage physique')),
-                    DropdownMenuItem(
-                        value: 'Autre', child: Text('Autre')),
-                  ],
-                  onChanged: (v) => setState(() => _typeAnomalie = v),
-                ),
+            Opacity(
+              opacity: _isLocked ? 0.55 : 1.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 24),
+                  SwitchListTile(
+                    title: const Text('Anomalie détectée',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    value: _hasAnomalie,
+                    activeThumbColor: Colors.red,
+                    onChanged: _isLocked ? null : (v) => setState(() {
+                      _hasAnomalie = v;
+                      if (!v) _typeAnomalie = null;
+                    }),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  if (_hasAnomalie)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _typeAnomalie,
+                        decoration: _deco('Type d\'anomalie'),
+                        hint: const Text('Sélectionner'),
+                        items: const [
+                          DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
+                          DropdownMenuItem(value: 'Corrosion', child: Text('Corrosion')),
+                          DropdownMenuItem(value: 'Obstruction', child: Text('Obstruction')),
+                          DropdownMenuItem(value: 'Dommage physique', child: Text('Dommage physique')),
+                          DropdownMenuItem(value: 'Autre', child: Text('Autre')),
+                        ],
+                        onChanged: _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
+                      ),
+                    ),
+                ],
               ),
+            ),
 
             // Photos
             if (_maxPhotos > 0) ...[
@@ -773,53 +850,53 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                 children: List.generate(_maxPhotos, (i) {
                   final idx = i + 1;
                   final path = _photoPaths[idx];
-                  return GestureDetector(
-                    onTap: () => _pickPhoto(idx),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            border:
-                                Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.grey.shade100,
+                  return Opacity(
+                    opacity: _isLocked ? 0.55 : 1.0,
+                    child: GestureDetector(
+                      onTap: _isLocked ? null : () => _pickPhoto(idx),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.grey.shade100,
+                            ),
+                            child: path != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: _buildPhotoPreview(path))
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo,
+                                          color: Colors.grey.shade400),
+                                      Text('Photo $idx',
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey.shade500)),
+                                    ],
+                                  ),
                           ),
-                          child: path != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(7),
-                                  child: _buildPhotoPreview(path))
-                              : Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.add_a_photo,
-                                        color: Colors.grey.shade400),
-                                    Text('Photo $idx',
-                                        style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey.shade500)),
-                                  ],
+                          if (path != null && !_isLocked)
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () => setState(() => _photoPaths[idx] = null),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle),
+                                  child: const Icon(Icons.close,
+                                      color: Colors.white, size: 14),
                                 ),
-                        ),
-                        if (path != null)
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                  () => _photoPaths[idx] = null),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle),
-                                child: const Icon(Icons.close,
-                                    color: Colors.white, size: 14),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 }),
@@ -832,31 +909,31 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Annuler'),
+                    child: const Text('Fermer'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _metierColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                if (!_isLocked) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _metierColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.save),
+                      label: Text(_isSaving ? 'Enregistrement...' : 'Enregistrer'),
                     ),
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.save),
-                    label: Text(_isSaving
-                        ? 'Enregistrement...'
-                        : 'Enregistrer'),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 32),

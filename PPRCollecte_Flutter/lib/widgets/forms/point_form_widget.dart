@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../core/config/infrastructure_config.dart';
+import '../../services/form_lock_service.dart';
 
 class PointFormWidget extends StatefulWidget {
   final String category;
@@ -36,6 +37,8 @@ class _PointFormWidgetState extends State<PointFormWidget> {
   late TextEditingController agentController;
   bool _typeValidated = true;
   String? _typeError;
+  // ── SPRINT 8 : Verrouillage ──
+  bool _isLocked = false;
 
   @override
   void initState() {
@@ -44,6 +47,11 @@ class _PointFormWidgetState extends State<PointFormWidget> {
     agentController = TextEditingController(text: widget.agentName ?? 'N/A');
 
     _initializeFormData();
+
+    // ── SPRINT 8 : Verrouillage ──
+    if (widget.pointData != null) {
+      _isLocked = FormLockService.isLocked(widget.pointData!);
+    }
   }
 
   @override
@@ -184,6 +192,8 @@ class _PointFormWidgetState extends State<PointFormWidget> {
   }
 
   Future<void> _handleSave() async {
+    // ── SPRINT 8 : garde de sécurité ──
+    if (_isLocked) return;
     if (!_validateForm()) return;
     if (!_formKey.currentState!.validate()) return;
 
@@ -644,10 +654,10 @@ class _PointFormWidgetState extends State<PointFormWidget> {
     print('   date_modification: ${_formData['date_modification']}');
     return Column(
       children: [
-        // Header du formulaire - Style React Native
+        // Header du formulaire
         Container(
           decoration: BoxDecoration(
-            color: categoryColor,
+            color: _isLocked ? Colors.grey.shade700 : categoryColor,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Row(
@@ -659,13 +669,37 @@ class _PointFormWidgetState extends State<PointFormWidget> {
               Expanded(
                 child: Column(
                   children: [
-                    Text(
-                      widget.type,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          widget.type,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        if (_isLocked) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.25),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_outline, size: 10, color: Colors.white),
+                                SizedBox(width: 3),
+                                Text('VERROUILLÉ',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     Text(
                       'Table: ${config?['tableName'] ?? ''}',
@@ -677,19 +711,22 @@ class _PointFormWidgetState extends State<PointFormWidget> {
                   ],
                 ),
               ),
-              // Bouton Effacer dans le header
-              TextButton.icon(
-                onPressed: _clearForm,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              // Masquer Effacer si verrouillé
+              if (!_isLocked)
+                TextButton.icon(
+                  onPressed: _clearForm,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.delete, size: 18),
-                label: const Text('Effacer'),
-              ),
+                  icon: const Icon(Icons.delete, size: 18),
+                  label: const Text('Effacer'),
+                )
+              else
+                const SizedBox(width: 56),
             ],
           ),
         ),
@@ -701,6 +738,34 @@ class _PointFormWidgetState extends State<PointFormWidget> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // ── Bannière VERROUILLAGE (SPRINT 8) ──
+                if (_isLocked)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade400),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_outline, color: Colors.grey.shade600, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            FormLockService.lockReason(widget.pointData!),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // Section Association
                 _buildFormSection(
                   title: '🔗 Association',
@@ -830,7 +895,7 @@ class _PointFormWidgetState extends State<PointFormWidget> {
           ),
         ),
 
-        // Bouton Sauvegarder - Style React Native
+        // Bouton Sauvegarder / Verrouillé
         Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -846,41 +911,58 @@ class _PointFormWidgetState extends State<PointFormWidget> {
           padding: const EdgeInsets.all(20),
           child: SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _handleSave,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: categoryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 3,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.save, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Enregistrer',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+            child: _isLocked
+                ? OutlinedButton.icon(
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.lock_outline),
+                    label: const Text(
+                      'Formulaire verrouillé — Fermer',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
-            ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey.shade700,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(color: Colors.grey.shade400),
+                    ),
+                  )
+                : ElevatedButton(
+                    onPressed: _isLoading ? null : _handleSave,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: categoryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 3,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.save, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Enregistrer',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
           ),
         ),
       ],
@@ -1332,75 +1414,79 @@ class _PointFormWidgetState extends State<PointFormWidget> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
+      child: Opacity(
+        opacity: _isLocked ? 0.6 : 1.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-              filled: true,
-              fillColor: const Color(0xFFF9FAFB),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: controller,
+              readOnly: _isLocked,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+                filled: true,
+                fillColor: _isLocked ? const Color(0xFFF0F0F0) : const Color(0xFFF9FAFB),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red),
+                ),
+                errorStyle: const TextStyle(color: Colors.red),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF1976D2)),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.red), // ← Même rouge que le type
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.red), // ← Même rouge que le type
-              ),
-              errorStyle: const TextStyle(color: Colors.red), // ← Même rouge que le type
-            ),
-            maxLines: maxLines,
-            textAlignVertical: maxLines > 1 ? TextAlignVertical.top : null,
-            validator: required
-                ? (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '$label est obligatoire';
+              maxLines: maxLines,
+              textAlignVertical: maxLines > 1 ? TextAlignVertical.top : null,
+              validator: (required && !_isLocked)
+                  ? (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return '$label est obligatoire';
+                      }
+                      return null;
                     }
-                    return null;
+                  : null,
+              onChanged: _isLocked ? null : (value) {
+                if (autoCapitalize && value.isNotEmpty) {
+                  final corrected = value[0].toUpperCase() + value.substring(1).toLowerCase();
+                  if (value != corrected) {
+                    controller.value = controller.value.copyWith(
+                      text: corrected,
+                      selection: TextSelection.collapsed(offset: controller.selection.baseOffset),
+                    );
+                    _formData[key] = corrected;
+                  } else {
+                    _formData[key] = value;
                   }
-                : null,
-            onChanged: (value) {
-              if (autoCapitalize && value.isNotEmpty) {
-                final corrected = value[0].toUpperCase() + value.substring(1).toLowerCase();
-                if (value != corrected) {
-                  controller.value = controller.value.copyWith(
-                    text: corrected,
-                    selection: TextSelection.collapsed(offset: controller.selection.baseOffset),
-                  );
-                  _formData[key] = corrected;
                 } else {
                   _formData[key] = value;
                 }
-              } else {
-                _formData[key] = value;
-              }
-            },
-          ),
-        ],
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1412,102 +1498,105 @@ class _PointFormWidgetState extends State<PointFormWidget> {
     required String key,
     bool required = false,
   }) {
-    final bool hasError = !_typeValidated && _formData[key] == null && required;
+    final bool hasError = !_typeValidated && _formData[key] == null && required && !_isLocked;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: hasError ? Colors.red : const Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: hasError ? Colors.red : const Color(0xFFE5E7EB),
+      child: Opacity(
+        opacity: _isLocked ? 0.6 : 1.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: hasError ? Colors.red : const Color(0xFF374151),
               ),
             ),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: options.map((option) {
-                final isSelected = _formData[key] == option;
-
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque, // Ensures the entire row area catches taps
-                  onTap: () {
-                    setState(() {
-                      _formData[key] = option;
-                      _typeValidated = true;
-                      _typeError = null;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFFE3F2FD).withOpacity(0.3) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFF1976D2) : (hasError ? Colors.red : const Color(0xFFD1D5DB)),
-                              width: 2,
-                            ),
-                          ),
-                          child: isSelected
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.circle,
-                                    size: 14,
-                                    color: Color(0xFF1976D2),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            option,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: isSelected ? const Color(0xFF1976D2) : (hasError ? Colors.red : const Color(0xFF374151)),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          if (hasError)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 4),
-              child: Text(
-                _typeError ?? 'Veuillez sélectionner un type',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.red, // ← Même rouge que le nom
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: _isLocked ? const Color(0xFFF0F0F0) : const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hasError ? Colors.red : const Color(0xFFE5E7EB),
                 ),
               ),
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: options.map((option) {
+                  final isSelected = _formData[key] == option;
+
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _isLocked ? null : () {
+                      setState(() {
+                        _formData[key] = option;
+                        _typeValidated = true;
+                        _typeError = null;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFFE3F2FD).withOpacity(0.3) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected ? const Color(0xFF1976D2) : (hasError ? Colors.red : const Color(0xFFD1D5DB)),
+                                width: 2,
+                              ),
+                            ),
+                            child: isSelected
+                                ? const Center(
+                                    child: Icon(
+                                      Icons.circle,
+                                      size: 14,
+                                      color: Color(0xFF1976D2),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              option,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: isSelected ? const Color(0xFF1976D2) : (hasError ? Colors.red : const Color(0xFF374151)),
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-        ],
+            if (hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 4),
+                child: Text(
+                  _typeError ?? 'Veuillez sélectionner un type',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

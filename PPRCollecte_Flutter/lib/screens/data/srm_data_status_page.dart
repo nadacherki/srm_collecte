@@ -5,6 +5,12 @@ import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../widgets/lists/data_list_view.dart';
+import '../../services/form_lock_service.dart';
+import 'dart:convert';
+import 'package:latlong2/latlong.dart';
+import '../../widgets/forms/srm_point_form_widget.dart';
+import '../forms/srm_ligne_form_page.dart';
+import '../forms/polygon_form_page.dart';
 
 class SrmDataStatusPage extends StatefulWidget {
   final String title;
@@ -367,7 +373,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                     data: _filteredData,
                     entityType: widget.title,
                     dataFilter: widget.dataFilter,
-                    onEdit: null,
+                    onEdit: _editItem,
                     onDelete: null,
                     onView: null,
                     tableName: null,
@@ -379,6 +385,78 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   }
 
   // â”€â”€ Bandeau compteur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Édition d'un item SRM (Sprint 8) ─────────────────────────────────
+  Future<void> _editItem(Map<String, dynamic> item) async {
+    final metier     = item['source_metier']?.toString();
+    final entityType = item['source_entity']?.toString();
+    final geoType    = item['geometry_type']?.toString() ?? 'Point';
+    if (metier == null || entityType == null) return;
+
+    if (geoType == 'LineString') {
+      List<LatLng> points = [];
+      final pj = item['points_json'];
+      if (pj is String && pj.isNotEmpty) {
+        try {
+          final raw = jsonDecode(pj) as List;
+          points = raw.map<LatLng>((c) {
+            if (c is Map) return LatLng((c['lat'] as num).toDouble(), (c['lon'] as num).toDouble());
+            if (c is List && c.length >= 2) return LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
+            return const LatLng(0, 0);
+          }).toList();
+        } catch (_) {}
+      }
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => SrmLigneFormPage(
+          metier: metier, entityType: entityType,
+          linePoints: points, agentName: widget.agentName, existingData: item,
+        ),
+      ));
+    } else if (geoType == 'Polygon') {
+      List<LatLng> points = [];
+      final pj = item['points_json'];
+      if (pj is String && pj.isNotEmpty) {
+        try {
+          final raw = jsonDecode(pj) as List;
+          points = raw.map<LatLng>((c) {
+            if (c is Map) return LatLng(((c['lat'] ?? 0) as num).toDouble(), ((c['lon'] ?? 0) as num).toDouble());
+            if (c is List && c.length >= 2) return LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
+            return const LatLng(0, 0);
+          }).toList();
+          if (points.length > 1 && points.first.latitude == points.last.latitude && points.first.longitude == points.last.longitude) points.removeLast();
+        } catch (_) {}
+      }
+      if (points.length < 3) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Polygone invalide'), backgroundColor: Colors.orange));
+        return;
+      }
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PolygonFormPage(
+          polygonPoints: points,
+          startTime: item['date_collecte'] != null ? DateTime.tryParse(item['date_collecte'].toString()) ?? DateTime.now() : DateTime.now(),
+          endTime: DateTime.now(), agentName: widget.agentName,
+          existingData: item, metier: metier, entityType: entityType,
+        ),
+      ));
+    } else {
+      final lat = (item['latitude_gps'] as num?)?.toDouble() ?? 0.0;
+      final lon = (item['longitude_gps'] as num?)?.toDouble() ?? 0.0;
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => Scaffold(
+          body: SrmPointFormWidget(
+            metier: metier, entityType: entityType,
+            latitude: lat, longitude: lon,
+            altitude: (item['altitude_gps'] as num?)?.toDouble(),
+            agentName: widget.agentName, existingData: item,
+            onSaved: () { _loadData(); Navigator.pop(context); },
+            onCancel: () => Navigator.pop(context),
+          ),
+        ),
+      ));
+    }
+    if (mounted) _loadData();
+  }
+
+
   Widget _buildCounterBanner() {
     final total = _allData.length;
     final shown = _filteredData.length;

@@ -9,6 +9,7 @@ import '../../data/remote/api_service.dart';
 import '../../core/config/srm_config.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
+import '../../services/form_lock_service.dart';
 
 class PolygonFormPage extends StatefulWidget {
   final List<LatLng> polygonPoints;
@@ -46,6 +47,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   String? _nearestPisteCode;
   bool _isLoading = true;
   bool _isSaving = false;
+  // ── SPRINT 8 : Verrouillage ──
+  bool _isLocked = false;
   final _nomController = TextEditingController();
   final _codeGpsController = TextEditingController();
 
@@ -165,6 +168,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         _observationController.text =
             widget.existingData!['observation']?.toString() ?? '';
       }
+      // ── SPRINT 8 : Verrouillage ──
+      _isLocked = FormLockService.isLocked(widget.existingData!);
     }
 
     // Chercher la piste (seulement mode GeoDNGR)
@@ -249,6 +254,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   //  SAUVEGARDE — INSERT en création, UPDATE en édition
   // ==================================================================
   Future<void> _handleSave() async {
+    // ── SPRINT 8 : garde de sécurité ──
+    if (_isLocked) return;
     setState(() => _isSaving = true);
 
     if (_superficieHa < 0.0001) {
@@ -509,9 +516,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       body: SafeArea(
         child: Column(
           children: [
-            // ===== HEADER — identique au PointFormWidget =====
+            // ===== HEADER =====
             Container(
-              decoration: BoxDecoration(color: _categoryColor),
+              decoration: BoxDecoration(
+                color: _isLocked ? Colors.grey.shade700 : _categoryColor,
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Row(
                 children: [
@@ -522,13 +531,37 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                   Expanded(
                     child: Column(
                       children: [
-                        const Text(
-                          'Zone de Plaine',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Zone de Plaine',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (_isLocked) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.lock_outline, size: 10, color: Colors.white),
+                                    SizedBox(width: 3),
+                                    Text('VERROUILLÉ',
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         Text(
                           'Table: $_tableName',
@@ -540,18 +573,22 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                       ],
                     ),
                   ),
-                  TextButton.icon(
-                    onPressed: _clearForm,
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  // Masquer Effacer si verrouillé
+                  if (!_isLocked)
+                    TextButton.icon(
+                      onPressed: _clearForm,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    ),
-                    icon: const Icon(Icons.delete, size: 18),
-                    label: const Text('Effacer'),
-                  ),
+                      icon: const Icon(Icons.delete, size: 18),
+                      label: const Text('Effacer'),
+                    )
+                  else
+                    const SizedBox(width: 56), // même espace pour équilibre
                 ],
               ),
             ),
@@ -561,7 +598,33 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // ====== SECTION SRM — Regard EP / Planche ======
+                  // ── Bannière VERROUILLAGE (SPRINT 8) ──
+                  if (_isLocked)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade400),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock_outline, color: Colors.grey.shade600, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              FormLockService.lockReason(widget.existingData!),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade700,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (_isSrm) ...[
                     _buildFormSection(
                       title: '🔧 ${widget.entityType} — Attributs',
@@ -606,68 +669,84 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                           _buildTextField(
                               label: 'Numéro (ep_num)',
                               hint: 'Ex: R001',
-                              controller: _epNumController),
+                              controller: _epNumController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Type',
                               hint: '',
-                              controller: _epTypeController),
+                              controller: _epTypeController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Forme',
                               hint: 'Circulaire / Rectangulaire',
-                              controller: _epFormeController),
+                              controller: _epFormeController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Longueur (m)',
                               hint: '0.00',
-                              controller: _epLongueurController),
+                              controller: _epLongueurController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Largeur (m)',
                               hint: '0.00',
-                              controller: _epLargeurController),
+                              controller: _epLargeurController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Cote tampon (m)',
                               hint: '0.000',
-                              controller: _epCoteTamponController),
+                              controller: _epCoteTamponController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Cote radier (m)',
                               hint: '0.000',
-                              controller: _epCoteRadierController),
+                              controller: _epCoteRadierController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Cote fil eau (m)',
                               hint: '0.000',
-                              controller: _epCoteFilEauController),
+                              controller: _epCoteFilEauController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'État',
                               hint: 'Bon / Moyen / Mauvais',
-                              controller: _epEtatController),
+                              controller: _epEtatController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Emplacement',
                               hint: '',
-                              controller: _emplacementController),
+                              controller: _emplacementController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Réf. rue',
                               hint: '',
-                              controller: _refRueController),
+                              controller: _refRueController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Étage aqua',
                               hint: '',
-                              controller: _etageAquaController),
+                              controller: _etageAquaController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Secteur aqua',
                               hint: '',
-                              controller: _secteurAquaController),
+                              controller: _secteurAquaController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Observation',
                               hint: '',
-                              controller: _observationController),
+                              controller: _observationController,
+                              enabled: !_isLocked),
                         ] else if (widget.entityType == 'Planche') ...[
                           _buildTextField(
                               label: 'Nom de la planche',
                               hint: 'Ex: Planche_01',
-                              controller: _nomController),
+                              controller: _nomController,
+                              enabled: !_isLocked),
                           _buildTextField(
                               label: 'Code',
                               hint: '',
-                              controller: _codeGpsController),
+                              controller: _codeGpsController,
+                              enabled: !_isLocked),
                         ],
                       ],
                     ),
@@ -695,11 +774,13 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                         label: 'Nom',
                         hint: 'Nom de la zone (optionnel)',
                         controller: _nomController,
+                        enabled: !_isLocked,
                       ),
                       _buildTextField(
                         label: 'Code GPS',
                         hint: 'Code GPS optionnel',
                         controller: _codeGpsController,
+                        enabled: !_isLocked,
                       ),
                       _buildDateField(
                         label: 'Date de création *',
@@ -744,7 +825,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               ),
             ),
 
-            // ===== BOUTON ENREGISTRER — identique au PointFormWidget =====
+            // ===== BOUTON ENREGISTRER / VERROUILLÉ =====
             Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -756,26 +837,39 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               padding: const EdgeInsets.all(20),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _handleSave,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _categoryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 3,
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.save, size: 20),
-                            SizedBox(width: 8),
-                            Text('Enregistrer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          ],
+                child: _isLocked
+                    ? OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.lock_outline),
+                        label: const Text('Formulaire verrouillé — Fermer',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade700,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          side: BorderSide(color: Colors.grey.shade400),
                         ),
-                ),
+                      )
+                    : ElevatedButton(
+                        onPressed: _isSaving ? null : _handleSave,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _categoryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 3,
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.save, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Enregistrer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                      ),
               ),
             ),
           ],

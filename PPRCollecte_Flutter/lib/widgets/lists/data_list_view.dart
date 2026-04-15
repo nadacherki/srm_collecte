@@ -4,6 +4,7 @@ import '../../data/local/database_helper.dart';
 import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 import '../../screens/home/home_page.dart'; // Pour MapFocusTarget + HomePage
+import '../../services/form_lock_service.dart';
 
 class DataListView extends StatefulWidget {
   final List<Map<String, dynamic>> data;
@@ -424,25 +425,31 @@ class _DataListViewState extends State<DataListView> {
                   widget.onView?.call(itemCopy);
                 },
               ),
-            if (widget.dataFilter == "unsynced" && widget.onEdit != null && widget.onDelete != null) ...[
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () => widget.onEdit?.call(item),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: item['id'] is int ? () => _confirmDelete(item['id'] as int, context) : null,
-              ),
+            // ── Bouton Éditer ──────────────────────────────────────────────
+            // Règle : la suppression n'est jamais autorisée.
+            // Édition possible seulement si non verrouillé.
+            if (widget.onEdit != null) ...[
+              if (FormLockService.isEditable(item))
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  tooltip: 'Modifier',
+                  onPressed: () => widget.onEdit?.call(item),
+                )
+              else
+                // Cadenas : donnée verrouillée après synchro
+                Tooltip(
+                  message: FormLockService.lockReason(item),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(Icons.lock_outline, color: Colors.grey, size: 22),
+                  ),
+                ),
             ],
           ],
         ),
         onTap: () => _showDetails(item, context),
       ),
     );
-  }
-
-  void _confirmDelete(int id, BuildContext context) {
-    widget.onDelete?.call(id);
   }
 
   void _showDetails(Map<String, dynamic> item, BuildContext context) {
