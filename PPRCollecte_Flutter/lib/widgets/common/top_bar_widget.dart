@@ -6,11 +6,13 @@ import '../../screens/profile/profile_page.dart';
 class TopBarWidget extends StatelessWidget {
   final String agentName;
   final VoidCallback onLogout;
+  final VoidCallback? onReturnFromProfile;
 
   const TopBarWidget({
     super.key,
     required this.agentName,
     required this.onLogout,
+    this.onReturnFromProfile,
   });
 
   String _getInitials(String name) {
@@ -30,8 +32,8 @@ class TopBarWidget extends StatelessWidget {
         children: [
           // ── Icône profil cliquable ──
           GestureDetector(
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => ProfilePage(
@@ -40,6 +42,7 @@ class TopBarWidget extends StatelessWidget {
                   ),
                 ),
               );
+              onReturnFromProfile?.call();
             },
             child: Row(
               children: [

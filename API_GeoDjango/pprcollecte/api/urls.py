@@ -79,6 +79,9 @@ router.register(r'historique-mobile', views.HistoriqueMobileViewSet, basename='h
 router.register(r'objets-incomplets', views.ObjetIncompletViewSet, basename='objet-incomplet')
 router.register(r'fonds-de-plan', views.FondDePlanViewSet, basename='fond-de-plan')
 router.register(r'evaluations', views.EvaluationAgentViewSet, basename='evaluation')
+router.register(r'srm-field-options', views.SrmFieldOptionViewSet, basename='srm-field-option')
+router.register(r'basemap-zones', views.BasemapZoneViewSet, basename='basemap-zone')
+router.register(r'basemap-packages', views.BasemapPackageViewSet, basename='basemap-package')
 router.register(r'metrics-agent-jour', views.MetricAgentJourViewSet, basename='metrics-agent-jour')
 router.register(r'metrics-agent-semaine', views.MetricAgentSemaineViewSet, basename='metrics-agent-semaine')
 router.register(r'metrics-agent-mois', views.MetricAgentMoisViewSet, basename='metrics-agent-mois')
@@ -156,6 +159,7 @@ router.register(r'elec/troncons-hta', views.ElecTronconHtaViewSet, basename='ele
 urlpatterns = [
     # Login (vue fonction, pas un ViewSet)
     path('api/login/', views.login_view, name='login'),
+    path('api/basemaps/catalog/', views.basemap_catalog_view, name='basemap-catalog'),
     path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),
     path('api/historique-mobile/upload/', views.mobile_history_upload_view, name='historique-mobile-upload'),
 

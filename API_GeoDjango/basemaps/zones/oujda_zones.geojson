@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "name": "oujda_zones",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "oujda_centre_demo",
+        "nom": "Oujda Centre Demo",
+        "city_slug": "oujda",
+        "min_zoom": 11,
+        "max_zoom": 18,
+        "actif": true,
+        "description": "Zone d'exemple pour valider le catalogue basemap offline autour du centre d'Oujda."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-1.9400, 34.6550],
+            [-1.8800, 34.6550],
+            [-1.8800, 34.7050],
+            [-1.9400, 34.7050],
+            [-1.9400, 34.6550]
+          ]
+        ]
+      }
+    }
+  ]
+}

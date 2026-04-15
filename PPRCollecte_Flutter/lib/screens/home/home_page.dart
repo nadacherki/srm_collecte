@@ -59,6 +59,8 @@ import '../forms/formulaire_ligne_page.dart';
 import '../forms/polygon_form_page.dart';
 import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
+import '../../services/offline_basemap_service.dart';
+import '../../core/constants/basemap_constants.dart';
 
 // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 5 : SRM Forms ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
 import '../../core/config/srm_config.dart';
@@ -100,12 +102,18 @@ class HomePage extends StatefulWidget {
   final String agentName;
   final bool isOnline;
   final MapFocusTarget? initialFocus;
+  final String? initialOfflineBasemapPath;
+  final String? initialOfflineBasemapFormat;
+  final String? initialBasemapNotice;
   const HomePage({
     super.key,
     required this.onLogout,
     required this.agentName,
     required this.isOnline,
     this.initialFocus,
+    this.initialOfflineBasemapPath,
+    this.initialOfflineBasemapFormat,
+    this.initialBasemapNotice,
   });
 
   @override
@@ -182,6 +190,14 @@ class _HomePageState extends State<HomePage> {
   bool _showDownloadedChaussees = true;
   bool get _autoCenterSuspended => _autoCenterDisabledByUser || (_suspendAutoCenterUntil != null && DateTime.now().isBefore(_suspendAutoCenterUntil!));
   String? _lastSyncTimeText;
+  String? _offlineBasemapPath;
+  String? _offlineBasemapFormat;
+  String? _basemapUnavailableMessage;
+  LatLng? _offlineBasemapCenter;
+  LatLngBounds? _offlineBasemapBounds;
+  double? _offlineBasemapDefaultZoom;
+  double? _offlineBasemapMinZoom;
+  double? _offlineBasemapMaxZoom;
   late bool _isOnlineDynamic;
   Timer? _onlineWatchTimer;
 // Dans _HomePageState
@@ -223,6 +239,16 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _offlineBasemapPath = widget.initialOfflineBasemapPath;
+    _offlineBasemapFormat = widget.initialOfflineBasemapFormat;
+    _basemapUnavailableMessage = _offlineBasemapPath == null
+        ? BasemapConstants.unavailableMessage
+        : null;
+    _offlineBasemapCenter = BasemapConstants.fallbackCenter;
+    _offlineBasemapBounds = BasemapConstants.fallbackBounds;
+    _offlineBasemapDefaultZoom = BasemapConstants.fallbackDefaultZoom;
+    _offlineBasemapMinZoom = BasemapConstants.fallbackMinZoom;
+    _offlineBasemapMaxZoom = BasemapConstants.fallbackMaxZoom;
     homeController = HomeController();
     //_cleanupDisplayedPoints();
     _loadDisplayedPistes();
@@ -238,6 +264,10 @@ class _HomePageState extends State<HomePage> {
     _loadAdminNamesOffline();
     _loadDownloadedSpecialLines();
     _loadDisplayedPolygons();
+    _hydrateOfflineBasemapState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showInitialBasemapNoticeIfNeeded();
+    });
 
     homeController.addListener(
       () {
@@ -389,11 +419,95 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _hydrateOfflineBasemapState() async {
+    final db = DatabaseHelper();
+    final activePackage = await OfflineBasemapService().getActivePackage();
+    final packagePath = activePackage?['local_path']?.toString().trim();
+    final packageFormat = activePackage?['format']?.toString().trim();
+    final activeZoneId = activePackage?['zone_id']?.toString().trim();
+    final activeZone = activeZoneId == null || activeZoneId.isEmpty
+        ? null
+        : await db.getOfflineBasemapZoneById(activeZoneId);
+    final localPath =
+        (packagePath != null && packagePath.isNotEmpty) ? packagePath : null;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (localPath != null && localPath.isNotEmpty) {
+        _offlineBasemapPath = localPath;
+        _offlineBasemapFormat = packageFormat;
+        _basemapUnavailableMessage = null;
+      }
+
+      if (activeZone != null) {
+        final centerLat = _asDoubleOrNull(activeZone['center_latitude']);
+        final centerLng = _asDoubleOrNull(activeZone['center_longitude']);
+        final west = _asDoubleOrNull(activeZone['bbox_west']);
+        final south = _asDoubleOrNull(activeZone['bbox_south']);
+        final east = _asDoubleOrNull(activeZone['bbox_east']);
+        final north = _asDoubleOrNull(activeZone['bbox_north']);
+        final minZoom = _asDoubleOrNull(activeZone['min_zoom']);
+        final maxZoom = _asDoubleOrNull(activeZone['max_zoom']);
+
+        if (centerLat != null && centerLng != null) {
+          _offlineBasemapCenter = LatLng(centerLat, centerLng);
+        }
+        if (west != null && south != null && east != null && north != null) {
+          _offlineBasemapBounds = LatLngBounds(
+            LatLng(north, west),
+            LatLng(south, east),
+          );
+        }
+        if (minZoom != null) {
+          _offlineBasemapMinZoom = minZoom;
+        }
+        if (maxZoom != null) {
+          _offlineBasemapMaxZoom = maxZoom;
+        }
+        if (_offlineBasemapMinZoom != null && _offlineBasemapMaxZoom != null) {
+          _offlineBasemapDefaultZoom =
+              (_offlineBasemapMinZoom! + _offlineBasemapMaxZoom!) / 2;
+        }
+      }
+
+      if (_mapController != null &&
+          _lastCameraPosition == null &&
+          userPosition == null &&
+          _offlineBasemapCenter != null) {
+        _mapController!.move(
+          _offlineBasemapCenter!,
+          _offlineBasemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom,
+        );
+        _lastCameraPosition = _offlineBasemapCenter;
+      }
+    });
+  }
+
+  void _showInitialBasemapNoticeIfNeeded() {
+    final message = widget.initialBasemapNotice;
+    if (!mounted || message == null || message.trim().isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   String _safe(dynamic v, {String empty = '----'}) {
     final s = (v ?? '').toString().trim();
     if (s.isEmpty) return empty;
     if (s.toLowerCase() == 'null') return empty;
     return s;
+  }
+
+  double? _asDoubleOrNull(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   String _enqueteurDisplay(dynamic v) {
@@ -2618,6 +2732,12 @@ class _HomePageState extends State<HomePage> {
       if (userPosition != null) {
         controller.move(userPosition!, 17);
         _lastCameraPosition = userPosition;
+      } else if (_offlineBasemapCenter != null) {
+        controller.move(
+          _offlineBasemapCenter!,
+          _offlineBasemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom,
+        );
+        _lastCameraPosition = _offlineBasemapCenter;
       }
     }
   }
@@ -5235,9 +5355,10 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           children: [
             TopBarWidget(
-              agentName: widget.agentName ?? 'Agent',
-              onLogout: _showLogoutConfirmation,
-            ),
+                agentName: widget.agentName ?? 'Agent',
+                onLogout: _showLogoutConfirmation,
+                onReturnFromProfile: _hydrateOfflineBasemapState,
+              ),
             Expanded(
               child: Stack(
                 children: [
@@ -5252,6 +5373,14 @@ class _HomePageState extends State<HomePage> {
                     formMarkers: formMarkers,
                     isSatellite: _isSatellite,
                     onPolylineTap: _handlePolylineTap,
+                    offlineBasemapPath: _offlineBasemapPath,
+                    offlineBasemapFormat: _offlineBasemapFormat,
+                    basemapUnavailableMessage: _basemapUnavailableMessage,
+                    basemapCenter: _offlineBasemapCenter,
+                    basemapBounds: _offlineBasemapBounds,
+                    basemapDefaultZoom: _offlineBasemapDefaultZoom,
+                    basemapMinZoom: _offlineBasemapMinZoom,
+                    basemapMaxZoom: _offlineBasemapMaxZoom,
                     onUserInteraction: () {
                       _autoCenterDisabledByUser = true;
                     },
@@ -5444,18 +5573,6 @@ class _HomePageState extends State<HomePage> {
                     isSpecialCollection: _isSpecialCollection, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOUVEAU
                     onStopSpecial: finishSpecialCollection,
                     isPolygonCollection: _isPolygonCollection,
-                  ),
-                  MapTypeToggle(
-                    isSatellite: _isSatellite,
-                    onMapTypeChanged: (
-                      newType,
-                    ) {
-                      setState(
-                        () {
-                          _isSatellite = newType;
-                        },
-                      );
-                    },
                   ),
                   /* DownloadedPistesToggle(
                     isOn: _showDownloadedPistes,

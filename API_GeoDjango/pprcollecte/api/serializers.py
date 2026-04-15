@@ -6,9 +6,11 @@ Utilise ModelSerializer standard pour les tables sans gÃ©omÃ©trie.
 Les donnÃ©es spatiales sont sÃ©rialisÃ©es en GeoJSON (RFC 7946) avec SRID 26191.
 """
 
+import json
 import math
 from urllib.parse import urlparse
 
+from django.conf import settings
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
@@ -16,6 +18,7 @@ from .models import (
     # Public
     Utilisateur, Projet, Mission, Commune,
     HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, FondDePlan, EvaluationAgent,
+    SrmFieldOption, BasemapZone, BasemapPackage,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
     MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
@@ -348,6 +351,117 @@ class EvaluationAgentSerializer(StrictModelSerializer):
     class Meta:
         model = EvaluationAgent
         fields = '__all__'
+
+
+class SrmFieldOptionSerializer(StrictModelSerializer):
+    class Meta:
+        model = SrmFieldOption
+        fields = '__all__'
+
+
+class BasemapZoneGeoSerializer(StrictGeoFeatureModelSerializer):
+    class Meta:
+        model = BasemapZone
+        geo_field = 'geom'
+        id_field = 'zone_id'
+        fields = '__all__'
+
+
+class BasemapZoneCatalogSerializer(StrictModelSerializer):
+    bbox = serializers.SerializerMethodField()
+    center = serializers.SerializerMethodField()
+    geometry = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BasemapZone
+        fields = (
+            'zone_id',
+            'city_slug',
+            'nom',
+            'bbox',
+            'center',
+            'geometry',
+            'min_zoom',
+            'max_zoom',
+            'actif',
+            'metadata_json',
+            'created_at',
+            'updated_at',
+        )
+
+    def get_bbox(self, obj):
+        return {
+            'west': obj.bbox_west,
+            'south': obj.bbox_south,
+            'east': obj.bbox_east,
+            'north': obj.bbox_north,
+        }
+
+    def get_center(self, obj):
+        return {
+            'latitude': obj.center_latitude,
+            'longitude': obj.center_longitude,
+        }
+
+    def get_geometry(self, obj):
+        if obj.geom is None:
+            return None
+        try:
+            return json.loads(obj.geom.json)
+        except AttributeError:
+            return None
+        except json.JSONDecodeError:
+            return None
+
+
+class BasemapPackageSerializer(StrictModelSerializer):
+    download_url = serializers.SerializerMethodField()
+    file_available = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BasemapPackage
+        fields = (
+            'id_package',
+            'zone_id',
+            'city_slug',
+            'style',
+            'format',
+            'version',
+            'file_name',
+            'relative_path',
+            'size_bytes',
+            'sha256',
+            'min_zoom',
+            'max_zoom',
+            'generated_at',
+            'source_name',
+            'attribution',
+            'tile_count',
+            'metadata_json',
+            'actif',
+            'requires_wifi',
+            'created_at',
+            'updated_at',
+            'download_url',
+            'file_available',
+        )
+
+    def get_download_url(self, obj):
+        request = self.context.get('request')
+        relative_path = (obj.relative_path or '').strip()
+        if not request or not relative_path:
+            return None
+
+        normalized_path = relative_path.lstrip('/')
+        media_url = str(settings.MEDIA_URL).rstrip('/')
+        return request.build_absolute_uri(f'{media_url}/{normalized_path}')
+
+    def get_file_available(self, obj):
+        media_root = self.context.get('media_root')
+        relative_path = (obj.relative_path or '').strip()
+        if not media_root or not relative_path:
+            return False
+        return (media_root / relative_path).exists()
 
 
 class MetricAgentJourSerializer(StrictModelSerializer):

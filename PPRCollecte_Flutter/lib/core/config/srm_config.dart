@@ -163,10 +163,66 @@ class SrmConfig {
         },
         "Regard EP": {
           "tableName": "regard_ep", "schema": "ep",
-          "geometryType": "Polygon", "hasZ": true, "isPolygon": true, "maxPhotos": 4,
+          "geometryType": "Polygon", "hasZ": true, "isPolygon": true, "maxPhotos": 0,
           "typeField": null, "typeOptions": [],
-          "fields": ["ep_num","ep_num_regard","num_regard","ep_section","emplacement","ep_tampon","z_radier","z_surf","ep_statut","ref_rue","ep_sect_com","ep_entreprise","ep_ref_marche","observation","ep_coor_x","ep_coor_y","ep_coor_z","date_leve","existence_echelon","anomalie_regard","anomalie_tampon","gener_sup_conduite","profondeur","retour_terrain","description_anomalie","conformite_plan"],
-          "requiredFields": ["conformite_plan"],
+          "fields": [
+            "ep_sect_com","ep_adresse","sec_com","sect_hydr","zone",
+            "ep_date_insertion",
+            "ep_agent_crea","ep_agent","id_user_creat","date_creation",
+            "id_user_modif","date_modif",
+            "z_radier","z_surf","ep_coor_x","ep_coor_y","ep_coor_z",
+            "id_commune","id_province",
+            "mode_localisation","ep_statut","GENRATRICE_SUP","ep_profondeur",
+            "emplacement","ep_ref_rue","ep_section","ep_tampon",
+            "echelon","ep_conf_plan","ep_anomalie","anomalie_tamp",
+            "anomalie_regard","ep_observation"
+          ],
+          "requiredFields": [],
+          "readOnlyFields": [
+            "ep_agent","ep_sect_com","ep_adresse","ep_agent_crea","sec_com",
+            "sect_hydr","zone","z_radier","z_surf","ep_date_insertion",
+            "ep_coor_x","ep_coor_y","ep_coor_z","id_commune","id_province",
+            "id_user_creat","date_creation","id_user_modif","date_modif"
+          ],
+          "fieldLabels": {
+            "ep_agent": "Dernier intervenant SIG",
+            "ep_sect_com": "Secteur commercial",
+            "ep_statut": "Statut",
+            "ep_adresse": "Adresse",
+            "ep_agent_crea": "Agent de création SIG",
+            "sec_com": "SEC_COM",
+            "sect_hydr": "Secteur hydraulique",
+            "zone": "Zone hydraulique",
+            "z_radier": "Côte radier",
+            "z_surf": "Côte surface",
+            "ep_date_insertion": "Date d'insertion Elyx",
+            "ep_coor_x": "Coordonnée X",
+            "ep_coor_y": "Coordonnée Y",
+            "ep_coor_z": "Coordonnée Z",
+            "id_commune": "Commune",
+            "id_province": "Province",
+            "id_user_creat": "Utilisateur créateur",
+            "id_user_modif": "Dernier utilisateur modificateur",
+            "date_creation": "Date de création",
+            "date_modif": "Date de modification",
+            "is_deleted": "Suppression logique",
+            "is_validated": "Validation exploitant",
+            "id_user_valid": "Utilisateur validateur",
+            "date_validation": "Date de validation",
+            "emplacement": "Emplacement du regard",
+            "ep_ref_rue": "Référence rue / Douar",
+            "ep_section": "Section du regard",
+            "ep_tampon": "Type de tampon",
+            "ep_conf_plan": "Conformité au plan",
+            "ep_observation": "Observation",
+            "ep_anomalie": "Anomalie",
+            "mode_localisation": "Mode de localisation",
+            "echelon": "Existence échelon",
+            "anomalie_tamp": "Anomalie tampon",
+            "anomalie_regard": "Anomalie regard",
+            "GENRATRICE_SUP": "Génératrice supérieure",
+            "ep_profondeur": "Profondeur"
+          },
         },
         "Conduite Terrain": {
           "tableName": "ep_conduite_terrain", "schema": "ep",
@@ -409,6 +465,20 @@ class SrmConfig {
     return ec != null ? List<String>.from(ec['fields'] ?? []) : [];
   }
 
+  static List<String> getReadOnlyFields(String metier, String entity) {
+    final ec = getEntityConfig(metier, entity);
+    return ec != null ? List<String>.from(ec['readOnlyFields'] ?? []) : [];
+  }
+
+  static String getFieldLabel(String metier, String entity, String field) {
+    final ec = getEntityConfig(metier, entity);
+    final labels = ec?['fieldLabels'];
+    if (labels is Map && labels[field] != null) {
+      return labels[field].toString();
+    }
+    return field.replaceAll('_', ' ');
+  }
+
   /// ── NOUVEAU : retourne la liste des champs obligatoires ──
   /// Les champs de coordonnées (coor_x / coor_y) ne sont pas inclus ici
   /// car ils sont toujours remplis automatiquement par le GPS.
@@ -443,19 +513,22 @@ class SrmConfig {
     'accuracy', 'altitude', 'amont', 'aval', 'capacite', 'chute', 'cote',
     'debit', 'diam', 'distance', 'hauteur', 'largeur', 'long', 'pente',
     'pression', 'profondeur', 'puissance', 'section', 'tension', 'x_', 'y_',
-    'z_', 'rayon',
+    'z_', 'rayon', 'genratrice',
   };
 
   static const Set<String> _integerFields = {
     'nb_arrivees_ht', 'nb_depart_mt_dispo', 'nb_depart_mt_en_service',
     'nb_emplacement_transfo', 'nb_points', 'nb_pompes', 'nb_rames',
     'nb_transfo_install', 'nbr_arrivees', 'nbr_depart', 'num_transfo',
+    'id_commune', 'id_province', 'id_user_creat', 'id_user_modif',
+    'id_user_valid',
   };
 
   static const Set<String> _dateFields = {
     'date_collecte', 'date_construction', 'date_mise_en_service',
     'date_mise_service', 'date_mst', 'date_pose', 'date_rehabilitation',
-    'date_leve',
+    'date_leve', 'ep_date_insertion', 'date_creation', 'date_modif',
+    'date_validation',
   };
 
   static const Set<String> _longTextFields = {
@@ -464,6 +537,9 @@ class SrmConfig {
 
   static const Set<String> _mediumTextFields = {
     'emplacement', 'nom', 'nom_poste', 'observation', 'ref_rue',
+    'ep_observation', 'ep_adresse', 'ep_agent', 'ep_agent_crea',
+    'ep_ref_rue', 'ep_section', 'ep_sect_com', 'sec_com', 'sect_hydr',
+    'zone',
   };
 
   static const Set<String> _uuidFields = {
@@ -474,7 +550,8 @@ class SrmConfig {
     'accessibilite', 'anomalie', 'boite_coupure', 'compensation_energie',
     'compteur_bt', 'compteur_ht', 'compteur_mt', 'detec_extinc_incendie',
     'lumineux', 'mise_a_la_terre', 'presence_cunette', 'presence_ild',
-    'rehabilitation', 'telecommande', 'verrouille',
+    'rehabilitation', 'telecommande', 'verrouille', 'ep_anomalie',
+    'is_deleted', 'is_validated',
   };
 
   static const Set<String> _shortCodeHints = {
@@ -590,8 +667,9 @@ class SrmConfig {
   }
 
   static bool _hasAnyHint(String field, Set<String> hints) {
+    final normalizedField = field.toLowerCase();
     for (final hint in hints) {
-      if (field.contains(hint)) {
+      if (normalizedField.contains(hint.toLowerCase())) {
         return true;
       }
     }

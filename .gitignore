@@ -34,6 +34,10 @@ srmenv/
 *.dump
 *.backup
 *.sql
+!API_GeoDjango/sql/*.sql
 
 # Django uploaded media
 API_GeoDjango/pprcollecte/media/
+
+# Local basemap scratch / downloads
+bbbike_extract_page.html

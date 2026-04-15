@@ -243,6 +243,73 @@ class EvaluationAgent(models.Model):
         db_table = 'evaluation_agent'
 
 
+class SrmFieldOption(models.Model):
+    id_option = models.BigAutoField(primary_key=True)
+    table_schema = models.CharField(max_length=50)
+    table_name = models.CharField(max_length=100)
+    field_name = models.CharField(max_length=100)
+    code_value = models.CharField(max_length=255)
+    label_value = models.CharField(max_length=255)
+    display_order = models.IntegerField(default=0)
+    actif = models.BooleanField(default=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'srm_field_option'
+
+
+class BasemapZone(models.Model):
+    zone_id = models.CharField(primary_key=True, max_length=100)
+    city_slug = models.CharField(max_length=100)
+    nom = models.CharField(max_length=200)
+    geom = models.MultiPolygonField(srid=4326, null=True, blank=True)
+    bbox_west = models.FloatField()
+    bbox_south = models.FloatField()
+    bbox_east = models.FloatField()
+    bbox_north = models.FloatField()
+    center_latitude = models.FloatField()
+    center_longitude = models.FloatField()
+    min_zoom = models.IntegerField(default=11)
+    max_zoom = models.IntegerField(default=19)
+    actif = models.BooleanField(default=True)
+    metadata_json = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'basemap_zone'
+
+
+class BasemapPackage(models.Model):
+    id_package = models.BigAutoField(primary_key=True)
+    zone_id = models.CharField(max_length=100)
+    city_slug = models.CharField(max_length=100)
+    style = models.CharField(max_length=30)
+    format = models.CharField(max_length=20)
+    version = models.CharField(max_length=100)
+    file_name = models.CharField(max_length=255)
+    relative_path = models.TextField()
+    size_bytes = models.BigIntegerField(null=True, blank=True)
+    sha256 = models.CharField(max_length=64, null=True, blank=True)
+    min_zoom = models.IntegerField(null=True, blank=True)
+    max_zoom = models.IntegerField(null=True, blank=True)
+    generated_at = models.DateTimeField(null=True, blank=True)
+    source_name = models.CharField(max_length=255, null=True, blank=True)
+    attribution = models.TextField(null=True, blank=True)
+    tile_count = models.BigIntegerField(null=True, blank=True)
+    metadata_json = models.JSONField(null=True, blank=True)
+    actif = models.BooleanField(default=True)
+    requires_wifi = models.BooleanField(default=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'basemap_package'
+
+
 # =====================================================================
 #  SCHÉMA EP — Eau Potable : PONCTUELS (tables 1 à 22)
 # =====================================================================
@@ -1029,56 +1096,54 @@ class EpStationDePompage(SrmTrackedModel):
         return f"Station pompage {self.ep_num or self.fid}"
 
 
-class EpRegardEp(SrmTrackedModel):
+class EpRegardEp(models.Model):
     fid = models.AutoField(primary_key=True)
     geom = models.PolygonField(srid=26191, dim=3, null=True, blank=True)
-    ep_num = models.CharField(max_length=254, null=True, blank=True)
-    ep_num_regard = models.CharField(max_length=254, null=True, blank=True)
-    num_regard = models.CharField(max_length=254, null=True, blank=True)
-    ep_section = models.CharField(max_length=254, null=True, blank=True)
-    emplacement = models.CharField(max_length=254, null=True, blank=True)
-    ep_tampon = models.CharField(max_length=254, null=True, blank=True)
-    z_radier = models.FloatField(null=True, blank=True)
-    z_surf = models.FloatField(null=True, blank=True)
-    ref_rue = models.CharField(max_length=254, null=True, blank=True)
-    ep_sect_com = models.CharField(max_length=254, null=True, blank=True)
-    ep_entreprise = models.CharField(max_length=254, null=True, blank=True)
-    ep_ref_marche = models.CharField(max_length=254, null=True, blank=True)
-    ep_statut = models.CharField(max_length=254, null=True, blank=True)
-    observation = models.CharField(max_length=254, null=True, blank=True)
+    ep_agent = models.CharField(max_length=400, null=True, blank=True)
+    ep_sect_com = models.CharField(max_length=400, null=True, blank=True)
+    ep_statut = models.CharField(max_length=400, null=True, blank=True)
+    ep_adresse = models.CharField(max_length=400, null=True, blank=True)
+    ep_agent_crea = models.CharField(max_length=400, null=True, blank=True)
+    sec_com = models.CharField(max_length=400, null=True, blank=True)
+    sect_hydr = models.CharField(max_length=400, null=True, blank=True)
+    zone = models.CharField(max_length=400, null=True, blank=True)
+    uuid = models.UUIDField(null=True, blank=True, unique=True)
+    z_radier = models.CharField(max_length=400, null=True, blank=True)
+    z_surf = models.CharField(max_length=400, null=True, blank=True)
+    ep_date_insertion = models.DateField(null=True, blank=True)
     ep_coor_x = models.FloatField(null=True, blank=True)
     ep_coor_y = models.FloatField(null=True, blank=True)
     ep_coor_z = models.FloatField(null=True, blank=True)
-    date_leve = models.DateField(null=True, blank=True)
-    uuid = models.CharField(max_length=254, null=True, blank=True)
-    existence_echelon = models.BooleanField(null=True, blank=True)
-    anomalie_regard = models.BooleanField(null=True, blank=True)
-    anomalie_tampon = models.BooleanField(null=True, blank=True)
-    gener_sup_conduite = models.BooleanField(null=True, blank=True)
-    profondeur = models.FloatField(null=True, blank=True)
-    retour_terrain = models.BooleanField(null=True, blank=True)
-    description_anomalie = models.TextField(null=True, blank=True)
-    mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
-    id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
-    id_tampon = models.IntegerField(null=True, blank=True)
-    id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
-    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
-    anomalie = models.BooleanField(default=False)
-    type_anomalie = models.TextField(null=True, blank=True)
-    photo_1 = models.TextField(null=True, blank=True)
-    photo_2 = models.TextField(null=True, blank=True)
-    photo_3 = models.TextField(null=True, blank=True)
-    photo_4 = models.TextField(null=True, blank=True)
+    id_province = models.IntegerField(null=True, blank=True)
+    id_user_creat = models.IntegerField(null=True, blank=True)
+    id_user_modif = models.IntegerField(null=True, blank=True)
+    date_creation = models.DateTimeField(null=True, blank=True)
+    date_modif = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(null=True, blank=True, default=False)
+    is_validated = models.BooleanField(null=True, blank=True, default=False)
+    id_user_valid = models.IntegerField(null=True, blank=True)
+    date_validation = models.DateTimeField(null=True, blank=True)
+    ep_section = models.CharField(max_length=254, null=True, blank=True)
+    emplacement = models.CharField(max_length=254, null=True, blank=True)
+    ep_tampon = models.CharField(max_length=254, null=True, blank=True)
+    ep_ref_rue = models.CharField(max_length=400, null=True, blank=True)
+    ep_conf_plan = models.CharField(max_length=400, null=True, blank=True)
+    ep_observation = models.CharField(max_length=400, null=True, blank=True)
+    ep_anomalie = models.BooleanField(null=True, blank=True, default=False)
+    mode_localisation = models.CharField(max_length=400, null=True, blank=True)
+    echelon = models.CharField(max_length=400, null=True, blank=True)
+    anomalie_tamp = models.CharField(max_length=400, null=True, blank=True)
+    anomalie_regard = models.CharField(max_length=400, null=True, blank=True)
+    GENRATRICE_SUP = models.FloatField(db_column='GENRATRICE_SUP', null=True, blank=True)
+    ep_profondeur = models.FloatField(null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = '"ep"."regard_ep"'
 
     def __str__(self):
-        return f"Regard EP {self.ep_num or self.fid}"
+        return f"Regard EP {self.uuid or self.fid}"
 
 
 class EpAutreObjet(SrmTrackedModel):

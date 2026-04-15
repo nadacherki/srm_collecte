@@ -8,9 +8,14 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
 import '../home/home_page.dart';
+import '../../core/constants/basemap_constants.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../services/basemap_catalog_service.dart';
 import '../../services/password_hash_service.dart';
+import '../../services/offline_basemap_service.dart';
+import '../../services/commune_sync_service.dart';
+import '../../services/srm_field_option_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,6 +33,32 @@ class _LoginPageState extends State<LoginPage> {
   bool rememberMe = false;
   bool _obscurePwd = true;
   bool _isLoading = false;
+
+  Future<void> _refreshBasemapCatalogSilently() async {
+    try {
+      await BasemapCatalogService().refreshCatalog(
+        citySlug: BasemapConstants.catalogCitySlug,
+      );
+    } catch (e) {
+      print('[BASEMAP-CATALOG] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshSrmFieldOptionsSilently() async {
+    try {
+      await SrmFieldOptionService().refreshOptions();
+    } catch (e) {
+      print('[SRM-FIELD-OPTIONS] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshCommunesSilently() async {
+    try {
+      await CommuneSyncService().refreshCommunes();
+    } catch (e) {
+      print('[COMMUNES] Sync ignoree au login: $e');
+    }
+  }
 
   Future<bool> _isApiReachable() async {
     try {
@@ -111,7 +142,22 @@ class _LoginPageState extends State<LoginPage> {
 
       final fullName = ApiService.nomPrenom ?? 'Utilisateur Local';
       if (!mounted) return;
-      _navigateToHome(fullName, isOnline: false);
+      final activeBasemapPackage =
+          await OfflineBasemapService().getActivePackage();
+      final offlineBasemapPath =
+          activeBasemapPackage?['local_path']?.toString().trim();
+      final offlineBasemapFormat =
+          activeBasemapPackage?['format']?.toString().trim();
+      if (!mounted) return;
+      _navigateToHome(
+        fullName,
+        isOnline: false,
+        offlineBasemapPath: offlineBasemapPath,
+        offlineBasemapFormat: offlineBasemapFormat,
+        basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
+            ? "Aucune carte offline active n'a encore ete telechargee."
+            : null,
+      );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -177,9 +223,28 @@ class _LoginPageState extends State<LoginPage> {
         },
       );
 
+      await _refreshBasemapCatalogSilently();
+      await _refreshSrmFieldOptionsSilently();
+      await _refreshCommunesSilently();
+
       final fullName = userData['nom_prenom'] ?? 'Agent SRM';
       if (!mounted) return;
-      _navigateToHome(fullName, isOnline: true);
+      final activeBasemapPackage =
+          await OfflineBasemapService().getActivePackage();
+      final offlineBasemapPath =
+          activeBasemapPackage?['local_path']?.toString().trim();
+      final offlineBasemapFormat =
+          activeBasemapPackage?['format']?.toString().trim();
+      if (!mounted) return;
+      _navigateToHome(
+        fullName,
+        isOnline: true,
+        offlineBasemapPath: offlineBasemapPath,
+        offlineBasemapFormat: offlineBasemapFormat,
+        basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
+            ? "Aucune carte offline active n'a encore ete telechargee."
+            : null,
+      );
     } on TimeoutException catch (_) {
       await _loginOffline(login, password);
     } on SocketException catch (_) {
@@ -195,13 +260,22 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // â”€â”€ Navigation directe vers la carte â”€â”€
-  void _navigateToHome(String agentName, {required bool isOnline}) {
+  void _navigateToHome(
+    String agentName, {
+    required bool isOnline,
+    String? offlineBasemapPath,
+    String? offlineBasemapFormat,
+    String? basemapNotice,
+  }) {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => HomePage(
           agentName: agentName,
           isOnline:  isOnline,
+          initialOfflineBasemapPath: offlineBasemapPath,
+          initialOfflineBasemapFormat: offlineBasemapFormat,
+          initialBasemapNotice: basemapNotice,
           onLogout: () {
             ApiService.resetSession();
             DatabaseHelper().clearSrmSession();

@@ -1,0 +1,7 @@
+source/*
+!source/.gitkeep
+build/*
+!build/.gitkeep
+source_public/*
+tools/*.zip
+tools/*.exe

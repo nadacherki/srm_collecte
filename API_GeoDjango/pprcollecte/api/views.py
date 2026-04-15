@@ -28,6 +28,8 @@ import json
 from .models import (
     Utilisateur, Projet, Mission, Commune,
     HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto, FondDePlan, EvaluationAgent,
+    SrmFieldOption,
+    BasemapZone, BasemapPackage,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
     MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
@@ -48,7 +50,8 @@ from .serializers import (
     ProjetSerializer, MissionSerializer, CommuneSerializer,
     HistoriqueAttributSerializer, HistoriqueMobileSerializer,
     MobileHistoryUploadSerializer, ObjetIncompletSerializer,
-    FondDePlanSerializer, EvaluationAgentSerializer,
+    FondDePlanSerializer, EvaluationAgentSerializer, SrmFieldOptionSerializer,
+    BasemapZoneGeoSerializer, BasemapZoneCatalogSerializer, BasemapPackageSerializer,
     MetricAgentJourSerializer, MetricAgentSemaineSerializer, MetricAgentMoisSerializer,
     MetricAgentPublicJourSerializer, MetricAgentPublicSemaineSerializer,
     MetricAgentPublicMoisSerializer, MetricAgentPublicResumeSerializer,
@@ -76,8 +79,6 @@ from .serializers import (
     ElecTronconBtSerializer, ElecTronconHtaSerializer,
     LoginRequestSerializer, PhotoUploadSerializer,
 )
-
-
 def _normalized_db_table(model):
     return str(model._meta.db_table).replace('"', '')
 
@@ -112,6 +113,17 @@ _SRM_MODEL_BY_SCHEMA_TABLE = {
     tuple(_normalized_db_table(model).split('.', 1)): model
     for model in _SRM_PHOTO_MODELS
 }
+
+
+def _media_root_path():
+    return Path(settings.MEDIA_ROOT)
+
+
+def _package_serializer_context(request):
+    return {
+        'request': request,
+        'media_root': _media_root_path(),
+    }
 
 
 # =====================================================================
@@ -352,6 +364,47 @@ def login_view(request):
     })
 
 
+@api_view(['GET'])
+def basemap_catalog_view(request):
+    city_slug = (request.query_params.get('city_slug') or '').strip()
+    style = (request.query_params.get('style') or '').strip()
+    active_only = request.query_params.get('active_only', 'true').lower() != 'false'
+
+    zones_qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
+    packages_qs = BasemapPackage.objects.all().order_by(
+        'city_slug',
+        'zone_id',
+        'style',
+        'version',
+    )
+
+    if city_slug:
+        zones_qs = zones_qs.filter(city_slug=city_slug)
+        packages_qs = packages_qs.filter(city_slug=city_slug)
+    if style:
+        packages_qs = packages_qs.filter(style=style)
+    if active_only:
+        zones_qs = zones_qs.filter(actif=True)
+        packages_qs = packages_qs.filter(actif=True)
+
+    zones_payload = BasemapZoneCatalogSerializer(zones_qs, many=True).data
+    packages_payload = BasemapPackageSerializer(
+        packages_qs,
+        many=True,
+        context=_package_serializer_context(request),
+    ).data
+
+    return Response(
+        {
+            'city_slug': city_slug or None,
+            'active_only': active_only,
+            'zones': zones_payload,
+            'packages': packages_payload,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def photo_upload_view(request):
@@ -564,7 +617,7 @@ class MissionViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
 
 
 class CommuneViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Commune.objects.all()
+    queryset = Commune.objects.all().order_by('id_commune')
     serializer_class = CommuneSerializer
 
 
@@ -659,6 +712,90 @@ class FondDePlanViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet)
 class EvaluationAgentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EvaluationAgent.objects.all()
     serializer_class = EvaluationAgentSerializer
+
+
+class SrmFieldOptionViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = SrmFieldOption.objects.all()
+    serializer_class = SrmFieldOptionSerializer
+
+    def get_queryset(self):
+        qs = SrmFieldOption.objects.all().order_by(
+            'table_schema',
+            'table_name',
+            'field_name',
+            'display_order',
+            'code_value',
+        )
+
+        table_schema = (self.request.query_params.get('table_schema') or '').strip()
+        table_name = (self.request.query_params.get('table_name') or '').strip()
+        field_name = (self.request.query_params.get('field_name') or '').strip()
+        active_only = self.request.query_params.get('active_only', 'true').lower()
+
+        if table_schema:
+            qs = qs.filter(table_schema=table_schema)
+        if table_name:
+            qs = qs.filter(table_name=table_name)
+        if field_name:
+            qs = qs.filter(field_name=field_name)
+        if active_only != 'false':
+            qs = qs.filter(actif=True)
+
+        return qs
+
+
+class BasemapZoneViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = BasemapZone.objects.all()
+    serializer_class = BasemapZoneGeoSerializer
+
+    def get_queryset(self):
+        qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
+        city_slug = (self.request.query_params.get('city_slug') or '').strip()
+        if city_slug:
+            qs = qs.filter(city_slug=city_slug)
+
+        active_only = self.request.query_params.get('active_only', 'true').lower()
+        if active_only != 'false':
+            qs = qs.filter(actif=True)
+
+        return qs
+
+
+class BasemapPackageViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = BasemapPackage.objects.all()
+    serializer_class = BasemapPackageSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update(_package_serializer_context(self.request))
+        return context
+
+    def get_queryset(self):
+        qs = BasemapPackage.objects.all().order_by(
+            'city_slug',
+            'zone_id',
+            'style',
+            'version',
+        )
+        city_slug = (self.request.query_params.get('city_slug') or '').strip()
+        zone_id = (self.request.query_params.get('zone_id') or '').strip()
+        style = (self.request.query_params.get('style') or '').strip()
+        package_format = (self.request.query_params.get('format') or '').strip()
+
+        if city_slug:
+            qs = qs.filter(city_slug=city_slug)
+        if zone_id:
+            qs = qs.filter(zone_id=zone_id)
+        if style:
+            qs = qs.filter(style=style)
+        if package_format:
+            qs = qs.filter(format=package_format)
+
+        active_only = self.request.query_params.get('active_only', 'true').lower()
+        if active_only != 'false':
+            qs = qs.filter(actif=True)
+
+        return qs
 
 
 class MetricAgentJourViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):

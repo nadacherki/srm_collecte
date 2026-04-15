@@ -962,13 +962,14 @@ class SyncService {
         'ep_forme',
         'ep_longueur',
         'ep_largeur',
-        'ep_profondeur',
         'ep_cote_tampon',
         'ep_cote_radier',
         'ep_cote_fil_eau',
         'ep_etat',
         'etage_aqua',
         'secteur_aqua',
+        'points_json',
+        'nb_points',
       };
       payload.removeWhere((key, _) => obsoleteKeys.contains(key));
     }

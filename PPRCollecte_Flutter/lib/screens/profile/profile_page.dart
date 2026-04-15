@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../core/config/srm_config.dart';
+import '../../core/constants/basemap_constants.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../services/basemap_catalog_service.dart';
+import '../../services/offline_basemap_service.dart';
 
 class ProfilePage extends StatefulWidget {
   final String agentName;
@@ -42,6 +47,20 @@ class _ProfilePageState extends State<ProfilePage> {
   int _totalPoints = 0;
   int _totalLignes = 0;
   int _totalPolygones = 0;
+  bool _hasOfflineBasemap = false;
+  String _offlineBasemapStatus = '';
+  String _offlineBasemapLocalPath = '';
+  String _offlineBasemapDownloadedAt = '';
+  String _offlineBasemapServerUpdatedAt = '';
+  String _activeBasemapPackageKey = '';
+  String _activeBasemapZoneId = '';
+  String _activeBasemapStyle = '';
+  String _activeBasemapFormat = '';
+  List<Map<String, dynamic>> _basemapZones = const [];
+  List<Map<String, dynamic>> _basemapPackages = const [];
+  String? _basemapCatalogError;
+  final Set<String> _downloadingBasemapPackageKeys = <String>{};
+  final Set<String> _activatingBasemapPackageKeys = <String>{};
 
   Map<String, dynamic>? _resumeMetrics;
   Map<String, dynamic>? _dayMetrics;
@@ -74,7 +93,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ? await _db.getProjetLocal(currentProjetId)
           : null;
 
+      final basemapCatalogError = await _refreshBasemapCatalogIfPossible();
       final inventory = await _loadLocalInventorySnapshot();
+      final basemap = await _loadOfflineBasemapSnapshot();
+      final basemapCatalog = await _loadOfflineBasemapCatalogSnapshot();
       final metrics = await _loadMetricsSnapshot(
         agentId: ApiService.userId ?? _asIntOrNull(currentUser?['id_user']),
         projetId: currentProjetId,
@@ -115,6 +137,18 @@ class _ProfilePageState extends State<ProfilePage> {
         _totalPoints = inventory.totalPoints;
         _totalLignes = inventory.totalLignes;
         _totalPolygones = inventory.totalPolygones;
+        _hasOfflineBasemap = basemap.isReady;
+        _offlineBasemapStatus = basemap.statusLabel;
+        _offlineBasemapLocalPath = basemap.localPath;
+        _offlineBasemapDownloadedAt = basemap.downloadedAt;
+        _offlineBasemapServerUpdatedAt = basemap.serverUpdatedAt;
+        _activeBasemapPackageKey = basemap.packageKey;
+        _activeBasemapZoneId = basemap.zoneId;
+        _activeBasemapStyle = basemap.style;
+        _activeBasemapFormat = basemap.format;
+        _basemapZones = basemapCatalog.zones;
+        _basemapPackages = basemapCatalog.packages;
+        _basemapCatalogError = basemapCatalogError;
 
         _resumeMetrics = metrics.resume;
         _dayMetrics = metrics.day;
@@ -131,6 +165,92 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<_OfflineBasemapSnapshot> _loadOfflineBasemapSnapshot() async {
+    final activePackage = await OfflineBasemapService().getActivePackage();
+    final readyPackages = await OfflineBasemapService().getReadyPackages(
+      citySlug: BasemapConstants.catalogCitySlug,
+    );
+    final localPath =
+        activePackage?['local_path']?.toString().trim() ??
+        await OfflineBasemapService().getActiveBasemapPath() ??
+        '';
+    final packageKey =
+        activePackage?['package_key']?.toString().trim() ?? '';
+    final zoneId = activePackage?['zone_id']?.toString().trim() ?? '';
+    final style = activePackage?['style']?.toString().trim() ?? '';
+    final format = activePackage?['format']?.toString().trim() ?? '';
+    final downloadedAt =
+        activePackage?['downloaded_at']?.toString().trim() ?? '';
+    final serverUpdatedAt =
+        activePackage?['generated_at']?.toString().trim() ?? '';
+
+    final isReady = localPath.isNotEmpty;
+    final statusLabel = isReady
+        ? (packageKey.isNotEmpty ? 'Package actif' : 'Telechargee')
+        : (readyPackages.isNotEmpty
+              ? 'Aucun package actif'
+              : 'Aucun package telecharge');
+
+    return _OfflineBasemapSnapshot(
+      isReady: isReady,
+      statusLabel: statusLabel,
+      localPath: localPath,
+      downloadedAt: downloadedAt,
+      serverUpdatedAt: serverUpdatedAt,
+      packageKey: packageKey,
+      zoneId: zoneId,
+      style: style,
+      format: format,
+    );
+  }
+
+  Future<String?> _refreshBasemapCatalogIfPossible() async {
+    final isReachable = await _isApiReachableQuickly();
+    if (!isReachable) {
+      return null;
+    }
+
+    try {
+      await BasemapCatalogService(databaseHelper: _db).refreshCatalog(
+        citySlug: BasemapConstants.catalogCitySlug,
+      );
+      return null;
+    } catch (e) {
+      return _cleanErrorMessage(e);
+    }
+  }
+
+  Future<bool> _isApiReachableQuickly() async {
+    try {
+      final uri = Uri.parse(ApiService.baseUrl);
+      final host = uri.host;
+      final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(milliseconds: 800),
+      );
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<_OfflineBasemapCatalogSnapshot> _loadOfflineBasemapCatalogSnapshot() async {
+    final zones = await _db.getOfflineBasemapZones(
+      citySlug: BasemapConstants.catalogCitySlug,
+    );
+    final packages = await _db.getOfflineBasemapPackages(
+      citySlug: BasemapConstants.catalogCitySlug,
+    );
+
+    return _OfflineBasemapCatalogSnapshot(
+      zones: zones,
+      packages: packages,
+    );
   }
 
   Future<_LocalInventorySnapshot> _loadLocalInventorySnapshot() async {
@@ -275,6 +395,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 16),
                   _buildProjetCard(),
                   const SizedBox(height: 16),
+                  _buildOfflineBasemapSection(),
+                  const SizedBox(height: 16),
                   if (_hasServerMetrics || _metricsError == null) ...[
                     _buildPublicOverviewSection(),
                     const SizedBox(height: 16),
@@ -415,6 +537,414 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ],
     );
+  }
+
+  Widget _buildOfflineBasemapSection() {
+    final statusColor = _hasOfflineBasemap
+        ? const Color(0xFF27AE60)
+        : const Color(0xFFF39C12);
+    final activeFileName = _offlineBasemapLocalPath.isNotEmpty
+        ? _offlineBasemapLocalPath.split(Platform.pathSeparator).last
+        : 'Aucun package actif';
+    final downloadedPackages = _basemapPackages
+        .where(
+          (row) => (row['status']?.toString().trim().toLowerCase() ?? '') == 'ready',
+        )
+        .length;
+    final basemapNotice = _hasOfflineBasemap
+        ? "Un package de carte offline est actif sur ce mobile."
+        : _basemapPackages.isNotEmpty
+            ? "Le catalogue de zones est disponible, mais aucun package n'est encore actif sur ce mobile."
+            : "Aucune zone de carte offline n'est encore disponible dans le catalogue local.";
+
+    return _buildSection(
+      title: 'Cartes hors ligne',
+      color: const Color(0xFF16A085),
+      children: [
+        _buildNoticeCard(
+          icon: _hasOfflineBasemap
+              ? Icons.map_outlined
+              : Icons.cloud_download_outlined,
+          color: statusColor,
+          text: basemapNotice,
+        ),
+        const SizedBox(height: 12),
+          _buildInfoRow(
+            Icons.location_city_outlined,
+            'Ville',
+            BasemapConstants.catalogCityLabel,
+          ),
+        _buildInfoRow(
+          Icons.check_circle_outline,
+          'Statut',
+          _offlineBasemapStatus,
+        ),
+        _buildInfoRow(
+          Icons.map_outlined,
+          'Zone active',
+          _activeBasemapZoneId.isNotEmpty ? _activeBasemapZoneId : 'Aucune',
+        ),
+        _buildInfoRow(
+          Icons.layers_outlined,
+          'Style actif',
+          _activeBasemapStyle.isNotEmpty
+              ? _activeBasemapStyle.toUpperCase()
+              : 'Aucun',
+        ),
+        _buildInfoRow(
+          Icons.dataset_outlined,
+          'Format actif',
+          _activeBasemapFormat.isNotEmpty
+              ? _activeBasemapFormat.toUpperCase()
+              : 'Inconnu',
+        ),
+        _buildInfoRow(
+          Icons.inventory_2_outlined,
+          'Package actif',
+          activeFileName,
+        ),
+        _buildInfoRow(
+          Icons.schedule_outlined,
+          'Telechargee le',
+          _formatDateLabel(_offlineBasemapDownloadedAt),
+        ),
+        _buildInfoRow(
+          Icons.update_outlined,
+          'Version serveur',
+          _formatDateLabel(_offlineBasemapServerUpdatedAt),
+        ),
+        _buildInfoRow(
+          Icons.grid_view_outlined,
+          'Zones catalogue',
+          '${_basemapZones.length}',
+        ),
+        _buildInfoRow(
+          Icons.layers_outlined,
+          'Packages catalogue',
+          '${_basemapPackages.length}',
+        ),
+        _buildInfoRow(
+          Icons.download_done_outlined,
+          'Packages telecharges',
+          '$downloadedPackages',
+        ),
+        if (_offlineBasemapLocalPath.isNotEmpty)
+          _buildInfoRow(
+            Icons.folder_open_outlined,
+            'Chemin local',
+            _offlineBasemapLocalPath,
+          ),
+        if (_basemapCatalogError != null) ...[
+          const SizedBox(height: 8),
+          _buildNoticeCard(
+            icon: Icons.info_outline,
+            color: const Color(0xFFF39C12),
+            text: 'Catalogue zones: $_basemapCatalogError',
+          ),
+        ],
+        if (_basemapZones.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ..._basemapZones.map(_buildBasemapZoneCard),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBasemapZoneCard(Map<String, dynamic> zone) {
+    final zoneId = zone['zone_id']?.toString() ?? '';
+    final zoneName = _coalesceText(zone['nom'], zoneId);
+    final minZoom = _asIntOrNull(zone['min_zoom']);
+    final maxZoom = _asIntOrNull(zone['max_zoom']);
+    final zonePackages = _basemapPackages
+        .where((row) => row['zone_id']?.toString() == zoneId)
+        .toList();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16A085).withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF16A085).withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.map_outlined,
+                size: 18,
+                color: Color(0xFF16A085),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  zoneName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF154360),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            zoneId,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF666666),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildBadge(
+                label: 'Zoom ${minZoom ?? '?'}-${maxZoom ?? '?'}',
+                color: const Color(0xFF1976D2),
+              ),
+              _buildBadge(
+                label:
+                    '${zonePackages.length} package${zonePackages.length > 1 ? 's' : ''}',
+                color: const Color(0xFF16A085),
+              ),
+              if (_activeBasemapZoneId == zoneId)
+                _buildBadge(
+                  label: 'Zone active',
+                  color: const Color(0xFF27AE60),
+                ),
+            ],
+          ),
+          if (zonePackages.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ...zonePackages.map(_buildBasemapPackageDownloadRow),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBasemapPackageRow(Map<String, dynamic> packageRow) {
+    final style = packageRow['style']?.toString() ?? 'standard';
+    final format = packageRow['format']?.toString().toUpperCase() ?? 'MBTILES';
+    final version = packageRow['version']?.toString() ?? 'v?';
+    final statusRaw = packageRow['status'];
+    final statusLabel = _basemapPackageStatusLabel(statusRaw);
+    final statusColor = _basemapPackageStatusColor(statusRaw);
+    final sizeLabel = _formatFileSize(_asIntOrNull(packageRow['size_bytes']));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 16, color: statusColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${style.toUpperCase()} • $format • $version'
+              '${sizeLabel.isNotEmpty ? ' • $sizeLabel' : ''}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF444444),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            statusLabel,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: statusColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBasemapPackageDownloadRow(Map<String, dynamic> packageRow) {
+    final packageKey = packageRow['package_key']?.toString().trim() ??
+        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
+    final style = packageRow['style']?.toString() ?? 'standard';
+    final format = packageRow['format']?.toString().toUpperCase() ?? 'MBTILES';
+    final version = packageRow['version']?.toString() ?? 'v?';
+    final statusRaw = packageRow['status'];
+    final statusLabel = _basemapPackageStatusLabel(statusRaw);
+    final statusColor = _basemapPackageStatusColor(statusRaw);
+    final sizeLabel = _formatFileSize(_asIntOrNull(packageRow['size_bytes']));
+    final isDownloading = _downloadingBasemapPackageKeys.contains(packageKey);
+    final isActivating = _activatingBasemapPackageKeys.contains(packageKey);
+    final isActivePackage = _activeBasemapPackageKey == packageKey;
+    final isReady =
+        (statusRaw ?? '').toString().trim().toLowerCase() == 'ready';
+    final canDownload = !isDownloading &&
+        !isReady;
+    final canActivate = !isActivating && isReady && !isActivePackage;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 16, color: statusColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${style.toUpperCase()} | $format | $version'
+              '${sizeLabel.isNotEmpty ? ' | $sizeLabel' : ''}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF444444),
+              ),
+            ),
+          ),
+          if (isActivePackage) ...[
+            const SizedBox(width: 8),
+            _buildBadge(
+              label: 'Actif',
+              color: const Color(0xFF27AE60),
+            ),
+          ],
+          if (canActivate) ...[
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: () => _activateBasemapPackage(packageRow),
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF27AE60).withOpacity(0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
+                  size: 18,
+                  color: Color(0xFF27AE60),
+                ),
+              ),
+            ),
+          ],
+          if (canDownload) ...[
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: () => _downloadBasemapPackage(packageRow),
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1976D2).withOpacity(0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.download_outlined,
+                  size: 18,
+                  color: Color(0xFF1976D2),
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(width: 8),
+            Text(
+              isDownloading
+                  ? 'Telechargement...'
+                  : (isActivating ? 'Activation...' : statusLabel),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: statusColor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadBasemapPackage(Map<String, dynamic> packageRow) async {
+    final packageKey = packageRow['package_key']?.toString().trim() ??
+        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
+
+    if (_downloadingBasemapPackageKeys.contains(packageKey)) {
+      return;
+    }
+
+    setState(() {
+      _downloadingBasemapPackageKeys.add(packageKey);
+    });
+
+    try {
+      final result = await OfflineBasemapService().downloadCatalogPackage(
+        packageRow,
+      );
+      if (!mounted) return;
+
+      await _loadData();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.userMessage ??
+                (result.success
+                    ? 'Package de zone telecharge.'
+                    : 'Telechargement du package impossible.'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_cleanErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloadingBasemapPackageKeys.remove(packageKey);
+        });
+      }
+    }
+  }
+
+  Future<void> _activateBasemapPackage(Map<String, dynamic> packageRow) async {
+    final packageKey = packageRow['package_key']?.toString().trim() ??
+        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
+
+    if (_activatingBasemapPackageKeys.contains(packageKey)) {
+      return;
+    }
+
+    setState(() {
+      _activatingBasemapPackageKeys.add(packageKey);
+    });
+
+    try {
+      await OfflineBasemapService().setActivePackage(packageKey);
+      if (!mounted) return;
+
+      await _loadData();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Le package de zone est maintenant actif sur ce mobile.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_cleanErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _activatingBasemapPackageKeys.remove(packageKey);
+        });
+      }
+    }
   }
 
   Widget _buildPublicOverviewSection() {
@@ -1450,6 +1980,51 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${months[parsed.month - 1]} ${parsed.year}';
   }
 
+  String _basemapPackageStatusLabel(dynamic rawStatus) {
+    switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
+      case 'ready':
+        return 'Telecharge';
+      case 'downloading':
+        return 'Telechargement';
+      case 'update_available':
+        return 'Maj dispo';
+      case 'failed':
+        return 'Echec';
+      case 'not_downloaded':
+      default:
+        return 'Non telecharge';
+    }
+  }
+
+  Color _basemapPackageStatusColor(dynamic rawStatus) {
+    switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
+      case 'ready':
+        return const Color(0xFF27AE60);
+      case 'downloading':
+        return const Color(0xFF1976D2);
+      case 'update_available':
+        return const Color(0xFFF39C12);
+      case 'failed':
+        return const Color(0xFFE74C3C);
+      case 'not_downloaded':
+      default:
+        return const Color(0xFF7F8C8D);
+    }
+  }
+
+  String _formatFileSize(int? sizeBytes) {
+    if (sizeBytes == null || sizeBytes <= 0) return '';
+    if (sizeBytes >= 1024 * 1024) {
+      final value = sizeBytes / (1024 * 1024);
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} Mo';
+    }
+    if (sizeBytes >= 1024) {
+      final value = sizeBytes / 1024;
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} Ko';
+    }
+    return '$sizeBytes o';
+  }
+
   _IsoWeek _computeIsoWeek(DateTime date) {
     final localDate = DateTime(date.year, date.month, date.day);
     final currentWeekStart =
@@ -1501,6 +2076,40 @@ class _MetricsSnapshot {
     this.week,
     this.month,
     this.error,
+  });
+}
+
+class _OfflineBasemapSnapshot {
+  final bool isReady;
+  final String statusLabel;
+  final String localPath;
+  final String downloadedAt;
+  final String serverUpdatedAt;
+  final String packageKey;
+  final String zoneId;
+  final String style;
+  final String format;
+
+  const _OfflineBasemapSnapshot({
+    required this.isReady,
+    required this.statusLabel,
+    required this.localPath,
+    required this.downloadedAt,
+    required this.serverUpdatedAt,
+    required this.packageKey,
+    required this.zoneId,
+    required this.style,
+    required this.format,
+  });
+}
+
+class _OfflineBasemapCatalogSnapshot {
+  final List<Map<String, dynamic>> zones;
+  final List<Map<String, dynamic>> packages;
+
+  const _OfflineBasemapCatalogSnapshot({
+    required this.zones,
+    required this.packages,
   });
 }
 

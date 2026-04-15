@@ -151,6 +151,126 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> fetchBasemapCatalog({
+    String? citySlug,
+    String? style,
+    bool activeOnly = true,
+  }) async {
+    final queryParameters = <String, String>{
+      'active_only': activeOnly ? 'true' : 'false',
+    };
+    if (citySlug != null && citySlug.isNotEmpty) {
+      queryParameters['city_slug'] = citySlug;
+    }
+    if (style != null && style.isNotEmpty) {
+      queryParameters['style'] = style;
+    }
+
+    final url = Uri.parse('$baseUrl/api/basemaps/catalog/').replace(
+      queryParameters: queryParameters,
+    );
+    final response =
+        await http.get(url, headers: _headers())
+            .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Erreur GET basemap catalog: ${response.statusCode}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Reponse basemap catalog invalide');
+    }
+    return data;
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchSrmFieldOptions({
+    String? tableSchema,
+    String? tableName,
+    String? fieldName,
+    bool activeOnly = true,
+  }) async {
+    final queryParameters = <String, String>{
+      'active_only': activeOnly ? 'true' : 'false',
+    };
+    if (tableSchema != null && tableSchema.isNotEmpty) {
+      queryParameters['table_schema'] = tableSchema;
+    }
+    if (tableName != null && tableName.isNotEmpty) {
+      queryParameters['table_name'] = tableName;
+    }
+    if (fieldName != null && fieldName.isNotEmpty) {
+      queryParameters['field_name'] = fieldName;
+    }
+
+    final url = Uri.parse('$baseUrl/api/srm-field-options/').replace(
+      queryParameters: queryParameters,
+    );
+    final response =
+        await http.get(url, headers: _headers())
+            .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Erreur GET srm-field-options: ${response.statusCode}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    final List items =
+        data is List ? data : (data['results'] ?? data['features'] ?? const []);
+
+    return items
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchCommunes() async {
+    final url = Uri.parse('$baseUrl/api/communes/');
+    final response =
+        await http.get(url, headers: _headers())
+            .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Erreur GET communes: ${response.statusCode}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    dynamic itemsRaw;
+    if (data is List) {
+      itemsRaw = data;
+    } else if (data is Map<String, dynamic>) {
+      final results = data['results'];
+      if (results is List) {
+        itemsRaw = results;
+      } else if (results is Map<String, dynamic> && results['features'] is List) {
+        itemsRaw = results['features'];
+      } else if (data['features'] is List) {
+        itemsRaw = data['features'];
+      } else {
+        itemsRaw = const [];
+      }
+    } else {
+      itemsRaw = const [];
+    }
+
+    final List items = itemsRaw is List ? itemsRaw : const [];
+
+    return items.whereType<Map>().map((item) {
+      final feature = Map<String, dynamic>.from(item);
+      final properties = feature['properties'] is Map
+          ? Map<String, dynamic>.from(feature['properties'] as Map)
+          : <String, dynamic>{};
+
+      if (properties['id_commune'] == null && feature['id'] != null) {
+        properties['id_commune'] = feature['id'];
+      }
+      if (feature['geometry'] != null) {
+        properties['geometry_geojson'] = jsonEncode(feature['geometry']);
+      }
+      return properties;
+    }).toList();
+  }
+
   // ══════════════════════════════════════════════════════
   // ██ MISSIONS
   // ══════════════════════════════════════════════════════
