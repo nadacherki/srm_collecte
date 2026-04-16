@@ -22,6 +22,7 @@ import '../../services/photo_validation_service.dart';
 import '../../services/photo_reference_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
+import '../../services/form_lock_service.dart';
 
 class SrmPointFormWidget extends StatefulWidget {
   final String metier;      // "Eau Potable" | "Assainissement" | "Électricité"
@@ -64,6 +65,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   bool _isObjetIncomplet = false;
   String? _raisonIncomplet;
   final TextEditingController _detailRaisonController = TextEditingController();
+  bool _isLocked = false;
 
   bool _isSaving = false;
   final _picker = ImagePicker();
@@ -118,6 +120,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       for (int i = 1; i <= 4; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
+
+      _isLocked = FormLockService.isLocked(widget.existingData!);
     }
 
     // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
@@ -321,6 +325,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   // Sauvegarde
   // ────────────────────────────────────────────
   Future<void> _save() async {
+    if (_isLocked) return;
     // Si objet incomplet : on ne valide PAS les champs métier (ils sont grisés)
     // mais on valide quand même la raison
     if (!_isObjetIncomplet && !_formKey.currentState!.validate()) return;
@@ -492,15 +497,15 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         padding: const EdgeInsets.only(bottom: 12),
         child: DropdownButtonFormField<String>(
           initialValue: controller.text.isEmpty ? null : controller.text,
-          decoration: _deco(label, required: isRequired),
+          decoration: _deco(label, required: isRequired && !_isLocked),
           isExpanded: true,
           items: _typeOptions
               .map((o) => DropdownMenuItem(value: o, child: Text(o)))
               .toList(),
-          onChanged: _isObjetIncomplet
+          onChanged: (_isObjetIncomplet || _isLocked)
               ? null // désactivé si objet incomplet
               : (v) => controller.text = v ?? '',
-          validator: (!_isObjetIncomplet && isRequired)
+          validator: (!_isObjetIncomplet && !_isLocked && isRequired)
               ? (v) => (v == null || v.isEmpty) ? 'Champ obligatoire *' : null
               : null,
         ),
@@ -524,26 +529,30 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         ),
       );
     } else {
+      final fieldIsReadOnly = _isLocked || _isObjetIncomplet;
       fieldWidget = Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(
           controller: controller,
-          decoration: _deco(label, required: isRequired),
+          decoration: _deco(label, required: isRequired && !_isLocked && !_isObjetIncomplet).copyWith(
+            filled: fieldIsReadOnly,
+            fillColor: fieldIsReadOnly ? Colors.grey.shade50 : null,
+          ),
           keyboardType: _kbType(rule),
           maxLines: rule.multiline ? 3 : 1,
           maxLength: rule.maxLength,
           inputFormatters: _inputFormatters(rule),
-          readOnly: _isObjetIncomplet,
+          readOnly: fieldIsReadOnly,
           validator: (value) =>
-              _isObjetIncomplet ? null : _validateField(field, value),
+              (_isObjetIncomplet || _isLocked) ? null : _validateField(field, value),
         ),
       );
     }
 
     // ── NOUVEAU : opacité réduite quand objet incomplet (sauf coordonnées) ──
-    if (_isObjetIncomplet && !isCoord) {
+    if ((_isObjetIncomplet || _isLocked) && !isCoord) {
       return Opacity(
-        opacity: 0.35,
+        opacity: _isLocked ? 0.55 : 0.35,
         child: fieldWidget,
       );
     }
@@ -837,9 +846,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   // Section Anomalie (inchangée)
   // ────────────────────────────────────────────
   Widget _buildAnomalieSection() {
-    // Désactivée si objet incomplet est activé
+    final disabled = _isObjetIncomplet || _isLocked;
     return Opacity(
-      opacity: _isObjetIncomplet ? 0.35 : 1.0,
+      opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -849,7 +858,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 style: TextStyle(fontWeight: FontWeight.bold)),
             value: _hasAnomalie,
             activeColor: Colors.red,
-            onChanged: _isObjetIncomplet
+            onChanged: disabled
                 ? null
                 : (v) => setState(() {
                       _hasAnomalie = v;
@@ -873,7 +882,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                   DropdownMenuItem(value: 'Absent',          child: Text('Absent')),
                   DropdownMenuItem(value: 'Autre',           child: Text('Autre')),
                 ],
-                onChanged: (v) => setState(() => _typeAnomalie = v),
+                onChanged: _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
               ),
             ),
         ],
@@ -1012,7 +1021,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       },
       child: Scaffold(
       appBar: AppBar(
-        backgroundColor: _isObjetIncomplet ? Colors.orange : _metierColor,
+        backgroundColor: _isLocked
+            ? Colors.grey.shade700
+            : (_isObjetIncomplet ? Colors.orange : _metierColor),
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1022,8 +1033,28 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 Text(widget.entityType,
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold)),
-                // NOUVEAU : badge "INCOMPLET" dans l'AppBar
-                if (_isObjetIncomplet) ...[
+                if (_isLocked) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_outline, size: 10, color: Colors.white),
+                        SizedBox(width: 3),
+                        Text('VERROUILLÉ',
+                            style: TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+                if (_isObjetIncomplet && !_isLocked) ...[
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -1054,11 +1085,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                   child: CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2)),
             )
-          else
+          else if (!_isLocked)
             IconButton(
                 icon: const Icon(Icons.check),
                 tooltip: 'Enregistrer',
-                onPressed: _save),
+                onPressed: _save)
+          else
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Icon(Icons.lock_outline, color: Colors.white70),
+            ),
         ],
       ),
       body: Form(
@@ -1066,6 +1102,32 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_isLocked)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade400),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline, color: Colors.grey.shade600, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        FormLockService.lockReason(widget.existingData!),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // ── Bandeau GPS ──
             Container(
               padding: const EdgeInsets.all(10),
@@ -1109,7 +1171,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             ),
 
             // ── Légende champs obligatoires ──
-            if (_requiredFields.isNotEmpty && !_isObjetIncomplet)
+            if (_requiredFields.isNotEmpty && !_isObjetIncomplet && !_isLocked)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
@@ -1129,7 +1191,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
             // ── Sections Anomalie + Incomplet ──
             _buildAnomalieSection(),
-            _buildObjetIncompletSection(), // NOUVEAU
+            if (!_isLocked) _buildObjetIncompletSection(),
             _buildPhotoSection(),
 
             const SizedBox(height: 24),
@@ -1139,36 +1201,38 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 Expanded(
                   child: OutlinedButton(
                     onPressed: widget.onCancel,
-                    child: const Text('Annuler'),
+                    child: const Text('Fermer'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          _isObjetIncomplet ? Colors.orange : _metierColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                if (!_isLocked) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            _isObjetIncomplet ? Colors.orange : _metierColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : Icon(_isObjetIncomplet
+                              ? Icons.warning_amber_rounded
+                              : Icons.save),
+                      label: Text(_isSaving
+                          ? 'Enregistrement...'
+                          : _isObjetIncomplet
+                              ? 'Signaler incomplet'
+                              : 'Enregistrer'),
                     ),
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : Icon(_isObjetIncomplet
-                            ? Icons.warning_amber_rounded
-                            : Icons.save),
-                    label: Text(_isSaving
-                        ? 'Enregistrement...'
-                        : _isObjetIncomplet
-                            ? 'Signaler incomplet'
-                            : 'Enregistrer'),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 32),

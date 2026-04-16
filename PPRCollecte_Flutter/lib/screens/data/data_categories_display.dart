@@ -9,6 +9,7 @@ import '../../widgets/lists/data_list_view.dart';
 import '../../data/local/database_helper.dart';
 import '../home/home_page.dart';
 import '../forms/polygon_form_page.dart';
+import '../../services/form_lock_service.dart';
 
 const bool _DBG_FOCUS_POINT = true;
 
@@ -700,7 +701,7 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
     List<Map<String, dynamic>> filteredData = [];
 
     try {
-      if (selectedCategory == "Pistes" || selectedCategory == "ChaussÃ©es") {
+      if (selectedCategory == "Pistes" || selectedCategory == "Chauss\u00e9es") {
         setState(() => currentData = []);
         return;
       }
@@ -741,6 +742,20 @@ class _DataCategoriesDisplayState extends State<DataCategoriesDisplay> {
       _showLegacyRemovedMessage();
     } else if (selectedCategory == "Chaussées") {
       _showLegacyRemovedMessage();
+    } else if (FormLockService.isLocked(item)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.lock_outline, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(FormLockService.lockReason(item))),
+            ],
+          ),
+          backgroundColor: Colors.grey.shade700,
+        ),
+      );
+      return;
     } else if (selectedType == "Zone de Plaine") {
       await _editZoneDePlaine(item);
     } else {

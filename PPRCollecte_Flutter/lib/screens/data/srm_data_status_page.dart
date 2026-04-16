@@ -1,10 +1,15 @@
 ﻿// lib/screens/data/srm_data_status_page.dart
 // Sprint 6 â€” Liste donnÃ©es SRM + filtration avancÃ©e
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:latlong2/latlong.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../widgets/lists/data_list_view.dart';
+import '../../widgets/forms/srm_point_form_widget.dart';
+import '../forms/srm_ligne_form_page.dart';
+import '../forms/polygon_form_page.dart';
 
 class SrmDataStatusPage extends StatefulWidget {
   final String title;
@@ -30,6 +35,138 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _allData = [];
   List<Map<String, dynamic>> _filteredData = [];
+
+  Future<void> _editItem(Map<String, dynamic> item) async {
+    final metier = item['source_metier']?.toString();
+    final entityType = item['source_entity']?.toString();
+    final geoType = item['geometry_type']?.toString() ?? 'Point';
+    if (metier == null || entityType == null) return;
+
+    if (geoType == 'LineString') {
+      List<LatLng> points = [];
+      final pointsJson = item['points_json'];
+      if (pointsJson is String && pointsJson.isNotEmpty) {
+        try {
+          final raw = jsonDecode(pointsJson) as List;
+          points = raw.map<LatLng>((coord) {
+            if (coord is Map) {
+              return LatLng(
+                (coord['lat'] as num).toDouble(),
+                (coord['lon'] as num).toDouble(),
+              );
+            }
+            if (coord is List && coord.length >= 2) {
+              return LatLng(
+                (coord[1] as num).toDouble(),
+                (coord[0] as num).toDouble(),
+              );
+            }
+            return const LatLng(0, 0);
+          }).toList();
+        } catch (_) {}
+      }
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SrmLigneFormPage(
+            metier: metier,
+            entityType: entityType,
+            linePoints: points,
+            agentName: widget.agentName,
+            existingData: item,
+          ),
+        ),
+      );
+    } else if (geoType == 'Polygon') {
+      List<LatLng> points = [];
+      final pointsJson = item['points_json'];
+      if (pointsJson is String && pointsJson.isNotEmpty) {
+        try {
+          final raw = jsonDecode(pointsJson) as List;
+          points = raw.map<LatLng>((coord) {
+            if (coord is Map) {
+              return LatLng(
+                ((coord['lat'] ?? 0) as num).toDouble(),
+                ((coord['lon'] ?? 0) as num).toDouble(),
+              );
+            }
+            if (coord is List && coord.length >= 2) {
+              return LatLng(
+                (coord[1] as num).toDouble(),
+                (coord[0] as num).toDouble(),
+              );
+            }
+            return const LatLng(0, 0);
+          }).toList();
+          if (points.length > 1 &&
+              points.first.latitude == points.last.latitude &&
+              points.first.longitude == points.last.longitude) {
+            points.removeLast();
+          }
+        } catch (_) {}
+      }
+
+      if (points.length < 3) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Polygone invalide'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PolygonFormPage(
+            polygonPoints: points,
+            startTime: item['date_collecte'] != null
+                ? DateTime.tryParse(item['date_collecte'].toString()) ??
+                    DateTime.now()
+                : DateTime.now(),
+            endTime: DateTime.now(),
+            agentName: widget.agentName,
+            existingData: item,
+            metier: metier,
+            entityType: entityType,
+          ),
+        ),
+      );
+    } else {
+      final lat = (item['latitude_gps'] as num?)?.toDouble() ?? 0.0;
+      final lon = (item['longitude_gps'] as num?)?.toDouble() ?? 0.0;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: SrmPointFormWidget(
+              metier: metier,
+              entityType: entityType,
+              latitude: lat,
+              longitude: lon,
+              altitude: (item['altitude_gps'] as num?)?.toDouble(),
+              agentName: widget.agentName,
+              existingData: item,
+              onSaved: () {
+                _loadData();
+                Navigator.pop(context);
+              },
+              onCancel: () => Navigator.pop(context),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (mounted) {
+      _loadData();
+    }
+  }
 
   // â”€â”€ Filtres actifs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _filterMetier;       // null = tous
@@ -367,7 +504,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                     data: _filteredData,
                     entityType: widget.title,
                     dataFilter: widget.dataFilter,
-                    onEdit: null,
+                    onEdit: _editItem,
                     onDelete: null,
                     onView: null,
                     tableName: null,

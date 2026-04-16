@@ -17,6 +17,7 @@ import '../../services/photo_validation_service.dart';
 import '../../services/photo_reference_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
+import '../../services/form_lock_service.dart';
 
 class SrmLigneFormPage extends StatefulWidget {
   final String metier;       // "Eau Potable" | "Assainissement" | "Électricité"
@@ -51,6 +52,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   bool _hasAnomalie = false;
   String? _typeAnomalie;
   bool _isSaving = false;
+  bool _isLocked = false;
   final _picker = ImagePicker();
   final Map<int, String?> _photoPaths = {1: null, 2: null};
 
@@ -99,6 +101,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       for (int i = 1; i <= 2; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
+      _isLocked = FormLockService.isLocked(widget.existingData!);
     }
 
     // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
@@ -313,6 +316,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   Future<void> _save() async {
+    if (_isLocked) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
@@ -434,16 +438,20 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     if (isTypeField) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: DropdownButtonFormField<String>(
-          initialValue: controller.text.isEmpty ? null : controller.text,
-          decoration: _deco(label),
-          isExpanded: true,
-          items: _typeOptions
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: (v) => controller.text = v ?? '',
-          validator: (v) =>
-              (v == null || v.isEmpty) ? 'Champ requis' : null,
+        child: Opacity(
+          opacity: _isLocked ? 0.55 : 1.0,
+          child: DropdownButtonFormField<String>(
+            initialValue: controller.text.isEmpty ? null : controller.text,
+            decoration: _deco(label),
+            isExpanded: true,
+            items: _typeOptions
+                .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                .toList(),
+            onChanged: _isLocked ? null : (v) => controller.text = v ?? '',
+            validator: _isLocked
+                ? null
+                : (v) => (v == null || v.isEmpty) ? 'Champ requis' : null,
+          ),
         ),
       );
     }
@@ -467,14 +475,21 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        decoration: _deco(label),
-        keyboardType: _kbType(rule),
-        maxLines: rule.multiline ? 3 : 1,
-        maxLength: rule.maxLength,
-        inputFormatters: _inputFormatters(rule),
-        validator: (value) => _validateField(field, value),
+      child: Opacity(
+        opacity: _isLocked ? 0.55 : 1.0,
+        child: TextFormField(
+          controller: controller,
+          decoration: _deco(label).copyWith(
+            filled: _isLocked,
+            fillColor: _isLocked ? Colors.grey.shade50 : null,
+          ),
+          keyboardType: _kbType(rule),
+          maxLines: rule.multiline ? 3 : 1,
+          maxLength: rule.maxLength,
+          inputFormatters: _inputFormatters(rule),
+          readOnly: _isLocked,
+          validator: _isLocked ? null : (value) => _validateField(field, value),
+        ),
       ),
     );
   }
@@ -726,7 +741,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                   style: TextStyle(fontWeight: FontWeight.bold)),
               value: _hasAnomalie,
               activeThumbColor: Colors.red,
-              onChanged: (v) => setState(() {
+              onChanged: _isLocked ? null : (v) => setState(() {
                 _hasAnomalie = v;
                 if (!v) _typeAnomalie = null;
               }),
@@ -751,7 +766,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                     DropdownMenuItem(
                         value: 'Autre', child: Text('Autre')),
                   ],
-                  onChanged: (v) => setState(() => _typeAnomalie = v),
+                  onChanged: _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
                 ),
               ),
 
@@ -774,7 +789,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                   final idx = i + 1;
                   final path = _photoPaths[idx];
                   return GestureDetector(
-                    onTap: () => _pickPhoto(idx),
+                    onTap: _isLocked ? null : () => _pickPhoto(idx),
                     child: Stack(
                       children: [
                         Container(
@@ -803,7 +818,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                                   ],
                                 ),
                         ),
-                        if (path != null)
+                        if (path != null && !_isLocked)
                           Positioned(
                             top: 2,
                             right: 2,
@@ -832,10 +847,22 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Annuler'),
+                    child: const Text('Fermer'),
                   ),
                 ),
+                if (_isLocked) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.lock_outline),
+                      label: const Text('Verrouillé'),
+                    ),
+                  ),
+                ] else
                 const SizedBox(width: 12),
+                if (!_isLocked)
                 Expanded(
                   flex: 2,
                   child: ElevatedButton.icon(
