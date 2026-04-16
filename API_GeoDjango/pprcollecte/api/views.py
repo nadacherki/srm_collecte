@@ -126,11 +126,70 @@ def _package_serializer_context(request):
     }
 
 
+
+# =====================================================================
+#  MIXIN : Upsert par UUID (re-synchronisation après édition)
+# =====================================================================
+
+class UpsertByUuidMixin:
+    """
+    Override de create() pour gérer la re-synchronisation mobile.
+
+    Problème résolu :
+      Un objet créé localement est synchronisé (POST → créé en base).
+      L'agent le ré-édite (désactive toggle anomalie/incomplet).
+      L'objet repasse en synced=0 côté Flutter.
+      Flutter re-poste en POST → Django détecte l'UUID existant → UPDATE.
+
+    Comportement :
+      - POST sans uuid ou uuid inconnu  → CREATE (comportement standard)
+      - POST avec uuid déjà en base     → UPDATE partiel (PATCH semantics)
+      - Modèle sans champ uuid          → CREATE (comportement standard)
+    """
+
+    @staticmethod
+    def _model_has_uuid_field(model):
+        return any(f.name == 'uuid' for f in model._meta.get_fields())
+
+    def create(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        if not self._model_has_uuid_field(qs.model):
+            return super().create(request, *args, **kwargs)
+
+        uuid_val = None
+        data = request.data
+        if isinstance(data, dict):
+            props = data.get('properties', data)
+            uuid_val = props.get('uuid') if isinstance(props, dict) else None
+
+        if not uuid_val:
+            return super().create(request, *args, **kwargs)
+
+        uuid_clean = str(uuid_val).strip()
+        if not uuid_clean:
+            return super().create(request, *args, **kwargs)
+
+        try:
+            instance = qs.get(uuid=uuid_clean)
+            serializer = self.get_serializer(
+                instance, data=request.data, partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except qs.model.DoesNotExist:
+            pass
+        except Exception:
+            pass
+
+        return super().create(request, *args, **kwargs)
+
+
 # =====================================================================
 #  MIXIN : Filtrage par projet et mission (réutilisé par tous les ViewSets)
 # =====================================================================
 
-class ProjetMissionFilterMixin:
+class ProjetMissionFilterMixin(UpsertByUuidMixin):
     """
     Filtre automatiquement le queryset par id_projet et id_mission
     si ces paramètres sont passés dans l'URL (?id_projet=1&id_mission=5).

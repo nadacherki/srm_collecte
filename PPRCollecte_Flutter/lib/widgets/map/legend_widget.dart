@@ -146,6 +146,15 @@ class _LegendWidgetState extends State<LegendWidget> {
     return t;
   }
 
+  int _incompletForMetier(String metier) {
+    int t = 0;
+    for (final e in SrmConfig.getEntitiesForMetier(metier)) {
+      final tn = SrmConfig.getTableName(metier, e);
+      if (tn != null) t += _incompletForTable(tn);
+    }
+    return t;
+  }
+
   int get _totalObjects =>
       widget.pointCountsByTable.values.fold(0, (a, b) => a + b);
 
@@ -447,6 +456,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     final isPartial = _isMetierPartiallyChecked(metier);
     final total = _totalForMetier(metier);
     final anomalies = _anomaliesForMetier(metier);
+    final incomplets = _incompletForMetier(metier);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,6 +511,12 @@ class _LegendWidgetState extends State<LegendWidget> {
                   ),
                 ),
                 if (total > 0) _badge(total, color: color),
+                if (incomplets > 0) ...[
+                  const SizedBox(width: 3),
+                  _badge(incomplets,
+                      color: const Color(0xFFF57C00),
+                      icon: Icons.edit_off),
+                ],
                 if (anomalies > 0) ...[
                   const SizedBox(width: 3),
                   _badge(anomalies,
@@ -545,6 +561,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     final isVisible = _visibility[visKey] ?? true;
     final count = _countForTable(tableName);
     final anomalies = _anomaliesForTable(tableName);
+    final incomplets = _incompletForTable(tableName);
 
     final iconCfg = CustomMarkerIcons.iconConfig[tableName];
     final entityIcon = iconCfg?.icon ?? Icons.location_pin;
@@ -592,6 +609,13 @@ class _LegendWidgetState extends State<LegendWidget> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (incomplets > 0) ...[
+            _badge(incomplets,
+                color: const Color(0xFFF57C00),
+                icon: Icons.edit_off,
+                small: true),
+            const SizedBox(width: 3),
+          ],
           if (anomalies > 0) ...[
             _badge(anomalies,
                 color: const Color(0xFFD32F2F),

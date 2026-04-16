@@ -154,6 +154,7 @@ class _HomePageState extends State<HomePage> {
   String? _specialCollectionType;
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
+  Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
   Map<String, int> _pointCountsByTable = {};
   Map<String, int> _anomalieCountsByTable = {};
   Map<String, int> _incompletCountsByTable = {};
@@ -2172,6 +2173,8 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
+      final Map<String, List<Polygon>> srmPolygonsByTable = {};
+
       for (final metier in SrmConfig.getMetiers()) {
         for (final entity in SrmConfig.getPolygonEntities(metier)) {
           final tableName = SrmConfig.getTableName(metier, entity);
@@ -2210,37 +2213,37 @@ class _HomePageState extends State<HomePage> {
               final points = _extractPolygonPoints(poly['points_json']);
               if (points.length < 3) continue;
 
-              mapPolygons.add(
-                Polygon(
-                  points: points,
-                  color: Color(SrmConfig.getMetierColor(metier)).withOpacity(0.25),
-                  borderColor: Color(SrmConfig.getMetierColor(metier)),
-                  borderStrokeWidth: 2.0,
-                  isFilled: true,
-                  hitValue: PolygonTapData(
-                    nom: poly['nom']?.toString() ??
-                        poly['ep_num']?.toString() ??
-                        entity,
-                    codePiste: poly['code_piste']?.toString() ?? '----',
-                    superficie:
-                        (poly['superficie_ha'] as num?)?.toDouble() ??
-                            (poly['superficie_en_ha'] as num?)?.toDouble() ??
-                            0.0,
-                    nbSommets: points.length,
-                    enqueteur: poly['enqueteur']?.toString() ??
-                        ApiService.nomPrenom ??
-                        '',
-                    dateCreation: poly['date_collecte']?.toString() ??
-                        poly['date_creation']?.toString() ??
-                        '----',
-                    synced: poly['synced'] == 1,
-                    downloaded: poly['downloaded'] == 1,
-                    regionName: poly['region_name']?.toString() ?? '',
-                    prefectureName: poly['prefecture_name']?.toString() ?? '',
-                    communeName: poly['commune_name']?.toString() ?? '',
-                  ),
+              final polygon = Polygon(
+                points: points,
+                color: Color(SrmConfig.getMetierColor(metier)).withOpacity(0.25),
+                borderColor: Color(SrmConfig.getMetierColor(metier)),
+                borderStrokeWidth: 2.0,
+                isFilled: true,
+                hitValue: PolygonTapData(
+                  nom: poly['nom']?.toString() ??
+                      poly['ep_num']?.toString() ??
+                      entity,
+                  codePiste: poly['code_piste']?.toString() ?? '----',
+                  superficie:
+                      (poly['superficie_ha'] as num?)?.toDouble() ??
+                          (poly['superficie_en_ha'] as num?)?.toDouble() ??
+                          0.0,
+                  nbSommets: points.length,
+                  enqueteur: poly['enqueteur']?.toString() ??
+                      ApiService.nomPrenom ??
+                      '',
+                  dateCreation: poly['date_collecte']?.toString() ??
+                      poly['date_creation']?.toString() ??
+                      '----',
+                  synced: poly['synced'] == 1,
+                  downloaded: poly['downloaded'] == 1,
+                  regionName: poly['region_name']?.toString() ?? '',
+                  prefectureName: poly['prefecture_name']?.toString() ?? '',
+                  communeName: poly['commune_name']?.toString() ?? '',
                 ),
               );
+              srmPolygonsByTable.putIfAbsent(tableName, () => []).add(polygon);
+              mapPolygons.add(polygon);
             }
           } catch (e) {
             print('[POLYGONE] Error loading SRM polygon $tableName: $e');
@@ -2251,6 +2254,7 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() {
           _displayedPolygons = mapPolygons;
+          _displayedSrmPolygonsByTable = srmPolygonsByTable;
         });
         print('[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
       }
@@ -5272,7 +5276,17 @@ class _HomePageState extends State<HomePage> {
 
     // 2. Filtrer les polylines selon la légende
     final List<Polyline> filteredPolylines = _getFilteredPolylines()..addAll(_focusOverlayPolylines);
-    List<Polygon> filteredPolygons = (_legendVisibility['zone_plaine'] != false) ? List.from(_displayedPolygons) : <Polygon>[];
+    // Polygones GeoDNGR (zone_plaine) + SRM filtrés par légende
+    List<Polygon> filteredPolygons = (_legendVisibility['zone_plaine'] != false)
+        ? _displayedPolygons
+            .where((p) => !_displayedSrmPolygonsByTable.values.any((list) => list.contains(p)))
+            .toList()
+        : <Polygon>[];
+    for (final entry in _displayedSrmPolygonsByTable.entries) {
+      if (_isSrmTableVisible(entry.key)) {
+        filteredPolygons.addAll(entry.value);
+      }
+    }
     // === LOGS POUR DEBUG ===
     print('[MAP] filteredMarkers size = ${filteredMarkers.length}');
     print('[MAP] filteredPolylines size = ${filteredPolylines.length}');
