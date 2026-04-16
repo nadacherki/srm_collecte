@@ -1049,6 +1049,7 @@ class _PointFormWidgetState extends State<PointFormWidget> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -1487,7 +1488,7 @@ class _PointFormWidgetState extends State<PointFormWidget> {
                   },
           ),
         ],
-      )),
+      ),
     );
   }
 
@@ -1598,7 +1599,8 @@ class _PointFormWidgetState extends State<PointFormWidget> {
               ),
             ),
         ],
-      )),
+      ),
+      ),
     );
   }
 
