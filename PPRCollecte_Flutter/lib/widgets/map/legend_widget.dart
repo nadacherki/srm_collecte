@@ -33,6 +33,9 @@ class LegendWidget extends StatefulWidget {
   final List<dynamic> allMarkers;
   final int polygonCount;
 
+  /// Callback notifiant home_page quand la légende s'ouvre/ferme.
+  final ValueChanged<bool>? onExpandedChanged;
+
   const LegendWidget({
     super.key,
     required this.initialVisibility,
@@ -43,6 +46,7 @@ class LegendWidget extends StatefulWidget {
     this.allPolylines = const [],
     this.allMarkers = const [],
     this.polygonCount = 0,
+    this.onExpandedChanged,
   });
 
   @override
@@ -212,7 +216,10 @@ class _LegendWidgetState extends State<LegendWidget> {
   // â”€â”€ Header bouton â”€â”€
   Widget _buildHeader() {
     return InkWell(
-      onTap: () => setState(() => _isExpanded = !_isExpanded),
+      onTap: () {
+        setState(() => _isExpanded = !_isExpanded);
+        widget.onExpandedChanged?.call(_isExpanded);
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

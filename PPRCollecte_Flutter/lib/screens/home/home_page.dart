@@ -155,6 +155,7 @@ class _HomePageState extends State<HomePage> {
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
+  bool _isLegendExpanded = false;
   Map<String, int> _pointCountsByTable = {};
   Map<String, int> _anomalieCountsByTable = {};
   Map<String, int> _incompletCountsByTable = {};
@@ -5412,6 +5413,9 @@ class _HomePageState extends State<HomePage> {
                     pointCountsByTable: _pointCountsByTable,
                     anomalieCountsByTable: _anomalieCountsByTable,
                     incompletCountsByTable: _incompletCountsByTable,
+                    onExpandedChanged: (expanded) {
+                      setState(() => _isLegendExpanded = expanded);
+                    },
                   ),
                   if (isSyncing)
                     BackdropFilter(
@@ -5443,7 +5447,7 @@ class _HomePageState extends State<HomePage> {
                     bottom: 280,
                     right: 16,
                     child: Visibility(
-                      visible: kDebugMode,
+                      visible: kDebugMode && !_isLegendExpanded,
                       child: FloatingActionButton(
                         onPressed: _showMockLocationDialogSafe,
                         backgroundColor: homeController.isMockLocationEnabled
@@ -5571,23 +5575,24 @@ class _HomePageState extends State<HomePage> {
                   //  FIN SIMULATION
 
                   // === FIN DE L'AJOUT === //
-                  // Contrôles de carte
-                  MapControlsWidget(
-                    controller: homeController,
-                    onAddPoint: addPointOfInterest,
-                    onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
-                    onStartPolygon: startPolygonCollection,
-                    onToggleLigne: toggleLigneCollection,
-                    onTogglePolygon: toggleSpecialCollection,
-                    onFinishLigne: finishLigneCollection,
-                    onFinishPolygon: finishSpecialCollection,
-                    onCancelLigne: cancelLigneCollection,
-                    onCancelPolygon: cancelSpecialCollection,
-                    onRefresh: _loadDisplayedPoints,
-                    isSpecialCollection: _isSpecialCollection, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOUVEAU
-                    onStopSpecial: finishSpecialCollection,
-                    isPolygonCollection: _isPolygonCollection,
-                  ),
+                  // Contrôles de carte — masqués quand la légende est ouverte
+                  if (!_isLegendExpanded)
+                    MapControlsWidget(
+                        controller: homeController,
+                        onAddPoint: addPointOfInterest,
+                        onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
+                        onStartPolygon: startPolygonCollection,
+                        onToggleLigne: toggleLigneCollection,
+                        onTogglePolygon: toggleSpecialCollection,
+                        onFinishLigne: finishLigneCollection,
+                        onFinishPolygon: finishSpecialCollection,
+                        onCancelLigne: cancelLigneCollection,
+                        onCancelPolygon: cancelSpecialCollection,
+                        onRefresh: _loadDisplayedPoints,
+                        isSpecialCollection: _isSpecialCollection, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOUVEAU
+                        onStopSpecial: finishSpecialCollection,
+                        isPolygonCollection: _isPolygonCollection,
+                    ),
                   /* DownloadedPistesToggle(
                     isOn: _showDownloadedPistes,
                     count: _downloadedPistesPolylines.length, // optionnel
