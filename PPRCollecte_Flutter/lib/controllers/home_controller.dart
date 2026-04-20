@@ -438,6 +438,28 @@ class HomeController extends ChangeNotifier {
     };
   }
 
+  Future<void> restoreFinishedLigneAsPaused({
+    required int id,
+    required String lineCode,
+    required List<LatLng> points,
+    required DateTime startTime,
+    DateTime? lastPointTime,
+    required double totalDistance,
+    Map<String, dynamic>? srmMetadata,
+  }) async {
+    await _collectionManager.restoreFinishedLigneAsPaused(
+      id: id,
+      lineCode: lineCode,
+      points: points,
+      startTime: startTime,
+      lastPointTime: lastPointTime,
+      totalDistance: totalDistance,
+      srmMetadata: srmMetadata,
+    );
+    _activeLineCode = lineCode;
+    notifyListeners();
+  }
+
   void cancelLigneCollection() {
     _collectionManager.cancelLigneCollection();
     _activeLineCode = null;

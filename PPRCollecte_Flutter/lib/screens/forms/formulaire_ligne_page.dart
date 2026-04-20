@@ -485,7 +485,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pop();
+              Navigator.of(this.context).pop(false);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text("Abandonner"),

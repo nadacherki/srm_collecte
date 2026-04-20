@@ -89,6 +89,8 @@ Future<void> _loadDownloadedPointsImpl(_HomePageState state) async {
 Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
   try {
     final srmLinesByTable = <String, List<Polyline>>{};
+    final anomalieByTable = <String, List<Polyline>>{};
+    final incompletByTable = <String, List<Polyline>>{};
     final lines = await state._specialLinesService.getDisplayedSpecialLines(
       onTapDetails: (data) {
         final start = LatLng(
@@ -125,12 +127,29 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
       },
       onPolylineCreated: (tableName, metier, polyline) {
         srmLinesByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+        final hitValue = polyline.hitValue;
+        if (hitValue is PolylineTapData) {
+          final data = hitValue.data;
+          final hasAnomalie =
+              data['anomalie'] == true || data['anomalie'] == 1;
+          final hasIncomplet =
+              data['objet_incomplet'] == true ||
+              data['objet_incomplet'] == 1;
+          if (hasAnomalie) {
+            anomalieByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+          }
+          if (hasIncomplet) {
+            incompletByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+          }
+        }
       },
     );
 
     state._setStateFromPart(() {
       state._displayedSpecialLines = lines;
       state._displayedSrmLinesByTable = srmLinesByTable;
+      state._displayedLineAnomalieByTable = anomalieByTable;
+      state._displayedLineIncompletByTable = incompletByTable;
     });
 
     debugPrint('[SRM-LINES] ${lines.length} ligne(s) speciale(s) affichee(s)');
@@ -482,10 +501,18 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
     final db = await DatabaseHelper().database;
     final loginId = await DatabaseHelper().resolveLoginId();
     final Map<String, int> counts = {};
+    final Map<String, int> anomalieCounts = {};
+    final Map<String, int> incompletCounts = {};
     final tables = <String>{};
 
     for (final metier in SrmConfig.getMetiers()) {
       for (final entity in SrmConfig.getPointEntities(metier)) {
+        final tableName = SrmConfig.getTableName(metier, entity);
+        if (tableName != null && tableName.isNotEmpty) {
+          tables.add(tableName);
+        }
+      }
+      for (final entity in SrmConfig.getLineEntities(metier)) {
         final tableName = SrmConfig.getTableName(metier, entity);
         if (tableName != null && tableName.isNotEmpty) {
           tables.add(tableName);
@@ -524,18 +551,29 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
         final whereClause =
             filters.isEmpty ? '' : ' WHERE ${filters.join(' OR ')}';
         final result = await db.rawQuery(
-          'SELECT COUNT(*) as c FROM $table$whereClause',
+          'SELECT '
+          'COUNT(*) as c, '
+          '${availableColumns.contains('anomalie') ? "SUM(CASE WHEN anomalie = 1 THEN 1 ELSE 0 END)" : "0"} as anomalies, '
+          '${availableColumns.contains('objet_incomplet') ? "SUM(CASE WHEN objet_incomplet = 1 THEN 1 ELSE 0 END)" : "0"} as incomplets '
+          'FROM $table$whereClause',
           args,
         );
-        counts[table] = result.first['c'] as int? ?? 0;
+        final row = result.first;
+        counts[table] = (row['c'] as num?)?.toInt() ?? 0;
+        anomalieCounts[table] = (row['anomalies'] as num?)?.toInt() ?? 0;
+        incompletCounts[table] = (row['incomplets'] as num?)?.toInt() ?? 0;
       } catch (_) {
         counts[table] = 0;
+        anomalieCounts[table] = 0;
+        incompletCounts[table] = 0;
       }
     }
 
     if (state.mounted) {
       state._setStateFromPart(() {
         state._pointCountsByTable = counts;
+        state._anomalieCountsByTable = anomalieCounts;
+        state._incompletCountsByTable = incompletCounts;
       });
     }
     debugPrint('[SRM-POINTS] compteurs par table: $counts');

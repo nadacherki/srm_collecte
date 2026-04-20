@@ -337,6 +337,43 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Recrée une ligne en état paused à partir d'un snapshot déjà finalisé
+  /// puis resauvegarde immédiatement son brouillon de collecte.
+  Future<void> restoreFinishedLigneAsPaused({
+    required int id,
+    required String lineCode,
+    required List<LatLng> points,
+    required DateTime startTime,
+    DateTime? lastPointTime,
+    required double totalDistance,
+    Map<String, dynamic>? srmMetadata,
+  }) async {
+    _collectionService.stopCollection();
+    _countdown = 0;
+    _srmMetadata = srmMetadata;
+    _ligneCollection = LigneCollection(
+      id: id,
+      lineCode: lineCode,
+      status: CollectionStatus.paused,
+      points: List<LatLng>.from(points),
+      startTime: startTime,
+      lastPointTime: lastPointTime,
+      totalDistance: totalDistance,
+    );
+    await _savePausedDraft();
+    await DatabaseHelper().recordLocalEvent(
+      eventType: 'RESTORE_FINISHED_LINE_TO_PAUSED',
+      tableName: 'app_metadata',
+      cleLigne: 'paused_collection_draft',
+      payload: {
+        'collection_type': 'ligne',
+        'point_count': points.length,
+        'collection_id': id,
+      },
+    );
+    notifyListeners();
+  }
+
   void cancelSpecialCollection() {
     if (_specialCollection == null) return;
     _specialCollection = null;

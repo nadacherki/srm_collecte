@@ -50,7 +50,8 @@ extension _HomePageCollectionActions on _HomePageState {
 
   Future<void> _finishSpecialCollectionImpl() async {
     if (_isPolygonCollection) {
-      final currentPolygonPoints = homeController.specialCollection?.points.length ?? 0;
+      final currentPolygonPoints =
+          homeController.specialCollection?.points.length ?? 0;
       if (currentPolygonPoints < 3) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -348,7 +349,8 @@ extension _HomePageCollectionActions on _HomePageState {
 
     _pendingSrmLigneSelection = selection;
 
-    final fakeCode = 'SRM_${selection.tableName}_${DateTime.now().millisecondsSinceEpoch}';
+    final fakeCode =
+        'SRM_${selection.tableName}_${DateTime.now().millisecondsSinceEpoch}';
     try {
       await homeController.startLigneCollection(fakeCode);
       if (!mounted) return;
@@ -420,7 +422,8 @@ extension _HomePageCollectionActions on _HomePageState {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Tracé $e démarré. Ajoutez les points avec le bouton jaune'),
+          content:
+              Text('Tracé $e démarré. Ajoutez les points avec le bouton jaune'),
           backgroundColor: _pendingSrmPolygoneMetier != null
               ? Color(SrmConfig.getMetierColor(_pendingSrmPolygoneMetier!))
               : const Color(0xFF1B5E20),
@@ -432,57 +435,6 @@ extension _HomePageCollectionActions on _HomePageState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(err.toString()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _startLigneCollectionImpl() async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez activer le GPS')),
-      );
-      return;
-    }
-
-    if (homeController.hasActiveCollection) {
-      final activeType = homeController.activeCollectionType;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Veuillez mettre en pause la collecte de $activeType en cours',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final lineCodeAuto = await generateLineCode();
-    if (!mounted) return;
-    final provisionalData = await ProvisionalFormDialog.show(
-      context: context,
-      initialCode: lineCodeAuto,
-    );
-
-    if (!mounted || provisionalData == null) return;
-
-    try {
-      await homeController.startLigneCollection(provisionalData['line_code']!);
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Collecte de ligne démarrée'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
           backgroundColor: Colors.red,
         ),
       );
@@ -546,76 +498,97 @@ extension _HomePageCollectionActions on _HomePageState {
       return;
     }
 
-    if (_pendingSrmLigneSelection != null) {
-      final sel = _pendingSrmLigneSelection!;
-      _pendingSrmLigneSelection = null;
-      final pts = List<LatLng>.from(result['points'] as List<LatLng>);
+    final lineId = result['id'] as int;
+    final lineCode = result['lineCode'] as String;
+    final points = List<LatLng>.from(result['points'] as List<LatLng>);
+    final startTime = result['startTime'] as DateTime;
+    final endTime = result['endTime'] as DateTime?;
+    final totalDistance = (result['totalDistance'] as num).toDouble();
 
-      _setStateFromPart(() {
-        homeController.collectedPolylines.clear();
-        collectedPolylines.clear();
-      });
-
+    var sel = _pendingSrmLigneSelection;
+    if (sel == null) {
       if (!mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SrmLigneFormPage(
-            metier: sel.metier,
-            entityType: sel.entityType,
-            linePoints: pts,
-            startTime: result['startTime'] as DateTime?,
-            endTime: result['endTime'] as DateTime?,
-            agentName: widget.agentName,
-            averageAltitude: homeController.collectionManager.averageAltitude,
+      sel = await showSrmLigneSelector(context);
+      if (!mounted) return;
+
+      if (sel == null) {
+        await homeController.restoreFinishedLigneAsPaused(
+          id: lineId,
+          lineCode: lineCode,
+          points: points,
+          startTime: startTime,
+          lastPointTime: endTime,
+          totalDistance: totalDistance,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Trace remis en pause. Une selection SRM est requise pour finaliser la ligne.',
+            ),
+            backgroundColor: Colors.orange,
           ),
-        ),
-      );
-      if (!mounted) return;
-      _refreshAfterNavigation();
-      return;
+        );
+        return;
+      }
     }
 
+    final effectiveSel = sel;
+    final srmMetadata = {
+      'srmMetier': effectiveSel.metier,
+      'srmEntityType': effectiveSel.entityType,
+      'srmTableName': effectiveSel.tableName,
+      'srmSchema': effectiveSel.schema,
+    };
+
+    await homeController.restoreFinishedLigneAsPaused(
+      id: lineId,
+      lineCode: lineCode,
+      points: points,
+      startTime: startTime,
+      lastPointTime: endTime,
+      totalDistance: totalDistance,
+      srmMetadata: srmMetadata,
+    );
+    if (!mounted) return;
+
+    _pendingSrmLigneSelection = null;
+
+    _setStateFromPart(() {
+      homeController.collectedPolylines.clear();
+      collectedPolylines.clear();
+    });
+
+    if (!mounted) return;
     final formResult = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => FormulaireLignePage(
-          linePoints: result['points'],
-          provisionalCode: result['lineCode'],
-          startTime: result['startTime'],
-          endTime: result['endTime'],
+        builder: (_) => SrmLigneFormPage(
+          metier: effectiveSel.metier,
+          entityType: effectiveSel.entityType,
+          linePoints: points,
+          startTime: startTime,
+          endTime: endTime,
           agentName: widget.agentName,
+          averageAltitude: homeController.collectionManager.averageAltitude,
         ),
       ),
     );
     if (!mounted) return;
 
-    if (formResult != null) {
-      final pts = List<LatLng>.from(result['points'] as List<LatLng>);
-
-      _setStateFromPart(() {
-        homeController.collectedPolylines.clear();
-        collectedPolylines.clear();
-      });
-
-      final storageHelper = LineStorageHelper();
-      await storageHelper.saveDisplayedLine(
-        result['lineCode'],
-        pts,
-        Colors.brown,
-        5.0,
+    if (formResult == null) {
+      _pendingSrmLigneSelection = effectiveSel;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tracé remis en pause après fermeture du formulaire'),
+          backgroundColor: Colors.orange,
+        ),
       );
-      await _loadDisplayedLines();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ligne enregistrée avec succès'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      return;
     }
+
+    homeController.cancelLigneCollection();
+    _refreshAfterNavigation();
   }
 
   Future<void> _cancelLigneCollectionImpl() async {

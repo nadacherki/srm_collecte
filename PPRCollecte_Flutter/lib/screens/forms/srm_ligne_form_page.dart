@@ -1,33 +1,32 @@
 // lib/screens/forms/srm_ligne_form_page.dart
-// ── SPRINT 5 : Formulaire SRM pour entités linéaires ──
-// Conduites EP, Canalisations ASS, Tronçons ELEC
-// Reçoit la liste de points GPS tracés par le CollectionManager
 
 import 'dart:io';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
-import 'dart:math';
+
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
-import '../../services/photo_validation_service.dart';
-import '../../services/photo_reference_service.dart';
-import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
+import '../../services/photo_reference_service.dart';
+import '../../services/photo_validation_service.dart';
+import '../../services/projection_service.dart';
 
 class SrmLigneFormPage extends StatefulWidget {
-  final String metier;       // "Eau Potable" | "Assainissement" | "Électricité"
-  final String entityType;   // ex: "Conduite Terrain", "Canalisation ASS"
+  final String metier;
+  final String entityType;
   final List<LatLng> linePoints;
   final DateTime? startTime;
   final DateTime? endTime;
   final String? agentName;
-  final Map<String, dynamic>? existingData; // édition
-  final double? averageAltitude; // Sprint 5 : Z GNSS
+  final Map<String, dynamic>? existingData;
+  final double? averageAltitude;
 
   const SrmLigneFormPage({
     super.key,
@@ -49,12 +48,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     with FormDraftMixin<SrmLigneFormPage> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
-  bool _hasAnomalie = false;
-  String? _typeAnomalie;
-  bool _isSaving = false;
-  bool _isLocked = false;
+  final _detailRaisonController = TextEditingController();
   final _picker = ImagePicker();
   final Map<int, String?> _photoPaths = {1: null, 2: null};
+
+  bool _hasAnomalie = false;
+  String? _typeAnomalie;
+  bool _isObjetIncomplet = false;
+  String? _raisonIncomplet;
+  bool _isSaving = false;
+  bool _isLocked = false;
 
   late final List<String> _fields;
   late final List<String> _typeOptions;
@@ -62,32 +65,48 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   late final int _maxPhotos;
   late final double _distanceTotaleM;
 
-  // Coordonnées Merchich des extrémités
-  late double _xDebut, _yDebut, _xFin, _yFin;
+  late double _xDebut;
+  late double _yDebut;
+  late double _xFin;
+  late double _yFin;
+
+  Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
 
   @override
   void initState() {
     super.initState();
     _fields = SrmConfig.getFields(widget.metier, widget.entityType);
     _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
-    _typeField = SrmConfig.getEntityConfig(widget.metier, widget.entityType)?['typeField'] as String?;
+    _typeField = SrmConfig.getEntityConfig(
+      widget.metier,
+      widget.entityType,
+    )?['typeField'] as String?;
     _maxPhotos = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
     _distanceTotaleM = _calcDistance(widget.linePoints);
 
-    // Calcul Merchich des extrémités
     final proj = ProjectionService();
     if (widget.linePoints.isNotEmpty) {
       final debut = widget.linePoints.first;
       final fin = widget.linePoints.last;
-      final md = proj.wgs84ToMerchich(longitude: debut.longitude, latitude: debut.latitude);
-      final mf = proj.wgs84ToMerchich(longitude: fin.longitude, latitude: fin.latitude);
-      _xDebut = md.x; _yDebut = md.y;
-      _xFin = mf.x; _yFin = mf.y;
+      final md = proj.wgs84ToMerchich(
+        longitude: debut.longitude,
+        latitude: debut.latitude,
+      );
+      final mf = proj.wgs84ToMerchich(
+        longitude: fin.longitude,
+        latitude: fin.latitude,
+      );
+      _xDebut = md.x;
+      _yDebut = md.y;
+      _xFin = mf.x;
+      _yFin = mf.y;
     } else {
-      _xDebut = _yDebut = _xFin = _yFin = 0.0;
+      _xDebut = 0.0;
+      _yDebut = 0.0;
+      _xFin = 0.0;
+      _yFin = 0.0;
     }
 
-    // Init controllers
     for (final field in _fields) {
       final initial = widget.existingData?[field]?.toString() ?? '';
       _controllers[field] = TextEditingController(text: initial);
@@ -98,24 +117,28 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _hasAnomalie = widget.existingData!['anomalie'] == 1 ||
           widget.existingData!['anomalie'] == true;
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
+      _isObjetIncomplet = widget.existingData!['objet_incomplet'] == 1 ||
+          widget.existingData!['objet_incomplet'] == true;
+      _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
+      _detailRaisonController.text =
+          widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
       for (int i = 1; i <= 2; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
       _isLocked = FormLockService.isLocked(widget.existingData!);
     }
 
-    // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
     if (widget.existingData == null) {
       for (final c in _controllers.values) {
         c.addListener(onFieldChanged);
       }
+      _detailRaisonController.addListener(onFieldChanged);
       initDraft();
     }
   }
 
   void _prefillCoordinates() {
-    final distStr = (_distanceTotaleM).toStringAsFixed(2);
-    // Longueur calculée automatiquement
+    final distStr = _distanceTotaleM.toStringAsFixed(2);
     if (_controllers.containsKey('longueur')) {
       _controllers['longueur']!.text = distStr;
     }
@@ -129,7 +152,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _controllers['long_troncon']!.text = distStr;
     }
 
-    // Heure début/fin
     if (widget.startTime != null && _controllers.containsKey('heure_debut')) {
       _controllers['heure_debut']!.text = _formatTime(widget.startTime!);
     }
@@ -152,7 +174,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   double _haversine(LatLng a, LatLng b) {
-    const R = 6371000.0;
+    const r = 6371000.0;
     final dLat = (b.latitude - a.latitude) * pi / 180;
     final dLon = (b.longitude - a.longitude) * pi / 180;
     final h = sin(dLat / 2) * sin(dLat / 2) +
@@ -160,7 +182,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             cos(b.latitude * pi / 180) *
             sin(dLon / 2) *
             sin(dLon / 2);
-    return 2 * R * atan2(sqrt(h), sqrt(1 - h));
+    return 2 * r * atan2(sqrt(h), sqrt(1 - h));
   }
 
   String _formatTime(DateTime dt) =>
@@ -189,10 +211,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     for (final c in _controllers.values) {
       c.dispose();
     }
+    _detailRaisonController.dispose();
     super.dispose();
   }
-
-  // ── SPRINT 7 : Implémentation FormDraftMixin ──
 
   @override
   String get draftKey => DraftService.buildDraftKey(
@@ -207,6 +228,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     for (final entry in _controllers.entries) {
       data[entry.key] = entry.value.text;
     }
+    data['__detail_raison'] = _detailRaisonController.text;
     return data;
   }
 
@@ -217,12 +239,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   Map<String, dynamic> collectExtraState() => {
         'hasAnomalie': _hasAnomalie,
         'typeAnomalie': _typeAnomalie,
+        'isObjetIncomplet': _isObjetIncomplet,
+        'raisonIncomplet': _raisonIncomplet,
       };
 
   @override
   void restoreFormData(Map<String, String> data) {
     for (final entry in data.entries) {
-      if (_controllers.containsKey(entry.key)) {
+      if (entry.key == '__detail_raison') {
+        _detailRaisonController.text = entry.value;
+      } else if (_controllers.containsKey(entry.key)) {
         _controllers[entry.key]!.text = entry.value;
       }
     }
@@ -237,9 +263,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   void restoreExtraState(Map<String, dynamic> extra) {
     _hasAnomalie = extra['hasAnomalie'] == true;
     _typeAnomalie = extra['typeAnomalie'] as String?;
+    _isObjetIncomplet = extra['isObjetIncomplet'] == true;
+    _raisonIncomplet = extra['raisonIncomplet'] as String?;
   }
-
-  Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
 
   Future<void> _pickPhoto(int index) async {
     final source = await showDialog<ImageSource>(
@@ -270,14 +296,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Photo refusee: ${e.message}'),
+          content: Text('Photo refusée: ${e.message}'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    // ── Vérification anti-doublon ────────────────────────────────────────
     final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
       candidatePath: picked.path,
       existingPaths: _photoPaths,
@@ -304,20 +329,33 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
     }
-    // ────────────────────────────────────────────────────────────────────
 
     if (!mounted) return;
     setState(() => _photoPaths[index] = picked.path);
   }
 
+  void _removePhoto(int index) => setState(() => _photoPaths[index] = null);
+
   Future<void> _save() async {
     if (_isLocked) return;
-    if (!_formKey.currentState!.validate()) return;
+    if (!_isObjetIncomplet && !_formKey.currentState!.validate()) return;
+    if (_isObjetIncomplet && _raisonIncomplet == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+          'Veuillez sélectionner une raison pour l\'objet incomplet',
+        ),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final tableName =
@@ -327,14 +365,15 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       final data = <String, dynamic>{};
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
 
-      for (final field in _fields) {
-        final val = _controllers[field]?.text.trim();
-        if (val != null && val.isNotEmpty) {
-          data[field] = _normalizeFieldValue(field, val);
+      if (!_isObjetIncomplet) {
+        for (final field in _fields) {
+          final val = _controllers[field]?.text.trim();
+          if (val != null && val.isNotEmpty) {
+            data[field] = _normalizeFieldValue(field, val);
+          }
         }
       }
 
-      // Géométrie : stocker les points JSON
       data['points_json'] = widget.linePoints
           .map((p) => {'lat': p.latitude, 'lon': p.longitude})
           .toList()
@@ -342,21 +381,20 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       data['nb_points'] = widget.linePoints.length;
       data['distance_m'] = _distanceTotaleM;
 
-      // Sprint 5 : altitude Z moyenne GNSS
       if (widget.averageAltitude != null) {
         data['altitude_z_moy'] = widget.averageAltitude;
-        // Pré-remplir aussi les champs Z de la table si présents
-        final schema = SrmConfig.getEntityConfig(widget.metier, widget.entityType)?['schema'] ?? '';
+        final schema =
+            SrmConfig.getEntityConfig(widget.metier, widget.entityType)?[
+                    'schema'] ??
+                '';
         data['${schema}_coor_z'] = widget.averageAltitude;
       }
 
-      // Coordonnées extrémités Merchich
       data['x_debut'] = _xDebut;
       data['y_debut'] = _yDebut;
       data['x_fin'] = _xFin;
       data['y_fin'] = _yFin;
 
-      // WGS84 début/fin
       if (widget.linePoints.isNotEmpty) {
         data['lat_debut'] = widget.linePoints.first.latitude;
         data['lon_debut'] = widget.linePoints.first.longitude;
@@ -364,18 +402,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         data['lon_fin'] = widget.linePoints.last.longitude;
       }
 
-      // Anomalie
       data['anomalie'] = _hasAnomalie ? 1 : 0;
       if (_hasAnomalie && _typeAnomalie != null) {
         data['type_anomalie'] = _typeAnomalie;
       }
+      data['objet_incomplet'] = _isObjetIncomplet ? 1 : 0;
 
-      // Photos
       for (int i = 1; i <= 2; i++) {
         data['photo_$i'] = _photoPaths[i];
       }
 
-      // FK SRM
       data['id_projet'] = ApiService.currentProjetId;
       data['id_agent_crea'] = ApiService.userId;
       data['mode_localisation'] = 'gnss';
@@ -404,28 +440,71 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         );
       }
 
+      if (_isObjetIncomplet) {
+        final metierCode = widget.metier == 'Eau Potable'
+            ? 'EP'
+            : widget.metier == 'Assainissement'
+                ? 'ASS'
+                : 'ELEC';
+        final incompletData = {
+          'nom_classe': tableName,
+          'metier': metierCode,
+          'raison': _raisonIncomplet,
+          'detail_raison': _detailRaisonController.text.trim(),
+          'date_signalement': DateTime.now().toIso8601String(),
+          'id_agent_signal': ApiService.userId,
+          'statut': 'A_COMPLETER',
+          'id_projet': ApiService.currentProjetId,
+          'synced': 0,
+          'date_collecte': DateTime.now().toIso8601String(),
+        };
+        await dbHelper.insertEntitySrm(
+          'objet_incomplet',
+          incompletData,
+          recordHistory: true,
+        );
+      }
+
       if (mounted) {
         await clearDraftAfterSave();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              '✅ ${widget.entityType} enregistré (${_distanceTotaleM.toStringAsFixed(1)} m, ${widget.linePoints.length} pts)'),
-          backgroundColor: Colors.green,
-        ));
+        if (!mounted) return;
+        final label = _isObjetIncomplet
+            ? '${widget.entityType} signalé incomplet'
+            : '${widget.entityType} enregistré '
+                '(${_distanceTotaleM.toStringAsFixed(1)} m, '
+                '${widget.linePoints.length} pts)';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(label),
+            backgroundColor:
+                _isObjetIncomplet ? Colors.orange : Colors.green,
+          ),
+        );
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('❌ Erreur: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
+  bool _isCoordField(String field) =>
+      field.endsWith('_coor_x') ||
+      field.endsWith('_coor_y') ||
+      field.endsWith('_coor_z');
+
   Widget _buildField(String field) {
+    final isCoordField = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
     final isDistanceField = field == 'longueur' ||
         field == 'ep_long_c' ||
@@ -434,12 +513,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     final label = _fieldLabel(field);
     final controller = _controllers[field]!;
+    final isDisabled = _isLocked || _isObjetIncomplet;
+    final shouldFade = isDisabled && !isCoordField && !isDistanceField;
 
     if (isTypeField) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Opacity(
-          opacity: _isLocked ? 0.55 : 1.0,
+          opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
           child: DropdownButtonFormField<String>(
             initialValue: controller.text.isEmpty ? null : controller.text,
             decoration: _deco(label),
@@ -447,8 +528,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             items: _typeOptions
                 .map((o) => DropdownMenuItem(value: o, child: Text(o)))
                 .toList(),
-            onChanged: _isLocked ? null : (v) => controller.text = v ?? '',
-            validator: _isLocked
+            onChanged: isDisabled ? null : (v) => controller.text = v ?? '',
+            validator: isDisabled
                 ? null
                 : (v) => (v == null || v.isEmpty) ? 'Champ requis' : null,
           ),
@@ -476,26 +557,46 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Opacity(
-        opacity: _isLocked ? 0.55 : 1.0,
+        opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
         child: TextFormField(
           controller: controller,
           decoration: _deco(label).copyWith(
-            filled: _isLocked,
-            fillColor: _isLocked ? Colors.grey.shade50 : null,
+            filled: isDisabled,
+            fillColor: isDisabled ? Colors.grey.shade50 : null,
           ),
           keyboardType: _kbType(rule),
           maxLines: rule.multiline ? 3 : 1,
           maxLength: rule.maxLength,
           inputFormatters: _inputFormatters(rule),
-          readOnly: _isLocked,
-          validator: _isLocked ? null : (value) => _validateField(field, value),
+          readOnly: isDisabled,
+          validator:
+              isDisabled ? null : (value) => _validateField(field, value),
         ),
       ),
     );
   }
 
-  InputDecoration _deco(String label) => InputDecoration(
-        labelText: label,
+  InputDecoration _deco(String label, {bool required = false}) =>
+      InputDecoration(
+        label: required
+            ? RichText(
+                text: TextSpan(
+                  text: label,
+                  style: const TextStyle(color: Colors.black87, fontSize: 14),
+                  children: const [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : null,
+        labelText: required ? null : label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -507,7 +608,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       case SrmFieldKind.integer:
         return TextInputType.number;
       case SrmFieldKind.decimal:
-        return const TextInputType.numberWithOptions(decimal: true, signed: true);
+        return const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        );
       case SrmFieldKind.date:
         return TextInputType.datetime;
       default:
@@ -596,53 +700,337 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   String _fieldLabel(String field) {
     const labels = {
-      // EP Conduite
-      'ep_num': 'Numéro', 'ep_type': 'Type conduite',
-      'ep_diam': 'Diamètre (mm)', 'ep_mat': 'Matériau',
-      'ep_long_c': 'Longueur calculée (m)', 'ep_long_r': 'Longueur réelle (m)',
-      'ep_profondeur': 'Profondeur (m)', 'ep_classe_conduite': 'Classe',
-      'emplacement': 'Emplacement', 'zamont': 'Z amont (m)',
-      'zaval': 'Z aval (m)', 'pente': 'Pente (%)',
-      'zalerte': 'Z alerte', 'ref_rue': 'Réf. rue',
-      'ep_entreprise': 'Entreprise', 'ep_ref_marche': 'Réf. marché',
-      'ep_sect_hydro': 'Secteur hydro', 'ep_etage_p': 'Étage P',
-      'etage_aqua': 'Étage aqua', 'secteur_aqua': 'Secteur aqua',
+      'ep_num': 'Numéro',
+      'ep_type': 'Type conduite',
+      'ep_diam': 'Diamètre (mm)',
+      'ep_mat': 'Matériau',
+      'ep_long_c': 'Longueur calculée (m)',
+      'ep_long_r': 'Longueur réelle (m)',
+      'ep_profondeur': 'Profondeur (m)',
+      'ep_classe_conduite': 'Classe',
+      'emplacement': 'Emplacement',
+      'zamont': 'Z amont (m)',
+      'zaval': 'Z aval (m)',
+      'pente': 'Pente (%)',
+      'zalerte': 'Z alerte',
+      'ref_rue': 'Réf. rue',
+      'ep_entreprise': 'Entreprise',
+      'ep_ref_marche': 'Réf. marché',
+      'ep_sect_hydro': 'Secteur hydro',
+      'ep_etage_p': 'Étage P',
+      'etage_aqua': 'Étage aqua',
+      'secteur_aqua': 'Secteur aqua',
       'ep_statut': 'Statut',
-      // EP Branchement / Traverse
-      'ep_long': 'Longueur (m)', 'ep_etat': 'État',
-      // ASS
-      'uuid': 'UUID', 'conformite_plan': 'Conformité plan',
-      'classe': 'Classe', 'etat': 'État', 'date_pose': 'Date pose',
-      'longueur': 'Longueur (m)', 'nature': 'Nature',
-      'typereseau': 'Type réseau', 'reference': 'Référence',
-      'rehabilitation': 'Réhabilitation', 'date_rehabilitation': 'Date réhabilitation',
-      'diametre': 'Diamètre (mm)', 'largeur_base': 'Largeur base',
-      'profondeur_aval': 'Profondeur aval (m)', 'profondeur_amont': 'Profondeur amont (m)',
-      'type_ecoulement': 'Type écoulement', 'type_section': 'Type section',
-      'type_conduite': 'Type conduite', 'type_rehabilitation': 'Type réhabilitation',
+      'ep_long': 'Longueur (m)',
+      'ep_etat': 'État',
+      'uuid': 'UUID',
+      'conformite_plan': 'Conformité plan',
+      'classe': 'Classe',
+      'etat': 'État',
+      'date_pose': 'Date pose',
+      'longueur': 'Longueur (m)',
+      'nature': 'Nature',
+      'typereseau': 'Type réseau',
+      'reference': 'Référence',
+      'rehabilitation': 'Réhabilitation',
+      'date_rehabilitation': 'Date réhabilitation',
+      'diametre': 'Diamètre (mm)',
+      'largeur_base': 'Largeur base',
+      'profondeur_aval': 'Profondeur aval (m)',
+      'profondeur_amont': 'Profondeur amont (m)',
+      'type_ecoulement': 'Type écoulement',
+      'type_section': 'Type section',
+      'type_conduite': 'Type conduite',
+      'type_rehabilitation': 'Type réhabilitation',
       'protection_anticorrosion': 'Protection anti-corrosion',
-      'type_activite': 'Type activité', 'centre': 'Centre',
-      'commentaire': 'Commentaire', 'observation': 'Observation',
-      // ELEC
-      'techcable': 'Tech câble', 'type_liaison': 'Type liaison',
+      'type_activite': 'Type activité',
+      'centre': 'Centre',
+      'commentaire': 'Commentaire',
+      'observation': 'Observation',
+      'techcable': 'Tech câble',
+      'type_liaison': 'Type liaison',
       'section_conducteur': 'Section conducteur',
-      'mode_pose': 'Mode pose', 'status_troncon': 'Statut tronçon',
+      'mode_pose': 'Mode pose',
+      'status_troncon': 'Statut tronçon',
       'date_mise_service': 'Date mise en service',
-      'code_poste': 'Code poste', 'num_transfo': 'N° transfo',
-      'codedepart': 'Code départ', 'nbphases': 'Nb phases',
-      'section_neutre': 'Section neutre', 'nu': 'NU',
-      'section_phase': 'Section phase', 'arme': 'Armé',
-      'cable_unipolaire': 'Câble unipolaire', 'marque': 'Marque',
-      'type_troncon': 'Type tronçon', 'section_conduct': 'Section conduct',
-      'type_cable': 'Type câble', 'metal_conduct': 'Métal conducteur',
-      'phasage_segment': 'Phasage segment', 'caracteristique': 'Caractéristique',
-      'technologie_utilisee': 'Technologie', 'neutre': 'Neutre',
+      'code_poste': 'Code poste',
+      'num_transfo': 'N° transfo',
+      'codedepart': 'Code départ',
+      'nbphases': 'Nb phases',
+      'section_neutre': 'Section neutre',
+      'nu': 'NU',
+      'section_phase': 'Section phase',
+      'arme': 'Armé',
+      'cable_unipolaire': 'Câble unipolaire',
+      'marque': 'Marque',
+      'type_troncon': 'Type tronçon',
+      'section_conduct': 'Section conduct',
+      'type_cable': 'Type câble',
+      'metal_conduct': 'Métal conducteur',
+      'phasage_segment': 'Phasage segment',
+      'caracteristique': 'Caractéristique',
+      'technologie_utilisee': 'Technologie',
+      'neutre': 'Neutre',
       'type_mise_terre': 'Type mise à la terre',
-      'section_mise_terre': 'Section MAT', 'tension': 'Tension (kV)',
-      'postesource': 'Poste source', 'date_mise_en_service': 'Date MES',
-      'long_troncon': 'Longueur tronçon (m)', 'depart': 'Départ',
+      'section_mise_terre': 'Section MAT',
+      'tension': 'Tension (kV)',
+      'postesource': 'Poste source',
+      'date_mise_en_service': 'Date MES',
+      'long_troncon': 'Longueur tronçon (m)',
+      'depart': 'Départ',
     };
     return labels[field] ?? field.replaceAll('_', ' ');
+  }
+
+  Widget _buildPhotoSection() {
+    if (_maxPhotos == 0) return const SizedBox.shrink();
+    final disabled = _isObjetIncomplet || _isLocked;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 24),
+        Text(
+          'Photos (max $_maxPhotos)',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Formats autorisés: JPG, PNG, WEBP, HEIC • Taille max: '
+          '${PhotoValidationService.maxPhotoSizeLabel}',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(_maxPhotos, (i) {
+            final idx = i + 1;
+            final path = _photoPaths[idx];
+            return GestureDetector(
+              onTap: disabled ? null : () => _pickPhoto(idx),
+              child: Opacity(
+                opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.grey.shade100,
+                      ),
+                      child: path != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(7),
+                              child: _buildPhotoPreview(path),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_a_photo,
+                                  color: Colors.grey.shade400,
+                                ),
+                                Text(
+                                  'Photo $idx',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                    if (path != null && !disabled)
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: GestureDetector(
+                          onTap: () => _removePhoto(idx),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnomalieSection() {
+    final disabled = _isObjetIncomplet || _isLocked;
+    return Opacity(
+      opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 24),
+          SwitchListTile(
+            title: const Text(
+              'Anomalie détectée',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            value: _hasAnomalie,
+            activeThumbColor: Colors.red,
+            onChanged: disabled
+                ? null
+                : (v) => setState(() {
+                      _hasAnomalie = v;
+                      if (!v) _typeAnomalie = null;
+                    }),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (_hasAnomalie && !_isObjetIncomplet)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: DropdownButtonFormField<String>(
+                initialValue: _typeAnomalie,
+                decoration: _deco('Type d\'anomalie'),
+                hint: const Text('Sélectionner'),
+                items: const [
+                  DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
+                  DropdownMenuItem(
+                    value: 'Corrosion',
+                    child: Text('Corrosion'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Obstruction',
+                    child: Text('Obstruction'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Dommage physique',
+                    child: Text('Dommage physique'),
+                  ),
+                  DropdownMenuItem(value: 'Autre', child: Text('Autre')),
+                ],
+                onChanged: _isLocked
+                    ? null
+                    : (v) => setState(() => _typeAnomalie = v),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildObjetIncompletSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 24),
+        if (_isObjetIncomplet)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade300),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: 18,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Les champs de l\'objet sont désactivés.\n'
+                    'Seuls le tracé GPS et la raison sont enregistrés.',
+                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SwitchListTile(
+          title: const Text(
+            'Signaler comme objet incomplet',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: const Text(
+            'Active si l\'objet est inaccessible ou impossible à collecter',
+            style: TextStyle(fontSize: 12),
+          ),
+          value: _isObjetIncomplet,
+          activeThumbColor: Colors.orange,
+          onChanged: (v) => setState(() {
+            _isObjetIncomplet = v;
+            if (!v) {
+              _raisonIncomplet = null;
+              _detailRaisonController.clear();
+            }
+            if (v) {
+              _hasAnomalie = false;
+              _typeAnomalie = null;
+            }
+          }),
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (_isObjetIncomplet) ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _raisonIncomplet,
+            decoration: _deco('Raison', required: true),
+            hint: const Text('Sélectionner une raison'),
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(
+                value: 'ACCES_BLOQUE',
+                child: Text('Accès bloqué'),
+              ),
+              DropdownMenuItem(
+                value: 'VEHICULE_STATIONNE',
+                child: Text('Véhicule stationné sur la voie'),
+              ),
+              DropdownMenuItem(
+                value: 'TAMPON_INACCESSIBLE',
+                child: Text('Tampon inaccessible / scellé'),
+              ),
+              DropdownMenuItem(
+                value: 'CONDITIONS_METEO',
+                child: Text('Conditions météo défavorables'),
+              ),
+              DropdownMenuItem(value: 'DANGER', child: Text('Danger sur site')),
+              DropdownMenuItem(value: 'AUTRE', child: Text('Autre raison')),
+            ],
+            onChanged: (v) => setState(() => _raisonIncomplet = v),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _detailRaisonController,
+            decoration: _deco('Détail / commentaire (facultatif)'),
+            maxLines: 2,
+            keyboardType: TextInputType.multiline,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Statut automatique : A_COMPLETER',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.orange.shade700,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -655,241 +1043,190 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         if (widget.existingData == null) await saveDraftBeforeExit();
       },
       child: Scaffold(
-      appBar: AppBar(
-        backgroundColor: _metierColor,
-        foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.entityType,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            Text('${widget.metier} — tracé GPS',
-                style: const TextStyle(
-                    fontSize: 12, color: Colors.white70)),
-          ],
-        ),
-        actions: [
-          if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
+        appBar: AppBar(
+          backgroundColor: _isLocked
+              ? Colors.grey.shade700
+              : (_isObjetIncomplet ? Colors.orange : _metierColor),
+          foregroundColor: Colors.white,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    widget.entityType,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (_isObjetIncomplet && !_isLocked) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'INCOMPLET',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Text(
+                '${widget.metier} — tracé GPS',
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+            ],
+          ),
+          actions: [
+            if (_isSaving)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2)),
-            )
-          else
-            IconButton(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                ),
+              )
+            else
+              IconButton(
                 icon: const Icon(Icons.check),
                 tooltip: 'Enregistrer',
-                onPressed: _save),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Bandeau tracé
-            Container(
-              padding: const EdgeInsets.all(10),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: _metierColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _metierColor.withOpacity(0.3)),
+                onPressed: _save,
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.timeline, color: _metierColor),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${widget.linePoints.length} points  •  $distKm km  •  ${_distanceTotaleM.toStringAsFixed(1)} m',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _metierColor),
-                        ),
-                        Text(
-                          'Début: X ${_xDebut.toStringAsFixed(1)} / Y ${_yDebut.toStringAsFixed(1)}',
-                          style: const TextStyle(
-                              fontSize: 11, fontFamily: 'monospace'),
-                        ),
-                        Text(
-                          'Fin:    X ${_xFin.toStringAsFixed(1)} / Y ${_yFin.toStringAsFixed(1)}',
-                          style: const TextStyle(
-                              fontSize: 11, fontFamily: 'monospace'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Champs dynamiques
-            ..._fields.map(_buildField),
-
-            // Anomalie
-            const Divider(height: 24),
-            SwitchListTile(
-              title: const Text('Anomalie détectée',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              value: _hasAnomalie,
-              activeThumbColor: Colors.red,
-              onChanged: _isLocked ? null : (v) => setState(() {
-                _hasAnomalie = v;
-                if (!v) _typeAnomalie = null;
-              }),
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (_hasAnomalie)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: DropdownButtonFormField<String>(
-                  initialValue: _typeAnomalie,
-                  decoration: _deco('Type d\'anomalie'),
-                  hint: const Text('Sélectionner'),
-                  items: const [
-                    DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
-                    DropdownMenuItem(
-                        value: 'Corrosion', child: Text('Corrosion')),
-                    DropdownMenuItem(
-                        value: 'Obstruction', child: Text('Obstruction')),
-                    DropdownMenuItem(
-                        value: 'Dommage physique',
-                        child: Text('Dommage physique')),
-                    DropdownMenuItem(
-                        value: 'Autre', child: Text('Autre')),
-                  ],
-                  onChanged: _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
-                ),
-              ),
-
-            // Photos
-            if (_maxPhotos > 0) ...[
-              const Divider(height: 24),
-              Text('Photos (max $_maxPhotos)',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 8),
-              Text(
-                'Formats autorises: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(_maxPhotos, (i) {
-                  final idx = i + 1;
-                  final path = _photoPaths[idx];
-                  return GestureDetector(
-                    onTap: _isLocked ? null : () => _pickPhoto(idx),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            border:
-                                Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.grey.shade100,
-                          ),
-                          child: path != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(7),
-                                  child: _buildPhotoPreview(path))
-                              : Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.add_a_photo,
-                                        color: Colors.grey.shade400),
-                                    Text('Photo $idx',
-                                        style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey.shade500)),
-                                  ],
-                                ),
-                        ),
-                        if (path != null && !_isLocked)
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                  () => _photoPaths[idx] = null),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle),
-                                child: const Icon(Icons.close,
-                                    color: Colors.white, size: 14),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                }),
-              ),
-            ],
-
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Fermer'),
-                  ),
-                ),
-                if (_isLocked) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.lock_outline),
-                      label: const Text('Verrouillé'),
-                    ),
-                  ),
-                ] else
-                const SizedBox(width: 12),
-                if (!_isLocked)
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _metierColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.save),
-                    label: Text(_isSaving
-                        ? 'Enregistrement...'
-                        : 'Enregistrer'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
           ],
         ),
-      ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: _metierColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _metierColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.timeline, color: _metierColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${widget.linePoints.length} points  •  $distKm km  •  '
+                            '${_distanceTotaleM.toStringAsFixed(1)} m',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _metierColor,
+                            ),
+                          ),
+                          Text(
+                            'Début: X ${_xDebut.toStringAsFixed(1)} / '
+                            'Y ${_yDebut.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          Text(
+                            'Fin:    X ${_xFin.toStringAsFixed(1)} / '
+                            'Y ${_yFin.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ..._fields.map(_buildField),
+              _buildAnomalieSection(),
+              if (!_isLocked) _buildObjetIncompletSection(),
+              _buildPhotoSection(),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Fermer'),
+                    ),
+                  ),
+                  if (_isLocked) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.lock_outline),
+                        label: const Text('Verrouillé'),
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _isObjetIncomplet ? Colors.orange : _metierColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _isObjetIncomplet
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.save,
+                              ),
+                        label: Text(
+                          _isSaving
+                              ? 'Enregistrement...'
+                              : _isObjetIncomplet
+                                  ? 'Signaler incomplet'
+                                  : 'Enregistrer',
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
       ),
     );
   }

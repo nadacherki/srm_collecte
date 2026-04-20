@@ -23,7 +23,6 @@ import '../../widgets/map/map_widget.dart';
 import '../../widgets/map/map_controls_widget.dart';
 import '../../widgets/map/legend_widget.dart';
 import '../../widgets/status/collection_status_widgets.dart';
-import '../../widgets/forms/provisional_form_dialog.dart';
 
 // ============================================================
 // CONTROLLERS
@@ -54,7 +53,6 @@ import '../../models/map_overlay_tap_data.dart';
 import '../auth/login_page.dart';
 import '../data/data_categories_page.dart';
 import '../forms/special_line_form_page.dart';
-import '../forms/formulaire_ligne_page.dart';
 import '../forms/polygon_form_page.dart';
 import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
@@ -166,6 +164,8 @@ class _HomePageState extends State<HomePage> {
   final SpecialLinesService _specialLinesService = SpecialLinesService();
   List<Polyline> _displayedSpecialLines = [];
   Map<String, List<Polyline>> _displayedSrmLinesByTable = {};
+  Map<String, List<Polyline>> _displayedLineAnomalieByTable = {};
+  Map<String, List<Polyline>> _displayedLineIncompletByTable = {};
   bool _showDownloadedPoints = true;
   Map<String, List<Marker>> _displayedPointsByTable = {};
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
@@ -502,7 +502,32 @@ class _HomePageState extends State<HomePage> {
     final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
     final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
 
-    if (!(anomalieFilterOn || incompletFilterOn)) {
+    if (anomalieFilterOn && !incompletFilterOn) {
+      for (final entry in _displayedLineAnomalieByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          filtered.addAll(entry.value);
+        }
+      }
+    } else if (incompletFilterOn && !anomalieFilterOn) {
+      for (final entry in _displayedLineIncompletByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          filtered.addAll(entry.value);
+        }
+      }
+    } else if (anomalieFilterOn && incompletFilterOn) {
+      final combined = <Polyline>{};
+      for (final entry in _displayedLineAnomalieByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          combined.addAll(entry.value);
+        }
+      }
+      for (final entry in _displayedLineIncompletByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          combined.addAll(entry.value);
+        }
+      }
+      filtered.addAll(combined);
+    } else {
       for (final entry in _displayedSrmLinesByTable.entries) {
         if (_isSrmTableVisible(entry.key)) {
           filtered.addAll(entry.value);
@@ -741,27 +766,6 @@ class _HomePageState extends State<HomePage> {
     List<LatLng> previewPoints,
   ) =>
       _containsPolygonPreviewImpl(polygons, previewPoints);
-
-
-  Future<String> generateLineCode() async {
-    // horodatage YYYYMMDDhhmmssSSS
-    final now = DateTime.now();
-    final ts = '${now.year}'
-        '${now.month.toString().padLeft(2, '0')}'
-        '${now.day.toString().padLeft(2, '0')}'
-        '${now.hour.toString().padLeft(2, '0')}'
-        '${now.minute.toString().padLeft(2, '0')}'
-        '${now.second.toString().padLeft(2, '0')}'
-        '${now.millisecond.toString().padLeft(3, '0')}';
-
-    // Sprint 4: SRM utilise id_projet, id_mission, id_agent au lieu de commune/prefecture/region.
-    final projetId = ApiService.currentProjetId ?? 0;
-    final agentId = ApiService.userId ?? 0;
-
-    final code = 'Line_${projetId}_${agentId}_$ts';
-    return code;
-  }
-
   Future<void> _loadDisplayedPoints() =>
       _loadDisplayedPointsImpl(this);
 
@@ -797,9 +801,6 @@ class _HomePageState extends State<HomePage> {
         metier: metier,
         entityType: entityType,
       );
-
-  Future<void> startLigneCollection() =>
-      _startLigneCollectionImpl();
 
   void toggleSpecialCollection() =>
       _toggleSpecialCollectionImpl();
