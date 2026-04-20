@@ -160,6 +160,7 @@ urlpatterns = [
     # Login (vue fonction, pas un ViewSet)
     path('api/login/', views.login_view, name='login'),
     path('api/basemaps/catalog/', views.basemap_catalog_view, name='basemap-catalog'),
+    path('api/basemaps/prepare-agent/', views.prepare_agent_basemap_packages_view, name='basemap-prepare-agent'),
     path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),
     path('api/historique-mobile/upload/', views.mobile_history_upload_view, name='historique-mobile-upload'),
 

@@ -83,9 +83,9 @@ class _DataListViewState extends State<DataListView> {
     return false;
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ============================================
 // APRÈS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ============================================
   void _focusOnIntersectionPoint(double? x, double? y, String label) {
     if (x == null || y == null) return;
 
@@ -95,7 +95,7 @@ class _DataListViewState extends State<DataListView> {
     HomePage.pendingFocusTarget = MapFocusTarget.point(
       point: point,
       label: 'Intersection: $label',
-      pointStyle: 'intersection', // â­â­â­ AJOUTÃ‰ : style intersection (orange)
+      pointStyle: 'intersection', // AJOUTE : style intersection (orange)
     );
 
     // Remonter jusqu'à la HomePage (carte)

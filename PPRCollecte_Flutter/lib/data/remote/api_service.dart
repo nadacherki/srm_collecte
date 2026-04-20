@@ -159,6 +159,9 @@ class ApiService {
     final queryParameters = <String, String>{
       'active_only': activeOnly ? 'true' : 'false',
     };
+    if (userId != null) {
+      queryParameters['id_user'] = userId.toString();
+    }
     if (citySlug != null && citySlug.isNotEmpty) {
       queryParameters['city_slug'] = citySlug;
     }
@@ -180,6 +183,53 @@ class ApiService {
     final data = jsonDecode(utf8.decode(response.bodyBytes));
     if (data is! Map<String, dynamic>) {
       throw Exception('Reponse basemap catalog invalide');
+    }
+    return data;
+  }
+
+  static Future<Map<String, dynamic>> prepareAssignedBasemapCatalog({
+    String? citySlug,
+    String? style,
+    bool activeOnly = true,
+    bool force = false,
+  }) async {
+    if (userId == null) {
+      throw Exception('Utilisateur non connecte pour preparer les cartes offline');
+    }
+
+    final url = Uri.parse('$baseUrl/api/basemaps/prepare-agent/');
+    final payload = <String, dynamic>{
+      'id_user': userId,
+      'active_only': activeOnly,
+      'force': force,
+    };
+    if (citySlug != null && citySlug.isNotEmpty) {
+      payload['city_slug'] = citySlug;
+    }
+    if (style != null && style.isNotEmpty) {
+      payload['style'] = style;
+    }
+
+    final response = await http
+        .post(url, headers: _headers(), body: jsonEncode(payload))
+        .timeout(const Duration(seconds: 120));
+
+    if (response.statusCode != 200) {
+      try {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        throw Exception(
+          decoded['message'] ??
+              decoded['error'] ??
+              'Erreur preparation basemap ${response.statusCode}',
+        );
+      } catch (_) {
+        throw Exception('Erreur preparation basemap ${response.statusCode}');
+      }
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Reponse preparation basemap invalide');
     }
     return data;
   }

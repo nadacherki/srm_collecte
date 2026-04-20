@@ -3,7 +3,7 @@
 // Fonctionne pour EP / ASS / ELEC selon srm_config.dart
 // Les photos photo_1..photo_4 sont portées directement par l'objet
 //
-// â”€â”€ SPRINT 6 â€” Modifications â”€â”€
+// SPRINT 6 : Modifications
 //  1. uuid retiré du formulaire (généré automatiquement par Uuid().v4() dans _save)
 //  2. Champs obligatoires marqués * via SrmConfig.isRequiredField() + validator
 //  3. Champs auto (coordonnées GPS) affichés readOnly sans *
@@ -57,11 +57,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
 
-  // â”€â”€ Anomalie (existant) â”€â”€
+  // Anomalie (existant)
   bool _hasAnomalie = false;
   String? _typeAnomalie;
 
-  // â”€â”€ Objet Incomplet (NOUVEAU) â”€â”€
+  // Objet incomplet (nouveau)
   bool _isObjetIncomplet = false;
   String? _raisonIncomplet;
   final TextEditingController _detailRaisonController = TextEditingController();
@@ -222,9 +222,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Photos
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _pickPhoto(int index) async {
     final source = await showDialog<ImageSource>(
       context: context,
@@ -254,14 +252,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Photo refusee: ${e.message}'),
+          content: Text('Photo refusée: ${e.message}'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    // ── Vérification anti-doublon ────────────────────────────────────────
+    // Vérification anti-doublon.
     // On compare la photo sélectionnée avec toutes les autres slots déjà remplis.
     // Si une photo identique est détectée (même chemin ou même contenu binaire),
     // on rejette la sélection avec un message explicite.
@@ -296,7 +294,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       );
       return;
     }
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Fin de la vérification anti-doublon.
 
     if (!mounted) return;
     setState(() => _photoPaths[index] = picked.path);
@@ -321,9 +319,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Sauvegarde
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _save() async {
     if (_isLocked) return;
     // Si objet incomplet : on ne valide PAS les champs métier (ils sont grisés)
@@ -345,7 +341,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
       final data = <String, dynamic>{};
 
-      // â”€â”€ UUID : toujours automatique, jamais saisi â”€â”€
+      // UUID : toujours automatique, jamais saisi.
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
 
       // ── Champs métier (ignorés si objet incomplet) ──
@@ -372,7 +368,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       if (xField.isNotEmpty) data[xField] = _merchichX.toStringAsFixed(3);
       if (yField.isNotEmpty) data[yField] = _merchichY.toStringAsFixed(3);
 
-      // â”€â”€ Anomalie â”€â”€
+      // Anomalie
       data['anomalie'] = _hasAnomalie ? 1 : 0;
       if (_hasAnomalie && _typeAnomalie != null) {
         data['type_anomalie'] = _typeAnomalie;
@@ -382,7 +378,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       // Les détails vont dans la table objet_incomplet séparément
       data['objet_incomplet'] = _isObjetIncomplet ? 1 : 0;
 
-      // â”€â”€ Photos â”€â”€
+      // Photos
       for (int i = 1; i <= 4; i++) {
         data['photo_$i'] = _photoPaths[i];
       }
@@ -471,9 +467,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Construction d'un champ
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool _isCoordField(String field) =>
       field.endsWith('_coor_x') ||
       field.endsWith('_coor_y') ||
@@ -482,7 +476,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   Widget _buildField(String field) {
     final isCoord    = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
-    // â”€â”€ NOUVEAU : champ obligatoire ? â”€â”€
     final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     final isRequired =
         !isCoord && (_requiredFields.contains(field) || rule.required);
@@ -560,9 +553,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return fieldWidget;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // InputDecoration avec astérisque si requis
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   InputDecoration _deco(String label, {bool required = false}) =>
       InputDecoration(
         // ── NOUVEAU : astérisque rouge sur les champs obligatoires ──
@@ -763,9 +754,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return labels[field] ?? field.replaceAll('_', ' ');
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Section Photos
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Section photos
   Widget _buildPhotoSection() {
     if (_maxPhotos == 0) return const SizedBox.shrink();
     return Column(
@@ -842,9 +831,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Section Anomalie (inchangée)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Section anomalie
   Widget _buildAnomalieSection() {
     final disabled = _isObjetIncomplet || _isLocked;
     return Opacity(
@@ -890,9 +877,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // NOUVEAU â€” Section Objet Incomplet
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Section objet incomplet
   Widget _buildObjetIncompletSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -955,7 +940,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         if (_isObjetIncomplet) ...[
           const SizedBox(height: 8),
 
-          // Raison (OBLIGATOIRE) â€” depuis enum raison_incomplet_enum de la BDD
+          // Raison obligatoire depuis enum raison_incomplet_enum de la BDD
           DropdownButtonFormField<String>(
             initialValue: _raisonIncomplet,
             decoration: _deco('Raison', required: true),
@@ -1009,9 +994,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Build principal
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1128,7 +1111,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                   ],
                 ),
               ),
-            // â”€â”€ Bandeau GPS â”€â”€
+            // Bandeau GPS
             Container(
               padding: const EdgeInsets.all(10),
               margin: const EdgeInsets.only(bottom: 16),
@@ -1186,10 +1169,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 ),
               ),
 
-            // â”€â”€ Champs dynamiques â”€â”€
+            // Champs dynamiques
             ..._fields.map(_buildField),
 
-            // â”€â”€ Sections Anomalie + Incomplet â”€â”€
+            // Sections anomalie + incomplet
             _buildAnomalieSection(),
             if (!_isLocked) _buildObjetIncompletSection(),
             _buildPhotoSection(),

@@ -161,11 +161,12 @@ class DraftService {
   Future<void> deleteDraft(String draftKey) async {
     try {
       final db = await DatabaseHelper().database;
-      await db.delete(
+      final deletedCount = await db.delete(
         'form_drafts',
         where: 'draft_key = ?',
         whereArgs: [draftKey],
       );
+      if (deletedCount == 0) return;
       await DatabaseHelper().recordLocalEvent(
         eventType: 'DELETE_FORM_DRAFT',
         tableName: 'form_drafts',
@@ -306,14 +307,23 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
     if (!mounted) return;
     if (_draftCleared) return;
     final data = collectFormData();
-    // Ne pas sauvegarder si tous les champs sont vides
-    if (data.values.every((v) => v.isEmpty)) return;
+    final photoPaths = collectPhotoPaths();
+    final extraState = collectExtraState();
+
+    if (!_hasMeaningfulDraftContent(
+      formData: data,
+      photoPaths: photoPaths,
+      extraState: extraState,
+    )) {
+      await _draftService.deleteDraft(draftKey);
+      return;
+    }
 
     await _draftService.saveDraft(
       draftKey: draftKey,
       formData: data,
-      photoPaths: collectPhotoPaths(),
-      extraState: collectExtraState(),
+      photoPaths: photoPaths,
+      extraState: extraState,
     );
   }
 
@@ -321,6 +331,16 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
     if (_draftRestored) return;
     final draft = await _draftService.loadDraft(draftKey);
     if (draft == null || !mounted) return;
+
+    if (!_hasMeaningfulDraftContent(
+      formData: draft.formData,
+      photoPaths: draft.photoPaths,
+      extraState: draft.extraState,
+    )) {
+      await _draftService.deleteDraft(draft.draftKey);
+      _draftRestored = true;
+      return;
+    }
 
     final timeAgo = DraftService.timeAgoText(draft.updatedAt);
 
@@ -387,5 +407,28 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
       await _draftService.deleteDraft(draftKey);
       _draftRestored = true;
     }
+  }
+
+  bool _hasMeaningfulDraftContent({
+    required Map<String, String> formData,
+    Map<int, String?>? photoPaths,
+    Map<String, dynamic>? extraState,
+  }) {
+    final hasFormData = formData.values.any((v) => v.trim().isNotEmpty);
+    final hasPhotos =
+        photoPaths?.values.any((p) => (p ?? '').trim().isNotEmpty) ?? false;
+    final hasExtraState =
+        extraState?.values.any(_isMeaningfulDraftValue) ?? false;
+    return hasFormData || hasPhotos || hasExtraState;
+  }
+
+  bool _isMeaningfulDraftValue(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is String) return value.trim().isNotEmpty;
+    if (value is num) return value != 0;
+    if (value is Iterable) return value.isNotEmpty;
+    if (value is Map) return value.isNotEmpty;
+    return true;
   }
 }

@@ -1,8 +1,8 @@
 ﻿// lib/screens/auth/login_page.dart
-// â”€â”€ Login SRM â€” Navigation directe vers HomePage aprÃ¨s connexion â”€â”€
-// Plus de ProjectSelectionPage : le projet actif est chargÃ© depuis
+// Login SRM : navigation directe vers HomePage apres connexion
+// Plus de ProjectSelectionPage : le projet actif est charge depuis
 // utilisateur.id_projet_actif au login. La date de collecte est
-// automatiquement enregistrÃ©e Ã  chaque objet crÃ©Ã© (DateTime.now()).
+// automatiquement enregistree a chaque objet cree (DateTime.now()).
 
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -15,6 +15,7 @@ import '../../services/basemap_catalog_service.dart';
 import '../../services/password_hash_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/commune_sync_service.dart';
+import '../../services/public_metrics_cache_service.dart';
 import '../../services/srm_field_option_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -226,6 +227,9 @@ class _LoginPageState extends State<LoginPage> {
       await _refreshBasemapCatalogSilently();
       await _refreshSrmFieldOptionsSilently();
       await _refreshCommunesSilently();
+      unawaited(
+        PublicMetricsCacheService().prefetchForCurrentSession().catchError((_) {}),
+      );
 
       final fullName = userData['nom_prenom'] ?? 'Agent SRM';
       if (!mounted) return;
@@ -259,7 +263,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // â”€â”€ Navigation directe vers la carte â”€â”€
+  // Navigation directe vers la carte
   void _navigateToHome(
     String agentName, {
     required bool isOnline,
@@ -374,7 +378,7 @@ class _LoginPageState extends State<LoginPage> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Stack(
           children: [
-            // â”€â”€ Fond haut bleu â”€â”€
+            // Fond haut bleu
             Positioned(
               top: 0, left: 0, right: 0,
               height: MediaQuery.of(context).size.height * 0.42,
@@ -417,7 +421,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
 
-            // â”€â”€ Contenu scrollable â”€â”€
+            // Contenu scrollable
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -562,7 +566,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                     const SizedBox(height: 14),
 
-                                    // Se souvenir + oubliÃ©
+                                    // Se souvenir + mot de passe oublie
                                     Row(
                                       children: [
                                         SizedBox(
@@ -674,7 +678,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-/// Logo SRM (fallback vers icÃ´ne si asset manquant)
+/// Logo SRM (fallback vers icone si asset manquant)
 class SrmLoginEmblem extends StatelessWidget {
   const SrmLoginEmblem({super.key});
 

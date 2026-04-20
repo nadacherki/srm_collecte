@@ -1,5 +1,5 @@
 ﻿// lib/screens/data/srm_data_status_page.dart
-// Sprint 6 â€” Liste donnÃ©es SRM + filtration avancÃ©e
+// Sprint 6 : Liste donnees SRM + filtration avancee
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:latlong2/latlong.dart';
@@ -168,10 +168,10 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     }
   }
 
-  // â”€â”€ Filtres actifs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Filtres actifs
   String? _filterMetier;       // null = tous
   String? _filterGeometrie;    // 'Point' | 'LineString' | 'Polygon' | null
-  String? _filterEntite;       // nom entitÃ©, null = tous
+  String? _filterEntite;       // nom entite, null = tous
   DateTimeRange? _filterDateRange;
   bool _filtersVisible = false;
 
@@ -186,7 +186,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     _loadData();
   }
 
-  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Helpers
   int _toInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -258,7 +258,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     return entity;
   }
 
-  // â”€â”€ Chargement donnÃ©es â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Chargement donnees
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
@@ -280,7 +280,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             item['source_entity'] = entity;
             item['display_title'] = _buildDisplayTitle(entity, item);
 
-            // GÃ©omÃ©trie depuis config
+            // Geometrie depuis config
             final config = SrmConfig.getEntityConfig(metier, entity);
             item['geometry_type'] =
                 config?['geometryType'] as String? ?? 'Point';
@@ -322,25 +322,25 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     }
   }
 
-  // â”€â”€ Application des filtres â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Application des filtres
   void _applyFilters() {
     List<Map<String, dynamic>> result = List.from(_allData);
 
-    // Filtre mÃ©tier
+    // Filtre metier
     if (_filterMetier != null) {
       result = result
           .where((item) => item['source_metier'] == _filterMetier)
           .toList();
     }
 
-    // Filtre gÃ©omÃ©trie
+    // Filtre geometrie
     if (_filterGeometrie != null) {
       result = result
           .where((item) => item['geometry_type'] == _filterGeometrie)
           .toList();
     }
 
-    // Filtre entitÃ©
+    // Filtre entite
     if (_filterEntite != null) {
       result = result
           .where((item) => item['source_entity'] == _filterEntite)
@@ -362,7 +362,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     setState(() => _filteredData = result);
   }
 
-  // â”€â”€ Mise Ã  jour entitÃ©s disponibles selon mÃ©tier choisi â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Mise a jour entites disponibles selon metier choisi
   void _updateEntitesDisponibles() {
     if (_filterMetier == null) {
       _entitesDisponibles = [];
@@ -376,7 +376,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     }
   }
 
-  // â”€â”€ RÃ©initialiser filtres â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Reinitialiser filtres
   void _resetFilters() {
     setState(() {
       _filterMetier = null;
@@ -397,7 +397,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     return count;
   }
 
-  // â”€â”€ SÃ©lection plage date â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Selection plage date
   Future<void> _pickDateRange() async {
     final range = await showDateRangePicker(
       context: context,
@@ -423,7 +423,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     }
   }
 
-  // â”€â”€ BUILD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Build
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -489,13 +489,13 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       ),
       body: Column(
         children: [
-          // â”€â”€ Bandeau compteur â”€â”€
+          // Bandeau compteur
           _buildCounterBanner(),
 
-          // â”€â”€ Panneau filtres â”€â”€
+          // Panneau filtres
           if (_filtersVisible) _buildFilterPanel(),
 
-          // â”€â”€ Liste â”€â”€
+          // Liste
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -514,7 +514,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     );
   }
 
-  // â”€â”€ Bandeau compteur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Bandeau compteur
   Widget _buildCounterBanner() {
     final total = _allData.length;
     final shown = _filteredData.length;
@@ -558,7 +558,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     );
   }
 
-  // â”€â”€ Panneau filtres â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Panneau filtres
   Widget _buildFilterPanel() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -604,7 +604,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
           ),
           const SizedBox(height: 12),
 
-          // â”€â”€ Ligne 1 : MÃ©tier + GÃ©omÃ©trie â”€â”€
+          // Ligne 1 : Metier + Geometrie
           Row(
             children: [
               Expanded(child: _buildMetierDropdown()),
@@ -614,20 +614,20 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
           ),
           const SizedBox(height: 8),
 
-          // â”€â”€ Ligne 2 : EntitÃ© (si mÃ©tier choisi) â”€â”€
+          // Ligne 2 : Entite (si metier choisi)
           if (_filterMetier != null) ...[
             _buildEntiteDropdown(),
             const SizedBox(height: 8),
           ],
 
-          // â”€â”€ Ligne 3 : Date â”€â”€
+          // Ligne 3 : Date
           _buildDateFilter(),
         ],
       ),
     );
   }
 
-  // â”€â”€ Filtre mÃ©tier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Filtre metier
   Widget _buildMetierDropdown() {
     final metierColors = {
       'Eau Potable': const Color(0xFF1976D2),
@@ -702,7 +702,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     );
   }
 
-  // â”€â”€ Filtre gÃ©omÃ©trie â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Filtre geometrie
   Widget _buildGeometrieDropdown() {
     final geoOptions = {
       'Point': Icons.place,
@@ -770,7 +770,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     );
   }
 
-  // â”€â”€ Filtre entitÃ© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Filtre entite
   Widget _buildEntiteDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,7 +823,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     );
   }
 
-  // â”€â”€ Filtre date â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Filtre date
   Widget _buildDateFilter() {
     final hasDate = _filterDateRange != null;
     return GestureDetector(

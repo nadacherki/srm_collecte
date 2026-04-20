@@ -148,6 +148,7 @@ class DatabaseHelper {
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createOfflineBasemapZoneTable(db);
+    await _createAgentOfflineZoneTable(db);
     await _createOfflineBasemapPackageTable(db);
     await _createSrmFieldOptionLocalTable(db);
     await _createCommuneLocalTable(db);
@@ -167,10 +168,12 @@ class DatabaseHelper {
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createOfflineBasemapZoneTable(db);
+    await _createAgentOfflineZoneTable(db);
     await _createOfflineBasemapPackageTable(db);
     // ── SPRINT 7 : S'assurer que la table brouillons existe ──
     await _migrateLocalHistoryTables(db);
     await _migrateOfflineBasemapTables(db);
+    await _migrateAgentOfflineZoneTable(db);
     await DraftService.createTable(db);
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
@@ -436,6 +439,31 @@ class DatabaseHelper {
     await db.execute('''
       CREATE INDEX IF NOT EXISTS offline_basemap_package_status_idx
       ON offline_basemap_package (status, city_slug)
+    ''');
+  }
+
+  Future<void> _createAgentOfflineZoneTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS agent_offline_zone (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_user INTEGER NOT NULL,
+        zone_id TEXT NOT NULL,
+        actif INTEGER DEFAULT 1,
+        assigned_at TEXT,
+        updated_at TEXT,
+        metadata_json TEXT,
+        UNIQUE(id_user, zone_id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS agent_offline_zone_user_idx
+      ON agent_offline_zone (id_user, actif)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS agent_offline_zone_zone_idx
+      ON agent_offline_zone (zone_id, actif)
     ''');
   }
 
@@ -2266,20 +2294,38 @@ class DatabaseHelper {
         final idCommune = _asInt(commune['id_commune']);
         if (idCommune == null) continue;
 
+        final storedCommune = <String, dynamic>{
+          'id_commune': idCommune,
+          'id_province': _asInt(commune['id_province']),
+          'nom_commune': commune['nom_commune']?.toString().trim(),
+          'nom_province': commune['nom_province']?.toString().trim(),
+          'nom_region': commune['nom_region']?.toString().trim(),
+          'geometry_geojson': commune['geometry_geojson']?.toString(),
+        };
+
         await txn.insert(
           'commune_local',
-          {
-            'id_commune': idCommune,
-            'id_province': _asInt(commune['id_province']),
-            'nom_commune': commune['nom_commune']?.toString().trim(),
-            'nom_province': commune['nom_province']?.toString().trim(),
-            'nom_region': commune['nom_region']?.toString().trim(),
-            'geometry_geojson': commune['geometry_geojson']?.toString(),
-          },
+          storedCommune,
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
     });
+  }
+
+  Future<void> _migrateAgentOfflineZoneTable(Database db) async {
+    await _ensureColumns(
+      db,
+      tableName: 'agent_offline_zone',
+      columns: const {
+        'id': 'INTEGER',
+        'id_user': 'INTEGER',
+        'zone_id': 'TEXT',
+        'actif': 'INTEGER DEFAULT 1',
+        'assigned_at': 'TEXT',
+        'updated_at': 'TEXT',
+        'metadata_json': 'TEXT',
+      },
+    );
   }
 
   Future<List<Map<String, dynamic>>> getCommunesLocal() async {
@@ -2554,6 +2600,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getOfflineBasemapZones({
     String? citySlug,
     String? zoneId,
+    int? agentId,
     bool activeOnly = true,
   }) async {
     final db = await database;
@@ -2567,6 +2614,12 @@ class DatabaseHelper {
     if (zoneId != null && zoneId.isNotEmpty) {
       whereParts.add('zone_id = ?');
       whereArgs.add(zoneId);
+    }
+    if (agentId != null) {
+      whereParts.add(
+        'zone_id IN (SELECT zone_id FROM agent_offline_zone WHERE id_user = ? AND actif = 1)',
+      );
+      whereArgs.add(agentId);
     }
     if (activeOnly) {
       whereParts.add('actif = 1');
@@ -2594,6 +2647,7 @@ class DatabaseHelper {
     String? zoneId,
     String? style,
     String? status,
+    int? agentId,
     bool activeOnly = true,
   }) async {
     final db = await database;
@@ -2607,6 +2661,12 @@ class DatabaseHelper {
     if (zoneId != null && zoneId.isNotEmpty) {
       whereParts.add('zone_id = ?');
       whereArgs.add(zoneId);
+    }
+    if (agentId != null) {
+      whereParts.add(
+        'zone_id IN (SELECT zone_id FROM agent_offline_zone WHERE id_user = ? AND actif = 1)',
+      );
+      whereArgs.add(agentId);
     }
     if (style != null && style.isNotEmpty) {
       whereParts.add('style = ?');
@@ -2646,14 +2706,116 @@ class DatabaseHelper {
     String? citySlug,
     String? zoneId,
     String? style,
+    int? agentId,
   }) {
     return getOfflineBasemapPackages(
       citySlug: citySlug,
       zoneId: zoneId,
       style: style,
+      agentId: agentId,
       status: 'ready',
       activeOnly: true,
     );
+  }
+
+  Future<void> replaceAgentOfflineZones({
+    required int agentId,
+    required List<String> zoneIds,
+  }) async {
+    final db = await database;
+    final normalizedZoneIds = zoneIds
+        .map((zoneId) => zoneId.trim())
+        .where((zoneId) => zoneId.isNotEmpty)
+        .toSet()
+        .toList();
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    await db.transaction((txn) async {
+      await txn.delete(
+        'agent_offline_zone',
+        where: 'id_user = ?',
+        whereArgs: [agentId],
+      );
+
+      for (final zoneId in normalizedZoneIds) {
+        await txn.insert(
+          'agent_offline_zone',
+          {
+            'id_user': agentId,
+            'zone_id': zoneId,
+            'actif': 1,
+            'assigned_at': now,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<void> assignAgentOfflineZone({
+    required int agentId,
+    required String zoneId,
+    bool active = true,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final db = await database;
+    final normalizedZoneId = zoneId.trim();
+    if (normalizedZoneId.isEmpty) return;
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    await db.insert(
+      'agent_offline_zone',
+      {
+        'id_user': agentId,
+        'zone_id': normalizedZoneId,
+        'actif': active ? 1 : 0,
+        'assigned_at': now,
+        'updated_at': now,
+        'metadata_json': _encodeJsonValue(metadata),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> removeAgentOfflineZone({
+    required int agentId,
+    required String zoneId,
+  }) async {
+    final db = await database;
+    await db.delete(
+      'agent_offline_zone',
+      where: 'id_user = ? AND zone_id = ?',
+      whereArgs: [agentId, zoneId.trim()],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAgentOfflineZoneLinks({
+    required int agentId,
+    bool activeOnly = true,
+  }) async {
+    final db = await database;
+    return db.query(
+      'agent_offline_zone',
+      where: activeOnly ? 'id_user = ? AND actif = 1' : 'id_user = ?',
+      whereArgs: [agentId],
+      orderBy: 'zone_id ASC',
+    );
+  }
+
+  Future<List<String>> getAgentOfflineZoneIds({
+    required int agentId,
+    bool activeOnly = true,
+  }) async {
+    final rows = await getAgentOfflineZoneLinks(
+      agentId: agentId,
+      activeOnly: activeOnly,
+    );
+
+    return rows
+        .map((row) => (row['zone_id'] ?? '').toString().trim())
+        .where((zoneId) => zoneId.isNotEmpty)
+        .toList();
   }
 
   String _activeOfflineBasemapPackageKeyMetadata(String style) {
@@ -2771,6 +2933,7 @@ class DatabaseHelper {
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString());
   }
+
 
   Future<void> saveLastSyncTime(DateTime dt) async {
     final db = await database;

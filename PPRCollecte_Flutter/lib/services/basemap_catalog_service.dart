@@ -7,17 +7,9 @@ class BasemapCatalogService {
   BasemapCatalogService({DatabaseHelper? databaseHelper})
       : _db = databaseHelper ?? DatabaseHelper();
 
-  Future<Map<String, dynamic>> refreshCatalog({
-    String? citySlug,
-    String? style,
-    bool activeOnly = true,
-  }) async {
-    final payload = await ApiService.fetchBasemapCatalog(
-      citySlug: citySlug,
-      style: style,
-      activeOnly: activeOnly,
-    );
-
+  Future<Map<String, dynamic>> _persistCatalogPayload(
+    Map<String, dynamic> payload,
+  ) async {
     final zonesRaw = payload['zones'] as List? ?? const [];
     final packagesRaw = payload['packages'] as List? ?? const [];
 
@@ -36,10 +28,37 @@ class BasemapCatalogService {
     );
 
     return {
-      'city_slug': payload['city_slug'],
-      'active_only': payload['active_only'],
+      ...payload,
       'zones_count': zones.length,
       'packages_count': packages.length,
     };
+  }
+
+  Future<Map<String, dynamic>> refreshCatalog({
+    String? citySlug,
+    String? style,
+    bool activeOnly = true,
+  }) async {
+    final payload = await ApiService.fetchBasemapCatalog(
+      citySlug: citySlug,
+      style: style,
+      activeOnly: activeOnly,
+    );
+    return _persistCatalogPayload(payload);
+  }
+
+  Future<Map<String, dynamic>> prepareAssignedCatalog({
+    String? citySlug,
+    String? style,
+    bool activeOnly = true,
+    bool force = false,
+  }) async {
+    final payload = await ApiService.prepareAssignedBasemapCatalog(
+      citySlug: citySlug,
+      style: style,
+      activeOnly: activeOnly,
+      force: force,
+    );
+    return _persistCatalogPayload(payload);
   }
 }

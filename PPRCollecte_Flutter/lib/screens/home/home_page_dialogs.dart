@@ -205,7 +205,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              state._loadDownloadedPoints();
+              state._loadDisplayedPolygons();
               state._loadDownloadedLineOverlays();
               state._loadDownloadedSpecialLines();
             },
@@ -338,7 +338,7 @@ void _showDownloadResultImpl(
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              state._loadDownloadedPoints();
+              state._loadDisplayedPolygons();
               state._loadDownloadedLineOverlays();
               state._loadDownloadedSpecialLines();
             },

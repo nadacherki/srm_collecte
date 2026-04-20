@@ -8,9 +8,17 @@ Le login vérifie le mot de passe hashé PBKDF2 via Django.
 import hashlib
 import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from io import StringIO
 from pathlib import Path
+from urllib.parse import urlparse
 
 from django.conf import settings
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -29,7 +37,7 @@ from .models import (
     Utilisateur, Projet, Mission, Commune,
     HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto, FondDePlan, EvaluationAgent,
     SrmFieldOption,
-    BasemapZone, BasemapPackage,
+    BasemapZone, BasemapPackage, AgentBasemapZone,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
     MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
@@ -124,6 +132,541 @@ def _package_serializer_context(request):
         'request': request,
         'media_root': _media_root_path(),
     }
+
+
+def _parse_positive_int_value(raw_value):
+    if raw_value in (None, ''):
+        return None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _assigned_zone_ids_for_agent(agent_id):
+    return AgentBasemapZone.objects.filter(
+        id_user=agent_id,
+        actif=True,
+    ).values_list('zone_id', flat=True)
+
+
+def _requested_basemap_agent_id(request):
+    return _parse_positive_int_value(
+        request.query_params.get('id_user') or request.query_params.get('id_agent')
+    )
+
+
+def _parse_bool_value(raw_value, default=False):
+    if raw_value in (None, ''):
+        return default
+    return str(raw_value).strip().lower() not in {'0', 'false', 'no', 'off'}
+
+
+def _request_param(request, name):
+    request_data = getattr(request, 'data', None)
+    value = request_data.get(name) if request_data is not None and hasattr(request_data, 'get') else None
+    if value not in (None, ''):
+        return value
+    return request.query_params.get(name)
+
+
+def _filtered_basemap_querysets(*, city_slug='', style='', active_only=True, agent_id=None):
+    zones_qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
+    packages_qs = BasemapPackage.objects.all().order_by(
+        'city_slug',
+        'zone_id',
+        'style',
+        'version',
+    )
+
+    if agent_id is not None:
+        assigned_zone_ids = _assigned_zone_ids_for_agent(agent_id)
+        zones_qs = zones_qs.filter(zone_id__in=assigned_zone_ids)
+        packages_qs = packages_qs.filter(zone_id__in=assigned_zone_ids)
+
+    if city_slug:
+        zones_qs = zones_qs.filter(city_slug=city_slug)
+        packages_qs = packages_qs.filter(city_slug=city_slug)
+    if style:
+        packages_qs = packages_qs.filter(style=style)
+    if active_only:
+        zones_qs = zones_qs.filter(actif=True)
+        packages_qs = packages_qs.filter(actif=True)
+
+    return zones_qs, packages_qs
+
+
+def _basemap_catalog_payload(request, *, city_slug='', style='', active_only=True, agent_id=None):
+    zones_qs, packages_qs = _filtered_basemap_querysets(
+        city_slug=city_slug,
+        style=style,
+        active_only=active_only,
+        agent_id=agent_id,
+    )
+    zones_payload = BasemapZoneCatalogSerializer(zones_qs, many=True).data
+    packages_payload = BasemapPackageSerializer(
+        packages_qs,
+        many=True,
+        context=_package_serializer_context(request),
+    ).data
+    return {
+        'city_slug': city_slug or None,
+        'id_user': agent_id,
+        'active_only': active_only,
+        'zones': zones_payload,
+        'packages': packages_payload,
+    }
+
+
+def _package_file_exists(package):
+    relative_path = (package.relative_path or '').strip().lstrip('/')
+    if not relative_path:
+        return False
+    return (Path(settings.MEDIA_ROOT) / relative_path).exists()
+
+
+def _latest_ready_basemap_package(*, zone_id, style='', package_format=''):
+    qs = BasemapPackage.objects.filter(zone_id=zone_id)
+    if style:
+        qs = qs.filter(style=style)
+    if package_format:
+        qs = qs.filter(format=package_format)
+    qs = qs.filter(actif=True).order_by('-generated_at', '-version')
+    for package in qs:
+        if _package_file_exists(package):
+            return package
+    return None
+
+
+def _resolve_basemap_build_source_path():
+    explicit_path = Path(settings.BASEMAP_BUILD_SOURCE_PATH).expanduser() if settings.BASEMAP_BUILD_SOURCE_PATH else None
+    if explicit_path is not None:
+        resolved = explicit_path.resolve()
+        if not resolved.exists():
+            raise CommandError(f'Source basemap introuvable: {resolved}')
+        return resolved
+
+    source_dir = (
+        Path(settings.BASEMAP_BUILD_SOURCE_DIR).expanduser().resolve()
+        if settings.BASEMAP_BUILD_SOURCE_DIR
+        else (Path(settings.BASE_DIR).parent / 'basemaps' / 'source').resolve()
+    )
+    if not source_dir.exists():
+        raise CommandError(
+            f'Dossier source basemap introuvable: {source_dir}. '
+            'Configurer BASEMAP_BUILD_SOURCE_PATH ou BASEMAP_BUILD_SOURCE_DIR.'
+        )
+
+    candidates = sorted(
+        path for path in source_dir.iterdir()
+        if path.is_file() and path.suffix.lower() in {'.tif', '.tiff', '.vrt', '.mbtiles'}
+    )
+    if not candidates:
+        raise CommandError(
+            f'Aucune source basemap exploitable trouvee dans {source_dir}. '
+            'Attendu: .tif, .tiff, .vrt ou .mbtiles.'
+        )
+    if len(candidates) > 1:
+        raise CommandError(
+            'Plusieurs sources basemap detectees. '
+            'Configurer BASEMAP_BUILD_SOURCE_PATH pour choisir explicitement la source.'
+        )
+    return candidates[0]
+
+
+def _resolve_osm_extract_source_path():
+    explicit_path = Path(settings.BASEMAP_BUILD_OSM_SOURCE_PATH).expanduser() if settings.BASEMAP_BUILD_OSM_SOURCE_PATH else None
+    if explicit_path is not None:
+        resolved = explicit_path.resolve()
+        if not resolved.exists():
+            raise CommandError(f'Extract OSM introuvable: {resolved}')
+        if resolved.suffix.lower() != '.osm':
+            raise CommandError(
+                f'Format OSM non supporte pour le moment: {resolved.name}. '
+                'Attendu: fichier .osm XML.'
+            )
+        return resolved
+
+    source_dir = (
+        Path(settings.BASEMAP_BUILD_SOURCE_DIR).expanduser().resolve()
+        if settings.BASEMAP_BUILD_SOURCE_DIR
+        else (Path(settings.BASE_DIR).parent / 'basemaps' / 'source').resolve()
+    )
+    if not source_dir.exists():
+        raise CommandError(
+            f'Dossier source OSM introuvable: {source_dir}. '
+            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH ou deposer un extract .osm.'
+        )
+
+    candidates = sorted(
+        path for path in source_dir.iterdir()
+        if path.is_file() and path.suffix.lower() == '.osm'
+    )
+    if not candidates:
+        raise CommandError(
+            f'Aucun extract OSM exploitable trouve dans {source_dir}. '
+            'Attendu: fichier .osm XML.'
+        )
+    if len(candidates) > 1:
+        raise CommandError(
+            'Plusieurs extracts OSM detectes. '
+            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH pour choisir explicitement le bon fichier.'
+        )
+    return candidates[0]
+
+
+def _resolve_pmtiles_source_spec():
+    explicit_url = (getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_URL', '') or '').strip()
+    if explicit_url:
+        parsed = urlparse(explicit_url)
+        if parsed.scheme not in {'http', 'https'}:
+            raise CommandError(
+                'BASEMAP_BUILD_PMTILES_SOURCE_URL doit etre une URL http(s) valide.'
+            )
+        source_name = (
+            getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or Path(parsed.path).name
+        )
+        return explicit_url, source_name
+
+    explicit_path_raw = (getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_PATH', '') or '').strip()
+    if explicit_path_raw:
+        explicit_path = Path(explicit_path_raw).expanduser().resolve()
+        if not explicit_path.exists():
+            raise CommandError(f'Source PMTiles introuvable: {explicit_path}')
+        if explicit_path.suffix.lower() != '.pmtiles':
+            raise CommandError(
+                f'Format PMTiles attendu pour la source: {explicit_path.name}'
+            )
+        source_name = (
+            getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or explicit_path.name
+        )
+        return str(explicit_path), source_name
+
+    source_dir = (
+        Path(settings.BASEMAP_BUILD_SOURCE_DIR).expanduser().resolve()
+        if settings.BASEMAP_BUILD_SOURCE_DIR
+        else (Path(settings.BASE_DIR).parent / 'basemaps' / 'source').resolve()
+    )
+    if not source_dir.exists():
+        raise CommandError(
+            f'Dossier source PMTiles introuvable: {source_dir}. '
+            'Configurer BASEMAP_BUILD_PMTILES_SOURCE_PATH ou BASEMAP_BUILD_PMTILES_SOURCE_URL.'
+        )
+
+    candidates = sorted(
+        path for path in source_dir.iterdir()
+        if path.is_file() and path.suffix.lower() == '.pmtiles'
+    )
+    if not candidates:
+        raise CommandError(
+            f'Aucune source PMTiles exploitable trouvee dans {source_dir}. '
+            'Attendu: fichier .pmtiles ou BASEMAP_BUILD_PMTILES_SOURCE_URL.'
+        )
+    if len(candidates) > 1:
+        raise CommandError(
+            'Plusieurs sources PMTiles detectees. '
+            'Configurer BASEMAP_BUILD_PMTILES_SOURCE_PATH pour choisir explicitement la source.'
+        )
+
+    source_path = candidates[0]
+    source_name = (
+        getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or source_path.name
+    )
+    return str(source_path), source_name
+
+
+def _candidate_basemap_script_pythons():
+    configured = (getattr(settings, 'BASEMAP_SCRIPT_PYTHON', '') or '').strip()
+    if configured:
+        yield Path(configured).expanduser().resolve()
+
+    yield Path(sys.executable).resolve()
+
+    for candidate in [
+        Path(r"C:\Program Files\QGIS 3.40.14\apps\Python312\python.exe"),
+        Path(r"C:\Program Files\QGIS 3.34.12\apps\Python39\python.exe"),
+        Path(r"C:\OSGeo4W\bin\python3.exe"),
+    ]:
+        yield candidate
+
+
+def _script_runtime_env(python_path: Path):
+    env = dict(os.environ)
+    python_parent = python_path.parent
+    qgis_root = python_parent.parents[1] if len(python_parent.parents) >= 2 else None
+    if qgis_root is not None and qgis_root.exists():
+        qgis_bin = qgis_root / 'bin'
+        qgis_proj = qgis_root / 'share' / 'proj'
+        qgis_gdal = qgis_root / 'share' / 'gdal'
+
+        if qgis_bin.exists():
+            env['PATH'] = str(qgis_bin) + os.pathsep + env.get('PATH', '')
+        if qgis_proj.exists():
+            env['PROJ_LIB'] = str(qgis_proj)
+        if qgis_gdal.exists():
+            env['GDAL_DATA'] = str(qgis_gdal)
+    return env
+
+
+def _resolve_basemap_script_python():
+    import_check = 'from osgeo import gdal; from PIL import Image; print("ok")'
+
+    checked_candidates = []
+    for candidate in _candidate_basemap_script_pythons():
+        if not candidate.exists():
+            continue
+        checked_candidates.append(str(candidate))
+        env = _script_runtime_env(candidate)
+        probe = subprocess.run(
+            [str(candidate), '-c', import_check],
+            capture_output=True,
+            text=True,
+            cwd=str(Path(settings.BASE_DIR).parent),
+            env=env,
+        )
+        if probe.returncode == 0 and 'ok' in (probe.stdout or ''):
+            return candidate, env
+
+    checked_display = ', '.join(checked_candidates) or 'aucun candidat'
+    raise CommandError(
+        'Aucun interpreteur Python basemap compatible trouve '
+        f'(osgeo + PIL). Candidats testes: {checked_display}'
+    )
+
+
+def _run_python_script(script_path, arguments):
+    python_path, env = _resolve_basemap_script_python()
+    command = [str(python_path), str(script_path), *[str(argument) for argument in arguments]]
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        cwd=str(Path(settings.BASE_DIR).parent),
+        env=env,
+    )
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or '').strip() or 'aucun detail fourni'
+        raise CommandError(f'Echec script {script_path.name}: {details}')
+
+
+def _candidate_pmtiles_cli_paths():
+    configured = (getattr(settings, 'BASEMAP_PMTILES_CLI_PATH', '') or '').strip()
+    if configured:
+        yield Path(configured).expanduser().resolve()
+
+    bundled = (Path(settings.BASE_DIR).parent / 'basemaps' / 'tools' / 'pmtiles.exe').resolve()
+    yield bundled
+
+    which_match = shutil.which('pmtiles')
+    if which_match:
+        yield Path(which_match).resolve()
+
+
+def _resolve_pmtiles_cli_path():
+    checked_candidates = []
+    for candidate in _candidate_pmtiles_cli_paths():
+        checked_candidates.append(str(candidate))
+        if candidate.exists():
+            return candidate
+
+    checked_display = ', '.join(checked_candidates) or 'aucun candidat'
+    raise CommandError(
+        'CLI pmtiles introuvable. Configurer BASEMAP_PMTILES_CLI_PATH '
+        'ou deposer pmtiles.exe dans API_GeoDjango/basemaps/tools/. '
+        f'Candidats testes: {checked_display}'
+    )
+
+
+def _run_pmtiles_command(arguments):
+    executable = _resolve_pmtiles_cli_path()
+    command = [str(executable), *[str(argument) for argument in arguments]]
+    env = os.environ.copy()
+    for proxy_name in (
+        'HTTP_PROXY',
+        'HTTPS_PROXY',
+        'ALL_PROXY',
+        'http_proxy',
+        'https_proxy',
+        'all_proxy',
+    ):
+        env.pop(proxy_name, None)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        cwd=str(Path(settings.BASE_DIR).parent),
+        env=env,
+    )
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or '').strip() or 'aucun detail fourni'
+        raise CommandError(f'Echec pmtiles: {details}')
+    return result.stdout or ''
+
+
+def _read_pmtiles_header(pmtiles_path):
+    header_text = _run_pmtiles_command(['show', str(pmtiles_path), '--header-json'])
+    try:
+        header_data = json.loads(header_text)
+    except json.JSONDecodeError as exc:
+        raise CommandError(
+            f'Reponse header PMTiles invalide pour {pmtiles_path}: {exc}'
+        ) from exc
+    if not isinstance(header_data, dict):
+        raise CommandError(f'Header PMTiles invalide pour {pmtiles_path}')
+    return header_data
+
+
+def _read_pmtiles_metadata(pmtiles_path):
+    metadata_text = _run_pmtiles_command(['show', str(pmtiles_path), '--metadata'])
+    try:
+        metadata_data = json.loads(metadata_text)
+    except json.JSONDecodeError as exc:
+        raise CommandError(
+            f'Reponse metadata PMTiles invalide pour {pmtiles_path}: {exc}'
+        ) from exc
+    if not isinstance(metadata_data, dict):
+        raise CommandError(f'Metadata PMTiles invalide pour {pmtiles_path}')
+    return metadata_data
+
+
+def _generate_zone_package_from_pmtiles(
+    *,
+    zone,
+    style,
+    package_version,
+    pmtiles_source_spec,
+    source_name,
+):
+    basemap_root = Path(settings.BASE_DIR).parent / 'basemaps'
+    work_dir = Path(
+        tempfile.mkdtemp(
+            prefix=f'{zone.zone_id}_pmtiles_',
+            dir=str((basemap_root / 'build').resolve()),
+        )
+    )
+    output_pmtiles = work_dir / 'package.pmtiles'
+    bbox = f'{zone.bbox_west},{zone.bbox_south},{zone.bbox_east},{zone.bbox_north}'
+    try:
+        _run_pmtiles_command([
+            'extract',
+            str(pmtiles_source_spec),
+            str(output_pmtiles),
+            f'--bbox={bbox}',
+        ])
+
+        header_data = _read_pmtiles_header(output_pmtiles)
+        metadata_data = _read_pmtiles_metadata(output_pmtiles)
+        try:
+            min_zoom = int(header_data.get('min_zoom'))
+        except (TypeError, ValueError):
+            min_zoom = None
+        try:
+            max_zoom = int(header_data.get('max_zoom'))
+        except (TypeError, ValueError):
+            max_zoom = None
+
+        stdout = StringIO()
+        stderr = StringIO()
+        call_command(
+            'register_basemap_package',
+            zone_id=zone.zone_id,
+            style=style,
+            format='pmtiles',
+            file=str(output_pmtiles),
+            package_version=package_version,
+            copy_to_media=True,
+            source_name=source_name,
+            attribution=getattr(settings, 'BASEMAP_BUILD_PMTILES_ATTRIBUTION', ''),
+            min_zoom=min_zoom,
+            max_zoom=max_zoom,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+        package = BasemapPackage.objects.filter(
+            zone_id=zone.zone_id,
+            style=style,
+            version=package_version,
+        ).first()
+        if package is not None:
+            package.metadata_json = metadata_data
+            package.save(update_fields=['metadata_json'])
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _render_public_osm_raster_for_zone(*, zone, osm_source_path):
+    basemap_root = Path(settings.BASE_DIR).parent / 'basemaps'
+    scripts_dir = basemap_root / 'scripts'
+    render_script = scripts_dir / 'render_public_osm_basemap.py'
+    label_script = scripts_dir / 'label_public_osm_basemap.py'
+    if not render_script.exists():
+        raise CommandError(f'Script de rendu introuvable: {render_script}')
+    if not label_script.exists():
+        raise CommandError(f'Script de libelles introuvable: {label_script}')
+
+    work_dir = Path(
+        tempfile.mkdtemp(
+            prefix=f'{zone.zone_id}_osm_',
+            dir=str((basemap_root / 'build').resolve()),
+        )
+    )
+    raw_raster = work_dir / 'public_osm.tif'
+    labeled_raster = work_dir / 'public_osm_labeled.tif'
+    try:
+        common_bounds_args = [
+            '--west', zone.bbox_west,
+            '--south', zone.bbox_south,
+            '--east', zone.bbox_east,
+            '--north', zone.bbox_north,
+        ]
+        _run_python_script(
+            render_script,
+            [
+                '--osm', osm_source_path,
+                '--output', raw_raster,
+                *common_bounds_args,
+                '--width', 4096,
+                '--height', 4096,
+            ],
+        )
+        _run_python_script(
+            label_script,
+            [
+                '--osm', osm_source_path,
+                '--input-raster', raw_raster,
+                '--output-raster', labeled_raster,
+                *common_bounds_args,
+            ],
+        )
+        return labeled_raster, work_dir
+    except Exception:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise
+
+
+def _generate_zone_package_from_osm(*, zone, style, package_version, osm_source_path, source_name):
+    labeled_raster, work_dir = _render_public_osm_raster_for_zone(
+        zone=zone,
+        osm_source_path=osm_source_path,
+    )
+    try:
+        stdout = StringIO()
+        stderr = StringIO()
+        call_command(
+            'build_basemap_zone_package',
+            zone_id=zone.zone_id,
+            source=str(labeled_raster),
+            package_version=package_version,
+            style=style,
+            source_name=source_name,
+            skip_zoom_validation=True,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 
@@ -430,40 +973,217 @@ def basemap_catalog_view(request):
     city_slug = (request.query_params.get('city_slug') or '').strip()
     style = (request.query_params.get('style') or '').strip()
     active_only = request.query_params.get('active_only', 'true').lower() != 'false'
-
-    zones_qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
-    packages_qs = BasemapPackage.objects.all().order_by(
-        'city_slug',
-        'zone_id',
-        'style',
-        'version',
+    agent_id = _requested_basemap_agent_id(request)
+    payload = _basemap_catalog_payload(
+        request,
+        city_slug=city_slug,
+        style=style,
+        active_only=active_only,
+        agent_id=agent_id,
     )
+    return Response(payload, status=status.HTTP_200_OK)
 
-    if city_slug:
-        zones_qs = zones_qs.filter(city_slug=city_slug)
-        packages_qs = packages_qs.filter(city_slug=city_slug)
-    if style:
-        packages_qs = packages_qs.filter(style=style)
-    if active_only:
-        zones_qs = zones_qs.filter(actif=True)
-        packages_qs = packages_qs.filter(actif=True)
 
-    zones_payload = BasemapZoneCatalogSerializer(zones_qs, many=True).data
-    packages_payload = BasemapPackageSerializer(
-        packages_qs,
-        many=True,
-        context=_package_serializer_context(request),
-    ).data
-
-    return Response(
-        {
-            'city_slug': city_slug or None,
-            'active_only': active_only,
-            'zones': zones_payload,
-            'packages': packages_payload,
-        },
-        status=status.HTTP_200_OK,
+@api_view(['POST'])
+def prepare_agent_basemap_packages_view(request):
+    agent_id = _parse_positive_int_value(
+        _request_param(request, 'id_user') or _request_param(request, 'id_agent')
     )
+    if agent_id is None:
+        return Response(
+            {'success': False, 'message': "id_user est obligatoire pour preparer les cartes de l'agent."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    city_slug = str(_request_param(request, 'city_slug') or '').strip()
+    style = str(
+        _request_param(request, 'style') or settings.BASEMAP_BUILD_DEFAULT_STYLE or 'standard'
+    ).strip()
+    active_only = _parse_bool_value(_request_param(request, 'active_only'), default=True)
+    force_rebuild = _parse_bool_value(_request_param(request, 'force'), default=False)
+
+    zones_qs, _ = _filtered_basemap_querysets(
+        city_slug=city_slug,
+        style='',
+        active_only=active_only,
+        agent_id=agent_id,
+    )
+    zones = list(zones_qs)
+    if not zones:
+        payload = _basemap_catalog_payload(
+            request,
+            city_slug=city_slug,
+            style=style,
+            active_only=active_only,
+            agent_id=agent_id,
+        )
+        payload.update({
+            'success': True,
+            'message': "Aucune zone n'est affectee a cet agent.",
+            'generated_count': 0,
+            'reused_count': 0,
+            'failed_count': 0,
+            'errors': [],
+        })
+        return Response(payload, status=status.HTTP_200_OK)
+
+    generated_count = 0
+    reused_count = 0
+    failed_count = 0
+    errors = []
+
+    pmtiles_source_spec = None
+    osm_source_path = None
+    raster_source_path = None
+    pipeline_mode = None
+    pipeline_source_name = None
+    resolution_errors = []
+
+    try:
+        pmtiles_source_spec, pmtiles_source_name = _resolve_pmtiles_source_spec()
+        _resolve_pmtiles_cli_path()
+        pmtiles_source_spec = str(pmtiles_source_spec)
+        pipeline_mode = 'pmtiles'
+        pipeline_source_name = pmtiles_source_name
+    except CommandError as exc:
+        resolution_errors.append(str(exc))
+
+    if pipeline_mode is None:
+        try:
+            osm_source_path = _resolve_osm_extract_source_path()
+            pipeline_mode = 'osm'
+            pipeline_source_name = settings.BASEMAP_BUILD_OSM_SOURCE_NAME or osm_source_path.name
+        except CommandError as exc:
+            resolution_errors.append(str(exc))
+
+    if pipeline_mode is None:
+        try:
+            raster_source_path = _resolve_basemap_build_source_path()
+            pipeline_mode = 'raster'
+            pipeline_source_name = settings.BASEMAP_BUILD_SOURCE_NAME or raster_source_path.name
+        except CommandError as exc:
+            resolution_errors.append(str(exc))
+
+    if pipeline_mode is None:
+        payload = _basemap_catalog_payload(
+            request,
+            city_slug=city_slug,
+            style=style,
+            active_only=active_only,
+            agent_id=agent_id,
+        )
+        resolution_message = resolution_errors[0] if resolution_errors else (
+            "Aucune source basemap serveur n'est configuree."
+        )
+        payload.update({
+            'success': False,
+            'message': resolution_message,
+            'generated_count': 0,
+            'reused_count': 0,
+            'failed_count': len(zones),
+            'errors': [{'zone_id': zone.zone_id, 'error': resolution_message} for zone in zones],
+        })
+        return Response(payload, status=status.HTTP_200_OK)
+
+    timestamp_prefix = timezone.now().strftime('auto-%Y%m%d%H%M%S')
+    target_format = 'pmtiles' if pipeline_mode == 'pmtiles' else 'mbtiles'
+
+    for index, zone in enumerate(zones, start=1):
+        existing_package = None if force_rebuild else _latest_ready_basemap_package(
+            zone_id=zone.zone_id,
+            style=style,
+            package_format=target_format,
+        )
+        if existing_package is not None:
+            reused_count += 1
+            continue
+
+        try:
+            package_version = f'{timestamp_prefix}-{index}'
+            if pipeline_mode == 'pmtiles':
+                _generate_zone_package_from_pmtiles(
+                    zone=zone,
+                    style=style,
+                    package_version=package_version,
+                    pmtiles_source_spec=pmtiles_source_spec,
+                    source_name=pipeline_source_name,
+                )
+            elif pipeline_mode == 'osm':
+                _generate_zone_package_from_osm(
+                    zone=zone,
+                    style=style,
+                    package_version=package_version,
+                    osm_source_path=osm_source_path,
+                    source_name=pipeline_source_name,
+                )
+            else:
+                stdout = StringIO()
+                stderr = StringIO()
+                call_command(
+                    'build_basemap_zone_package',
+                    zone_id=zone.zone_id,
+                    source=str(raster_source_path),
+                    package_version=package_version,
+                    style=style,
+                    source_name=pipeline_source_name,
+                    skip_zoom_validation=True,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+            generated_count += 1
+        except Exception as exc:
+            failed_count += 1
+            errors.append({
+                'zone_id': zone.zone_id,
+                'zone_name': zone.nom,
+                'error': str(exc),
+            })
+
+    payload = _basemap_catalog_payload(
+        request,
+        city_slug=city_slug,
+        style=style,
+        active_only=active_only,
+        agent_id=agent_id,
+    )
+    success = failed_count == 0 and (generated_count > 0 or reused_count > 0)
+    if generated_count > 0 and failed_count == 0:
+        message = (
+            f'{generated_count} zone(s) preparee(s) et {reused_count} deja disponible(s).'
+            if reused_count > 0
+            else f'{generated_count} zone(s) preparee(s) avec succes.'
+        )
+    elif reused_count > 0 and failed_count == 0:
+        message = (
+            'Les cartes des zones de cet agent sont deja disponibles.'
+            if reused_count == len(zones)
+            else f'{reused_count} zone(s) deja disponible(s).'
+        )
+    elif generated_count > 0 or reused_count > 0:
+        message = (
+            f'{generated_count} zone(s) preparee(s), '
+            f'{reused_count} deja disponible(s), '
+            f'{failed_count} en echec.'
+        )
+    else:
+        message = "Aucune carte n'a pu etre preparee pour les zones de cet agent."
+    if pipeline_mode == 'pmtiles':
+        message = f'{message} Source: PMTiles serveur.'
+    elif pipeline_mode == 'osm':
+        message = f'{message} Source: extract OSM serveur.'
+    elif pipeline_mode == 'raster':
+        message = f'{message} Source: raster serveur.'
+
+    payload.update({
+        'success': success,
+        'message': message,
+        'pipeline_mode': pipeline_mode,
+        'generated_count': generated_count,
+        'reused_count': reused_count,
+        'failed_count': failed_count,
+        'errors': errors,
+    })
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -811,6 +1531,10 @@ class BasemapZoneViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
+        agent_id = _requested_basemap_agent_id(self.request)
+        if agent_id is not None:
+            qs = qs.filter(zone_id__in=_assigned_zone_ids_for_agent(agent_id))
+
         city_slug = (self.request.query_params.get('city_slug') or '').strip()
         if city_slug:
             qs = qs.filter(city_slug=city_slug)
@@ -838,6 +1562,10 @@ class BasemapPackageViewSet(viewsets.ReadOnlyModelViewSet):
             'style',
             'version',
         )
+        agent_id = _requested_basemap_agent_id(self.request)
+        if agent_id is not None:
+            qs = qs.filter(zone_id__in=_assigned_zone_ids_for_agent(agent_id))
+
         city_slug = (self.request.query_params.get('city_slug') or '').strip()
         zone_id = (self.request.query_params.get('zone_id') or '').strip()
         style = (self.request.query_params.get('style') or '').strip()

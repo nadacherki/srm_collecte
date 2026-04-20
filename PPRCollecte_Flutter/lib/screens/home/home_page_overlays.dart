@@ -76,16 +76,6 @@ double _polylineDistanceKmImpl(List<LatLng> points) {
   return sum / 1000.0;
 }
 
-Future<void> _loadDownloadedPointsImpl(_HomePageState state) async {
-  if (state.mounted) {
-    state._setStateFromPart(() {
-      state._downloadedPointsByTable = {};
-    });
-  }
-  await state._loadDisplayedPolygons();
-  debugPrint('[_loadDownloadedPoints] stubbed for Sprint 6');
-}
-
 Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
   try {
     final srmLinesByTable = <String, List<Polyline>>{};

@@ -129,6 +129,32 @@ USE_TZ = True
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+BASEMAP_BUILD_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_SOURCE_PATH", "").strip()
+BASEMAP_BUILD_SOURCE_DIR = os.environ.get("BASEMAP_BUILD_SOURCE_DIR", "").strip()
+BASEMAP_BUILD_DEFAULT_STYLE = (
+    os.environ.get("BASEMAP_BUILD_DEFAULT_STYLE", "standard").strip() or "standard"
+)
+BASEMAP_BUILD_SOURCE_NAME = os.environ.get("BASEMAP_BUILD_SOURCE_NAME", "").strip()
+BASEMAP_SCRIPT_PYTHON = os.environ.get("BASEMAP_SCRIPT_PYTHON", "").strip()
+BASEMAP_PMTILES_CLI_PATH = os.environ.get("BASEMAP_PMTILES_CLI_PATH", "").strip()
+BASEMAP_BUILD_PMTILES_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_PATH", "").strip()
+BASEMAP_BUILD_PMTILES_SOURCE_URL = os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_URL", "").strip()
+BASEMAP_BUILD_PMTILES_SOURCE_NAME = (
+    os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_NAME", "Protomaps basemap").strip()
+    or "Protomaps basemap"
+)
+BASEMAP_BUILD_PMTILES_ATTRIBUTION = (
+    os.environ.get(
+        "BASEMAP_BUILD_PMTILES_ATTRIBUTION",
+        "© Protomaps © OpenStreetMap contributors",
+    ).strip()
+    or "© Protomaps © OpenStreetMap contributors"
+)
+BASEMAP_BUILD_OSM_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_OSM_SOURCE_PATH", "").strip()
+BASEMAP_BUILD_OSM_SOURCE_NAME = (
+    os.environ.get("BASEMAP_BUILD_OSM_SOURCE_NAME", "OpenStreetMap contributors").strip()
+    or "OpenStreetMap contributors"
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

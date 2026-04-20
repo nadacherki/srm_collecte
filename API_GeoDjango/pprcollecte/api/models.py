@@ -310,6 +310,22 @@ class BasemapPackage(models.Model):
         db_table = 'basemap_package'
 
 
+class AgentBasemapZone(models.Model):
+    id_agent_basemap_zone = models.BigAutoField(primary_key=True)
+    id_user = models.IntegerField()
+    zone_id = models.CharField(max_length=100)
+    actif = models.BooleanField(default=True)
+    assigned_by = models.IntegerField(null=True, blank=True)
+    assigned_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+    metadata_json = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'agent_basemap_zone'
+        unique_together = (('id_user', 'zone_id'),)
+
+
 # =====================================================================
 #  SCHÉMA EP — Eau Potable : PONCTUELS (tables 1 à 22)
 # =====================================================================

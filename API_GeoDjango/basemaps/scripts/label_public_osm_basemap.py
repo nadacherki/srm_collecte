@@ -6,7 +6,6 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 from osgeo import gdal
 from PIL import Image, ImageDraw, ImageFont
 
@@ -338,12 +337,20 @@ def main() -> None:
     if dataset is None:
         raise RuntimeError(f"Impossible d'ouvrir le raster: {input_raster}")
 
-    raster = dataset.ReadAsArray()
-    if raster is None or raster.shape[0] < 4:
+    width = dataset.RasterXSize
+    height = dataset.RasterYSize
+    if dataset.RasterCount < 4:
         raise RuntimeError("Le raster doit contenir 4 bandes RGBA.")
 
-    rgba = np.transpose(raster[:4], (1, 2, 0)).astype(np.uint8)
-    image = Image.fromarray(rgba, mode="RGBA")
+    channels = []
+    for band_index in range(4):
+        band = dataset.GetRasterBand(band_index + 1)
+        band_bytes = band.ReadRaster(0, 0, width, height, buf_type=gdal.GDT_Byte)
+        if band_bytes is None:
+            raise RuntimeError("Impossible de lire une bande raster RGBA.")
+        channels.append(Image.frombytes("L", (width, height), band_bytes))
+
+    image = Image.merge("RGBA", channels)
 
     point_labels, road_labels = extract_labels(
         osm_path,
@@ -368,14 +375,13 @@ def main() -> None:
         north=args.north,
     )
 
-    output_array = np.array(image)
     driver = gdal.GetDriverByName("GTiff")
     if output_raster.exists():
         output_raster.unlink()
     output_dataset = driver.Create(
         str(output_raster),
-        dataset.RasterXSize,
-        dataset.RasterYSize,
+        width,
+        height,
         4,
         gdal.GDT_Byte,
         options=["TILED=YES", "COMPRESS=DEFLATE"],
@@ -385,8 +391,15 @@ def main() -> None:
 
     output_dataset.SetGeoTransform(dataset.GetGeoTransform())
     output_dataset.SetProjection(dataset.GetProjection())
-    for band_index in range(4):
-        output_dataset.GetRasterBand(band_index + 1).WriteArray(output_array[:, :, band_index])
+    for band_index, channel in enumerate(image.split(), start=1):
+        output_dataset.GetRasterBand(band_index).WriteRaster(
+            0,
+            0,
+            width,
+            height,
+            channel.tobytes(),
+            buf_type=gdal.GDT_Byte,
+        )
 
     output_dataset.FlushCache()
     output_dataset = None

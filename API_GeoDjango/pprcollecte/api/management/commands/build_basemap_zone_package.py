@@ -555,8 +555,8 @@ class Command(BaseCommand):
         *,
         source_path: Path,
         destination_path: Path,
-        retries: int = 5,
-        delay_seconds: float = 1.0,
+        retries: int = 20,
+        delay_seconds: float = 1.5,
     ) -> None:
         if destination_path.exists():
             destination_path.unlink()
@@ -564,13 +564,33 @@ class Command(BaseCommand):
         last_error: Exception | None = None
         for attempt in range(1, retries + 1):
             try:
-                shutil.move(str(source_path), str(destination_path))
+                source_path.replace(destination_path)
                 return
             except PermissionError as exc:
                 last_error = exc
-                if attempt >= retries:
-                    break
-                time.sleep(delay_seconds)
+            except OSError as exc:
+                last_error = exc
+
+            if attempt >= retries:
+                break
+            time.sleep(delay_seconds)
+
+        for attempt in range(1, retries + 1):
+            try:
+                shutil.copy2(str(source_path), str(destination_path))
+                try:
+                    source_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                return
+            except PermissionError as exc:
+                last_error = exc
+            except OSError as exc:
+                last_error = exc
+
+            if attempt >= retries:
+                break
+            time.sleep(delay_seconds)
 
         raise CommandError(
             "Impossible de finaliser le package MBTiles genere. "

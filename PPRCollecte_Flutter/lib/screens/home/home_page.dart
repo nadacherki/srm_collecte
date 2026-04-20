@@ -166,11 +166,9 @@ class _HomePageState extends State<HomePage> {
   Map<String, List<Polyline>> _displayedSrmLinesByTable = {};
   Map<String, List<Polyline>> _displayedLineAnomalieByTable = {};
   Map<String, List<Polyline>> _displayedLineIncompletByTable = {};
-  bool _showDownloadedPoints = true;
   Map<String, List<Marker>> _displayedPointsByTable = {};
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
-  Map<String, List<Marker>> _downloadedPointsByTable = {};
   final bool _isSatellite = false;
   List<Polyline> _downloadedSpecialLinesPolylines = [];
   bool _showDownloadedSpecialLines = true;
@@ -247,7 +245,6 @@ class _HomePageState extends State<HomePage> {
     _loadDisplayedLines();
     _loadDisplayedPoints();
     _loadDisplayedSpecialLines();
-    _loadDownloadedPoints();
     _loadDownloadedLineOverlays();
     _isOnlineDynamic = widget.isOnline;
     homeController.setSyncAvailability(_isOnlineDynamic);
@@ -676,22 +673,12 @@ class _HomePageState extends State<HomePage> {
       filtered.addAll(entry.value);
     }
 
-    if (_showDownloadedPoints) {
-      for (final entry in _downloadedPointsByTable.entries) {
-        final subKey = 'point_${entry.key}';
-        if (_legendVisibility[subKey] != false) {
-          filtered.addAll(entry.value);
-        }
-      }
-    }
-
     return filtered;
   }
 
   void _updateVisibilityFromLegend(Map<String, bool> visibility) {
     setState(() {
       _legendVisibility = visibility;
-      _showDownloadedPoints = visibility['points'] ?? true;
       _showDownloadedLines = visibility['lines'] ?? true;
 
       // Bac + Passage submersible
@@ -731,12 +718,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _refreshAllPoints() async {
     await _loadDisplayedPoints(); // Points locaux (rouges)
-    await _loadDownloadedPoints();
+    await _loadDisplayedPolygons();
     await _loadDownloadedLineOverlays();
   }
-
-  Future<void> _loadDownloadedPoints() =>
-      _loadDownloadedPointsImpl(this);
 
   Future<void> _refreshAfterNavigation() async {
     await _loadDisplayedSpecialLines();
@@ -998,6 +982,7 @@ class _HomePageState extends State<HomePage> {
                   MapWidget(
                     userPosition: userPosition ?? homeController.userPosition,
                     gpsEnabled: gpsEnabled,
+                    useOnlineBasemap: _isOnlineDynamic,
                     markers: filteredMarkers,
                     polylines: filteredPolylines,
                     polygons: filteredPolygons,

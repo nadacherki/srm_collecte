@@ -13,7 +13,12 @@ class DisplayedPointsService {
 
   Future<List<Marker>> getDisplayedPointsMarkers({
     required void Function(Map<String, dynamic>) onTapDetails,
-    void Function(String tableName, Marker marker, {bool hasAnomalie, bool hasIncomplet})? onMarkerCreated,
+    void Function(
+      String tableName,
+      Marker marker, {
+      bool hasAnomalie,
+      bool hasIncomplet,
+    })? onMarkerCreated,
     void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
     void Function(String tableName, bool hasIncomplet)? onIncompletDetected,
   }) async {
@@ -37,7 +42,7 @@ class DisplayedPointsService {
             final latLng = _extractLatLng(row, metier);
             if (latLng == null) continue;
 
-            // Détecter l'anomalie (stockée comme 1 / true en base)
+            // Detecter l'anomalie stockee comme 1 / true en base.
             final hasAnomalie =
                 row['anomalie'] == 1 || row['anomalie'] == true;
             final hasIncomplet =
@@ -56,8 +61,7 @@ class DisplayedPointsService {
                     'table_name': tableName,
                     'anomalie': hasAnomalie,
                     'objet_incomplet': hasIncomplet,
-                    'type_anomalie':
-                        (row['type_anomalie'] ?? '').toString(),
+                    'type_anomalie': (row['type_anomalie'] ?? '').toString(),
                     'enqueteur': (row['enqueteur'] ??
                             ApiService.nomPrenom ??
                             ApiService.userLogin ??
@@ -67,19 +71,15 @@ class DisplayedPointsService {
                     'lat': latLng.latitude,
                     'lng': latLng.longitude,
                     'synced': (row['synced'] ?? 0).toString(),
-                    'region_name': (row['region_name'] ??
-                            ApiService.currentProjetRegion ??
-                            '')
-                        .toString(),
-                    'prefecture_name': (row['prefecture_name'] ??
-                            ApiService.currentProjetNom ??
-                            '')
-                        .toString(),
-                    'commune_name':
-                        (row['commune_name'] ?? '').toString(),
+                    'region_name':
+                        (row['region_name'] ?? ApiService.currentProjetRegion ?? '')
+                            .toString(),
+                    'prefecture_name':
+                        (row['prefecture_name'] ?? ApiService.currentProjetNom ?? '')
+                            .toString(),
+                    'commune_name': (row['commune_name'] ?? '').toString(),
                   });
                 },
-                // Marqueur rouge danger si anomalie, sinon marqueur normal
                 child: hasAnomalie
                     ? CustomMarkerIcons.getAnomalieMarkerWidget(tableName)
                     : hasIncomplet
@@ -89,8 +89,12 @@ class DisplayedPointsService {
             );
 
             markers.add(marker);
-            onMarkerCreated?.call(tableName, marker, hasAnomalie: hasAnomalie, hasIncomplet: hasIncomplet);
-            // Notifier home_page pour comptage anomalies → légende
+            onMarkerCreated?.call(
+              tableName,
+              marker,
+              hasAnomalie: hasAnomalie,
+              hasIncomplet: hasIncomplet,
+            );
             onAnomalieDetected?.call(tableName, hasAnomalie);
             onIncompletDetected?.call(tableName, hasIncomplet);
           }
@@ -98,25 +102,13 @@ class DisplayedPointsService {
       }
 
       print(
-          'Loaded ${markers.length} displayed SRM point markers (cache: ${CustomMarkerIcons.getCacheSize()})');
+        'Loaded ${markers.length} displayed SRM point markers (cache: ${CustomMarkerIcons.getCacheSize()})',
+      );
       return markers;
     } catch (e) {
       print('Error in getDisplayedPointsMarkers: $e');
       return [];
     }
-  }
-
-  Future<List<Marker>> refreshDisplayedPoints({
-    required void Function(Map<String, dynamic>) onTapDetails,
-    void Function(String tableName, Marker marker, {bool hasAnomalie, bool hasIncomplet})? onMarkerCreated,
-    void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
-    void Function(String tableName, bool hasIncomplet)? onIncompletDetected,
-  }) async {
-    return await getDisplayedPointsMarkers(
-      onTapDetails: onTapDetails,
-      onMarkerCreated: onMarkerCreated,
-      onAnomalieDetected: onAnomalieDetected,
-    );
   }
 
   Future<List<Map<String, dynamic>>> _fetchVisibleRows({
@@ -128,7 +120,7 @@ class DisplayedPointsService {
       final columns = await db.rawQuery('PRAGMA table_info($tableName)');
       final availableColumns = columns
           .map((row) => (row['name'] ?? '').toString())
-          .where((name) => name.toString().isNotEmpty)
+          .where((name) => name.isNotEmpty)
           .toSet();
 
       final filters = <String>[];
@@ -189,202 +181,5 @@ class DisplayedPointsService {
       }
     }
     return fallback;
-  }
-}
-
-class DownloadedPointsService {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-
-  Future<List<Marker>> getDownloadedPointsMarkers({
-    required void Function(Map<String, dynamic>) onTapDetails,
-    void Function(String tableName, Marker marker)? onMarkerCreated,
-  }) async {
-    try {
-      final List<String> pointTables = [
-        'localites',
-        'ecoles',
-        'marches',
-        'services_santes',
-        'batiments_administratifs',
-        'infrastructures_hydrauliques',
-        'autres_infrastructures',
-        'ponts',
-        'buses',
-        'dalots',
-        'points_critiques',
-        'points_coupures',
-        'site_enquete',
-        'enquete_polygone',
-      ];
-
-      final List<Marker> markers = [];
-      final loginId = await DatabaseHelper().resolveLoginId();
-
-      if (loginId == null) {
-        print('Viewer login_id unavailable for downloaded points');
-        return [];
-      }
-
-      for (var tableName in pointTables) {
-        try {
-          final db = await _dbHelper.database;
-          final points = await db.query(
-            tableName,
-            where: 'downloaded = ? AND saved_by_user_id = ?',
-            whereArgs: [1, loginId],
-          );
-
-          for (var point in points) {
-            final coordinates = _getCoordinatesFromPoint(point, tableName);
-
-            if (coordinates['lat'] != null && coordinates['lng'] != null) {
-              final double lat = (coordinates['lat'] as num).toDouble();
-              final double lng = (coordinates['lng'] as num).toDouble();
-              final lineCode = point['line_code'] ?? 'N/A';
-
-              markers.add(
-                Marker(
-                  point: LatLng(lat, lng),
-                  width: 40,
-                  height: 40,
-                  child: GestureDetector(
-                    onTap: () {
-                      onTapDetails({
-                        'type': _getEntityTypeFromTable(tableName),
-                        'name': (point['nom'] ??
-                                point['name'] ??
-                                point['libelle'] ??
-                                'Sans nom')
-                            .toString(),
-                        'enqueteur': (point['enqueteur'] ?? '').toString(),
-                        'line_code': (lineCode).toString(),
-                        'lat': lat,
-                        'lng': lng,
-                        'region_name': (point['region_name'] ?? '').toString(),
-                        'prefecture_name':
-                            (point['prefecture_name'] ?? '').toString(),
-                        'commune_name': (point['commune_name'] ?? '').toString(),
-                      });
-                    },
-                    child: CustomMarkerIcons.getMarkerWidget(tableName),
-                  ),
-                ),
-              );
-              if (onMarkerCreated != null) {
-                onMarkerCreated(tableName, markers.last);
-              }
-            }
-          }
-        } catch (e) {
-          print('Error loading downloaded points from $tableName: $e');
-        }
-      }
-
-      print(
-          'Loaded ${markers.length} downloaded point markers (cache: ${CustomMarkerIcons.getCacheSize()})');
-      return markers;
-    } catch (e) {
-      print('Error in getDownloadedPointsMarkers: $e');
-      return [];
-    }
-  }
-
-  Map<String, dynamic> _getCoordinatesFromPoint(
-    Map<String, dynamic> point,
-    String tableName,
-  ) {
-    final coordinateMappings = {
-      'localites': {
-        'lat': 'y_localite',
-        'lng': 'x_localite',
-      },
-      'ecoles': {
-        'lat': 'y_ecole',
-        'lng': 'x_ecole',
-      },
-      'marches': {
-        'lat': 'y_marche',
-        'lng': 'x_marche',
-      },
-      'services_santes': {
-        'lat': 'y_sante',
-        'lng': 'x_sante',
-      },
-      'batiments_administratifs': {
-        'lat': 'y_batiment_administratif',
-        'lng': 'x_batiment_administratif',
-      },
-      'infrastructures_hydrauliques': {
-        'lat': 'y_infrastructure_hydraulique',
-        'lng': 'x_infrastructure_hydraulique',
-      },
-      'autres_infrastructures': {
-        'lat': 'y_autre_infrastructure',
-        'lng': 'x_autre_infrastructure',
-      },
-      'ponts': {
-        'lat': 'y_pont',
-        'lng': 'x_pont',
-      },
-      'buses': {
-        'lat': 'y_buse',
-        'lng': 'x_buse',
-      },
-      'dalots': {
-        'lat': 'y_dalot',
-        'lng': 'x_dalot',
-      },
-      'points_critiques': {
-        'lat': 'y_point_critique',
-        'lng': 'x_point_critique',
-      },
-      'points_coupures': {
-        'lat': 'y_point_coupure',
-        'lng': 'x_point_coupure',
-      },
-      'site_enquete': {
-        'lat': 'y_site',
-        'lng': 'x_site',
-      },
-      'enquete_polygone': {
-        'lat': 'y_site',
-        'lng': 'x_site'
-      },
-    };
-
-    final mapping = coordinateMappings[tableName];
-    if (mapping != null) {
-      return {
-        'lat': point[mapping['lat']],
-        'lng': point[mapping['lng']],
-      };
-    }
-
-    return {
-      'lat': null,
-      'lng': null,
-    };
-  }
-
-  String _getEntityTypeFromTable(
-    String tableName,
-  ) {
-    const entityTypes = {
-      'localites': 'Localité',
-      'ecoles': 'École',
-      'marches': 'Marché',
-      'services_santes': 'Service de Santé',
-      'batiments_administratifs': 'Bâtiment Administratif',
-      'infrastructures_hydrauliques': 'Infrastructure Hydraulique',
-      'autres_infrastructures': 'Autre Infrastructure',
-      'ponts': 'Pont',
-      'buses': 'Buse',
-      'dalots': 'Dalot',
-      'points_critiques': 'Point Critique',
-      'points_coupures': 'Point de Coupure',
-      'site_enquete': 'Site de Plaine',
-      'enquete_polygone': 'Zone de Plaine',
-    };
-    return entityTypes[tableName] ?? tableName;
   }
 }
