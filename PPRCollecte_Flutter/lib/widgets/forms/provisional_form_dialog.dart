@@ -28,7 +28,7 @@ class ProvisionalFormDialog {
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Nouvelle Piste',
+                    'Nouvelle Ligne',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -62,7 +62,7 @@ class ProvisionalFormDialog {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      'Le code piste sera attribué automatiquement lors de la synchronisation',
+                      'Le code ligne sera attribué automatiquement lors de la synchronisation',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
@@ -102,7 +102,7 @@ class ProvisionalFormDialog {
               ),
               onPressed: () {
                 Navigator.of(context).pop({
-                  'code_piste': initialCode, //  On garde le code temporaire en interne
+                  'line_code': initialCode,
                 });
               },
               child: const Text('Commencer la collecte'),

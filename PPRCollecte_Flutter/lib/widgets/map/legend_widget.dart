@@ -1,14 +1,4 @@
-﻿// legend_widget.dart
-// â”€â”€ LÃ©gende SRM â€” 100 % dynamique basÃ©e sur SrmConfig â”€â”€
-//
-// FonctionnalitÃ©s :
-//   â€¢ 3 sections dÃ©pliables (Eau Potable / Assainissement / Ã‰lectricitÃ©)
-//   â€¢ Checkbox par entitÃ© â†’ afficher/masquer sur la carte
-//   â€¢ Checkbox parent par mÃ©tier avec Ã©tat tristate (tout/partiel/rien)
-//   â€¢ Filtre Anomalie : mode isolement â†’ seuls les objets en anomalie visibles
-//     (les anomalies s'affichent TOUJOURS en rouge danger, mÃªme sans filtre)
-//   â€¢ Compteurs en temps rÃ©el par entitÃ© et par mÃ©tier
-//   â€¢ 100 % dynamique : suit SrmConfig automatiquement
+// Légende SRM dynamique basée sur SrmConfig.
 
 import 'package:flutter/material.dart';
 import '../../core/config/srm_config.dart';
@@ -27,13 +17,12 @@ class LegendWidget extends StatefulWidget {
   /// Compteur d'objets incomplets par table (fourni par home_page)
   final Map<String, int> incompletCountsByTable;
 
-  // ParamÃ¨tres de compatibilitÃ© GeoDNGR conservÃ©s pour ne pas casser
-  // la signature existante dans home_page
+  // Paramètres conservés pour préserver la signature existante dans home_page.
   final List<dynamic> allPolylines;
   final List<dynamic> allMarkers;
   final int polygonCount;
 
-  /// Callback notifiant home_page quand la légende s'ouvre/ferme.
+  /// Callback notifiant home_page quand la légende s'ouvre ou se ferme.
   final ValueChanged<bool>? onExpandedChanged;
 
   const LegendWidget({
@@ -181,14 +170,16 @@ class _LegendWidgetState extends State<LegendWidget> {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
       final t = SrmConfig.getTableName(metier, e);
       if (t == null) continue;
-      if (_visibility[_vk(t)] ?? true) anyOn = true; else anyOff = true;
+      if (_visibility[_vk(t)] ?? true) {
+        anyOn = true;
+      } else {
+        anyOff = true;
+      }
     }
     return anyOn && anyOff;
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  BUILD
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   @override
   Widget build(BuildContext context) {
     return Positioned(
@@ -213,7 +204,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â”€â”€ Header bouton â”€â”€
   Widget _buildHeader() {
     return InkWell(
       onTap: () {
@@ -258,7 +248,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â”€â”€ Corps â”€â”€
   Widget _buildBody() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -286,9 +275,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  FILTRE ANOMALIE
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildAnomalieFilter() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -351,7 +338,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             child: Switch(
               value: _anomalieFilterActive,
               onChanged: _toggleAnomalieFilter,
-              activeColor: const Color(0xFFD32F2F),
+              activeThumbColor: const Color(0xFFD32F2F),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
@@ -360,7 +347,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â”€â”€ Filtre Objet Incomplet â”€â”€
   Widget _buildIncompletFilter() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -443,7 +429,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             child: Switch(
               value: _incompletFilterActive,
               onChanged: _toggleIncompletFilter,
-              activeColor: const Color(0xFFF57C00),
+              activeThumbColor: const Color(0xFFF57C00),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
@@ -452,9 +438,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  //  SECTION MÃ‰TIER
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildMetierSection(String metier) {
     final color = _metierColor[metier] ?? Colors.grey;
     final icon = _metierIcon[metier] ?? Icons.category;
@@ -468,7 +451,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header mÃ©tier cliquable
         InkWell(
           onTap: () =>
               setState(() => _metierExpanded[metier] = !isExpanded),
@@ -492,7 +474,6 @@ class _LegendWidgetState extends State<LegendWidget> {
                   ),
                 ),
                 const SizedBox(width: 5),
-                // IcÃ´ne mÃ©tier
                 Container(
                   width: 22,
                   height: 22,
@@ -541,7 +522,6 @@ class _LegendWidgetState extends State<LegendWidget> {
           ),
         ),
 
-        // EntitÃ©s du mÃ©tier
         if (isExpanded)
           Padding(
             padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
@@ -557,9 +537,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  //  LIGNE ENTITÃ‰
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildEntityRow(String metier, String entity, Color metierColor) {
     final tableName = SrmConfig.getTableName(metier, entity);
     if (tableName == null) return const SizedBox.shrink();
@@ -576,7 +553,6 @@ class _LegendWidgetState extends State<LegendWidget> {
         ? (iconCfg?.color ?? metierColor)
         : Colors.grey.shade300;
 
-    // DÃ©terminer si c'est une ligne ou un polygone
     final isLine = SrmConfig.isLineEntity(metier, entity);
     final isPolygon = SrmConfig.isPolygonEntity(metier, entity);
 
@@ -596,7 +572,6 @@ class _LegendWidgetState extends State<LegendWidget> {
             ),
           ),
           const SizedBox(width: 5),
-          // Symbole selon le type de gÃ©omÃ©trie
           if (isLine)
             _lineSymbol(entityColor)
           else if (isPolygon)
@@ -638,7 +613,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â”€â”€ Symboles gÃ©omÃ©trie â”€â”€
   Widget _pointSymbol(IconData icon, Color color) {
     return Container(
       width: 20,
@@ -681,7 +655,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  // â”€â”€ Badge compteur â”€â”€
   Widget _badge(int count,
       {required Color color, IconData? icon, bool small = false}) {
     if (count <= 0) return const SizedBox.shrink();
@@ -712,7 +685,6 @@ class _LegendWidgetState extends State<LegendWidget> {
   }
 }
 
-// â”€â”€ Mini panneau danger pour la lÃ©gende â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _MiniWarningPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

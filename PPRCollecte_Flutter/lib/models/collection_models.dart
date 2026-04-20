@@ -14,7 +14,7 @@ enum CollectionStatus {
 
 class CollectionBase {
   final int id;
-  final String? codePiste;
+  final String? lineCode;
   final CollectionType type;
   final CollectionStatus status;
   final List<LatLng> points;
@@ -24,7 +24,7 @@ class CollectionBase {
 
   CollectionBase({
     required this.id,
-    this.codePiste,
+    this.lineCode,
     required this.type,
     required this.status,
     required this.points,
@@ -35,7 +35,7 @@ class CollectionBase {
 
   CollectionBase copyWith({
     int? id,
-    String? codePiste,
+    String? lineCode,
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
@@ -45,7 +45,7 @@ class CollectionBase {
   }) {
     return CollectionBase(
       id: id ?? this.id,
-      codePiste: codePiste ?? this.codePiste,
+      lineCode: lineCode ?? this.lineCode,
       type: type ?? this.type,
       status: status ?? this.status,
       points: points ?? this.points,
@@ -63,7 +63,7 @@ class CollectionBase {
 class LigneCollection extends CollectionBase {
   LigneCollection({
     required super.id,
-    required String super.codePiste,
+    required String super.lineCode,
     required super.status,
     required super.points,
     required super.startTime,
@@ -76,7 +76,7 @@ class LigneCollection extends CollectionBase {
   @override
   LigneCollection copyWith({
     int? id,
-    String? codePiste,
+    String? lineCode,
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
@@ -86,7 +86,7 @@ class LigneCollection extends CollectionBase {
   }) {
     return LigneCollection(
       id: id ?? this.id,
-      codePiste: codePiste ?? this.codePiste!,
+      lineCode: lineCode ?? this.lineCode!,
       status: status ?? this.status,
       points: points ?? this.points,
       startTime: startTime ?? this.startTime,
@@ -98,7 +98,7 @@ class LigneCollection extends CollectionBase {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'codePiste': codePiste,
+      'lineCode': lineCode,
       'type': 'ligne',
       'status': status.toString(),
       'points': points
@@ -116,7 +116,7 @@ class LigneCollection extends CollectionBase {
   factory LigneCollection.fromJson(Map<String, dynamic> json) {
     return LigneCollection(
       id: json['id'],
-      codePiste: json['codePiste'],
+      lineCode: json['lineCode'],
       status: CollectionStatus.values.firstWhere(
         (e) => e.toString() == json['status'],
       ),
@@ -140,14 +140,14 @@ class SpecialCollection extends CollectionBase {
     super.lastPointTime,
     super.totalDistance,
   }) : super(
-          codePiste: null,
+          lineCode: null,
           type: CollectionType.special,
         );
 
   @override
   SpecialCollection copyWith({
     int? id,
-    String? codePiste,
+    String? lineCode,
     String? specialType,
     CollectionType? type,
     CollectionStatus? status,
@@ -170,7 +170,7 @@ class SpecialCollection extends CollectionBase {
 
 class CollectionResult {
   final int id;
-  final String? codePiste;
+  final String? lineCode;
   final CollectionType type;
   final List<LatLng> points;
   final double totalDistance;
@@ -179,7 +179,7 @@ class CollectionResult {
 
   CollectionResult({
     required this.id,
-    this.codePiste,
+    this.lineCode,
     required this.type,
     required this.points,
     required this.totalDistance,
@@ -190,7 +190,7 @@ class CollectionResult {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'codePiste': codePiste,
+      'lineCode': lineCode,
       'type': type.toString(),
       'points': points,
       'totalDistance': totalDistance,

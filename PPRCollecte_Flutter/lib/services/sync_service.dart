@@ -817,14 +817,6 @@ class SyncService {
     }
 
     if (info.table == 'hydrant') {
-      final legacyMarque = payload['ep_marque'];
-      final currentMarque = payload['marque'];
-      if ((currentMarque == null || currentMarque.toString().trim().isEmpty) &&
-          legacyMarque != null &&
-          legacyMarque.toString().trim().isNotEmpty) {
-        payload['marque'] = legacyMarque;
-      }
-
       const obsoleteKeys = <String>{
         'ep_modele',
         'ep_marque',
@@ -839,14 +831,6 @@ class SyncService {
     }
 
     if (info.table == 'borne_fontaine') {
-      final legacyMarque = payload['ep_marque'];
-      final currentMarque = payload['marque'];
-      if ((currentMarque == null || currentMarque.toString().trim().isEmpty) &&
-          legacyMarque != null &&
-          legacyMarque.toString().trim().isNotEmpty) {
-        payload['marque'] = legacyMarque;
-      }
-
       const obsoleteKeys = <String>{
         'ep_marque',
         'etage_aqua',
@@ -878,17 +862,7 @@ class SyncService {
     }
 
     if (info.table == 'compteur_reseau') {
-      final legacyNumero = payload['ep_numero'] ?? payload['ep_numero_compteur'];
-      final currentSerie = payload['ep_n_serie'];
-      if ((currentSerie == null || currentSerie.toString().trim().isEmpty) &&
-          legacyNumero != null &&
-          legacyNumero.toString().trim().isNotEmpty) {
-        payload['ep_n_serie'] = legacyNumero;
-      }
-
       const obsoleteKeys = <String>{
-        'ep_numero',
-        'ep_numero_compteur',
         'ep_etat',
         'emplacement',
       };
@@ -897,28 +871,10 @@ class SyncService {
     }
 
     if (info.table == 'compteur_abonne') {
-      final legacyNumero = payload['ep_numero'] ?? payload['ep_numero_compteur'];
-      final currentNumero = payload['num_compteur'];
-      if ((currentNumero == null || currentNumero.toString().trim().isEmpty) &&
-          legacyNumero != null &&
-          legacyNumero.toString().trim().isNotEmpty) {
-        payload['num_compteur'] = legacyNumero;
-      }
-
-      final legacyCalibre = payload['ep_calibre'];
-      final currentCalibre = payload['diametre_calibre_terrain'];
-      if ((currentCalibre == null || currentCalibre.toString().trim().isEmpty) &&
-          legacyCalibre != null &&
-          legacyCalibre.toString().trim().isNotEmpty) {
-        payload['diametre_calibre_terrain'] = legacyCalibre;
-      }
-
       const obsoleteKeys = <String>{
         'ep_num',
         'ep_type',
         'ep_calibre',
-        'ep_numero',
-        'ep_numero_compteur',
         'ep_marque',
         'ep_etat',
         'etage_aqua',
@@ -930,24 +886,7 @@ class SyncService {
     }
 
     if (info.table == 'cone_de_reduction') {
-      final legacyDiamIn = payload['ep_diam_amont'];
-      final legacyDiamOut = payload['ep_diam_aval'];
-      if ((payload['ep_diam_in'] == null ||
-              payload['ep_diam_in'].toString().trim().isEmpty) &&
-          legacyDiamIn != null &&
-          legacyDiamIn.toString().trim().isNotEmpty) {
-        payload['ep_diam_in'] = legacyDiamIn;
-      }
-      if ((payload['ep_diam_out'] == null ||
-              payload['ep_diam_out'].toString().trim().isEmpty) &&
-          legacyDiamOut != null &&
-          legacyDiamOut.toString().trim().isNotEmpty) {
-        payload['ep_diam_out'] = legacyDiamOut;
-      }
-
       const obsoleteKeys = <String>{
-        'ep_diam_amont',
-        'ep_diam_aval',
         'ep_etat',
         'emplacement',
         'id_conduite',

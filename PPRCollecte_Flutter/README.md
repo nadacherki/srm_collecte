@@ -73,7 +73,3 @@ La base PostGIS utilise 4 schémas :
 - `elec` : 11 tables électricité
 
 Toutes les géométries sont en **EPSG:26191 (Merchich Nord)**.
-
-## Adapté de
-
-Ce projet est adapté de [GeoDNGR-Collecte](https://github.com/Ayoub101010/mobile) (collecte de pistes rurales en Guinée) pour les besoins du SRM Maroc.

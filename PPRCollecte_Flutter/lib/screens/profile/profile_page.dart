@@ -443,7 +443,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -460,7 +460,7 @@ class _ProfilePageState extends State<ProfilePage> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF1B4F72).withOpacity(0.3),
+                  color: const Color(0xFF1B4F72).withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -663,9 +663,11 @@ class _ProfilePageState extends State<ProfilePage> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF16A085).withOpacity(0.06),
+        color: const Color(0xFF16A085).withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF16A085).withOpacity(0.18)),
+        border: Border.all(
+          color: const Color(0xFF16A085).withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -728,46 +730,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildBasemapPackageRow(Map<String, dynamic> packageRow) {
-    final style = packageRow['style']?.toString() ?? 'standard';
-    final format = packageRow['format']?.toString().toUpperCase() ?? 'MBTILES';
-    final version = packageRow['version']?.toString() ?? 'v?';
-    final statusRaw = packageRow['status'];
-    final statusLabel = _basemapPackageStatusLabel(statusRaw);
-    final statusColor = _basemapPackageStatusColor(statusRaw);
-    final sizeLabel = _formatFileSize(_asIntOrNull(packageRow['size_bytes']));
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 16, color: statusColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${style.toUpperCase()} • $format • $version'
-              '${sizeLabel.isNotEmpty ? ' • $sizeLabel' : ''}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF444444),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            statusLabel,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: statusColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBasemapPackageDownloadRow(Map<String, dynamic> packageRow) {
     final packageKey = packageRow['package_key']?.toString().trim() ??
         '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
@@ -819,7 +781,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF27AE60).withOpacity(0.10),
+                  color: const Color(0xFF27AE60).withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -838,7 +800,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1976D2).withOpacity(0.10),
+                  color: const Color(0xFF1976D2).withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -885,6 +847,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
 
       await _loadData();
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -927,6 +890,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
 
       await _loadData();
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1158,7 +1122,7 @@ class _ProfilePageState extends State<ProfilePage> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF1B4F72).withOpacity(0.08),
+            color: const Color(0xFF1B4F72).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -1278,7 +1242,9 @@ class _ProfilePageState extends State<ProfilePage> {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: pct,
-                backgroundColor: const Color(0xFF27AE60).withOpacity(0.15),
+                backgroundColor: const Color(
+                  0xFF27AE60,
+                ).withValues(alpha: 0.15),
                 valueColor: const AlwaysStoppedAnimation<Color>(
                   Color(0xFF27AE60),
                 ),
@@ -1357,7 +1323,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1369,12 +1335,12 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
               border: Border(
-                bottom: BorderSide(color: color.withOpacity(0.2)),
+                bottom: BorderSide(color: color.withValues(alpha: 0.2)),
               ),
             ),
             child: Row(
@@ -1441,9 +1407,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1495,9 +1461,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1585,7 +1551,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 'Aucune activité tracée sur cette période pour le moment.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: color.withOpacity(0.85),
+                  color: color.withValues(alpha: 0.85),
                 ),
               ),
             ),
@@ -1621,9 +1587,9 @@ class _ProfilePageState extends State<ProfilePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.22)),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1651,9 +1617,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Text(
         label,
@@ -1742,7 +1708,7 @@ class _ProfilePageState extends State<ProfilePage> {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: pct,
-            backgroundColor: color.withOpacity(0.15),
+            backgroundColor: color.withValues(alpha: 0.15),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 8,
           ),
@@ -1755,9 +1721,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1792,9 +1758,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

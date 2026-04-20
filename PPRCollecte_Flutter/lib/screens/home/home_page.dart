@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // lib/screens/home/home_page.dart
 // ============================================================
 
@@ -7,7 +7,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:math' as Math;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -19,7 +19,6 @@ import 'package:latlong2/latlong.dart';
 import '../../widgets/common/top_bar_widget.dart';
 import '../../widgets/common/bottom_buttons_widget.dart';
 import '../../widgets/common/bottom_status_bar_widget.dart';
-import '../../widgets/common/custom_marker_icons.dart';
 import '../../widgets/map/map_widget.dart';
 import '../../widgets/map/map_controls_widget.dart';
 import '../../widgets/map/legend_widget.dart';
@@ -41,13 +40,13 @@ import '../../services/collection_manager.dart';
 // DATA
 // ============================================================
 import '../../data/local/database_helper.dart';
-import '../../data/local/piste_storage_helper.dart';
+import '../../data/local/line_storage_helper.dart';
 import '../../data/remote/api_service.dart';
 
 // ============================================================
 // MODELS
 // ============================================================
-import '../../models/collection_models.dart';
+import '../../models/map_overlay_tap_data.dart';
 
 // ============================================================
 // SCREENS
@@ -60,20 +59,24 @@ import '../forms/polygon_form_page.dart';
 import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
+import '../../services/downloaded_lines_service.dart';
 import '../../core/constants/basemap_constants.dart';
 
-// ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 5 : SRM Forms ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
 import '../forms/srm_ligne_form_page.dart';
 
-// ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-// APRÈS
-// ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
+part 'home_page_tap_handlers.dart';
+part 'home_page_dialogs.dart';
+part 'home_page_overlays.dart';
+part 'home_page_collection_actions.dart';
+part 'home_page_bootstrap.dart';
+part 'home_page_app_actions.dart';
+
 class MapFocusTarget {
   final String kind; // 'point' | 'polyline'
-  final String pointStyle; // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â 'normal' | 'intersection'
+  final String pointStyle;
   final LatLng? point;
   final List<LatLng>? polyline;
   final String? label;
@@ -83,7 +86,7 @@ class MapFocusTarget {
     required LatLng this.point,
     this.label,
     this.id,
-    this.pointStyle = 'normal', //  Par défaut = style normal (violet)
+    this.pointStyle = 'normal',
   })  : kind = 'point',
         polyline = null;
 
@@ -131,8 +134,7 @@ class _HomePageState extends State<HomePage> {
   bool _autoCenterDisabledByUser = false;
   List<Marker> collectedMarkers = [];
   List<Polyline> collectedPolylines = [];
-  List<Polyline> _finishedPistes = []; // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â AJOUTEZ ICI
-  List<Polyline> _finishedChaussees = [];
+  List<Polyline> _finishedLines = [];
   List<Marker> formMarkers = [];
   bool isSyncing = false;
   bool isDownloading = false;
@@ -145,16 +147,14 @@ class _HomePageState extends State<HomePage> {
   String _currentSyncOperation = "Préparation de la synchronisation...";
   int _syncTotalItems = 0;
   int _syncProcessedItems = 0;
-  List<Marker> _displayedPointsMarkers = [];
   final List<Marker> _focusOverlayMarkers = [];
   final List<Polyline> _focusOverlayPolylines = [];
-  String? _currentNearestPisteCode;
-  Map<String, dynamic>? _continuationData;
   bool _isSpecialCollection = false;
   String? _specialCollectionType;
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
+  List<LatLng>? _pendingPolygonPreviewPoints;
   bool _isLegendExpanded = false;
   Map<String, int> _pointCountsByTable = {};
   Map<String, int> _anomalieCountsByTable = {};
@@ -166,30 +166,21 @@ class _HomePageState extends State<HomePage> {
   final SpecialLinesService _specialLinesService = SpecialLinesService();
   List<Polyline> _displayedSpecialLines = [];
   Map<String, List<Polyline>> _displayedSrmLinesByTable = {};
-  final DownloadedPointsService _downloadedPointsService = DownloadedPointsService();
-  List<Marker> _downloadedPointsMarkers = [];
   bool _showDownloadedPoints = true;
-  // Markers séparés par table pour le filtrage par sous-type
   Map<String, List<Marker>> _displayedPointsByTable = {};
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
   Map<String, List<Marker>> _downloadedPointsByTable = {};
-  bool _isSatellite = false;
-  final DownloadedSpecialLinesService _downloadedSpecialLinesService = DownloadedSpecialLinesService();
+  final bool _isSatellite = false;
   List<Polyline> _downloadedSpecialLinesPolylines = [];
   bool _showDownloadedSpecialLines = true;
 
-  // Sprint 5 : sélection SRM en attente pour la collecte ligne
   SrmSelection? _pendingSrmLigneSelection;
 
-  // Téléchargés : Pistes
 
-  final DownloadedPistesService _downloadedPistesService = DownloadedPistesService();
-  List<Polyline> _downloadedPistesPolylines = [];
-  bool _showDownloadedPistes = true; // comme pour les points
-  final DownloadedChausseesService _downloadedChausseesService = DownloadedChausseesService();
-  List<Polyline> _downloadedChausseesPolylines = [];
-  bool _showDownloadedChaussees = true;
+  final DownloadedLinesService _downloadedLinesService = DownloadedLinesService();
+  List<Polyline> _downloadedLinesPolylines = [];
+  bool _showDownloadedLines = true; // comme pour les points
   bool get _autoCenterSuspended => _autoCenterDisabledByUser || (_suspendAutoCenterUntil != null && DateTime.now().isBefore(_suspendAutoCenterUntil!));
   String? _lastSyncTimeText;
   String? _offlineBasemapPath;
@@ -205,16 +196,16 @@ class _HomePageState extends State<HomePage> {
 // Dans _HomePageState
   Map<String, bool> _legendVisibility = {
     'points': true,
-    'pistes': true,
-    'chaussee_bitume': true,
-    'chaussee_terre': true,
-    'chaussee_latérite': true,
-    'chaussee_bouwal': true,
-    'chaussee_déviation': true,
-    'chaussee_coupure': true,
-    'chaussee_submersible': true,
-    'chaussee_col': true,
-    'chaussee_autre': true,
+    'lines': true,
+    'line_bitume': true,
+    'line_terre': true,
+    'line_laterite': true,
+    'line_bouwal': true,
+    'line_deviation': true,
+    'line_coupure': true,
+    'line_submersible': true,
+    'line_col': true,
+    'line_autre': true,
     'bac': true,
     'passage_submersible': true,
     'zone_plaine': true,
@@ -253,14 +244,13 @@ class _HomePageState extends State<HomePage> {
     _offlineBasemapMaxZoom = BasemapConstants.fallbackMaxZoom;
     homeController = HomeController();
     //_cleanupDisplayedPoints();
-    _loadDisplayedPistes();
+    _loadDisplayedLines();
     _loadDisplayedPoints();
-    _loadDisplayedChausseeOverlays();
     _loadDisplayedSpecialLines();
     _loadDownloadedPoints();
-    _loadDownloadedPisteOverlays();
-    _loadDownloadedChausseeOverlays();
+    _loadDownloadedLineOverlays();
     _isOnlineDynamic = widget.isOnline;
+    homeController.setSyncAvailability(_isOnlineDynamic);
     _loadLastSyncTime();
     _startOnlineWatcher();
     _loadAdminNamesOffline();
@@ -292,21 +282,19 @@ class _HomePageState extends State<HomePage> {
 
     homeController.initialize();
 
-    // ── SPRINT 7 : Vérifier s'il y a une collecte en pause sauvegardée ──
     _checkPausedCollectionDraft();
 
-    // Données de test initiales
     /* collectedMarkers.addAll([
       Marker(
         markerId: const MarkerId('poi1'),
         position: const LatLng(34.021, -6.841),
-        infoWindow: const InfoWindow(title: 'Point d\'intérêt 1', snippet: 'Infrastructure - Point'),
+        infoWindow: const InfoWindow(title: 'Point d\'int?r?t 1', snippet: 'Infrastructure - Point'),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
       ),
     ]);*/
 
     /* collectedPolylines.add(const Polyline(
-      polylineId: PolylineId('piste1'),
+      polylineId: PolylineId('line1'),
       points: [
         LatLng(34.020, -6.840),
         LatLng(34.022, -6.842),
@@ -317,412 +305,63 @@ class _HomePageState extends State<HomePage> {
     ));*/
   }
 
-  // ══════════════════════════════════════════════════════
-  // ██ SPRINT 7 : Restauration collecte en pause
-  // ══════════════════════════════════════════════════════
+  // ------------------------------------------------------
+  // ------------------------------------------------------
 
-  Future<void> _checkPausedCollectionDraft() async {
-    final draft = await CollectionManager.loadPausedDraft();
-    if (draft == null || !mounted) return;
-
-    final type = draft['collectionType'] as String? ?? '?';
-    final nbPoints = (draft['points'] as List?)?.length ?? 0;
-    final pausedAt = draft['pausedAt'] as String?;
-    final timeAgo = pausedAt != null
-        ? CollectionManager.pauseTimeAgo(pausedAt)
-        : '?';
-
-    final shouldRestore = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        icon: Icon(Icons.pause_circle_filled, color: Colors.orange, size: 36),
-        title: Text('Collecte en pause'),
-        content: Text(
-          'Une collecte de $type avec $nbPoints points a été '
-          'mise en pause il y a $timeAgo.\n\n'
-          'Voulez-vous la reprendre ?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Ignorer et supprimer'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: Icon(Icons.play_arrow),
-            label: Text('Reprendre'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-
+  void _setStateFromPart(VoidCallback fn) {
     if (!mounted) return;
-
-    if (shouldRestore == true) {
-      _restorePausedCollection(draft);
-    } else {
-      await homeController.collectionManager.clearPausedDraft();
-    }
+    setState(fn);
   }
 
-  void _restorePausedCollection(Map<String, dynamic> draft) {
-    final type = draft['collectionType'] as String;
-    final srmMeta = draft['srmMetadata'] as Map<String, dynamic>?;
+  Future<void> _checkPausedCollectionDraft() =>
+      _checkPausedCollectionDraftImpl(this);
 
-    switch (type) {
-      case 'ligne':
-        homeController.collectionManager.restoreLigneCollection(draft);
-        // Restaurer la sélection SRM
-        if (srmMeta != null && srmMeta['srmMetier'] != null) {
-          _pendingSrmLigneSelection = SrmSelection(
-            metier: srmMeta['srmMetier'] as String,
-            entityType: srmMeta['srmEntityType'] as String? ?? '',
-            tableName: srmMeta['srmTableName'] as String? ?? '',
-            schema: srmMeta['srmSchema'] as String? ?? '',
-            isLine: true,
-          );
-        }
-        // Restaurer le code piste actif
-        final codePiste = draft['codePiste'] as String?;
-        if (codePiste != null) {
-          homeController.setActivePisteCode(codePiste);
-        }
-        break;
+  void _restorePausedCollection(Map<String, dynamic> draft) =>
+      _restorePausedCollectionImpl(this, draft);
 
-      case 'special':
-        homeController.collectionManager.restoreSpecialCollection(draft);
-        // Restaurer les flags polygon/special
-        if (srmMeta != null) {
-          _pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
-          _pendingSrmPolygoneEntityType = srmMeta['srmEntityType'] as String?;
-          _isPolygonCollection = srmMeta['isPolygonCollection'] == true;
-          _isSpecialCollection = srmMeta['isSpecialCollection'] == true;
-          _specialCollectionType = srmMeta['specialCollectionType'] as String?;
-        }
-        break;
-    }
+  Future<void> _hydrateOfflineBasemapState() =>
+      _hydrateOfflineBasemapStateImpl(this);
 
-    setState(() {});
+  void _showInitialBasemapNoticeIfNeeded() =>
+      _showInitialBasemapNoticeIfNeededImpl(this);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '✅ Collecte de $type restaurée '
-          '(${(draft['points'] as List).length} points)',
-        ),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
-      ),
-    );
-  }
+  Future<void> _loadDownloadedSpecialLines() =>
+      _loadDownloadedSpecialLinesImpl(this);
 
-  Future<void> _hydrateOfflineBasemapState() async {
-    final db = DatabaseHelper();
-    final activePackage = await OfflineBasemapService().getActivePackage();
-    final packagePath = activePackage?['local_path']?.toString().trim();
-    final packageFormat = activePackage?['format']?.toString().trim();
-    final activeZoneId = activePackage?['zone_id']?.toString().trim();
-    final activeZone = activeZoneId == null || activeZoneId.isEmpty
-        ? null
-        : await db.getOfflineBasemapZoneById(activeZoneId);
-    final localPath =
-        (packagePath != null && packagePath.isNotEmpty) ? packagePath : null;
 
-    if (!mounted) {
-      return;
-    }
 
-    setState(() {
-      if (localPath != null && localPath.isNotEmpty) {
-        _offlineBasemapPath = localPath;
-        _offlineBasemapFormat = packageFormat;
-        _basemapUnavailableMessage = null;
-      }
-
-      if (activeZone != null) {
-        final centerLat = _asDoubleOrNull(activeZone['center_latitude']);
-        final centerLng = _asDoubleOrNull(activeZone['center_longitude']);
-        final west = _asDoubleOrNull(activeZone['bbox_west']);
-        final south = _asDoubleOrNull(activeZone['bbox_south']);
-        final east = _asDoubleOrNull(activeZone['bbox_east']);
-        final north = _asDoubleOrNull(activeZone['bbox_north']);
-        final minZoom = _asDoubleOrNull(activeZone['min_zoom']);
-        final maxZoom = _asDoubleOrNull(activeZone['max_zoom']);
-
-        if (centerLat != null && centerLng != null) {
-          _offlineBasemapCenter = LatLng(centerLat, centerLng);
-        }
-        if (west != null && south != null && east != null && north != null) {
-          _offlineBasemapBounds = LatLngBounds(
-            LatLng(north, west),
-            LatLng(south, east),
-          );
-        }
-        if (minZoom != null) {
-          _offlineBasemapMinZoom = minZoom;
-        }
-        if (maxZoom != null) {
-          _offlineBasemapMaxZoom = maxZoom;
-        }
-        if (_offlineBasemapMinZoom != null && _offlineBasemapMaxZoom != null) {
-          _offlineBasemapDefaultZoom =
-              (_offlineBasemapMinZoom! + _offlineBasemapMaxZoom!) / 2;
-        }
-      }
-
-      if (_mapController != null &&
-          _lastCameraPosition == null &&
-          userPosition == null &&
-          _offlineBasemapCenter != null) {
-        _mapController!.move(
-          _offlineBasemapCenter!,
-          _offlineBasemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom,
-        );
-        _lastCameraPosition = _offlineBasemapCenter;
-      }
-    });
-  }
-
-  void _showInitialBasemapNoticeIfNeeded() {
-    final message = widget.initialBasemapNotice;
-    if (!mounted || message == null || message.trim().isEmpty) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
-  String _safe(dynamic v, {String empty = '----'}) {
-    final s = (v ?? '').toString().trim();
-    if (s.isEmpty) return empty;
-    if (s.toLowerCase() == 'null') return empty;
-    return s;
-  }
-
-  double? _asDoubleOrNull(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
-  }
-
-  String _enqueteurDisplay(dynamic v) {
-    final s = _safe(v, empty: '-----'); // tu voulais "-----" pour enqueteur
-    if (s == '-----') return s;
-
-    final lower = s.toLowerCase();
-
-    // ✅ uniquement des valeurs "techniques" exactes (pas contains)
-    const badExact = {
-      'sync',
-      'synced',
-      'synchronise',
-      'synchronisé',
-      'synchronisee',
-      'synchronisée',
-      'download',
-      'downloaded'
-    };
-    if (badExact.contains(lower)) return '-----';
-
-    // ✅ si c’est juste un nombre (id), on masque
-    final onlyDigits = RegExp(r'^\d+$');
-    if (onlyDigits.hasMatch(s)) return '-----';
-
-    return s;
-  }
-
-  Future<void> _loadDownloadedSpecialLines() async {
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 6 stub ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-    // La table special_lines (GeoDNGR) n'existe pas dans sig_srm.
-    // Les lignes SRM (conduites EP, canalisations ASS, tronçons ELEC)
-    // seront affichées au Sprint 6 via displayed_points_service.dart.
-    if (mounted) {
-      setState(() {
-        _downloadedSpecialLinesPolylines = [];
-      });
-    }
-    print('[_loadDownloadedSpecialLines] stubbed for Sprint 6');
-  }
-
-  void _showChausseeDetailsSheet({
+  void _showSpecialLineDetailsSheet({
     required BuildContext context,
+    required String specialType,
     required String statut,
-    required String typeChaussee,
-    required String endroit,
-    required String codePiste,
     String? enqueteur,
     required String region,
     required String prefecture,
     required String commune,
-    required int nbPoints,
     required double distanceKm,
     required double startLat,
     required double startLng,
     required double endLat,
     required double endLng,
-  }) {
-    String safe(dynamic s) {
-      final v = (s ?? '').toString().trim();
-      if (v.isEmpty) return '----';
-      // évite "null"
-      if (v.toLowerCase() == 'null') return '----';
-      return v;
-    }
+  }) => _showSpecialLineDetailsSheetImpl(
+        this,
+        context: context,
+        specialType: specialType,
+        statut: statut,
+        enqueteur: enqueteur,
+        region: region,
+        prefecture: prefecture,
+        commune: commune,
+        distanceKm: distanceKm,
+        startLat: startLat,
+        startLng: startLng,
+        endLat: endLat,
+        endLng: endLng,
+      );
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 14,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Chaussée • ${safe(typeChaussee)}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              _detailRow('Statut', safe(statut)),
-              if (!statut.toLowerCase().contains('localement')) ...[
-                _detailRow('Région', safe(region)),
-                _detailRow('Préfecture', safe(prefecture)),
-                _detailRow('Commune', safe(commune)),
-              ],
-              _detailRow('Type', safe(typeChaussee)),
-              _detailRow(
-                'Enquêteur',
-                enqueteurDisplayByStatut(enqueteurValue: enqueteur, statut: statut),
-              ),
-              _detailRow('Endroit', safe(endroit)),
-              _detailRow('Code piste', safe(codePiste)),
-              _detailRow('Nb points', nbPoints.toString()),
-              _detailRow('Début', 'X=${startLng.toStringAsFixed(6)} • Y=${startLat.toStringAsFixed(6)}'),
-              _detailRow('Fin', 'X=${endLng.toStringAsFixed(6)} • Y=${endLat.toStringAsFixed(6)}'),
-              _detailRow('Distance', '${distanceKm.toStringAsFixed(2)} km'),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Fermer'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showSpecialLineDetailsSheet({
+  void _showLineDetailsSheet({
     required BuildContext context,
-    required String specialType, // "Bac" / "Passage Submersible"
-    required String statut,
-    String? enqueteur, // "Enregistrée localement"
-    required String region,
-    required String prefecture,
-    required String commune,
-    required double distanceKm,
-    required double startLat,
-    required double startLng,
-    required double endLat,
-    required double endLng,
-  }) {
-    String safe(dynamic s) {
-      final v = (s ?? '').toString().trim();
-      if (v.isEmpty || v.toLowerCase() == 'null') return '----';
-      return v;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 14,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                safe(specialType),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              _detailRow('Statut', safe(statut)),
-              _detailRow(
-                'Enquêteur',
-                enqueteurDisplayByStatut(enqueteurValue: enqueteur, statut: statut),
-              ),
-              if (!statut.toLowerCase().contains('localement')) ...[
-                _detailRow('Région', safe(region)),
-                _detailRow('Préfecture', safe(prefecture)),
-                _detailRow('Commune', safe(commune)),
-              ],
-              _detailRow('Début', 'X=${startLng.toStringAsFixed(6)} • Y=${startLat.toStringAsFixed(6)}'),
-              _detailRow('Fin', 'X=${endLng.toStringAsFixed(6)} • Y=${endLat.toStringAsFixed(6)}'),
-              _detailRow('Distance', '${distanceKm.toStringAsFixed(2)} km'),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Fermer'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showPisteDetailsSheet({
-    required BuildContext context,
-    required String codePiste,
+    required String lineCode,
     String? enqueteur,
     required String region,
     required String prefecture,
@@ -742,129 +381,30 @@ class _HomePageState extends State<HomePage> {
     String? financement,
     String? projet,
     String? entreprise,
-  }) {
-    String safe(String? s) => (s ?? '').trim().isEmpty ? '----' : s!.trim();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (ctx) {
-        final isLocal = statut.toLowerCase().contains('localement');
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(ctx).size.height * 0.45,
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 14,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Handle ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-                Container(
-                  width: 42,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Titre ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-                Text(
-                  'Piste • ${safe(codePiste)}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-
-                // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Contenu scrollable ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _detailRow('Statut', safe(statut)),
-                        _detailRow(
-                          'Enquêteur',
-                          enqueteurDisplayByStatut(enqueteurValue: enqueteur, statut: statut),
-                        ),
-                        if (!statut.toLowerCase().contains('localement')) ...[
-                          _detailRow('Région', safe(region)),
-                          _detailRow('Préfecture', safe(prefecture)),
-                          _detailRow('Commune', safe(commune)),
-                        ],
-                        _detailRow('Nb points', nbPoints.toString()),
-                        _detailRow('Début', 'X=${startLng.toStringAsFixed(6)} • Y=${startLat.toStringAsFixed(6)}'),
-                        _detailRow('Fin', 'X=${endLng.toStringAsFixed(6)} • Y=${endLat.toStringAsFixed(6)}'),
-                        _detailRow('Distance', '${distanceKm.toStringAsFixed(2)} km'),
-                        const Divider(),
-                        _detailRow('Plateforme', safe(plateforme)),
-                        _detailRow('Relief', safe(relief)),
-                        _detailRow('Végétation', safe(vegetation)),
-                        _detailRow('Début travaux', safe(debutTravaux)),
-                        _detailRow('Fin travaux', safe(finTravaux)),
-                        _detailRow('Financement', safe(financement)),
-                        _detailRow('Projet', safe(projet)),
-                        _detailRow('Entreprise', safe(entreprise)),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Boutons fixes en bas ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-                const Divider(),
-                if (isLocal) ...[
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add_road, size: 20),
-                      label: const Text('Continuer la collecte'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _continuePisteCollection(
-                          codePiste: codePiste,
-                          startLat: startLat,
-                          startLng: startLng,
-                          endLat: endLat,
-                          endLng: endLng,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Fermer'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  }) => _showLineDetailsSheetImpl(
+        this,
+        context: context,
+        lineCode: lineCode,
+        enqueteur: enqueteur,
+        region: region,
+        prefecture: prefecture,
+        commune: commune,
+        statut: statut,
+        nbPoints: nbPoints,
+        startLat: startLat,
+        startLng: startLng,
+        endLat: endLat,
+        endLng: endLng,
+        distanceKm: distanceKm,
+        plateforme: plateforme,
+        relief: relief,
+        vegetation: vegetation,
+        debutTravaux: debutTravaux,
+        finTravaux: finTravaux,
+        financement: financement,
+        projet: projet,
+        entreprise: entreprise,
+      );
 
   void _showPointDetailsSheet({
     required BuildContext context,
@@ -874,269 +414,30 @@ class _HomePageState extends State<HomePage> {
     required String prefecture,
     required String commune,
     required String enqueteur,
-    required String codePiste,
+    required String lineCode,
     required double lat,
     required double lng,
     required String statut,
-  }) {
-    String safe(String s) => s.trim().isEmpty ? '----' : s.trim();
+  }) => _showPointDetailsSheetImpl(
+        this,
+        context: context,
+        type: type,
+        name: name,
+        region: region,
+        prefecture: prefecture,
+        commune: commune,
+        enqueteur: enqueteur,
+        lineCode: lineCode,
+        lat: lat,
+        lng: lng,
+        statut: statut,
+      );
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 14,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '$type • ${safe(name)}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              _detailRow('Statut', safe(statut)),
-              if (!statut.toLowerCase().contains('localement')) ...[
-                _detailRow('Région', safe(region)),
-                _detailRow('Préfecture', safe(prefecture)),
-                _detailRow('Commune', safe(commune)),
-              ],
-              _detailRow(
-                'Enquêteur',
-                enqueteurDisplayByStatut(enqueteurValue: enqueteur, statut: statut),
-              ),
-              _detailRow('Code piste', safe(codePiste)),
-              _detailRow('Coordonnées', 'X=${lng.toStringAsFixed(6)}  •  Y=${lat.toStringAsFixed(6)}'),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Fermer'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  void _handlePolylineTap(Object? hitValue) =>
+      _handlePolylineTapImpl(this, hitValue);
 
-  void _handlePolylineTap(Object? hitValue) {
-    if (hitValue == null || hitValue is! PolylineTapData) return;
-
-    final tapData = hitValue;
-    final type = tapData.type;
-    final data = tapData.data;
-
-    print('[Polyline] tapped: type=$type');
-
-    switch (type) {
-      case 'piste_local':
-      case 'piste_downloaded':
-        _showPisteDetailsSheet(
-          context: context,
-          codePiste: (data['code_piste'] ?? '----').toString(),
-          statut: type == 'piste_local' ? ((data['synced'].toString() == '1') ? 'Synchronisée' : 'Enregistrée localement') : 'Sauvegardée (downloaded)',
-          region: type == 'piste_downloaded'
-              ? (data['region_name'] ?? '----').toString()
-              : (data['region_name'] ?? '').toString().isNotEmpty
-                  ? (data['region_name']).toString()
-                  : _regionNom,
-          prefecture: type == 'piste_downloaded'
-              ? (data['prefecture_name'] ?? '----').toString()
-              : (data['prefecture_name'] ?? '').toString().isNotEmpty
-                  ? (data['prefecture_name']).toString()
-                  : _prefectureNom,
-          commune: type == 'piste_downloaded'
-              ? (data['commune_name'] ?? '----').toString()
-              : (data['commune_name'] ?? '').toString().isNotEmpty
-                  ? (data['commune_name']).toString()
-                  : _communeNom,
-          enqueteur: (data['enqueteur'] ?? '').toString(),
-          nbPoints: (data['nb_points'] as int?) ?? 0,
-          distanceKm: (data['distance_km'] as num?)?.toDouble() ?? 0.0,
-          startLat: (data['start_lat'] as num).toDouble(),
-          startLng: (data['start_lng'] as num).toDouble(),
-          endLat: (data['end_lat'] as num).toDouble(),
-          endLng: (data['end_lng'] as num).toDouble(),
-          plateforme: (data['plateforme'] ?? '----').toString(),
-          relief: (data['relief'] ?? '----').toString(),
-          vegetation: (data['vegetation'] ?? '----').toString(),
-          debutTravaux: (data['debut_travaux'] ?? '----').toString(),
-          finTravaux: (data['fin_travaux'] ?? '----').toString(),
-          financement: (data['financement'] ?? '----').toString(),
-          projet: (data['projet'] ?? '----').toString(),
-          entreprise: (data['entreprise'] ?? '----').toString(),
-        );
-        break;
-
-      case 'chaussee_local':
-      case 'chaussee_downloaded':
-        _showChausseeDetailsSheet(
-          context: context,
-          statut: type == 'chaussee_local' ? ((data['synced'].toString() == '1') ? 'Synchronisée' : 'Enregistrée localement') : 'Sauvegardée (downloaded)',
-          typeChaussee: (data['type_chaussee'] ?? '----').toString(),
-          endroit: (data['endroit'] ?? '----').toString(),
-          codePiste: (data['code_piste'] ?? '----').toString(),
-          region: type == 'chaussee_downloaded'
-              ? (data['region_name'] ?? '----').toString()
-              : (data['region_name'] ?? '').toString().isNotEmpty
-                  ? (data['region_name']).toString()
-                  : _regionNom,
-          prefecture: type == 'chaussee_downloaded'
-              ? (data['prefecture_name'] ?? '----').toString()
-              : (data['prefecture_name'] ?? '').toString().isNotEmpty
-                  ? (data['prefecture_name']).toString()
-                  : _prefectureNom,
-          commune: type == 'chaussee_downloaded'
-              ? (data['commune_name'] ?? '----').toString()
-              : (data['commune_name'] ?? '').toString().isNotEmpty
-                  ? (data['commune_name']).toString()
-                  : _communeNom,
-          enqueteur: (data['enqueteur'] ?? '').toString(),
-          nbPoints: (data['nb_points'] as int?) ?? 0,
-          distanceKm: (data['distance_km'] as num?)?.toDouble() ?? 0.0,
-          startLat: (data['start_lat'] as num).toDouble(),
-          startLng: (data['start_lng'] as num).toDouble(),
-          endLat: (data['end_lat'] as num).toDouble(),
-          endLng: (data['end_lng'] as num).toDouble(),
-        );
-        break;
-
-      case 'special_local':
-      case 'special_downloaded':
-        _showSpecialLineDetailsSheet(
-          context: context,
-          specialType: (data['special_type'] ?? '----').toString(),
-          statut: type == 'special_local' ? ((data['synced'].toString() == '1') ? 'Synchronisée' : 'Enregistrée localement') : 'Sauvegardée (downloaded)',
-          region: type == 'special_downloaded'
-              ? (data['region_name'] ?? '----').toString()
-              : (data['region_name'] ?? '').toString().isNotEmpty
-                  ? (data['region_name']).toString()
-                  : _regionNom,
-          prefecture: type == 'special_downloaded'
-              ? (data['prefecture_name'] ?? '----').toString()
-              : (data['prefecture_name'] ?? '').toString().isNotEmpty
-                  ? (data['prefecture_name']).toString()
-                  : _prefectureNom,
-          commune: type == 'special_downloaded'
-              ? (data['commune_name'] ?? '----').toString()
-              : (data['commune_name'] ?? '').toString().isNotEmpty
-                  ? (data['commune_name']).toString()
-                  : _communeNom,
-          enqueteur: (data['enqueteur'] ?? '').toString(),
-          distanceKm: (data['distance_km'] as num?)?.toDouble() ?? 0.0,
-          startLat: (data['start_lat'] as num).toDouble(),
-          startLng: (data['start_lng'] as num).toDouble(),
-          endLat: (data['end_lat'] as num).toDouble(),
-          endLng: (data['end_lng'] as num).toDouble(),
-        );
-        break;
-    }
-  }
-
-  void _handlePolygonTap(Object? hitValue) {
-    if (hitValue == null || hitValue is! PolygonTapData) return;
-    final data = hitValue;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 14,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Zone de Plaine • ${data.nom}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              _detailRow('Statut', data.statut),
-              _detailRow('Code piste', data.codePiste),
-              // Région/Préfecture/Commune: visible seulement si downloaded ou synced
-              if (data.downloaded || data.synced) ...[
-                _detailRow('Région', data.regionName.isEmpty ? '----' : data.regionName),
-                _detailRow('Préfecture', data.prefectureName.isEmpty ? '----' : data.prefectureName),
-                _detailRow('Commune', data.communeName.isEmpty ? '----' : data.communeName),
-              ],
-              _detailRow('Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
-              _detailRow('Sommets', '${data.nbSommets} points'),
-              _detailRow(
-                  'Enquêteur',
-                  enqueteurDisplayByStatut(
-                    enqueteurValue: data.enqueteur,
-                    statut: data.statut,
-                  )),
-              _detailRow('Date création', data.dateCreation.length > 10 ? data.dateCreation.substring(0, 10) : data.dateCreation),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Fermer'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  String _sanitizeEnqueteur(String? v) {
-    if (v == null) return '----';
-
-    final s = v.trim();
-    if (s.isEmpty) return '----';
-
-    final lower = s.toLowerCase();
-
-    // valeurs techniques à masquer
-    if (lower == '0' || lower == '1') return '----';
-    if (lower.contains('sync')) return '----'; // sync, synced, date_sync...
-    if (lower.contains('download')) return '----'; // downloaded...
-
-    return s;
-  }
+  void _handlePolygonTap(Object? hitValue) =>
+      _handlePolygonTapImpl(this, hitValue);
 
   Widget _detailRow(String label, String value) {
     return Padding(
@@ -1157,58 +458,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _loadAdminNamesOffline() async {
-    // Sprint 4: SRM n'a pas de région/préfecture/commune par utilisateur.
-    // On affiche la région du projet actif (ApiService.currentProjetRegion).
-    try {
-      final projetRegion = (ApiService.currentProjetRegion ?? '').toString().trim();
-      final projetNom = (ApiService.currentProjetNom ?? '').toString().trim();
+  Future<void> _loadAdminNamesOffline() =>
+      _loadAdminNamesOfflineImpl(this);
 
-      if (!mounted) return;
-      setState(() {
-        _regionNom = projetRegion.isNotEmpty ? projetRegion : '----';
-        _prefectureNom = projetNom.isNotEmpty ? projetNom : '----';
-        _communeNom = '----';
-      });
-    } catch (_) {
-      // on laisse ----
-    }
-  }
+  void _suspendAutoCenterFor(Duration d) =>
+      _suspendAutoCenterForImpl(this, d);
 
-  void _suspendAutoCenterFor(Duration d) {
-    _suspendAutoCenterUntil = DateTime.now().add(d);
-    // Debug
-    // print('ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â auto-center suspendu jusqu\'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  $_suspendAutoCenterUntil');
-  }
+  void _startOnlineWatcher() =>
+      _startOnlineWatcherImpl(this);
 
-  void _startOnlineWatcher() {
-    // On annule un éventuel ancien timer
-    _onlineWatchTimer?.cancel();
-
-    // Premier check immédiat
-    _checkOnlineStatus();
-
-    // Puis check toutes les 10 secondes (ajuste si tu veux)
-    _onlineWatchTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _checkOnlineStatus(),
-    );
-  }
-// === AJOUTEZ CES MÉTHODES ===
-
-// Méthode utilitaire pour déterminer le type de chaussée depuis sa couleur
-  String _getChausseeTypeFromColor(Color color) {
-    if (color == Colors.black) return 'bitume';
-    if (color.value == const Color(0xFFD2691E).value) return 'terre';
-    if (color.value == Colors.red.shade700.value) return 'latérite';
-    if (color.value == Colors.yellow.shade700.value) return 'bouwal';
-    if (color.value == Colors.orange.shade700.value) return 'déviation';
-    if (color == Colors.deepPurple) return 'coupure';
-    if (color == Colors.teal) return 'submersible';
-    if (color.value == Colors.green.shade800.value) return 'col';
-    if (color == Colors.blueGrey) return 'autre';
-    return 'inconnu';
-  }
 
   bool _isSrmTableVisible(String tableName) {
     final entityKey = 'srm_$tableName';
@@ -1231,34 +489,14 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
-// Méthode pour filtrer les polylines selon la légende
   List<Polyline> _getFilteredPolylines() {
     final List<Polyline> filtered = List<Polyline>.from(collectedPolylines);
-    if (_legendVisibility['pistes'] == true) {
-      filtered.addAll(_finishedPistes);
+    if (_legendVisibility['lines'] == true) {
+      filtered.addAll(_finishedLines);
     }
 
-    // 2. Pistes téléchargées - selon légende
-    if (_legendVisibility['pistes'] == true && _showDownloadedPistes) {
-      filtered.addAll(_downloadedPistesPolylines);
-    }
-
-    // 3. Chaussées finies (selon type)
-    for (final chaussee in _finishedChaussees) {
-      final type = _getChausseeTypeFromColor(chaussee.color);
-      if (_legendVisibility['chaussee_$type'] == true) {
-        filtered.add(chaussee);
-      }
-    }
-
-    // 4. Chaussées téléchargées (selon type)
-    if (_showDownloadedChaussees) {
-      for (final chaussee in _downloadedChausseesPolylines) {
-        final type = _getChausseeTypeFromColor(chaussee.color);
-        if (_legendVisibility['chaussee_$type'] == true) {
-          filtered.add(chaussee);
-        }
-      }
+    if (_legendVisibility['lines'] == true && _showDownloadedLines) {
+      filtered.addAll(_downloadedLinesPolylines);
     }
 
     final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
@@ -1325,7 +563,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // Ligne/polygone spécial en cours
     if (homeController.specialCollection != null) {
       final specialPoints = homeController.specialCollection!.points;
       if (specialPoints.length > 1) {
@@ -1366,7 +603,6 @@ class _HomePageState extends State<HomePage> {
     return filtered;
   }
 
-// Méthode pour filtrer les markers selon la légende
   List<Marker> _getFilteredMarkers() {
     final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
     final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
@@ -1404,19 +640,17 @@ class _HomePageState extends State<HomePage> {
       return combined.toList();
     }
 
-    // === Mode normal : tout afficher selon visibilité entité ou métier ===
     for (final entry in _displayedPointsByTable.entries) {
       final tableName = entry.key;
       final srmKey = 'srm_$tableName';
-      final legacyKey = 'point_$tableName';
+      final pointKey = 'point_$tableName';
       final isVisible = _legendVisibility.containsKey(srmKey)
           ? _isSrmTableVisible(tableName)
-          : (_legendVisibility[legacyKey] ?? true);
+          : (_legendVisibility[pointKey] ?? true);
       if (!isVisible) continue;
       filtered.addAll(entry.value);
     }
 
-    // === Points téléchargés (GeoDNGR) ===
     if (_showDownloadedPoints) {
       for (final entry in _downloadedPointsByTable.entries) {
         final subKey = 'point_${entry.key}';
@@ -1429,44 +663,16 @@ class _HomePageState extends State<HomePage> {
     return filtered;
   }
 
-  /// Détermine le nom de table à partir de la couleur du marker
-  String? _getTableFromMarkerColor(Marker marker) {
-    // Le child du Marker est un GestureDetector > Container avec couleur
-    // On compare avec les couleurs connues de CustomMarkerIcons
-    for (final entry in CustomMarkerIcons.iconConfig.entries) {
-      // On ne peut pas facilement extraire la couleur du widget,
-      // donc on utilise _downloadedPointsByTable si disponible
-    }
-    return null;
-  }
-
-// Méthode pour mettre à jour la visibilité depuis la légende
   void _updateVisibilityFromLegend(Map<String, bool> visibility) {
     setState(() {
       _legendVisibility = visibility;
       _showDownloadedPoints = visibility['points'] ?? true;
-      _showDownloadedPistes = visibility['pistes'] ?? true;
+      _showDownloadedLines = visibility['lines'] ?? true;
 
       // Bac + Passage submersible
       final showBac = visibility['bac'] ?? true;
       final showPassage = visibility['passage_submersible'] ?? true;
       _showDownloadedSpecialLines = showBac || showPassage;
-
-      // Chaussées : parent + sous-types
-      final chausseesParent = visibility['chaussees'] ?? true;
-      final hasVisibleChaussee = chausseesParent &&
-          [
-            'bitume',
-            'terre',
-            'latérite',
-            'bouwal',
-            'déviation',
-            'coupure',
-            'submersible',
-            'col',
-            'autre',
-          ].any((type) => visibility['chaussee_$type'] ?? true);
-      _showDownloadedChaussees = hasVisibleChaussee;
 
       // Zone de plaine
       if (visibility['zone_plaine'] == false) {
@@ -1477,983 +683,67 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // APRÈS (code corrigé)
-  Future<void> _checkOnlineStatus() async {
-    final reachable = await _isApiReachableForStatus();
-    if (!mounted) return;
+  Future<void> _checkOnlineStatus() =>
+      _checkOnlineStatusImpl(this);
 
-    final wasOffline = !_isOnlineDynamic;
+  Future<void> _loadLastSyncTime() =>
+      _loadLastSyncTimeImpl(this);
 
-    if (reachable != _isOnlineDynamic) {
-      setState(() {
-        _isOnlineDynamic = reachable;
-      });
+  String _formatTimeHHmm(DateTime dt) =>
+      _formatTimeHHmmImpl(dt);
 
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOUVEAU : Quand on passe de offline ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ online,
-      // restaurer ApiService.userId depuis la DB locale
-      if (wasOffline && reachable) {
-        await _restoreApiServiceFromLocal();
-      }
-    }
-  }
+  Future<void> _loadDownloadedLineOverlays() =>
+      _loadDownloadedLineOverlaysImpl(this);
 
-  /// Restaure les champs statiques d'ApiService depuis SQLite
-  /// (nécessaire après un login offline suivi d'un retour de connectivité)
-  Future<void> _restoreApiServiceFromLocal() async {
-    // Sprint 4: SRM utilise utilisateur_local (id_user, login, role).
-    // Sprint 6 fix: restaure currentProjetId depuis SQLite
-    // pour que id_projet ne soit pas null en mode offline.
-    try {
-      if (ApiService.userId != null) return; // déjà rempli
 
-      final user = await DatabaseHelper().getCurrentUserSrm();
-      if (user == null) return;
+  double polylineDistanceKm(List<LatLng> pts) =>
+      _polylineDistanceKmImpl(pts);
 
-      ApiService.userId    = user['id_user'] is int
-          ? user['id_user']
-          : int.tryParse(user['id_user']?.toString() ?? '');
-      ApiService.userRole  = user['role']?.toString();
-      ApiService.userLogin = user['login']?.toString();
-      ApiService.nomPrenom = user['nom_prenom']?.toString();
 
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ CORRECTIF : restaurer le projet actif ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-      final idProjetActif = user['id_projet_actif'];
-      if (idProjetActif != null && ApiService.currentProjetId == null) {
-        ApiService.currentProjetId = idProjetActif is int
-            ? idProjetActif
-            : int.tryParse(idProjetActif.toString());
 
-        // Charger les infos du projet depuis projet_local
-        if (ApiService.currentProjetId != null) {
-          final projet = await DatabaseHelper()
-              .getProjetLocal(ApiService.currentProjetId!);
-          if (projet != null) {
-            ApiService.currentProjetNom    = projet['nom']?.toString();
-            ApiService.currentProjetStatut = projet['statut']?.toString();
-            ApiService.currentProjetMetier = projet['metier']?.toString();
-            ApiService.currentProjetRegion = projet['region']?.toString();
-          }
-        }
-      }
-
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ CORRECTIF : restaurer la mission active depuis mission_local ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-      print('[SRM] ApiService restored from SQLite: '
-          'userId=${ApiService.userId} '
-          'projetId=${ApiService.currentProjetId} '
-          'role=${ApiService.userRole}');
-    } catch (e) {
-      print('[SRM] Error restoring ApiService from SQLite: $e');
-    }
-  }
-
-  Future<bool> _isApiReachableForStatus() async {
-    try {
-      final uri = Uri.parse(ApiService.baseUrl);
-      final host = uri.host;
-      final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
-
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: const Duration(seconds: 1),
-      );
-      socket.destroy();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _loadLastSyncTime() async {
-    final dt = await DatabaseHelper().getLastSyncTime();
-    if (!mounted) return;
-    setState(() {
-      _lastSyncTimeText = dt != null ? _formatTimeHHmm(dt) : null;
-    });
-  }
-
-  String _formatTimeHHmm(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '$h:$m'; // "HH:MM"
-  }
-
-  Future<void> _loadDownloadedPisteOverlays() async {
-    print('[PISTE-DOWNLOAD] chargement des polylignes telechargees');
-    try {
-      final polylines = await _downloadedPistesService.getDownloadedPistesPolylines(
-        onTapDetails: (data) {
-          _showPisteDetailsSheet(
-            context: context,
-            codePiste: (data['code_piste'] ?? '----').toString(),
-            statut: 'Sauvegardée (downloaded)',
-            region: _regionNom,
-            prefecture: _prefectureNom,
-            commune: _communeNom,
-            nbPoints: (data['nb_points'] as int?) ?? 0,
-            distanceKm: (data['distance_km'] as num?)?.toDouble() ?? 0.0,
-            startLat: (data['start_lat'] as num).toDouble(),
-            startLng: (data['start_lng'] as num).toDouble(),
-            endLat: (data['end_lat'] as num).toDouble(),
-            endLng: (data['end_lng'] as num).toDouble(),
-          );
-        },
-      );
-
-      setState(() {
-        _downloadedPistesPolylines = polylines;
-      });
-
-      final total = collectedPolylines.length + _finishedPistes.length + _finishedChaussees.length + _downloadedPistesPolylines.length;
-
-      print('[PISTE-DOWNLOAD] ${polylines.length} polyligne(s) chargee(s)');
-      print('[PISTE-DOWNLOAD] total avant rendu: $total');
-    } catch (e) {
-      print('[PISTE-DOWNLOAD] erreur: $e');
-    }
-    print('[PISTE-DOWNLOAD] chargement termine');
-  }
-
-  LatLngBounds _boundsFor(List<LatLng> pts) {
-    // flutter_map utilise fromPoints pour créer des bounds
-    return LatLngBounds.fromPoints(pts);
-  }
-
-  double _deg2rad(double deg) => deg * (Math.pi / 180.0);
-
-  double _haversineMeters(LatLng a, LatLng b) {
-    const R = 6371000.0;
-    final dLat = _deg2rad(b.latitude - a.latitude);
-    final dLng = _deg2rad(b.longitude - a.longitude);
-
-    final lat1 = _deg2rad(a.latitude);
-    final lat2 = _deg2rad(b.latitude);
-
-    final sinDLat = Math.sin(dLat / 2);
-    final sinDLng = Math.sin(dLng / 2);
-
-    final h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-    final c = 2 * Math.asin(Math.min(1.0, Math.sqrt(h)));
-    return R * c;
-  }
-
-  double polylineDistanceKm(List<LatLng> pts) {
-    if (pts.length < 2) return 0.0;
-    double sum = 0.0;
-    for (int i = 0; i < pts.length - 1; i++) {
-      sum += _haversineMeters(pts[i], pts[i + 1]);
-    }
-    return sum / 1000.0;
-  }
-
-  Future<void> _loadDownloadedChausseeOverlays() async {
-    print('[CHAUSSEE-DOWNLOAD] chargement des polylignes telechargees');
-    try {
-      final lines = await _downloadedChausseesService.getDownloadedChausseesPolylines(
-        onTapDetails: (data) {
-          _showChausseeDetailsSheet(
-            context: context,
-            statut: 'Sauvegardée (downloaded)',
-            typeChaussee: (data['type_chaussee'] ?? '----').toString(),
-            endroit: (data['endroit'] ?? '----').toString(),
-            codePiste: (data['code_piste'] ?? '----').toString(),
-            region: _regionNom,
-            prefecture: _prefectureNom,
-            commune: _communeNom,
-            nbPoints: (data['nb_points'] as int?) ?? 0,
-            distanceKm: (data['distance_km'] as num?)?.toDouble() ?? 0.0,
-            startLat: (data['start_lat'] as num).toDouble(),
-            startLng: (data['start_lng'] as num).toDouble(),
-            endLat: (data['end_lat'] as num).toDouble(),
-            endLng: (data['end_lng'] as num).toDouble(),
-          );
-        },
-      );
-      print('[CHAUSSEE-DOWNLOAD] ${lines.length} polyligne(s) chargee(s)');
-      setState(() {
-        _downloadedChausseesPolylines = lines;
-      });
-      final total = collectedPolylines.length + _finishedPistes.length + _finishedChaussees.length + _downloadedPistesPolylines.length + _downloadedChausseesPolylines.length;
-      print('[CHAUSSEE-DOWNLOAD] total avant rendu: $total');
-    } catch (e) {
-      print('[CHAUSSEE-DOWNLOAD] erreur: $e');
-    }
-    print('[CHAUSSEE-DOWNLOAD] chargement termine');
-  }
-
-  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-// APRÈS
-// ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-  Future<void> _focusOnTarget(MapFocusTarget target) async {
-    _autoCenterDisabledByUser = true;
-
-    Polyline? focusPolyline;
-    Marker? focusMarker;
-
-    if (target.kind == 'polyline' && target.polyline != null && target.polyline!.isNotEmpty) {
-      focusPolyline = Polyline(
-        points: target.polyline!,
-        color: Colors.purpleAccent,
-        strokeWidth: 6.0,
-        pattern: StrokePattern.dashed(segments: const [
-          12,
-          6
-        ]),
-      );
-    } else if (target.kind == 'point' && target.point != null) {
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â DISTINCTION VISUELLE selon pointStyle ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-      if (target.pointStyle == 'intersection') {
-        // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-        // STYLE INTERSECTION : Cercle orange + icône X
-        // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-        focusMarker = Marker(
-          point: target.point!,
-          width: 48,
-          height: 48,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.deepOrange,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.deepOrange.withOpacity(0.5),
-                  blurRadius: 12,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-            child: const Icon(Icons.close, color: Colors.white, size: 28),
-          ),
-        );
-      } else {
-        // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-        // STYLE NORMAL (localité, école, etc.) : Cercle violet + icône location
-        // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-        focusMarker = Marker(
-          point: target.point!,
-          width: 52,
-          height: 52,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.deepPurple,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.deepPurple.withOpacity(0.5),
-                  blurRadius: 14,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: const Icon(Icons.location_on, color: Colors.white, size: 30),
-          ),
-        );
-      }
-    }
-
-    // 1) D'abord ajouter le marqueur
-    setState(() {
-      if (focusPolyline != null) _focusOverlayPolylines.add(focusPolyline);
-      if (focusMarker != null) _focusOverlayMarkers.add(focusMarker);
-    });
-
-    // 2) Attendre un frame pour que le marqueur soit rendu
-    await Future.delayed(const Duration(milliseconds: 50));
-
-    // 3) Puis bouger la caméra
-    if (_mapController != null) {
-      if (target.kind == 'point' && target.point != null) {
-        _mapController!.move(target.point!, 15);
-        _lastCameraPosition = target.point;
-      } else if (target.kind == 'polyline' && target.polyline != null && target.polyline!.isNotEmpty) {
-        final bounds = LatLngBounds.fromPoints(target.polyline!);
-        _mapController!.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(64)));
-        _lastCameraPosition = bounds.center;
-      }
-    }
-
-    // 4) Retirer après 15 secondes
-    Future.delayed(const Duration(seconds: 15), () {
-      if (!mounted) return;
-      setState(() {
-        if (focusPolyline != null) _focusOverlayPolylines.remove(focusPolyline);
-        if (focusMarker != null) _focusOverlayMarkers.remove(focusMarker);
-      });
-    });
-  }
-
-  void _toggleMapType() {
-    setState(() {
-      _isSatellite = !_isSatellite;
-    });
-  }
+  Future<void> _focusOnTarget(MapFocusTarget target) =>
+      _focusOnTargetImpl(this, target);
 
   Future<void> _refreshAllPoints() async {
-    print(
-      '[SRM-POINTS] rafraichissement manuel de tous les points',
-    );
     await _loadDisplayedPoints(); // Points locaux (rouges)
     await _loadDownloadedPoints();
-    await _loadDownloadedPisteOverlays();
-// Points téléchargés (verts)
+    await _loadDownloadedLineOverlays();
   }
 
-  Future<void> _loadDownloadedPoints() async {
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 6 stub ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-    // La table enquete_polygone (GeoDNGR) n'existe pas dans sig_srm.
-    // Les points SRM téléchargés (ep_*, ass_*, elec_*) seront chargés
-    // au Sprint 6 via displayed_points_service.dart après synchronisation.
-    if (mounted) {
-      setState(() {
-        _downloadedPointsMarkers = [];
-        _downloadedPointsByTable = {};
-      });
-    }
-    await _loadDisplayedPolygons();
-    print('[_loadDownloadedPoints] stubbed for Sprint 6');
-  }
+  Future<void> _loadDownloadedPoints() =>
+      _loadDownloadedPointsImpl(this);
 
   Future<void> _refreshAfterNavigation() async {
-    print('Refresh after navigation...');
     await _loadDisplayedSpecialLines();
-    await _refreshAllPoints(); // Seulement les lignes spéciales
+    await _refreshAllPoints();
   }
 
-  Future<void> _loadDisplayedSpecialLines() async {
-    try {
-      final srmLinesByTable = <String, List<Polyline>>{};
-      final lines = await _specialLinesService.getDisplayedSpecialLines(
-        onTapDetails: (data) {
-          final start = LatLng(
-            (data['start_lat'] as num).toDouble(),
-            (data['start_lng'] as num).toDouble(),
-          );
-          final end = LatLng(
-            (data['end_lat'] as num).toDouble(),
-            (data['end_lng'] as num).toDouble(),
-          );
-
-          final distanceKm = polylineDistanceKm([
-            start,
-            end
-          ]);
-
-          _showSpecialLineDetailsSheet(
-            context: context,
-            specialType: (data['special_type'] ?? '----').toString(),
-            statut: 'Sauvegardée (downloaded)',
-            region: (data['region_name'] ?? '').toString().isNotEmpty ? (data['region_name']).toString() : _regionNom,
-            prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty ? (data['prefecture_name']).toString() : _prefectureNom,
-            commune: (data['commune_name'] ?? '').toString().isNotEmpty ? (data['commune_name']).toString() : _communeNom,
-            enqueteur: (data['enqueteur'] ?? '').toString(),
-            distanceKm: distanceKm,
-            startLat: start.latitude,
-            startLng: start.longitude,
-            endLat: end.latitude,
-            endLng: end.longitude,
-          );
-        },
-        onPolylineCreated: (tableName, metier, polyline) {
-          srmLinesByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
-        },
-      );
-
-      setState(() {
-        _displayedSpecialLines = lines;
-        _displayedSrmLinesByTable = srmLinesByTable;
-      });
-
-      print('[SRM-LINES] ${lines.length} ligne(s) speciale(s) affichee(s)');
-    } catch (e) {
-      print('[SPECIAL] Error loading special lines: $e');
-    }
-  }
+  Future<void> _loadDisplayedSpecialLines() =>
+      _loadDisplayedSpecialLinesImpl(this);
 
   // Dans _HomePageState
   // Remplacer startSpecialLineCollection par :
-  Future<void> startSpecialCollection(
-    String type,
-  ) async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Veuillez activer le GPS",
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (homeController.hasActiveCollection) {
-      final activeType = homeController.activeCollectionType;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Veuillez mettre en pause la collecte de $activeType en cours',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    try {
-      await homeController.startSpecialCollection(
-        type,
-      );
-
-      setState(
-        () {
-          _isSpecialCollection = true;
-          _specialCollectionType = type;
-        },
-      );
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Collecte de $type démarrée',
-          ),
-          backgroundColor: Colors.purple, // Couleur différente
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
+  Future<void> startSpecialCollection(String type) =>
+      _startSpecialCollectionImpl(type);
 
   // Remplacer finishSpecialLigneCollection par :
-  Future<void> finishSpecialCollection() async {
-    // === CAS POLYGONE ===
-    if (_isPolygonCollection) {
-      final result = homeController.finishSpecialCollection();
+  Future<void> finishSpecialCollection() =>
+      _finishSpecialCollectionImpl();
 
-      if (result == null || result.points.length < 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Un polygone doit contenir au moins 3 points. (${result?.points.length ?? 0} collectés)",
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+  Future<void> cancelSpecialCollection() =>
+      _cancelSpecialCollectionImpl();
 
-      final current = homeController.userPosition;
-      final nearestPisteCode = await PisteStorageHelper().findNearestPisteCode(
-        current,
-        activePisteCode: homeController.activePisteCode,
-      );
+  Future<void> _loadDisplayedPolygons() =>
+      _loadDisplayedPolygonsImpl(this);
 
-      final formResult = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PolygonFormPage(
-            polygonPoints: result.points,
-            startTime: result.startTime,
-            endTime: result.endTime,
-            agentName: widget.agentName,
-            activePisteCode: homeController.activePisteCode,
-            nearestPisteCode: nearestPisteCode,
-            // Sprint 5 : SRM métier + type polygone
-            metier: _pendingSrmPolygoneMetier,
-            entityType: _pendingSrmPolygoneEntityType,
-          ),
-        ),
-      );
-      _pendingSrmPolygoneMetier = null;
-      _pendingSrmPolygoneEntityType = null;
-
-      if (mounted) _refreshAfterNavigation();
-
-      setState(() {
-        _isSpecialCollection = false;
-        _isPolygonCollection = false;
-        _specialCollectionType = null;
-      });
-
-      if (formResult != null) {
-        await _loadDisplayedPolygons();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Zone de Plaine enregistrée avec succès'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-      return;
-    }
-
-    // === CAS LIGNE (Bac / Passage Submersible) ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â code existant ===
-    final result = homeController.finishSpecialCollection();
-
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Une ligne doit contenir au moins 2 points."),
-        ),
-      );
-      return;
-    }
-
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â VÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rifier que le premier et dernier point sont distincts
-    if (result.points.length >= 2 && result.points.first.latitude == result.points.last.latitude && result.points.first.longitude == result.points.last.longitude) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("La ligne doit avoir un point de début et de fin différents. Veuillez vous déplacer pendant la collecte."),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      setState(() {
-        _isSpecialCollection = false;
-        _specialCollectionType = null;
-      });
-      return;
-    }
-
-    print('=== DEBUG FINISH SPECIAL ===');
-    print('Result codePiste: ${result.codePiste}');
-    print('HomeController activePisteCode: ${homeController.activePisteCode}');
-    print('Special type: $_specialCollectionType');
-    final current = homeController.userPosition;
-    final nearestPisteCode = await PisteStorageHelper().findNearestPisteCode(
-      current,
-      activePisteCode: homeController.activePisteCode,
-    );
-
-    print('[SPECIAL] Nearest piste code: $nearestPisteCode');
-
-    final formResult = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SpecialLineFormPage(
-          linePoints: result.points,
-          provisionalCode: result.codePiste ?? '',
-          startTime: result.startTime,
-          endTime: result.endTime,
-          agentName: widget.agentName,
-          specialType: _specialCollectionType!,
-          totalDistance: result.totalDistance,
-          activePisteCode: homeController.activePisteCode,
-        ),
-      ),
-    );
-    if (mounted) _refreshAfterNavigation();
-
-    setState(() {
-      _isSpecialCollection = false;
-      _specialCollectionType = null;
-    });
-
-    if (formResult != null) {
-      await _loadDisplayedSpecialLines();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Données enregistrées avec succès'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  Future<void> cancelSpecialCollection() async {
-    final wasPolygon = _isPolygonCollection;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(wasPolygon ? 'Annuler le polygone' : 'Annuler le tracé'),
-        content: Text(
-          wasPolygon
-              ? 'Voulez-vous vraiment annuler ce polygone ? Les points collectés ne seront pas enregistrés.'
-              : 'Voulez-vous vraiment annuler ce tracé ? Les points collectés ne seront pas enregistrés.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Non'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53E3E),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Oui, annuler'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    homeController.cancelSpecialCollection();
-    if (!mounted) return;
-
-    setState(() {
-      _isSpecialCollection = false;
-      _isPolygonCollection = false;
-      _specialCollectionType = null;
-      _pendingSrmPolygoneMetier = null;
-      _pendingSrmPolygoneEntityType = null;
-      homeController.collectedPolylines.clear();
-      collectedPolylines.clear();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(wasPolygon ? 'Polygone annulé' : 'Tracé annulé'),
-        backgroundColor: const Color(0xFFE53E3E),
-      ),
-    );
-  }
-
-  Future<void> _loadDisplayedPolygons() async {
-    try {
-      final db = await DatabaseHelper().database;
-      final loginId = await DatabaseHelper().resolveLoginId();
-      final List<Polygon> mapPolygons = [];
-
-      final legacyTables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        ['enquete_polygone'],
-      );
-
-      if (legacyTables.isNotEmpty) {
-        final legacyPolygons = await db.query(
-          'enquete_polygone',
-          where: loginId == null ? null : '(login_id = ? OR saved_by_user_id = ?)',
-          whereArgs: loginId == null ? null : [loginId, loginId],
-        );
-
-        for (final poly in legacyPolygons) {
-          final points = _extractPolygonPoints(poly['points_json']);
-          if (points.length < 3) continue;
-
-          mapPolygons.add(
-            Polygon(
-              points: points,
-              color: const Color(0xFF4CAF50).withOpacity(0.3),
-              borderColor: const Color(0xFF2E7D32),
-              borderStrokeWidth: 2.0,
-              isFilled: true,
-              hitValue: PolygonTapData(
-                nom: poly['nom']?.toString() ?? '----',
-                codePiste: poly['code_piste']?.toString() ?? '----',
-                superficie:
-                    (poly['superficie_en_ha'] as num?)?.toDouble() ?? 0.0,
-                nbSommets: points.length,
-                enqueteur: poly['enqueteur']?.toString() ?? '',
-                dateCreation: poly['date_creation']?.toString() ?? '----',
-                synced: poly['synced'] == 1,
-                downloaded: poly['downloaded'] == 1,
-                regionName: poly['region_name']?.toString() ?? '',
-                prefectureName: poly['prefecture_name']?.toString() ?? '',
-                communeName: poly['commune_name']?.toString() ?? '',
-              ),
-            ),
-          );
-        }
-      }
-
-      final Map<String, List<Polygon>> srmPolygonsByTable = {};
-
-      for (final metier in SrmConfig.getMetiers()) {
-        for (final entity in SrmConfig.getPolygonEntities(metier)) {
-          final tableName = SrmConfig.getTableName(metier, entity);
-          if (tableName == null || tableName.isEmpty) continue;
-
-          try {
-            final columns = await db.rawQuery('PRAGMA table_info($tableName)');
-            final availableColumns = columns
-                .map((row) => (row['name'] ?? '').toString())
-                .where((name) => name.isNotEmpty)
-                .toSet();
-
-            final filters = <String>[];
-            final args = <dynamic>[];
-
-            if (ApiService.currentProjetId != null &&
-                availableColumns.contains('id_projet')) {
-              filters.add('id_projet = ?');
-              args.add(ApiService.currentProjetId);
-            } else if (loginId != null) {
-              for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
-                if (availableColumns.contains(column)) {
-                  filters.add('$column = ?');
-                  args.add(loginId);
-                }
-              }
-            }
-
-            final rows = await db.query(
-              tableName,
-              where: filters.isEmpty ? null : filters.join(' OR '),
-              whereArgs: args.isEmpty ? null : args,
-            );
-
-            for (final poly in rows) {
-              final points = _extractPolygonPoints(poly['points_json']);
-              if (points.length < 3) continue;
-
-              final polygon = Polygon(
-                points: points,
-                color: Color(SrmConfig.getMetierColor(metier)).withOpacity(0.25),
-                borderColor: Color(SrmConfig.getMetierColor(metier)),
-                borderStrokeWidth: 2.0,
-                isFilled: true,
-                hitValue: PolygonTapData(
-                  nom: poly['nom']?.toString() ??
-                      poly['ep_num']?.toString() ??
-                      entity,
-                  codePiste: poly['code_piste']?.toString() ?? '----',
-                  superficie:
-                      (poly['superficie_ha'] as num?)?.toDouble() ??
-                          (poly['superficie_en_ha'] as num?)?.toDouble() ??
-                          0.0,
-                  nbSommets: points.length,
-                  enqueteur: poly['enqueteur']?.toString() ??
-                      ApiService.nomPrenom ??
-                      '',
-                  dateCreation: poly['date_collecte']?.toString() ??
-                      poly['date_creation']?.toString() ??
-                      '----',
-                  synced: poly['synced'] == 1,
-                  downloaded: poly['downloaded'] == 1,
-                  regionName: poly['region_name']?.toString() ?? '',
-                  prefectureName: poly['prefecture_name']?.toString() ?? '',
-                  communeName: poly['commune_name']?.toString() ?? '',
-                ),
-              );
-              srmPolygonsByTable.putIfAbsent(tableName, () => []).add(polygon);
-              mapPolygons.add(polygon);
-            }
-          } catch (e) {
-            print('[POLYGONE] Error loading SRM polygon $tableName: $e');
-          }
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _displayedPolygons = mapPolygons;
-          _displayedSrmPolygonsByTable = srmPolygonsByTable;
-        });
-        print('[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
-      }
-    } catch (e) {
-      print('[POLYGONE] Error loading polygons: $e');
-    }
-  }
-
-  List<LatLng> _extractPolygonPoints(dynamic rawPoints) {
-    if (rawPoints == null) return [];
-
-    try {
-      final dynamic decoded =
-          rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
-      if (decoded is! List) return [];
-
-      final points = <LatLng>[];
-      for (final item in decoded) {
-        if (item is List && item.length >= 2) {
-          final lng = item[0];
-          final lat = item[1];
-          if (lng is num && lat is num) {
-            points.add(LatLng(lat.toDouble(), lng.toDouble()));
-          }
-        } else if (item is Map) {
-          final lat = item['lat'] ?? item['latitude'];
-          final lng = item['lon'] ?? item['lng'] ?? item['longitude'];
-          if (lat is num && lng is num) {
-            points.add(LatLng(lat.toDouble(), lng.toDouble()));
-          }
-        }
-      }
-
-      if (points.length >= 2 && points.first == points.last) {
-        return points.sublist(0, points.length - 1);
-      }
-      return points;
-    } catch (_) {
-      return [];
-    }
-  }
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 6 stub ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-    // La table enquete_polygone (GeoDNGR) n'existe pas dans sig_srm.
-    // Les polygones SRM (ep_planche, ep_regard_ep...) seront affichés au Sprint 6
-    // via displayed_points_service.dart après la synchronisation.
+  bool _containsPolygonPreview(
+    List<Polygon> polygons,
+    List<LatLng> previewPoints,
+  ) =>
+      _containsPolygonPreviewImpl(polygons, previewPoints);
 
 
-  StrokePattern? getChausseePattern(String type) {
-    switch (type.toLowerCase()) {
-      case 'asphalte':
-      case 'bitume':
-        return null;
-      case 'terre':
-        return StrokePattern.dashed(segments: const [
-          8,
-          4,
-          20,
-          4
-        ]);
-      case 'latérite':
-        return StrokePattern.dashed(segments: const [
-          15,
-          8
-        ]);
-      case 'bouwal':
-      case 'bowal':
-        return StrokePattern.dashed(segments: const [
-          12,
-          6
-        ]);
-      case 'déviation':
-      case 'deviation':
-        return StrokePattern.dashed(segments: const [
-          15,
-          5,
-          5,
-          5
-        ]);
-      case 'coupure':
-        return const StrokePattern.dotted(spacingFactor: 1.2);
-      case 'submersible':
-        return StrokePattern.dashed(segments: const [
-          6,
-          3,
-          6,
-          3
-        ]);
-      case 'col':
-        return StrokePattern.dashed(segments: const [
-          20,
-          5
-        ]);
-      case 'béton':
-        return const StrokePattern.dotted(spacingFactor: 1.5);
-      case 'pavée':
-        return StrokePattern.dashed(segments: const [
-          10,
-          5
-        ]);
-      default:
-        return null;
-    }
-  }
-
-  Future<void> _loadDisplayedChausseeOverlays() async {
-    try {
-      final storageHelper = PisteStorageHelper();
-      final rows = await storageHelper.loadDisplayedChausseeMaps();
-
-      final displayedChaussees = <Polyline>[];
-
-      for (final row in rows) {
-        final typeChaussee = (row['type_chaussee'] ?? '').toString();
-        final endroit = (row['endroit'] ?? '').toString();
-        final codePiste = (row['code_piste'] ?? '').toString();
-
-        final pointsData = jsonDecode(row['points_json'] as String) as List;
-        final pts = <LatLng>[];
-        for (final p in pointsData) {
-          final lat = p['lat'] as double?;
-          final lng = p['lng'] as double?;
-          if (lat != null && lng != null) pts.add(LatLng(lat, lng));
-        }
-        if (pts.length < 2) continue;
-
-        final distanceKm = polylineDistanceKm(pts);
-
-        // Lookup synced/region dans la vraie table chaussees
-        String chSynced = '0';
-        String chRegion = '';
-        String chPrefecture = '';
-        String chCommune = '';
-        String chEnqueteur = '';
-        try {
-          final chDb = await PisteStorageHelper().database;
-          final chRows = await chDb.query(
-            'chaussees',
-            columns: [
-              'synced',
-              'region_name',
-              'prefecture_name',
-              'commune_name',
-              'user_login',
-            ],
-            where: 'code_piste = ? AND synced = 1',
-            whereArgs: [
-              codePiste
-            ],
-            limit: 1,
-          );
-          if (chRows.isNotEmpty) {
-            chSynced = '1';
-            chRegion = (chRows.first['region_name'] ?? '').toString();
-            chPrefecture = (chRows.first['prefecture_name'] ?? '').toString();
-            chCommune = (chRows.first['commune_name'] ?? '').toString();
-            chEnqueteur = (chRows.first['user_login'] ?? '').toString();
-          }
-        } catch (_) {}
-
-        displayedChaussees.add(
-          Polyline(
-            points: pts,
-            color: storageHelper.getChausseeColor(typeChaussee),
-            strokeWidth: (row['width'] as int).toDouble(),
-            pattern: storageHelper.getChausseePattern(typeChaussee) ?? const StrokePattern.solid(),
-            hitValue: PolylineTapData(
-              type: 'chaussee_local',
-              data: {
-                'type_chaussee': typeChaussee,
-                'endroit': endroit,
-                'code_piste': codePiste,
-                'nb_points': pts.length,
-                'distance_km': distanceKm,
-                'start_lat': pts.first.latitude,
-                'start_lng': pts.first.longitude,
-                'end_lat': pts.last.latitude,
-                'end_lng': pts.last.longitude,
-                'synced': chSynced,
-                'region_name': chRegion,
-                'prefecture_name': chPrefecture,
-                'commune_name': chCommune,
-                'enqueteur': chEnqueteur,
-              },
-            ),
-          ),
-        );
-      }
-
-      setState(() {
-        _finishedChaussees = displayedChaussees;
-      });
-      print('[CHAUSSEE-OVERLAY] ${displayedChaussees.length} chaussee(s) rechargee(s)');
-    } catch (e) {
-      print('[CHAUSSEE-OVERLAY] erreur rechargement: $e');
-    }
-  }
-
-  Future<String> generateCodePiste() async {
+  Future<String> generateLineCode() async {
     // horodatage YYYYMMDDhhmmssSSS
     final now = DateTime.now();
     final ts = '${now.year}'
@@ -2464,2216 +754,94 @@ class _HomePageState extends State<HomePage> {
         '${now.second.toString().padLeft(2, '0')}'
         '${now.millisecond.toString().padLeft(3, '0')}';
 
-    // helper: convertir n’importe quoi en int (int/string) avec 0 par défaut
-    int toInt(dynamic v) {
-      if (v == null) return 0;
-      if (v is int) return v;
-      if (v is String) return int.tryParse(v) ?? 0;
-      return 0;
-    }
-
     // Sprint 4: SRM utilise id_projet, id_mission, id_agent au lieu de commune/prefecture/region.
     final projetId = ApiService.currentProjetId ?? 0;
     final agentId = ApiService.userId ?? 0;
 
-    final code = 'Piste_${projetId}_${agentId}_$ts';
-    print('[PISTE] Generated code (IDs): $code');
+    final code = 'Line_${projetId}_${agentId}_$ts';
     return code;
   }
 
-  // AJOUTEZ CETTE MÉTHODE DANS _HomePageState
-  /*void _setupRefreshListener() {
-    // Rafraîchir périodiquement toutes les 2 secondes
-    Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (mounted) {
-        _loadDisplayedPoints();
-        print('[SRM-POINTS] rafraichissement automatique des points');
-      }
-    });
-  }*/
+  Future<void> _loadDisplayedPoints() =>
+      _loadDisplayedPointsImpl(this);
 
-  Future<void> _loadDisplayedPoints() async {
-    print(
-      '🛑 _loadDisplayedPoints appelée par:',
-    );
-    print(
-      StackTrace.current
-          .toString()
-          .split(
-            '\n',
-          )
-          .take(
-            3,
-          )
-          .join(
-            '\n',
-          ),
-    );
-    print(
-      '---',
-    );
+  Future<void> _loadPointCountsByTable() =>
+      _loadPointCountsByTableImpl(this);
 
-    try {
-      final Map<String, List<Marker>> callbackByTable = {};
-      final Map<String, List<Marker>> anomalieByTable = {};
-      final Map<String, List<Marker>> incompletByTable = {};
-      final Map<String, int> anomalieCounts = {};
-      final Map<String, int> incompletCounts = {};
-      final markers = await _pointsService.getDisplayedPointsMarkers(
-        onTapDetails: (data) {
-          _suspendAutoCenterFor(const Duration(seconds: 10));
-          _showPointDetailsSheet(
-            context: context,
-            type: (data['type'] ?? 'Point').toString(),
-            name: (data['name'] ?? 'Sans nom').toString(),
-            region: (data['region_name'] ?? '').toString().isNotEmpty ? (data['region_name']).toString() : _regionNom,
-            prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty ? (data['prefecture_name']).toString() : _prefectureNom,
-            commune: (data['commune_name'] ?? '').toString().isNotEmpty ? (data['commune_name']).toString() : _communeNom,
-            enqueteur: (data['enqueteur'] ?? '').toString(),
-            codePiste: (data['code_piste'] ?? '').toString(),
-            lat: (data['lat'] as num).toDouble(),
-            lng: (data['lng'] as num).toDouble(),
-            statut: (data['synced'].toString() == '1') ? 'Synchronisée' : 'Enregistrée localement',
-          );
-        },
-        onMarkerCreated: (tableName, marker, {bool hasAnomalie = false, bool hasIncomplet = false}) {
-          callbackByTable.putIfAbsent(tableName, () => []);
-          callbackByTable[tableName]!.add(marker);
-          if (hasAnomalie) {
-            anomalieByTable.putIfAbsent(tableName, () => []).add(marker);
-          }
-          if (hasIncomplet) {
-            incompletByTable.putIfAbsent(tableName, () => []).add(marker);
-          }
-        },
-        onAnomalieDetected: (tableName, hasAnomalie) {
-          if (hasAnomalie) {
-            anomalieCounts.putIfAbsent(tableName, () => 0);
-            anomalieCounts[tableName] = (anomalieCounts[tableName] ?? 0) + 1;
-          }
-        },
-        onIncompletDetected: (tableName, hasIncomplet) {
-          if (hasIncomplet) {
-            incompletCounts.putIfAbsent(tableName, () => 0);
-            incompletCounts[tableName] = (incompletCounts[tableName] ?? 0) + 1;
-          }
-        },
-      );
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â FILTRER SEULEMENT LES MARQUEURS VALIDES ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-      final dbHelper = DatabaseHelper();
-      final existingPoints = callbackByTable.entries
-          .expand((entry) => entry.value.map((marker) => {
-                'original_table': entry.key,
-                'latitude': marker.point.latitude,
-                'longitude': marker.point.longitude,
-                'id': '${entry.key}_${marker.point.latitude}_${marker.point.longitude}',
-              }))
-          .toList();
-      final existingKeys = existingPoints.map((p) {
-        final t = (p['original_table'] ?? '').toString();
-        final i = p['id'];
-        return '$t:$i';
-      }).toSet();
+  void _onMapCreated(MapController controller) =>
+      _onMapCreatedImpl(this, controller);
 
-      // Créer un Set des positions existantes (lat_lng comme clé unique)
-      final existingPositions = existingPoints.map((p) {
-        final lat = (p['latitude'] as num).toDouble();
-        final lng = (p['longitude'] as num).toDouble();
-        return '${lat}_$lng';
-      }).toSet();
-
-// Filtrer les markers dont la position existe encore
-      final validMarkers = markers.where((marker) {
-        final posKey = '${marker.point.latitude}_${marker.point.longitude}';
-        return existingPositions.contains(posKey);
-      }).toList();
-
-      // Compter les points par table pour la légende
-      final Map<String, int> counts = {};
-      for (var p in existingPoints) {
-        final table = (p['original_table'] ?? '').toString();
-        if (table.isNotEmpty) {
-          counts[table] = (counts[table] ?? 0) + 1;
-        }
-      }
-
-      // Regrouper les markers par table pour le filtrage légende
-
-      final Map<String, List<Marker>> byTable = {};
-
-      // Construire une map position → liste de tables (pour gérer les doublons de position)
-      final Map<String, List<Map<String, dynamic>>> pointsByPosition = {};
-      for (var point in existingPoints) {
-        final lat = (point['latitude'] as num).toDouble();
-        final lng = (point['longitude'] as num).toDouble();
-        final posKey = '${lat}_$lng';
-        pointsByPosition.putIfAbsent(posKey, () => []);
-        pointsByPosition[posKey]!.add(point);
-      }
-
-      // Pour chaque marker, trouver sa table
-      for (var m in validMarkers) {
-        final posKey = '${m.point.latitude}_${m.point.longitude}';
-        final pointsAtPos = pointsByPosition[posKey];
-        if (pointsAtPos != null && pointsAtPos.isNotEmpty) {
-          // Prendre le premier point disponible et le retirer de la liste
-          final point = pointsAtPos.removeAt(0);
-          final table = (point['original_table'] ?? '').toString();
-          if (table.isNotEmpty) {
-            byTable.putIfAbsent(table, () => []);
-            byTable[table]!.add(m);
-          }
-        }
-      }
-
-      setState(() {
-        _displayedPointsMarkers = validMarkers;
-        _displayedPointsByTable = byTable;
-        _displayedAnomalieByTable = anomalieByTable;
-        _displayedIncompletByTable = incompletByTable;
-        _anomalieCountsByTable = anomalieCounts;
-        _incompletCountsByTable = incompletCounts;
-      });
-
-      // Compter depuis les tables réelles (inclut locaux + téléchargés)
-      await _loadPointCountsByTable();
-
-      print(
-        '[SRM-POINTS] ${validMarkers.length} point(s) valides affiches',
-      );
-    } catch (e) {
-      print(
-        '[SRM-POINTS] erreur de chargement: $e',
-      );
-    }
-  }
-
-  Future<void> _loadPointCountsByTable() async {
-    try {
-      final db = await DatabaseHelper().database;
-      final loginId = await DatabaseHelper().resolveLoginId();
-      final Map<String, int> counts = {};
-      final tables = <String>{};
-
-      for (final metier in SrmConfig.getMetiers()) {
-        for (final entity in SrmConfig.getPointEntities(metier)) {
-          final tableName = SrmConfig.getTableName(metier, entity);
-          if (tableName != null && tableName.isNotEmpty) {
-            tables.add(tableName);
-          }
-        }
-      }
-
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Tables SRM (crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©es dynamiquement ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  la premiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨re insertion) ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-      // Les tables GeoDNGR (localites, ecoles...) n'existent pas dans sig_srm.
-      // On filtre par id_projet pour n'avoir que les objets du projet actif.
-      for (var table in tables) {
-        try {
-          final columns = await db.rawQuery('PRAGMA table_info($table)');
-          final availableColumns = columns
-              .map((row) => (row['name'] ?? '').toString())
-              .where((name) => name.isNotEmpty)
-              .toSet();
-
-          final filters = <String>[];
-          final args = <dynamic>[];
-
-          if (ApiService.currentProjetId != null &&
-              availableColumns.contains('id_projet')) {
-            filters.add('id_projet = ?');
-            args.add(ApiService.currentProjetId);
-          } else if (loginId != null) {
-            for (final column in [
-              'id_agent_crea',
-              'saved_by_user_id',
-              'login_id',
-            ]) {
-              if (availableColumns.contains(column)) {
-                filters.add('$column = ?');
-                args.add(loginId);
-              }
-            }
-          }
-
-          final whereClause =
-              filters.isEmpty ? '' : ' WHERE ${filters.join(' OR ')}';
-          final result = await db.rawQuery(
-            'SELECT COUNT(*) as c FROM $table$whereClause',
-            args,
-          );
-          counts[table] = result.first['c'] as int? ?? 0;
-        } catch (_) {
-          counts[table] = 0; // table pas encore créée = 0 objets
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _pointCountsByTable = counts;
-        });
-      }
-      print('[SRM-POINTS] compteurs par table: $counts');
-    } catch (e) {
-      print('[COUNTS] Error counting points: $e');
-    }
-  }
-
-  void _onMapCreated(MapController controller) {
-    _mapController = controller;
-
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â CORRECTION: Si un focus initial est demandÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©, NE PAS aller vers userPosition ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
-    if (widget.initialFocus != null) {
-      // Suspendre l'auto-center AVANT le focus
-      _suspendAutoCenterFor(const Duration(seconds: 10));
-
-      // Focus sur la cible demandée (avec un petit délai pour que la carte soit prête)
-      Future.delayed(const Duration(milliseconds: 200), () {
-        if (mounted) {
-          _focusOnTarget(widget.initialFocus!);
-        }
-      });
-    } else {
-      // Comportement normal: déplacer vers la position GPS de l'utilisateur
-      if (userPosition != null) {
-        controller.move(userPosition!, 17);
-        _lastCameraPosition = userPosition;
-      } else if (_offlineBasemapCenter != null) {
-        controller.move(
-          _offlineBasemapCenter!,
-          _offlineBasemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom,
-        );
-        _lastCameraPosition = _offlineBasemapCenter;
-      }
-    }
-  }
-
-  void _moveCameraIfNeeded() {
-    if (_mapController == null) return;
-
-    //  AJOUT: Vérifier que userPosition n'est pas null
-    if (userPosition == null) return;
-
-    try {
-      //  Utiliser userPosition! car on a vérifié qu'il n'est pas null
-      final shouldMove = _lastCameraPosition == null ||
-          _coordinateDistance(
-                _lastCameraPosition!.latitude,
-                _lastCameraPosition!.longitude,
-                userPosition!.latitude, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Ajout du !
-                userPosition!.longitude, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Ajout du !
-              ) >
-              20;
-
-      if (_autoCenterSuspended) {
-        // Debug
-      } else if (shouldMove) {
-        _mapController!.move(userPosition!, 17); // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Ajout du !
-        _lastCameraPosition = userPosition;
-      }
-    } catch (_) {}
-  }
+  void _moveCameraIfNeeded() =>
+      _moveCameraIfNeededImpl(this);
 
   // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
-  Future<void> addPointOfInterest() async {
-    if ((homeController.ligneCollection?.isActive ?? false) ||
-        (homeController.specialCollection?.isActive ?? false)) {
-      _addCurrentPointToActiveCollection();
-      return;
-    }
+  Future<void> addPointOfInterest() =>
+      _addPointOfInterestImpl();
 
-    // 1) Sélectionner métier + type
-    if (!mounted) return;
-    final selection = await showSrmPointSelector(context);
-    if (selection == null) return;
-
-    // 2) Récupérer la position GPS actuelle
-    final current = homeController.userPosition;
-
-    // 3) Ouvrir le formulaire SRM
-    if (!mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SrmPointFormWidget(
-          metier: selection.metier,
-          entityType: selection.entityType,
-          latitude: current.latitude,
-          longitude: current.longitude,
-          // Sprint 5 : altitude Z depuis GNSS (Mock Location ou GPS natif)
-          altitude: homeController.collectionManager.currentAltitude,
-          agentName: widget.agentName,
-          onSaved: () {
-            Navigator.pop(context);
-            _refreshAfterNavigation();
-          },
-          onCancel: () => Navigator.pop(context),
-        ),
-      ),
-    );
-    if (mounted) _refreshAfterNavigation();
-  }
-
-  void _addCurrentPointToActiveCollection() {
-    final error = homeController.addCurrentPointToActiveCollection();
-
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final pointCount = homeController.ligneCollection?.points.length ??
-        homeController.specialCollection?.points.length ??
-        0;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Point ajoute au trace ($pointCount total)'),
-        backgroundColor: const Color(0xFFF59E0B),
-        duration: const Duration(milliseconds: 900),
-      ),
-    );
-  }
 
   // === SPRINT 5 : COLLECTE LIGNE SRM ===
-  Future<void> startLigneSrmCollection() async {
-    if (!mounted) return;
-    // 1) Sélectionner métier + type linéaire
-    final selection = await showSrmLigneSelector(context);
-    if (selection == null) return;
-
-    // 2) Démarrer la collecte GPS (réutilisation du CollectionManager existant)
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Veuillez activer le GPS'),
-      ));
-      return;
-    }
-    if (homeController.hasActiveCollection) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Collecte de ${homeController.activeCollectionType} en cours, mettez-la en pause d\'abord'),
-        backgroundColor: Colors.orange,
-      ));
-      return;
-    }
-
-    // Stocker la sélection SRM pour l'utiliser à la fin
-    _pendingSrmLigneSelection = selection;
-
-    // Lancer collecte (code piste fictif pour réutiliser le CollectionManager)
-    final fakeCode = 'SRM_${selection.tableName}_${DateTime.now().millisecondsSinceEpoch}';
-    try {
-      await homeController.startLigneCollection(fakeCode);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Tracé ${selection.entityType} démarré, ajoutez les points avec le bouton jaune'),
-        backgroundColor: Color(SrmConfig.getMetierColor(selection.metier)),
-        duration: const Duration(seconds: 3),
-      ));
-      setState(() {});
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Erreur: $e'),
-        backgroundColor: Colors.red,
-      ));
-    }
-  }
+  Future<void> startLigneSrmCollection() =>
+      _startLigneSrmCollectionImpl();
 
 
-  // home_page.dart - Modifiez la méthode startLigneCollection
 
-  // home_page.dart - Méthode startLigneCollection modifiée
 // === COLLECTE POLYGONE (Zone de Plaine) ===
-  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 5 : sÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©lection SRM en attente pour polygone ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
   String? _pendingSrmPolygoneMetier;
   String? _pendingSrmPolygoneEntityType;
 
   Future<void> startPolygonCollection({
     String? metier,
     String? entityType,
-  }) async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Veuillez activer le GPS")),
-      );
-      return;
-    }
-
-    if (homeController.hasActiveCollection) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez terminer la collecte en cours'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 5 : si appelÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© sans mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©tier, ouvrir le sÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©lecteur ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-    String? m = metier;
-    String? e = entityType;
-    if (m == null || e == null) {
-      if (!mounted) return;
-      final sel = await showSrmPolygoneSelector(context);
-      if (sel == null) return;
-      m = sel.metier;
-      e = sel.entityType;
-    }
-
-    _pendingSrmPolygoneMetier = m;
-    _pendingSrmPolygoneEntityType = e;
-
-    try {
-      await homeController.startSpecialCollection(e ?? 'Zone de Plaine');
-
-      setState(() {
-        _isSpecialCollection = true;
-        _isPolygonCollection = true;
-        _specialCollectionType = e ?? 'Zone de Plaine';
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Tracé $e démarré. Ajoutez les points avec le bouton jaune'),
-          backgroundColor: _pendingSrmPolygoneMetier != null
-              ? Color(SrmConfig.getMetierColor(_pendingSrmPolygoneMetier!))
-              : const Color(0xFF1B5E20),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } catch (err) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err.toString()), backgroundColor: Colors.red),
+  }) =>
+      _startPolygonCollectionImpl(
+        metier: metier,
+        entityType: entityType,
       );
 
-    }
-  }
+  Future<void> startLigneCollection() =>
+      _startLigneCollectionImpl();
 
-  Future<void> startLigneCollection() async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Veuillez activer le GPS",
-          ),
-        ),
-      );
-      return;
-    }
+  void toggleSpecialCollection() =>
+      _toggleSpecialCollectionImpl();
 
-    if (homeController.hasActiveCollection) {
-      final activeType = homeController.activeCollectionType;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Veuillez mettre en pause la collecte de $activeType en cours',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+  void toggleLigneCollection() =>
+      _toggleLigneCollectionImpl();
 
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â GÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°RER le code piste automatiquement - AJOUTER AWAIT
-    final codePisteAuto = await generateCodePiste(); // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â AJOUTER AWAIT
+  Future<void> finishLigneCollection() =>
+      _finishLigneCollectionImpl();
 
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Afficher le dialogue AVEC code prÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©-rempli et IMMODIFIABLE
-    final provisionalData = await ProvisionalFormDialog.show(
-      context: context,
-      initialCode: codePisteAuto, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Maintenant ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§a fonctionne
-    );
+  Future<void> cancelLigneCollection() =>
+      _cancelLigneCollectionImpl();
 
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Plus besoin de vÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rifier si null, car le code est toujours fourni
-    if (provisionalData == null) return;
 
-    try {
-      await homeController.startLigneCollection(
-        provisionalData['code_piste']!,
-      );
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Collecte de piste démarrée',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void toggleSpecialCollection() {
-    try {
-      // ── SPRINT 7 : sauver les métadonnées SRM avant la pause ──
-      if (homeController.specialCollection?.isActive ?? false) {
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': _pendingSrmPolygoneMetier,
-          'srmEntityType': _pendingSrmPolygoneEntityType,
-          'isPolygonCollection': _isPolygonCollection,
-          'isSpecialCollection': _isSpecialCollection,
-          'specialCollectionType': _specialCollectionType,
-        });
-      }
-      homeController.toggleSpecialCollection();
-      setState(() {});
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  void toggleLigneCollection() {
-    try {
-      // ── SPRINT 7 : sauver les métadonnées SRM avant la pause ──
-      if (homeController.ligneCollection?.isActive ?? false) {
-        final sel = _pendingSrmLigneSelection;
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': sel?.metier,
-          'srmEntityType': sel?.entityType,
-          'srmTableName': sel?.tableName,
-          'srmSchema': sel?.schema,
-        });
-      }
-      homeController.toggleLigneCollection();
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-// =====================================================================
-  //  CONTINUER LA COLLECTE D'UNE PISTE EXISTANTE
-  // =====================================================================
-
-  /// Calcule le bearing (angle en degrés) entre deux points GPS
-  double _calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * Math.pi / 180;
-    final lat2 = to.latitude * Math.pi / 180;
-    final dLng = (to.longitude - from.longitude) * Math.pi / 180;
-
-    final y = Math.sin(dLng) * Math.cos(lat2);
-    final x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-
-    return (Math.atan2(y, x) * 180 / Math.pi + 360) % 360;
-  }
-
-  /// Calcule la différence angulaire minimale entre deux bearings (0-180°)
-  double _angleDifference(double bearing1, double bearing2) {
-    double diff = (bearing1 - bearing2).abs() % 360;
-    if (diff > 180) diff = 360 - diff;
-    return diff;
-  }
-
-  /// Widget utilitaire pour afficher la distance à une extrémité
-  Widget _distanceInfoTile({
-    required IconData icon,
-    required String label,
-    required double distance,
-    required Color color,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            '${distance.round()}m',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _continuePisteCollection({
-    required String codePiste,
-    required double startLat,
-    required double startLng,
-    required double endLat,
-    required double endLng,
-  }) async {
-    // 1. Vérifier le GPS
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez activer le GPS'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // 2. Vérifier qu'aucune collecte n'est active
-    if (homeController.hasActiveCollection) {
-      final activeType = homeController.activeCollectionType;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Veuillez terminer la collecte de $activeType en cours'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // 3. Position actuelle de l'utilisateur
-    final userPos = homeController.userPosition;
-    final pisteStart = LatLng(startLat, startLng);
-    final pisteEnd = LatLng(endLat, endLng);
-
-    // 4. Calculer les distances aux deux extrémités (en mètres)
-    final distToStartM = _haversineMeters(userPos, pisteStart);
-    final distToEndM = _haversineMeters(userPos, pisteEnd);
-
-    const double seuilProximite = 150.0; // 150 mètres
-
-    print('[PISTE] Continuation check for $codePiste:');
-    print('   Distance au départ: ${distToStartM.round()}m');
-    print('   Distance à l\'arrivée: ${distToEndM.round()}m');
-
-    // 5. Trop loin des deux extrémités ?
-    if (distToStartM > seuilProximite && distToEndM > seuilProximite) {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          title: const Row(
-            children: [
-              Icon(Icons.location_off, color: Colors.red, size: 28),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text('Trop loin de la piste', style: TextStyle(fontSize: 17)),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Votre position actuelle est trop éloignée des extrémités de cette piste :',
-                style: TextStyle(color: Colors.grey[700], height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              _distanceInfoTile(
-                icon: Icons.flag_outlined,
-                label: 'Point de départ',
-                distance: distToStartM,
-                color: Colors.blue,
-              ),
-              const SizedBox(height: 8),
-              _distanceInfoTile(
-                icon: Icons.sports_score,
-                label: 'Point d\'arrivée',
-                distance: distToEndM,
-                color: Colors.green,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Rapprochez-vous à moins de ${seuilProximite.round()}m d\'une des extrémités pour continuer.',
-                        style: TextStyle(
-                          color: Colors.orange.shade800,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Compris'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // 6. Déterminer de quel côté l'utilisateur est le plus proche
-    final bool procheDuDebut = distToStartM <= distToEndM;
-    final double distProche = procheDuDebut ? distToStartM : distToEndM;
-    final String coteProche = procheDuDebut ? 'départ' : 'arrivée';
-    final String sideKey = procheDuDebut ? 'start' : 'end';
-
-    // 7. Dialog d'avertissement (même dialog pour les deux côtés)
-    if (!mounted) return;
-    final bool? confirmer = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Row(
-          children: [
-            Icon(Icons.add_road, color: Color(0xFF1976D2), size: 28),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text('Continuer la piste', style: TextStyle(fontSize: 17)),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Vous êtes à ${distProche.round()}m du point de $coteProche de la piste $codePiste.',
-              style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.shade300),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Attention',
-                          style: TextStyle(
-                            color: Colors.amber.shade900,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• Vous devez marcher dans un sens DIFFÉRENT de la piste existante.\n'
-                    '• Si vous marchez dans le même sens (duplication), la collecte sera refusée.\n'
-                    '• Les nouveaux points seront ajoutés à la piste existante.',
-                    style: TextStyle(
-                      color: Colors.amber.shade900,
-                      fontSize: 12.5,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1976D2),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Démarrer'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmer != true) return;
-
-    // 8. Tout OK → lancer la collecte
-    try {
-      _continuationData = {
-        'code_piste': codePiste,
-        'from_side': sideKey,
-        'piste_start': pisteStart,
-        'piste_end': pisteEnd,
-      };
-
-      homeController.setActivePisteCode(codePiste);
-      await homeController.startLigneCollection(codePiste);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.play_arrow, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Continuation de $codePiste depuis le $coteProche'),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF1976D2),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      _continuationData = null;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> finishLigneCollection() async {
-    final result = homeController.finishLigneCollection();
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Le tracé doit contenir au moins 2 points."),
-        ),
-      );
-      _pendingSrmLigneSelection = null;
-      return;
-    }
-
-    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SPRINT 5 : Si collecte SRM ligne, ouvrir SrmLigneFormPage ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
-    if (_pendingSrmLigneSelection != null) {
-      final sel = _pendingSrmLigneSelection!;
-      _pendingSrmLigneSelection = null;
-      final pts = List<LatLng>.from(result['points'] as List<LatLng>);
-
-      setState(() {
-        homeController.collectedPolylines.clear();
-        collectedPolylines.clear();
-      });
-
-      if (!mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SrmLigneFormPage(
-            metier: sel.metier,
-            entityType: sel.entityType,
-            linePoints: pts,
-            startTime: result['startTime'] as DateTime?,
-            endTime: result['endTime'] as DateTime?,
-            agentName: widget.agentName,
-            // Sprint 5 : altitude Z depuis GNSS
-            averageAltitude: homeController.collectionManager.averageAltitude,
-          ),
-        ),
-      );
-      if (mounted) _refreshAfterNavigation();
-      return; // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ne pas continuer vers l'ancien flux GeoDNGR
-    }
-
-    final List<LatLng> newPts = List<LatLng>.from(result['points'] as List<LatLng>);
-
-    // =====================================================================
-    //  CAS 1 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â CONTINUATION D'UNE PISTE EXISTANTE
-    // =====================================================================
-    if (_continuationData != null) {
-      final continuationCode = _continuationData!['code_piste'] as String;
-      final fromSide = _continuationData!['from_side'] as String;
-      final pisteStart = _continuationData!['piste_start'] as LatLng;
-      final pisteEnd = _continuationData!['piste_end'] as LatLng;
-
-      // -----------------------------------------------------------
-      //  PROTECTION : si pisteStart == pisteEnd, charger les vrais points
-      // -----------------------------------------------------------
-      LatLng effectiveStart = pisteStart;
-      LatLng effectiveEnd = pisteEnd;
-
-      if (_haversineMeters(pisteStart, pisteEnd) < 5.0) {
-        try {
-          final storageHelper = PisteStorageHelper();
-          final db = await storageHelper.database;
-          final loginId = await DatabaseHelper().resolveLoginId();
-          final rows = await db.query(
-            'pistes',
-            columns: [
-              'points_json'
-            ],
-            where: 'code_piste = ? AND login_id = ?',
-            whereArgs: [
-              continuationCode,
-              loginId
-            ],
-            limit: 1,
-          );
-          if (rows.isNotEmpty && rows.first['points_json'] != null) {
-            final pts = jsonDecode(rows.first['points_json'] as String) as List;
-            if (pts.length >= 2) {
-              final first = pts.first;
-              final last = pts.last;
-              effectiveStart = LatLng(
-                ((first['latitude'] ?? first['lat']) as num).toDouble(),
-                ((first['longitude'] ?? first['lng']) as num).toDouble(),
-              );
-              effectiveEnd = LatLng(
-                ((last['latitude'] ?? last['lat']) as num).toDouble(),
-                ((last['longitude'] ?? last['lng']) as num).toDouble(),
-              );
-              print('[PISTE] Coordinates corrected from points_json');
-              print('   effectiveStart: (${effectiveStart.latitude.toStringAsFixed(6)}, ${effectiveStart.longitude.toStringAsFixed(6)})');
-              print('   effectiveEnd: (${effectiveEnd.latitude.toStringAsFixed(6)}, ${effectiveEnd.longitude.toStringAsFixed(6)})');
-            }
-          }
-        } catch (e) {
-          print('[PISTE] Error loading actual points: $e');
-        }
-      }
-
-      // -----------------------------------------------------------
-      //  VÉRIFICATION DE COLINÉARITÉ (anti-duplication)
-      // -----------------------------------------------------------
-      if (newPts.length >= 5 && _haversineMeters(effectiveStart, effectiveEnd) >= 10.0) {
-        // Bearing de la NOUVELLE collecte
-        // Utiliser le 2ème point et l'avant-dernier pour éviter les imprécisions GPS
-        final bearingStart = newPts.length > 3 ? newPts[1] : newPts.first;
-        final bearingEnd = newPts.length > 3 ? newPts[newPts.length - 2] : newPts.last;
-        final newBearing = _calculateBearing(bearingStart, bearingEnd);
-
-        // Bearing de la PISTE EXISTANTE (toujours start → end)
-        final pisteBearing = _calculateBearing(effectiveStart, effectiveEnd);
-
-        // Bearing INTERDIT :
-        // Depuis END → interdit = revenir vers start = pisteBearing + 180°
-        // Depuis START → interdit = aller vers end = pisteBearing
-        double forbiddenBearing;
-        if (fromSide == 'end') {
-          forbiddenBearing = (pisteBearing + 180.0) % 360.0;
-        } else {
-          forbiddenBearing = pisteBearing;
-        }
-
-        final angleDiff = _angleDifference(newBearing, forbiddenBearing);
-
-        print('🧭 ===== VÉRIFICATION COLINÉARITÉ =====');
-        print('   Effective start: (${effectiveStart.latitude.toStringAsFixed(6)}, ${effectiveStart.longitude.toStringAsFixed(6)})');
-        print('   Effective end: (${effectiveEnd.latitude.toStringAsFixed(6)}, ${effectiveEnd.longitude.toStringAsFixed(6)})');
-        print('   New first: (${newPts.first.latitude.toStringAsFixed(6)}, ${newPts.first.longitude.toStringAsFixed(6)})');
-        print('   New last: (${newPts.last.latitude.toStringAsFixed(6)}, ${newPts.last.longitude.toStringAsFixed(6)})');
-        print('   Bearing piste (start→end): ${pisteBearing.toStringAsFixed(1)}°');
-        print('   Bearing nouveau tracé: ${newBearing.toStringAsFixed(1)}°');
-        print('   Bearing interdit: ${forbiddenBearing.toStringAsFixed(1)}°');
-        print('   Différence angulaire: ${angleDiff.toStringAsFixed(1)}°');
-        print('   Seuil: 30°');
-        print('   Result: ${angleDiff < 30.0 ? "BLOCKED (duplication)" : "OK (different direction)"}');
-        print('🧭 =======================================');
-
-        // Si angle < 30° → vraiment même direction → duplication !
-        if (angleDiff < 30.0) {
-          // Nettoyer les polylines de collecte
-          setState(() {
-            homeController.collectedPolylines.clear();
-            collectedPolylines.clear();
-          });
-          _continuationData = null;
-
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                title: const Row(
-                  children: [
-                    Icon(Icons.block, color: Colors.red, size: 28),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Collecte refus\u00E9e - Duplication',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.red.shade700, size: 22),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Vous avez marché dans le même sens que la piste existante.\n\n'
-                              'Cela constitue une duplication du tracé, ce qui n\'est pas autorisé.',
-                              style: TextStyle(
-                                color: Colors.red.shade800,
-                                fontSize: 13,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Pour continuer correctement :',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '• Placez-vous sur l\'extrémité de la piste\n'
-                      '• Marchez dans le sens OPPOSÉ (pour prolonger la piste)\n'
-                      '• La collecte rejetée n\'a pas été sauvegardée',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Compris'),
-                  ),
-                ],
-              ),
-            );
-          }
-          return; // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Ne pas sauvegarder
-        }
-      } else if (newPts.length >= 5) {
-        // La piste existante est trop courte pour un bearing fiable → skip la vérification
-        print('[PISTE] Existing track too short (<10m between start/end), skipping collinearity check');
-      }
-
-      // -----------------------------------------------------------
-      //  FUSION DES POINTS + OUVERTURE DU FORMULAIRE
-      // -----------------------------------------------------------
-      try {
-        final storageHelper = PisteStorageHelper();
-        final db = await storageHelper.database;
-        final loginId = await DatabaseHelper().resolveLoginId();
-
-        // Charger la piste existante
-        final rows = await db.query(
-          'pistes',
-          where: 'code_piste = ? AND login_id = ?',
-          whereArgs: [
-            continuationCode,
-            loginId
-          ],
-          limit: 1,
-        );
-
-        if (rows.isEmpty) {
-          _continuationData = null;
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Piste introuvable localement. Collecte annulée.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-          return;
-        }
-
-        final existingRow = rows.first;
-
-        // Décoder les points existants
-        final existingPointsRaw = jsonDecode(existingRow['points_json'] as String) as List;
-        final existingPts = existingPointsRaw.map((p) {
-          final lat = ((p['latitude'] ?? p['lat']) as num).toDouble();
-          final lng = ((p['longitude'] ?? p['lng']) as num).toDouble();
-          return LatLng(lat, lng);
-        }).toList();
-
-        print('[PISTE] Merge continuation into $continuationCode:');
-        print('   Points existants: ${existingPts.length}');
-        print('   Nouveaux points: ${newPts.length}');
-        print('   Côté: $fromSide');
-
-        // Fusionner
-        List<LatLng> mergedPts;
-        if (fromSide == 'end') {
-          mergedPts = [
-            ...existingPts,
-            ...newPts
-          ];
-        } else {
-          mergedPts = [
-            ...newPts.reversed,
-            ...existingPts
-          ];
-        }
-
-        print('   Points fusionnés: ${mergedPts.length}');
-
-        // Préparer les données existantes pour pré-remplir le formulaire
-        final Map<String, dynamic> existingData = {
-          'id': existingRow['id'],
-          'code_piste': existingRow['code_piste'],
-          'commune_rurale_id': existingRow['commune_rurale_id'],
-          'commune_rurales': existingRow['commune_rurales'],
-          'user_login': existingRow['user_login'],
-          'heure_debut': existingRow['heure_debut'],
-          'heure_fin': existingRow['heure_fin'],
-          'nom_origine_piste': existingRow['nom_origine_piste'],
-          'x_origine': existingRow['x_origine'],
-          'y_origine': existingRow['y_origine'],
-          'nom_destination_piste': existingRow['nom_destination_piste'],
-          'x_destination': existingRow['x_destination'],
-          'y_destination': existingRow['y_destination'],
-          'existence_intersection': existingRow['existence_intersection'],
-          'nombre_intersections': existingRow['nombre_intersections'],
-          'intersections_json': existingRow['intersections_json'],
-          'type_occupation': existingRow['type_occupation'],
-          'debut_occupation': existingRow['debut_occupation'],
-          'fin_occupation': existingRow['fin_occupation'],
-          'largeur_emprise': existingRow['largeur_emprise'],
-          'frequence_trafic': existingRow['frequence_trafic'],
-          'type_trafic': existingRow['type_trafic'],
-          'travaux_realises': existingRow['travaux_realises'],
-          'date_travaux': existingRow['date_travaux'],
-          'entreprise': existingRow['entreprise'],
-          'plateforme': existingRow['plateforme'],
-          'relief': existingRow['relief'],
-          'vegetation': existingRow['vegetation'],
-          'debut_travaux': existingRow['debut_travaux'],
-          'fin_travaux': existingRow['fin_travaux'],
-          'financement': existingRow['financement'],
-          'projet': existingRow['projet'],
-          'niveau_service': existingRow['niveau_service'],
-          'fonctionnalite': existingRow['fonctionnalite'],
-          'interet_socio_administratif': existingRow['interet_socio_administratif'],
-          'population_desservie': existingRow['population_desservie'],
-          'potentiel_agricole': existingRow['potentiel_agricole'],
-          'cout_investissement': existingRow['cout_investissement'],
-          'protection_environnement': existingRow['protection_environnement'],
-          'note_globale': existingRow['note_globale'],
-          'created_at': existingRow['created_at'],
-          'updated_at': DateTime.now().toIso8601String(),
-        };
-
-        // Ouvrir le formulaire en mode CONTINUATION
-        final formResult = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => FormulaireLignePage(
-              linePoints: mergedPts,
-              provisionalCode: continuationCode,
-              startTime: existingRow['created_at'] != null ? DateTime.tryParse(existingRow['created_at'].toString()) : DateTime.now(),
-              endTime: DateTime.now(),
-              agentName: widget.agentName,
-              initialData: existingData,
-              isEditingMode: true,
-              isContinuation: true,
-              continuationSide: fromSide,
-            ),
-          ),
-        );
-
-        if (formResult != null) {
-          // NETTOYER TOUTES les sources de polylines pour éviter les doublons
-          setState(() {
-            _finishedPistes.removeWhere((p) {
-              if (p.hitValue is PolylineTapData) {
-                final tapData = p.hitValue as PolylineTapData;
-                return tapData.data['code_piste'] == continuationCode;
-              }
-              return false;
-            });
-            homeController.collectedPolylines.clear();
-            collectedPolylines.clear();
-          });
-
-          // Mettre à jour displayed_pistes
-          await db.delete(
-            'displayed_pistes',
-            where: 'code_piste = ? AND login_id = ?',
-            whereArgs: [
-              continuationCode,
-              loginId
-            ],
-          );
-          await storageHelper.saveDisplayedPiste(
-            continuationCode,
-            mergedPts,
-            Colors.brown,
-            3.0,
-          );
-
-          await _loadDisplayedPistes();
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Piste $continuationCode prolongée '
-                        '(+${newPts.length} pts, total: ${mergedPts.length})',
-                      ),
-                    ),
-                  ],
-                ),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        print('[PISTE] Error while merging continuation: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-
-      // Toujours nettoyer les polylines de collecte
-      setState(() {
-        homeController.collectedPolylines.clear();
-        collectedPolylines.clear();
-      });
-      _continuationData = null;
-      return;
-    }
-
-    // =====================================================================
-    //  CAS 2 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â NOUVELLE PISTE (code existant INCHANGÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°)
-    // =====================================================================
-    final formResult = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FormulaireLignePage(
-          linePoints: result['points'],
-          provisionalCode: result['codePiste'],
-          startTime: result['startTime'],
-          endTime: result['endTime'],
-          agentName: widget.agentName,
-        ),
-      ),
-    );
-
-    if (formResult != null) {
-      final List<LatLng> pts = List<LatLng>.from(result['points'] as List<LatLng>);
-      final distanceKm = pts.length >= 2 ? polylineDistanceKm(pts) : 0.0;
-
-      // Nettoyer les polylines de collecte
-      setState(() {
-        homeController.collectedPolylines.clear();
-        collectedPolylines.clear();
-      });
-
-      final storageHelper = PisteStorageHelper();
-      await storageHelper.saveDisplayedPiste(result['codePiste'], pts, Colors.brown, 5.0);
-
-      // Recharger les pistes affichées depuis la base (inclura la nouvelle)
-      await _loadDisplayedPistes();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Piste enregistrée avec succès'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  Future<void> cancelLigneCollection() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Annuler le tracé'),
-        content: const Text(
-          'Voulez-vous vraiment annuler ce tracé ? Les points collectés ne seront pas enregistrés.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Non'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53E3E),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Oui, annuler'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    homeController.cancelLigneCollection();
-    _pendingSrmLigneSelection = null;
-    _continuationData = null;
-
-    if (!mounted) return;
-    setState(() {
-      homeController.collectedPolylines.clear();
-      collectedPolylines.clear();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Tracé annulé'),
-        backgroundColor: Color(0xFFE53E3E),
-      ),
-    );
-  }
-
-  Future<String> _resolveLocalPisteCodeFromPolyline(List<LatLng> polyPts) async {
-    try {
-      if (polyPts.length < 2) return '----';
-
-      final storageHelper = PisteStorageHelper();
-      final db = await storageHelper.database;
-
-      // On prend le 1er point comme "signature"
-      final start = polyPts.first;
-      const tol = 0.00005; // ~5m (ajuste si besoin)
-
-      // IMPORTANT: dans tes pistes locales points_json tu as {lat,lng}
-      final rows = await db.query(
-        'pistes',
-        columns: [
-          'code_piste',
-          'points_json'
-        ],
-        where: 'synced = ? AND downloaded = ?',
-        whereArgs: [
-          0,
-          0
-        ],
-      );
-
-      for (final r in rows) {
-        final pj = r['points_json'];
-        if (pj is! String || pj.trim().isEmpty) continue;
-
-        final decoded = jsonDecode(pj);
-        if (decoded is! List || decoded.isEmpty) continue;
-
-        final first = decoded.first;
-        if (first is! Map) continue;
-
-        final lat = (first['latitude'] ?? first['lat']);
-        final lng = (first['longitude'] ?? first['lng']);
-        if (lat is! num || lng is! num) continue;
-
-        final dLat = (lat.toDouble() - start.latitude).abs();
-        final dLng = (lng.toDouble() - start.longitude).abs();
-
-        if (dLat <= tol && dLng <= tol) {
-          return (r['code_piste'] ?? '----').toString();
-        }
-      }
-    } catch (e) {
-      print('[PISTE] _resolveLocalPisteCodeFromPolyline error: $e');
-    }
-    return '----';
-  }
-
-  // Pour charger au démarrage
   // Dans la classe _HomePageState
-  // Remplacer l'ancienne méthode par la nouvelle
-  Future<void> _loadDisplayedPistes() async {
-    try {
-      final storageHelper = PisteStorageHelper();
+  Future<void> _loadDisplayedLines() =>
+      _loadDisplayedLinesImpl(this);
 
-      // ✅ au lieu de loadDisplayedPistes() (Polyline), on récupère les maps
-      final rows = await storageHelper.loadDisplayedPistesMaps();
 
-      final displayedPistes = <Polyline>[];
+  void _showSyncConfirmationDialog() =>
+      _showSyncConfirmationDialogImpl(this);
 
-      for (final row in rows) {
-        final codePiste = (row['code_piste'] ?? '----').toString().trim();
 
-        final pointsData = jsonDecode(row['points_json'] as String) as List;
-        final pts = <LatLng>[];
+  void _showSyncResult(SyncResult result) =>
+      _showSyncResultImpl(this, result);
 
-        for (final p in pointsData) {
-          final lat = (p['latitude'] ?? p['lat'] as dynamic);
-          final lng = (p['longitude'] ?? p['lng'] as dynamic);
 
-          final latD = (lat is num) ? lat.toDouble() : null;
-          final lngD = (lng is num) ? lng.toDouble() : null;
+  void _showSaveConfirmationDialog() =>
+      _showSaveConfirmationDialogImpl(this);
 
-          if (latD != null && lngD != null) {
-            pts.add(LatLng(latD, lngD));
-          }
-        }
-
-        if (pts.isEmpty) continue;
-
-        final distanceKm = pts.length >= 2 ? polylineDistanceKm(pts) : 0.0;
-
-        // Chercher synced/region dans la vraie table pistes
-        // Chercher synced/region dans la vraie table pistes
-        String piSynced = '0';
-        String piRegion = '';
-        String piPrefecture = '';
-        String piCommune = '';
-        String piEnqueteur = '';
-        String piPlateforme = '';
-        String piRelief = '';
-        String piVegetation = '';
-        String piDebutTravaux = '';
-        String piFinTravaux = '';
-        String piFinancement = '';
-        String piProjet = '';
-        String piEntreprise = '';
-        try {
-          final pisteDb = await PisteStorageHelper().database;
-          final pisteRows = await pisteDb.query(
-            'pistes',
-            columns: [
-              'synced',
-              'region_name',
-              'prefecture_name',
-              'commune_name',
-              'plateforme',
-              'relief',
-              'vegetation',
-              'debut_travaux',
-              'fin_travaux',
-              'financement',
-              'projet',
-              'entreprise',
-              'user_login',
-            ],
-            where: 'code_piste = ?',
-            whereArgs: [
-              codePiste
-            ],
-            limit: 1,
-          );
-          if (pisteRows.isNotEmpty) {
-            piSynced = (pisteRows.first['synced']?.toString() == '1') ? '1' : '0';
-            piRegion = (pisteRows.first['region_name'] ?? '').toString();
-            piPrefecture = (pisteRows.first['prefecture_name'] ?? '').toString();
-            piCommune = (pisteRows.first['commune_name'] ?? '').toString();
-            piEnqueteur = (pisteRows.first['user_login'] ?? '').toString();
-            piPlateforme = (pisteRows.first['plateforme'] ?? '').toString();
-            piRelief = (pisteRows.first['relief'] ?? '').toString();
-            piVegetation = (pisteRows.first['vegetation'] ?? '').toString();
-            piDebutTravaux = (pisteRows.first['debut_travaux'] ?? '').toString();
-            piFinTravaux = (pisteRows.first['fin_travaux'] ?? '').toString();
-            piFinancement = (pisteRows.first['financement'] ?? '').toString();
-            piProjet = (pisteRows.first['projet'] ?? '').toString();
-            piEntreprise = (pisteRows.first['entreprise'] ?? '').toString();
-          }
-        } catch (_) {}
-
-        displayedPistes.add(
-          Polyline(
-            points: pts,
-            color: Color(row['color'] as int),
-            strokeWidth: 5.0,
-            pattern: const StrokePattern.dotted(spacingFactor: 2.0),
-            hitValue: PolylineTapData(
-              type: 'piste_local',
-              data: {
-                'code_piste': codePiste,
-                'nb_points': pts.length,
-                'distance_km': distanceKm,
-                'start_lat': pts.first.latitude,
-                'start_lng': pts.first.longitude,
-                'end_lat': pts.last.latitude,
-                'end_lng': pts.last.longitude,
-                'plateforme': piPlateforme,
-                'relief': piRelief,
-                'vegetation': piVegetation,
-                'debut_travaux': piDebutTravaux,
-                'fin_travaux': piFinTravaux,
-                'financement': piFinancement,
-                'projet': piProjet,
-                'entreprise': piEntreprise,
-                'synced': piSynced,
-                'region_name': piRegion,
-                'prefecture_name': piPrefecture,
-                'commune_name': piCommune,
-                'enqueteur': piEnqueteur,
-              },
-            ),
-          ),
-        );
-      }
-
-      setState(() {
-        _finishedPistes = displayedPistes;
-      });
-
-      print('[PISTE-OVERLAY] ${displayedPistes.length} piste(s) rechargee(s)');
-    } catch (e) {
-      print('[PISTE] Error reloading displayed tracks: $e');
-    }
-  }
-
-  void _showSyncConfirmationDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmation de synchronisation'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Êtes-vous sûr de vouloir synchroniser vos données locales vers le serveur ?',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Non'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performSync();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text(
-              'Oui',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSyncResult(SyncResult result) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final errorsToShow = result.errors.take(10).toList();
-        final remaining = result.errors.length - errorsToShow.length;
-        final warningsToShow = result.warnings.take(10).toList();
-        final remainingWarnings = result.warnings.length - warningsToShow.length;
-
-        final bool hasConnectionErrors = result.errors.any(
-          (e) =>
-              e.contains('connexion perdue') ||
-              e.contains('serveur injoignable') ||
-              e.contains('Timeout') ||
-              e.contains('réseau'),
-        );
-
-        final String title;
-        final IconData titleIcon;
-        final Color titleColor;
-
-        if (result.failedCount == 0 &&
-            result.warningCount == 0 &&
-            result.successCount > 0) {
-          title = 'Synchronisation réussie';
-          titleIcon = Icons.check_circle;
-          titleColor = Colors.green;
-        } else if (result.failedCount == 0 && result.warningCount > 0) {
-          title = 'Synchronisation terminee avec avertissements';
-          titleIcon = Icons.info_outline;
-          titleColor = Colors.orange;
-        } else if (result.successCount > 0 && result.failedCount > 0) {
-          title = 'Synchronisation partielle';
-          titleIcon = Icons.warning_amber;
-          titleColor = Colors.orange;
-        } else if (result.successCount == 0 && result.failedCount > 0) {
-          title = 'Synchronisation échouée';
-          titleIcon = Icons.error;
-          titleColor = Colors.red;
-        } else {
-          title = 'Aucune donnée à synchroniser';
-          titleIcon = Icons.info;
-          titleColor = Colors.blue;
-        }
-
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(titleIcon, color: titleColor, size: 28),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(title, style: const TextStyle(fontSize: 18)),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (result.successCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '✅ ${result.successCount} donnée(s) synchronisée(s)',
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                if (result.failedCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '❌ ${result.failedCount} donnée(s) non synchronisée(s)',
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                if (result.warningCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      'Attention: ${result.warningCount} avertissement(s) sur le journal local',
-                      style: const TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                if (hasConnectionErrors && result.successCount > 0) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.shade300),
-                    ),
-                    child: const Text(
-                      'La connexion a été interrompue pendant la synchronisation. '
-                      'Les données déjà envoyées ont été sauvegardées. '
-                      'Relancez la synchronisation pour envoyer le reste.',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ] else if (result.failedCount > 0) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Vérifiez votre connexion internet et réessayez.',
-                  ),
-                ],
-                if (errorsToShow.isNotEmpty && !hasConnectionErrors) ...[
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Détails des erreurs :',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 5),
-                  ...errorsToShow.map(
-                    (e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        '• $e',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                  if (remaining > 0)
-                    Text(
-                      '• ... et $remaining autres erreurs.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                ],
-                if (warningsToShow.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Remarques non bloquantes :',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 5),
-                  ...warningsToShow.map(
-                    (warning) => Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        '• $warning',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                  if (remainingWarnings > 0)
-                    Text(
-                      '• ... et $remainingWarnings autres remarques.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _loadDownloadedPoints();
-                _loadDownloadedPisteOverlays();
-                _loadDownloadedChausseeOverlays();
-                _loadDownloadedSpecialLines();
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showSaveConfirmationDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmation de téléchargement'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Êtes-vous sûr de vouloir télécharger les données SRM depuis le serveur ?',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Non'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performDownload();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-            child: const Text(
-              'Oui',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showDownloadResult(
     SyncResult result, {
     required bool alreadyDownloaded,
     required bool nothingAvailable,
-  }) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final errorsToShow = result.errors.take(10).toList();
-        final remaining = result.errors.length - errorsToShow.length;
-
-        return AlertDialog(
-          title: Text(
-            alreadyDownloaded
-                ? 'Aucune nouvelle donnée à télécharger'
-                : nothingAvailable
-                    ? 'Aucune donnée disponible'
-                    : 'Téléchargement terminé',
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (alreadyDownloaded) ...[
-                  const Text(
-                    'Les données du serveur pour ce projet et cette mission sont déjà téléchargées ou déjà à jour sur cet appareil.',
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Toutes les données étaient déjà à jour.'),
-                ],
-                if (nothingAvailable) ...[
-                  const Text(
-                    'Aucune donnée n’a été trouvée sur le serveur pour votre compte.',
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Causes possibles :\n'
-                    '• Aucune donnée n’est encore associée à votre zone\n'
-                    '• Vos permissions (région/préfecture) ne sont pas encore configurées\n'
-                    '• Les données n’ont pas encore été collectées dans votre zone',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                ],
-                if (!nothingAvailable && !alreadyDownloaded && result.successCount > 0)
-                  Text('${result.successCount} nouvelles données téléchargées'),
-                if (!nothingAvailable && result.skippedCount > 0)
-                  Text('${result.skippedCount} données déjà à jour'),
-                if (result.failedCount > 0)
-                  Text('${result.failedCount} types de données n’ont pas pu être mis à jour'),
-                if (result.failedCount > 0) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Vérifiez votre connexion internet ou réessayez plus tard.',
-                  ),
-                ],
-                if (errorsToShow.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  const Text('Détails des erreurs :'),
-                  const SizedBox(height: 5),
-                  ...errorsToShow.map(
-                    (e) => Text(
-                      '• $e',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  if (remaining > 0) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      '• ... et $remaining autres problèmes.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _loadDownloadedPoints();
-                _loadDownloadedPisteOverlays();
-                _loadDownloadedChausseeOverlays();
-                _loadDownloadedSpecialLines();
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void handleSync() {
-    if (isSyncing) return;
-
-    _performSync();
-  }
-
-  void handleSave() {
-    if (isDownloading) return;
-    _performDownload();
-  }
-
-  Future<void> _performDownload() async {
-    setState(() {
-      isDownloading = true;
-      _progressValue = 0.0;
-      _processedItems = 0;
-      _totalItems = 1;
-    });
-
-    try {
-      final result = await SyncService().downloadAllData(
-        onProgress: (progress, currentOperation, processed, total) {
-          setState(() {
-            _progressValue = progress;
-            _currentOperation = currentOperation;
-            _processedItems = processed;
-            _totalItems = total;
-          });
-        },
-      );
-      setState(() => lastSyncResult = result);
-
-      final downloadedLocalCount = await DatabaseHelper().countDownloadedSrmRows(
-        projetId: ApiService.currentProjetId,
-      );
-      final bool alreadyDownloaded =
-          result.successCount == 0 &&
-          result.failedCount == 0 &&
-          downloadedLocalCount > 0;
-      final bool nothingAvailable =
-          result.successCount == 0 &&
-          result.failedCount == 0 &&
-          downloadedLocalCount == 0 &&
-          result.skippedCount == 0;
-
-      _showDownloadResult(
+  }) =>
+      _showDownloadResultImpl(
+        this,
         result,
         alreadyDownloaded: alreadyDownloaded,
         nothingAvailable: nothingAvailable,
       );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            alreadyDownloaded
-                ? 'Aucune nouvelle donnée à télécharger'
-                : nothingAvailable
-                    ? 'Aucune donnée disponible pour votre compte'
-                    : result.successCount > 0
-                        ? 'Téléchargement : ${result.successCount} nouvelles, ${result.skippedCount} déjà à jour'
-                        : 'Toutes les données sont déjà à jour (${result.skippedCount})',
-          ),
-          backgroundColor: alreadyDownloaded
-              ? Colors.blue
-              : nothingAvailable
-                  ? Colors.orange
-                  : result.successCount > 0
-                      ? Colors.green
-                      : Colors.blue,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur sauvegarde: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => isDownloading = false);
-    }
-  }
-
-  void handleMenuPress() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DataCategoriesPage(
-          isOnline: _isOnlineDynamic,
-          agentName: widget.agentName,
-        ),
-      ),
-    ).then((_) {
-      // Rafraîchir les données
-      _refreshAllPoints();
-      _loadDisplayedPoints();
-      _loadDisplayedPistes();
-      _loadDisplayedChausseeOverlays();
-      _loadDisplayedSpecialLines();
-      if (_legendVisibility['zone_plaine'] != false) {
-        _loadDisplayedPolygons();
-      }
-      _loadPointCountsByTable();
-
-      // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â VÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rifier s'il y a un focus en attente (depuis l'icÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ne ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“il)
-      if (HomePage.pendingFocusTarget != null) {
-        final target = HomePage.pendingFocusTarget!;
-        HomePage.pendingFocusTarget = null;
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            _suspendAutoCenterFor(const Duration(seconds: 10));
-            _focusOnTarget(target);
-          }
-        });
-      }
-    });
-  }
-
-  // Ajoutez cette méthode pour afficher la confirmation de déconnexion
-  void _showLogoutConfirmation() {
-    showDialog(
-      context: context,
-      builder: (
-        ctx,
-      ) =>
-          AlertDialog(
-        title: const Text(
-          'Confirmation de déconnexion',
-        ),
-        content: const Text(
-          'Êtes-vous sûr de vouloir vous déconnecter ?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(
-              ctx,
-            ),
-            child: const Text(
-              'Non',
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(
-                ctx,
-              ); // Fermer la boîte de dialogue
-              _performLogout(); // Effectuer la déconnexion
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text(
-              'Oui',
-              style: TextStyle(
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Ajoutez cette méthode pour effectuer la déconnexion
-  Future<void> _performLogout() async {
-    await DatabaseHelper().clearSrmSession();
-    ApiService.userId = null;
-
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-    );
-  }
-
-  // Méthode AVEC Future pour la logique async
-  Future<void> _performSync() async {
-    setState(() {
-      isSyncing = true;
-      _syncProgressValue = 0.0;
-      _syncProcessedItems = 0;
-      _syncTotalItems = 1;
-    });
-
-    try {
-      //  PLUS DE .timeout() GLOBAL
-      // Les timeouts sont gérés par item (30s par requête dans ApiService.postData)
-      final result = await SyncService().syncAllDataSequential(
-        onProgress: (progress, currentOperation, processed, total) {
-          double safeProgress = progress.isNaN || progress.isInfinite ? 0.0 : progress.clamp(0.0, 1.0);
-          int safeProcessed = processed.isNaN || processed.isInfinite ? 0 : processed;
-          int safeTotal = total.isNaN || total.isInfinite ? 1 : total;
-
-          if (mounted) {
-            setState(() {
-              _syncProgressValue = safeProgress;
-              _currentSyncOperation = currentOperation;
-              _syncProcessedItems = safeProcessed;
-              _syncTotalItems = safeTotal;
-            });
-          }
-        },
-      );
-
-      // Sauvegarder l'heure de synchro (même si partielle)
-      if (result.successCount > 0) {
-        final now = DateTime.now();
-        await DatabaseHelper().saveLastSyncTime(now);
-        if (mounted) {
-          setState(() {
-            _lastSyncTimeText = _formatTimeHHmm(now);
-          });
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          lastSyncResult = result;
-          isSyncing = false;
-        });
-      }
-
-      //  TOUJOURS afficher le rapport détaillé
-      _showSyncResult(result);
-    } catch (e) {
-      //  Même en cas d'erreur inattendue, essayer de montrer un résultat
-      if (mounted) {
-        setState(() => isSyncing = false);
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur de synchronisation: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    }
-  }
 
   double _coordinateDistance(
     lat1,
@@ -4706,567 +874,11 @@ class _HomePageState extends State<HomePage> {
         );
   }
 
-  Future<void> _showMockLocationDialog() async {
-    final initialPosition = homeController.mockPosition ?? homeController.userPosition;
-    final latitudeController = TextEditingController(
-      text: initialPosition.latitude.toStringAsFixed(6),
-    );
-    final longitudeController = TextEditingController(
-      text: initialPosition.longitude.toStringAsFixed(6),
-    );
-
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('Position GPS mock'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: latitudeController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Latitude',
-                    hintText: 'Ex: 33.573110',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: longitudeController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Longitude',
-                    hintText: 'Ex: -7.589843',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              if (homeController.isMockLocationEnabled)
-                TextButton(
-                  onPressed: () async {
-                    Navigator.of(dialogContext).pop();
-                    await Future<void>.delayed(Duration.zero);
-                    if (!mounted) return;
-                    await homeController.clearMockPosition();
-                    final restoredPosition = homeController.userPosition;
-                    if (_mapController != null) {
-                      _mapController!.move(restoredPosition, 17);
-                      _lastCameraPosition = restoredPosition;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Mock GPS désactivé'),
-                        backgroundColor: Colors.blueGrey,
-                      ),
-                    );
-                  },
-                  child: const Text('Revenir au GPS réel'),
-                ),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Annuler'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final lat = double.tryParse(
-                    latitudeController.text.trim().replaceAll(',', '.'),
-                  );
-                  final lon = double.tryParse(
-                    longitudeController.text.trim().replaceAll(',', '.'),
-                  );
-
-                  if (lat == null || lon == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Latitude ou longitude invalide'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  try {
-                    Navigator.of(dialogContext).pop();
-                    await Future<void>.delayed(Duration.zero);
-                    if (!mounted) return;
-                    homeController.setMockPosition(
-                      latitude: lat,
-                      longitude: lon,
-                    );
-                    final mockPosition = LatLng(lat, lon);
-                    if (_mapController != null) {
-                      _mapController!.move(mockPosition, 17);
-                      _lastCameraPosition = mockPosition;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Mock GPS appliqué: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
-                        ),
-                        backgroundColor: Colors.teal,
-                      ),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(e.toString()),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Appliquer'),
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      latitudeController.dispose();
-      longitudeController.dispose();
-    }
-  }
-
-  Future<void> _showMockLocationDialogSafe() async {
-    final initialPosition = homeController.mockPosition ?? homeController.userPosition;
-    final latitudeController = TextEditingController(
-      text: initialPosition.latitude.toStringAsFixed(6),
-    );
-    final longitudeController = TextEditingController(
-      text: initialPosition.longitude.toStringAsFixed(6),
-    );
-
-    try {
-      final result = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('Position GPS mock'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: latitudeController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Latitude',
-                    hintText: 'Ex: 33.573110',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: longitudeController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Longitude',
-                    hintText: 'Ex: -7.589843',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              if (homeController.isMockLocationEnabled)
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop({
-                    'action': 'clear',
-                  }),
-                  child: const Text('Revenir au GPS reel'),
-                ),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Annuler'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop({
-                    'action': 'apply',
-                    'lat': double.tryParse(
-                      latitudeController.text.trim().replaceAll(',', '.'),
-                    ),
-                    'lon': double.tryParse(
-                      longitudeController.text.trim().replaceAll(',', '.'),
-                    ),
-                  });
-                },
-                child: const Text('Appliquer'),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (!mounted || result == null) return;
-
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      if (!mounted) return;
-
-      final action = (result['action'] ?? '').toString();
-
-      if (action == 'clear') {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          if (!mounted) return;
-
-          await homeController.clearMockPosition();
-          final restoredPosition = homeController.userPosition;
-          if (_mapController != null) {
-            _mapController!.move(restoredPosition, 17);
-            _lastCameraPosition = restoredPosition;
-          }
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Mock GPS désactivé'),
-              backgroundColor: Colors.blueGrey,
-            ),
-          );
-        });
-        return;
-      }
-
-      final lat = result['lat'] as double?;
-      final lon = result['lon'] as double?;
-
-      if (lat == null || lon == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Latitude ou longitude invalide'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      try {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-
-          homeController.setMockPosition(
-            latitude: lat,
-            longitude: lon,
-          );
-          final mockPosition = LatLng(lat, lon);
-          if (_mapController != null) {
-            _mapController!.move(mockPosition, 17);
-            _lastCameraPosition = mockPosition;
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Mock GPS appliqué: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
-              ),
-              backgroundColor: Colors.teal,
-            ),
-          );
-        });
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {}
-  }
-
   @override
   void dispose() {
     homeController.dispose();
     _onlineWatchTimer?.cancel();
     super.dispose();
-  }
-
-  Widget _buildStepIndicator() {
-    final lowerOperation = _currentSyncOperation.toLowerCase();
-    String currentStep = 'Points';
-
-    if (lowerOperation.contains('ligne') ||
-        lowerOperation.contains('canalisation') ||
-        lowerOperation.contains('troncon') ||
-        lowerOperation.contains('conduite')) {
-      currentStep = 'Lignes';
-    } else if (lowerOperation.contains('polyg') ||
-        lowerOperation.contains('planche') ||
-        lowerOperation.contains('regard_ep')) {
-      currentStep = 'Polygones';
-    }
-
-    Color _stepColor(String step) {
-      if (currentStep == step) return Colors.orange;
-      if (step == 'Points') return Colors.green;
-      if (step == 'Lignes' && currentStep == 'Polygones') return Colors.green;
-      return Colors.grey;
-    }
-
-    FontWeight _stepWeight(String step) {
-      return currentStep == step ? FontWeight.bold : FontWeight.normal;
-    }
-
-    return Row(
-      children: [
-        Icon(
-          Icons.check_circle,
-          color: _stepColor('Points'),
-          size: 16,
-        ),
-        const SizedBox(
-          width: 4,
-        ),
-        Text(
-          'Points',
-          style: TextStyle(
-            color: _stepColor('Points'),
-            fontWeight: _stepWeight('Points'),
-          ),
-        ),
-        const SizedBox(
-          width: 12,
-        ),
-        Icon(
-          Icons.check_circle,
-          color: _stepColor('Lignes'),
-          size: 16,
-        ),
-        const SizedBox(
-          width: 4,
-        ),
-        Text(
-          'Lignes',
-          style: TextStyle(
-            color: _stepColor('Lignes'),
-            fontWeight: _stepWeight('Lignes'),
-          ),
-        ),
-        const SizedBox(
-          width: 12,
-        ),
-        Icon(
-          Icons.check_circle,
-          color: _stepColor('Polygones'),
-          size: 16,
-        ),
-        const SizedBox(
-          width: 4,
-        ),
-        Text(
-          'Polygones',
-          style: TextStyle(
-            color: _stepColor('Polygones'),
-            fontWeight: _stepWeight('Polygones'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Ajoutez cette méthode
-  Widget _buildSyncProgressIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(
-        16,
-      ),
-      margin: const EdgeInsets.symmetric(
-        horizontal: 20,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(
-          12,
-        ),
-        border: Border.all(
-          color: Colors.orange[100]!,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.cloud_upload,
-                color: Colors.orange,
-              ),
-              SizedBox(
-                width: 10,
-              ),
-              Text(
-                'Synchronisation en cours',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 12,
-          ),
-          LinearProgressIndicator(
-            value: _syncProgressValue,
-            backgroundColor: Colors.grey[300],
-            valueColor: const AlwaysStoppedAnimation<Color>(
-              Colors.orange,
-            ),
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${(_syncProgressValue * 100).toStringAsFixed(0)}%',
-              ),
-              Text(
-                '$_syncProcessedItems/$_syncTotalItems',
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          Text(
-            _currentSyncOperation,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[700],
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          // Ajouter des indicateurs d'étapes
-          _buildStepIndicator(),
-        ],
-      ),
-    );
-  }
-
-  // Ajoutez cette méthode pour afficher la progression
-  Widget _buildProgressIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(
-        16,
-      ),
-      margin: const EdgeInsets.symmetric(
-        horizontal: 20,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.grey[100], // Même couleur que la boîte "Sauvegarde terminée"
-        borderRadius: BorderRadius.circular(
-          12,
-        ),
-        border: Border.all(
-          color: Colors.blue[100]!,
-        ), // Bordure bleue claire
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 10,
-            offset: Offset(
-              0,
-              4,
-            ),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.cloud_download,
-                color: Colors.blue,
-              ),
-              SizedBox(
-                width: 10,
-              ),
-              Text(
-                'Sauvegarde en cours',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 12,
-          ),
-          LinearProgressIndicator(
-            value: _progressValue,
-            backgroundColor: Colors.grey[300],
-            valueColor: const AlwaysStoppedAnimation<Color>(
-              Colors.blue,
-            ),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(
-              4,
-            ),
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${(_progressValue * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                '$_processedItems/$_totalItems',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          Text(
-            _currentOperation,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[700],
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -5275,9 +887,7 @@ class _HomePageState extends State<HomePage> {
   ) {
     final List<Marker> filteredMarkers = _getFilteredMarkers()..addAll(_focusOverlayMarkers);
 
-    // 2. Filtrer les polylines selon la légende
     final List<Polyline> filteredPolylines = _getFilteredPolylines()..addAll(_focusOverlayPolylines);
-    // Polygones GeoDNGR (zone_plaine) + SRM filtrés par légende
     List<Polygon> filteredPolygons = (_legendVisibility['zone_plaine'] != false)
         ? _displayedPolygons
             .where((p) => !_displayedSrmPolygonsByTable.values.any((list) => list.contains(p)))
@@ -5288,12 +898,6 @@ class _HomePageState extends State<HomePage> {
         filteredPolygons.addAll(entry.value);
       }
     }
-    // === LOGS POUR DEBUG ===
-    print('[MAP] filteredMarkers size = ${filteredMarkers.length}');
-    print('[MAP] filteredPolylines size = ${filteredPolylines.length}');
-
-    // === AJOUTER LES ÉLÉMENTS EN COURS (toujours visibles) ===
-
     if (homeController.specialCollection != null) {
       final specialPoints = homeController.specialCollection!.points;
       if (specialPoints.length > 1) {
@@ -5334,15 +938,28 @@ class _HomePageState extends State<HomePage> {
         filteredPolygons.add(
           Polygon(
             points: polyPoints,
-            color: const Color(0xFF4CAF50).withOpacity(0.2),
+            color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
             borderColor: const Color(0xFF1B5E20),
             borderStrokeWidth: 3.0,
-            isFilled: true,
           ),
         );
       }
     }
-    // Ajouter la piste en cours si active
+
+    final previewPoints = _pendingPolygonPreviewPoints;
+    if (previewPoints != null &&
+        previewPoints.length >= 3 &&
+        !_containsPolygonPreview(filteredPolygons, previewPoints)) {
+      filteredPolygons.add(
+        Polygon(
+          points: previewPoints,
+          color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+          borderColor: const Color(0xFF1B5E20),
+          borderStrokeWidth: 3.0,
+        ),
+      );
+    }
+    // Ajouter la ligne en cours si active
     if (homeController.ligneCollection != null) {
       final lignePoints = homeController.ligneCollection!.points;
       if (lignePoints.length > 1) {
@@ -5370,7 +987,7 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           children: [
             TopBarWidget(
-                agentName: widget.agentName ?? 'Agent',
+                agentName: widget.agentName,
                 onLogout: _showLogoutConfirmation,
                 onReturnFromProfile: _hydrateOfflineBasemapState,
               ),
@@ -5403,7 +1020,6 @@ class _HomePageState extends State<HomePage> {
                       _autoCenterDisabledByUser = false;
                     },
                   ),
-                  // === WIDGET DE LÉGENDE ===
                   LegendWidget(
                     initialVisibility: _legendVisibility,
                     onVisibilityChanged: _updateVisibilityFromLegend,
@@ -5424,9 +1040,7 @@ class _HomePageState extends State<HomePage> {
                         sigmaY: 3,
                       ),
                       child: Container(
-                        color: Colors.black.withOpacity(
-                          0.2,
-                        ),
+                        color: Colors.black.withValues(alpha: 0.2),
                       ),
                     ),
 
@@ -5437,9 +1051,7 @@ class _HomePageState extends State<HomePage> {
                         sigmaY: 3,
                       ),
                       child: Container(
-                        color: Colors.black.withOpacity(
-                          0.2,
-                        ),
+                        color: Colors.black.withValues(alpha: 0.2),
                       ),
                     ),
 
@@ -5464,118 +1076,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  // === AJOUTEZ ICI === //
-                  Positioned(
-                    bottom: 200,
-                    right: 16,
-                    child: Visibility(
-                      visible: false,
-                      child: FloatingActionButton(
-                        onPressed: () {
-                          homeController.addRealisticLineSimulation();
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Ligne simulée autour de la position courante',
-                              ), // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â MESSAGE MODIFIÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°
-                              backgroundColor: Colors.blue,
-                              duration: Duration(
-                                seconds: 2,
-                              ),
-                            ),
-                          );
-                        },
-                        backgroundColor: Colors.orange,
-                        mini: true,
-                        heroTag: 'dev_button',
-                        child: const Icon(
-                          Icons.add_location_alt,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Ajouter dans la section des boutons de debug
-                  Positioned(
-                    bottom: 120,
-                    right: 16,
-                    child: Visibility(
-                      visible: false,
-                      child: FloatingActionButton(
-                        onPressed: () {
-                          homeController.addManualPointToSpecialCollection();
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Points simulés pour $_specialCollectionType',
-                              ),
-                              backgroundColor: Colors.purple,
-                              duration: const Duration(
-                                seconds: 2,
-                              ),
-                            ),
-                          );
-                        },
-                        backgroundColor: Colors.purple,
-                        mini: true,
-                        heroTag: 'simulate_special_button',
-                        child: const Icon(
-                          Icons.add_road,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  //  SIMULATION POLYGONE ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SUPPRIMER APRÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â S TEST
-                  //  BOUTON SIMULATION ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°MULATEUR ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SUPPRIMER POUR LA PRODUCTION
-                  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ SIMULATION POLYGONE ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ SUPPRIMER APRÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â S TEST ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´
-                  if (false)
-                    Positioned(
-                      bottom: 120,
-                      right: 16,
-                      child: FloatingActionButton(
-                        onPressed: () {
-                          final pos = homeController.userPosition;
-                          // 5 points formant un pentagone clair autour de la position
-                          final simulatedPoints = [
-                            LatLng(pos.latitude + 0.002, pos.longitude),
-                            LatLng(pos.latitude + 0.0006, pos.longitude + 0.0019),
-                            LatLng(pos.latitude - 0.0016, pos.longitude + 0.0012),
-                            LatLng(pos.latitude - 0.0016, pos.longitude - 0.0012),
-                            LatLng(pos.latitude + 0.0006, pos.longitude - 0.0019),
-                          ];
-                          for (var pt in simulatedPoints) {
-                            homeController.collectionManager.addManualPoint(
-                              CollectionType.special,
-                              pt,
-                            );
-                          }
-                          setState(() {});
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '5 points de polygone simulés (${homeController.specialCollection?.points.length ?? 0} total)',
-                              ),
-                              backgroundColor: const Color(0xFF1B5E20),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        backgroundColor: const Color(0xFF1B5E20),
-                        mini: true,
-                        heroTag: 'simulate_polygon_button',
-                        child: const Icon(Icons.pentagon, color: Colors.white),
-                      ),
-                    ),
-
-                  //  FIN SIMULATION
-
-                  // === FIN DE L'AJOUT === //
-                  // Contrôles de carte — masqués quand la légende est ouverte
                   if (!_isLegendExpanded)
                     MapControlsWidget(
                         controller: homeController,
@@ -5589,52 +1089,19 @@ class _HomePageState extends State<HomePage> {
                         onCancelLigne: cancelLigneCollection,
                         onCancelPolygon: cancelSpecialCollection,
                         onRefresh: _loadDisplayedPoints,
-                        isSpecialCollection: _isSpecialCollection, // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOUVEAU
+                        isSpecialCollection: _isSpecialCollection,
                         onStopSpecial: finishSpecialCollection,
                         isPolygonCollection: _isPolygonCollection,
                     ),
-                  /* DownloadedPistesToggle(
-                    isOn: _showDownloadedPistes,
-                    count: _downloadedPistesPolylines.length, // optionnel
-                    onChanged: (value) {
-                      setState(() => _showDownloadedPistes = value);
-                      print('[UI] pistes telechargees visibles=$_showDownloadedPistes '
-                          '(count=${_downloadedPistesPolylines.length})');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(value ? 'Pistes téléchargées : AFFICHÉES' : 'Pistes téléchargées : MASQUÉES'),
-                          duration: const Duration(milliseconds: 900),
-                        ),
-                      );
-                    },
-                  ),
-                  // === NOUVEAU : même style que le bouton Pistes ===
-                  DownloadedChausseesToggle(
-                    isOn: _showDownloadedChaussees,
-                    count: _downloadedChausseesPolylines.length,
-                    onChanged: (value) {
-                      setState(() => _showDownloadedChaussees = value);
-                      print('[UI] chaussees telechargees visibles=$_showDownloadedChaussees '
-                          '(count=${_downloadedChausseesPolylines.length})');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(value ? 'Chaussées téléchargées : AFFICHÉES' : 'Chaussées téléchargées : MASQUÉES'),
-                          duration: const Duration(milliseconds: 900),
-                        ),
-                      );
-                    },
-                  ), */
+                  // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
 
-                  // === WIDGETS DE STATUT (NOUVEAU SYSTÈME UNIQUEMENT) ===
-
-                  // Afficher le statut de ligne si active
+                // Afficher le statut de ligne si active
                   if (homeController.ligneCollection != null)
                     LigneStatusWidget(
                       collection: homeController.ligneCollection!,
                       topOffset: 16,
                     ),
 
-                  // Afficher le statut de spécial (Bac / Passage) si active
                   if (homeController.specialCollection != null)
                     SpecialStatusWidget(
                       collection: homeController.specialCollection!,
@@ -5713,524 +1180,3 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-String getEntityTypeFromTable(String tableName) {
-  const entityTypes = {
-    'localites': 'Localité',
-    'ecoles': 'École',
-    'marches': 'Marché',
-    'services_santes': 'Service de Santé',
-    'batiments_administratifs': 'Bâtiment Administratif',
-    'infrastructures_hydrauliques': 'Infrastructure Hydraulique',
-    'autres_infrastructures': 'Autre Infrastructure',
-    'ponts': 'Pont',
-    'buses': 'Buse',
-    'dalots': 'Dalot',
-    'points_critiques': 'Point Critique',
-    'points_coupures': 'Point de Coupure',
-    'site_enquete': 'Site de Plaine',
-    'enquete_polygone': 'Zone de Plaine',
-  };
-  return entityTypes[tableName] ?? tableName;
-}
-
-class DownloadedPistesService {
-  final PisteStorageHelper _storageHelper = PisteStorageHelper();
-
-  // Brun proche orange
-  static const Color downloadedPisteColor = Color(0xFFB86E1D);
-
-  // --- Helpers robustes ---
-
-  /// Essaie d'extraire (lon, lat) depuis différents formats de point
-  LatLng? _parsePoint(dynamic item) {
-    try {
-      // 1) Liste [lon, lat]
-      if (item is List && item.length >= 2) {
-        final lon = (item[0] as num?)?.toDouble();
-        final lat = (item[1] as num?)?.toDouble();
-        if (lon != null && lat != null) return LatLng(lat, lon);
-      }
-
-      // 2) Map {lon, lat} / {x, y} / {longitude, latitude}
-      if (item is Map) {
-        // clés possibles
-        final candidatesLon = [
-          'lon',
-          'lng',
-          'x',
-          'longitude'
-        ];
-        final candidatesLat = [
-          'lat',
-          'y',
-          'latitude'
-        ];
-
-        double? lon;
-        double? lat;
-
-        for (final k in candidatesLon) {
-          if (item.containsKey(k)) {
-            final v = item[k];
-            if (v is num) lon = v.toDouble();
-            if (v is String) lon = double.tryParse(v);
-            break;
-          }
-        }
-        for (final k in candidatesLat) {
-          if (item.containsKey(k)) {
-            final v = item[k];
-            if (v is num) lat = v.toDouble();
-            if (v is String) lat = double.tryParse(v);
-            break;
-          }
-        }
-
-        if (lon != null && lat != null) return LatLng(lat, lon);
-
-        // parfois {lat, lon} inversés / noms différents
-        if (item.containsKey('latitude') && item.containsKey('longitude')) {
-          final lat2 = (item['latitude'] is num) ? (item['latitude'] as num).toDouble() : double.tryParse(item['latitude'].toString());
-          final lon2 = (item['longitude'] is num) ? (item['longitude'] as num).toDouble() : double.tryParse(item['longitude'].toString());
-          if (lat2 != null && lon2 != null) return LatLng(lat2, lon2);
-        }
-      }
-
-      // 3) String "lon,lat" ou "lon lat"
-      if (item is String) {
-        final s = item.trim();
-        final sep = s.contains(',') ? ',' : ' ';
-        final parts = s.split(sep).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-        if (parts.length >= 2) {
-          final lon = double.tryParse(parts[0]);
-          final lat = double.tryParse(parts[1]);
-          if (lon != null && lat != null) return LatLng(lat, lon);
-        }
-      }
-    } catch (_) {
-      // ignore, on retourne null
-    }
-    return null;
-  }
-
-  /// Convertit une liste hétérogène (list/objects/strings) en List<LatLng>
-  List<LatLng> _toLatLngList(dynamic coords) {
-    final result = <LatLng>[];
-    if (coords is! List) return result;
-
-    for (final item in coords) {
-      final p = _parsePoint(item);
-      if (p != null) result.add(p);
-    }
-    return result;
-  }
-
-  /// Essaie d’extraire une liste de coordonnées d’un GeoJSON line-like
-  /// - MultiLineString: prend la première ligne
-  /// - LineString: prend la liste directement
-  dynamic _extractLineCoordsFromGeoJson(Map gj) {
-    final gType = (gj['type'] ?? '').toString();
-    final coords = gj['coordinates'];
-    if (gType == 'MultiLineString' && coords is List && coords.isNotEmpty) {
-      return coords.first; // [[lon,lat], ...]
-    }
-    if (gType == 'LineString' && coords is List) {
-      return coords;
-    }
-    return null;
-  }
-
-  double _deg2rad(double deg) => deg * (Math.pi / 180.0);
-
-  double _haversineMeters(LatLng a, LatLng b) {
-    const R = 6371000.0;
-    final dLat = _deg2rad(b.latitude - a.latitude);
-    final dLng = _deg2rad(b.longitude - a.longitude);
-
-    final lat1 = _deg2rad(a.latitude);
-    final lat2 = _deg2rad(b.latitude);
-
-    final sinDLat = Math.sin(dLat / 2);
-    final sinDLng = Math.sin(dLng / 2);
-
-    final h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-    final c = 2 * Math.asin(Math.min(1.0, Math.sqrt(h)));
-    return R * c;
-  }
-
-  double _polylineDistanceKm(List<LatLng> pts) {
-    if (pts.length < 2) return 0.0;
-    double sum = 0.0;
-    for (int i = 0; i < pts.length - 1; i++) {
-      sum += _haversineMeters(pts[i], pts[i + 1]);
-    }
-    return sum / 1000.0;
-  }
-
-  Future<List<Polyline>> getDownloadedPistesPolylines({
-    required void Function(Map<String, dynamic>) onTapDetails,
-  }) async {
-    try {
-      final db = await _storageHelper.database;
-      final loginId = await DatabaseHelper().resolveLoginId();
-      if (loginId == null) {
-        print('[PISTE-DOWNLOAD] impossible de resoudre le login_id courant');
-        return [];
-      }
-      print('[PISTE-DOWNLOAD] chargement des pistes downloaded=1 pour login_id=$loginId');
-      final pistes = await db.query(
-        'pistes',
-        where: 'downloaded = ? AND saved_by_user_id = ?',
-        whereArgs: [
-          1,
-          loginId
-        ],
-      );
-      print('[PISTE-DOWNLOAD] ${pistes.length} ligne(s) trouvee(s) en SQLite (table pistes)');
-
-      // Stats rapides
-      int withPointsJson = 0, withGeom = 0, unusable = 0;
-      for (final r in pistes) {
-        final pj = r['points_json'];
-        final g = r['geom'];
-        if (pj is String && pj.trim().isNotEmpty) {
-          withPointsJson++;
-        } else if (g != null && g.toString().trim().startsWith('{'))
-          withGeom++;
-        else
-          unusable++;
-      }
-      print('[PISTE-DOWNLOAD] points_json OK=$withPointsJson | geom OK=$withGeom | inutilisables=$unusable');
-
-      final polylines = <Polyline>{};
-      int added = 0, skipped = 0;
-
-      for (final row in pistes) {
-        final id = row['id'];
-        final code = row['code_piste'];
-        final createdAt = row['created_at'];
-
-        List<LatLng> points = [];
-
-        // 1) points_json prioritaire
-        final pointsJson = row['points_json'];
-        if (pointsJson is String && pointsJson.trim().isNotEmpty) {
-          // debug: petit aperçu
-          final preview = pointsJson.length > 120 ? '${pointsJson.substring(0, 120)}…' : pointsJson;
-          print('[PISTE-DOWNLOAD:$id] $code -> points_json len=${pointsJson.length} preview="$preview"');
-
-          try {
-            final decoded = jsonDecode(pointsJson);
-            points = _toLatLngList(decoded);
-            print('[PISTE-DOWNLOAD:$id] $code -> points_json converti: ${points.length} pts');
-          } catch (e) {
-            print('[PISTE-DOWNLOAD:$id] $code -> erreur decode points_json: $e');
-          }
-        }
-
-        // 2) sinon, geom (GeoJSON 4326)
-        if (points.isEmpty) {
-          final geom = row['geom'];
-          final gs = geom?.toString().trim() ?? '';
-          if (gs.startsWith('{')) {
-            try {
-              final gj = jsonDecode(gs);
-              final line = _extractLineCoordsFromGeoJson(gj);
-              if (line != null) {
-                final preview = line is List ? (line.isNotEmpty ? line.first.toString() : '[]') : line.toString();
-                print('[PISTE-DOWNLOAD:$id] $code -> geom.gj sample="$preview"');
-                points = _toLatLngList(line);
-                print('[PISTE-DOWNLOAD:$id] $code -> geom converti: ${points.length} pts');
-              } else {
-                print('[PISTE-DOWNLOAD:$id] $code -> structure GeoJSON non supportee');
-              }
-            } catch (e) {
-              print('[PISTE-DOWNLOAD:$id] $code -> erreur decode geom: $e');
-            }
-          } else if (gs.isNotEmpty) {
-            print('[PISTE-DOWNLOAD:$id] $code -> geom non GeoJSON ignore en offline');
-          }
-        }
-
-        if (points.length < 2) {
-          print('[PISTE-DOWNLOAD:$id] $code -> moins de 2 points (${points.length}), ignore');
-          skipped++;
-          continue;
-        }
-
-        final first = points.first;
-        final last = points.last;
-        print('[PISTE-DOWNLOAD:$id] $code -> polyline ${points.length} pts | '
-            'start=(${first.latitude},${first.longitude}) end=(${last.latitude},${last.longitude})');
-        final distanceKm = _polylineDistanceKm(points);
-
-        final pl = Polyline(
-          points: points,
-          color: downloadedPisteColor,
-          strokeWidth: 5.0,
-          pattern: const StrokePattern.dotted(spacingFactor: 2.0),
-
-          // ✅ AJOUT IMPORTANT
-          hitValue: PolylineTapData(
-            type: 'piste_downloaded',
-            data: {
-              'code_piste': (code ?? '----').toString(),
-              'nb_points': points.length,
-              'start_lat': points.first.latitude,
-              'start_lng': points.first.longitude,
-              'end_lat': points.last.latitude,
-              'end_lng': points.last.longitude,
-              'distance_km': distanceKm,
-              'plateforme': (row['plateforme'] ?? '----').toString(),
-              'relief': (row['relief'] ?? '----').toString(),
-              'vegetation': (row['vegetation'] ?? '----').toString(),
-              'debut_travaux': (row['debut_travaux'] ?? '----').toString(),
-              'fin_travaux': (row['fin_travaux'] ?? '----').toString(),
-              'financement': (row['financement'] ?? '----').toString(),
-              'projet': (row['projet'] ?? '----').toString(),
-              'entreprise': (row['entreprise'] ?? '----').toString(),
-              'region_name': (row['region_name'] ?? '----').toString(),
-              'prefecture_name': (row['prefecture_name'] ?? '----').toString(),
-              'commune_name': (row['commune_name'] ?? '----').toString(),
-              'enqueteur': (row['user_login'] ?? '').toString(),
-            },
-          ),
-        );
-
-        polylines.add(pl);
-        added++;
-      }
-
-      print('[PISTE-DOWNLOAD] ajoutees=$added | ignorees=$skipped');
-      return polylines.toList();
-    } catch (e) {
-      print('[PISTE-DOWNLOAD] erreur de chargement: $e');
-      return [];
-    }
-  }
-}
-
-class DownloadedChausseesService {
-  final PisteStorageHelper _storageHelper = PisteStorageHelper();
-
-  // Couleur par défaut pour les chaussées téléchargées (tu peux changer)
-  static const Color downloadedChausseeColor = Color(0xFF1A7F5A); // vert foncé
-
-  LatLng? _parsePoint(dynamic item) {
-    try {
-      // 1) [lon, lat]
-      if (item is List && item.length >= 2) {
-        final lon = (item[0] as num?)?.toDouble();
-        final lat = (item[1] as num?)?.toDouble();
-        if (lon != null && lat != null) return LatLng(lat, lon);
-      }
-      // 2) {longitude, latitude}
-      if (item is Map) {
-        final lon = (item['longitude'] ?? item['lng']) as num?;
-        final lat = (item['latitude'] ?? item['lat']) as num?;
-        if (lon != null && lat != null) return LatLng(lat.toDouble(), lon.toDouble());
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  List<LatLng> _parsePointsJson(dynamic raw) {
-    if (raw == null) return [];
-    try {
-      final decoded = (raw is String) ? jsonDecode(raw) : raw;
-      if (decoded is List) {
-        final pts = <LatLng>[];
-        for (final item in decoded) {
-          final p = _parsePoint(item);
-          if (p != null) pts.add(p);
-        }
-        return pts;
-      }
-      return [];
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // Fallback GeoJSON { "type":"MultiLineString", "coordinates":[ [ [lon,lat], ... ] ] }
-  List<LatLng> _parseGeom(dynamic raw) {
-    try {
-      if (raw is String && raw.trim().startsWith('{')) {
-        final g = jsonDecode(raw);
-        if (g is Map && g['type'] == 'MultiLineString') {
-          final coords = g['coordinates'];
-          if (coords is List && coords.isNotEmpty && coords[0] is List) {
-            final firstLine = coords[0] as List;
-            final pts = <LatLng>[];
-            for (final item in firstLine) {
-              final p = _parsePoint(item);
-              if (p != null) pts.add(p);
-            }
-            return pts;
-          }
-        }
-      }
-    } catch (_) {}
-    return [];
-  }
-
-  double _deg2rad(double deg) => deg * (Math.pi / 180.0);
-
-  double _haversineMeters(LatLng a, LatLng b) {
-    const R = 6371000.0;
-    final dLat = _deg2rad(b.latitude - a.latitude);
-    final dLng = _deg2rad(b.longitude - a.longitude);
-
-    final lat1 = _deg2rad(a.latitude);
-    final lat2 = _deg2rad(b.latitude);
-
-    final sinDLat = Math.sin(dLat / 2);
-    final sinDLng = Math.sin(dLng / 2);
-
-    final h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-    final c = 2 * Math.asin(Math.min(1.0, Math.sqrt(h)));
-    return R * c;
-  }
-
-  double _polylineDistanceKm(List<LatLng> pts) {
-    if (pts.length < 2) return 0.0;
-    double sum = 0.0;
-    for (int i = 0; i < pts.length - 1; i++) {
-      sum += _haversineMeters(pts[i], pts[i + 1]);
-    }
-    return sum / 1000.0;
-  }
-
-  Future<List<Polyline>> getDownloadedChausseesPolylines({
-    required void Function(Map<String, dynamic>) onTapDetails,
-  }) async {
-    final polylines = <Polyline>{};
-    try {
-      final db = await _storageHelper.database;
-      final loginId = await DatabaseHelper().resolveLoginId();
-      if (loginId == null) {
-        print('[CHAUSSEE-DOWNLOAD] impossible de resoudre le login_id courant');
-        return [];
-      }
-      // même filtre que pour les pistes téléchargées
-      final rows = await db.query(
-        'chaussees',
-        where: 'downloaded = ? AND saved_by_user_id = ?',
-        whereArgs: [
-          1,
-          loginId
-        ],
-      );
-
-      int added = 0, skipped = 0;
-
-      for (final r in rows) {
-        final id = r['id'];
-        final type = (r['type_chaussee'] ?? '').toString(); // ex: 'bitume', 'terre', 'latérite', 'sable', 'bouwal'
-        final endroit = (r['endroit'] ?? '').toString();
-        final codePiste = (r['code_piste'] ?? '').toString();
-
-        // points
-        List<LatLng> pts = _parsePointsJson(r['points_json']);
-        if (pts.isEmpty) {
-          // fallback éventuel (peu probable si points_json est rempli)
-          pts = _parseGeom(r['geom']);
-        }
-        // ignorer si vide
-        if (pts.length < 2) {
-          skipped++;
-          continue;
-        }
-
-        // Style : utilise tes helpers existants si tu veux des patterns/couleurs par type
-        final helper = PisteStorageHelper();
-        final color = helper.getChausseeColor(type); // mapping déjà présent chez toi
-        final pattern = helper.getChausseePattern(type); // idem
-        const width = 6;
-        final distanceKm = _polylineDistanceKm(pts);
-
-        final pl = Polyline(
-          points: pts,
-          color: color ?? DownloadedChausseesService.downloadedChausseeColor,
-          strokeWidth: width.toDouble(),
-          pattern: pattern ?? const StrokePattern.solid(),
-
-          // ✅ AJOUT IMPORTANT
-          hitValue: PolylineTapData(
-            type: 'chaussee_downloaded',
-            data: {
-              'type_chaussee': type,
-              'endroit': endroit,
-              'code_piste': codePiste,
-              'nb_points': pts.length,
-              'start_lat': pts.first.latitude,
-              'start_lng': pts.first.longitude,
-              'end_lat': pts.last.latitude,
-              'end_lng': pts.last.longitude,
-              'distance_km': distanceKm,
-              'region_name': (r['region_name'] ?? '----').toString(),
-              'prefecture_name': (r['prefecture_name'] ?? '----').toString(),
-              'commune_name': (r['commune_name'] ?? '----').toString(),
-              'enqueteur': (r['user_login'] ?? '').toString(),
-            },
-          ),
-        );
-
-        polylines.add(pl);
-        added++;
-      }
-
-      print('[CHAUSSEE-DOWNLOAD] ajoutees=$added | ignorees=$skipped');
-    } catch (e) {
-      print('[CHAUSSEE-DOWNLOAD] erreur de chargement: $e');
-    }
-    return polylines.toList();
-  }
-}
-
-/// Données associées à une Polyline pour gérer les taps
-class PolylineTapData {
-  final String type; // 'piste', 'chaussee', 'special_bac', 'special_passage', 'downloaded_piste', etc.
-  final Map<String, dynamic> data;
-
-  PolylineTapData({
-    required this.type,
-    required this.data,
-  });
-}
-
-class PolygonTapData {
-  final String nom;
-  final String codePiste;
-  final double superficie;
-  final int nbSommets;
-  final String enqueteur;
-  final String dateCreation;
-  final bool synced;
-  final bool downloaded;
-  final String regionName;
-  final String prefectureName;
-  final String communeName;
-
-  PolygonTapData({
-    required this.nom,
-    required this.codePiste,
-    required this.superficie,
-    required this.nbSommets,
-    required this.enqueteur,
-    required this.dateCreation,
-    required this.synced,
-    this.downloaded = false,
-    this.regionName = '',
-    this.prefectureName = '',
-    this.communeName = '',
-  });
-
-  String get statut {
-    if (downloaded) return 'Sauvegardée (downloaded)';
-    if (synced) return 'Synchronisée';
-    return 'Enregistrée localement';
-  }
-}

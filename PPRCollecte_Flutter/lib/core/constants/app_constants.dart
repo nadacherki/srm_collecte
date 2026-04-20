@@ -13,7 +13,7 @@ class AppConstants {
   static const int gpsIntervalSeconds = 20;
 
   /// Précision minimale acceptable en mètres
-  /// (plus strict que GeoDNGR car GNSS RTK centimétrique via mock location)
+  /// (adaptée au GNSS RTK centimétrique via mock location)
   static const double gpsMinAccuracyMeters = 5.0;
 
   /// Distance minimale entre deux points en mètres (anti-bruit)

@@ -6,7 +6,6 @@ import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../services/projection_service.dart';
 import '../widgets/common/custom_marker_icons.dart';
-import '../screens/home/home_page.dart';
 import '../data/remote/api_service.dart';
 
 class DisplayedPointsService {
@@ -64,7 +63,7 @@ class DisplayedPointsService {
                             ApiService.userLogin ??
                             '')
                         .toString(),
-                    'code_piste': (row['code_piste'] ?? '').toString(),
+                    'line_code': (row['line_code'] ?? '').toString(),
                     'lat': latLng.latitude,
                     'lng': latLng.longitude,
                     'synced': (row['synced'] ?? 0).toString(),
@@ -241,7 +240,7 @@ class DownloadedPointsService {
             if (coordinates['lat'] != null && coordinates['lng'] != null) {
               final double lat = (coordinates['lat'] as num).toDouble();
               final double lng = (coordinates['lng'] as num).toDouble();
-              final codePiste = point['code_piste'] ?? 'N/A';
+              final lineCode = point['line_code'] ?? 'N/A';
 
               markers.add(
                 Marker(
@@ -251,14 +250,14 @@ class DownloadedPointsService {
                   child: GestureDetector(
                     onTap: () {
                       onTapDetails({
-                        'type': getEntityTypeFromTable(tableName),
+                        'type': _getEntityTypeFromTable(tableName),
                         'name': (point['nom'] ??
                                 point['name'] ??
                                 point['libelle'] ??
                                 'Sans nom')
                             .toString(),
                         'enqueteur': (point['enqueteur'] ?? '').toString(),
-                        'code_piste': (codePiste).toString(),
+                        'line_code': (lineCode).toString(),
                         'lat': lat,
                         'lng': lng,
                         'region_name': (point['region_name'] ?? '').toString(),

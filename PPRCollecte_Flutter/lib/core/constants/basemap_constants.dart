@@ -11,7 +11,7 @@ class BasemapConstants {
   static const double fallbackMinZoom = 11.0;
   static const double fallbackMaxZoom = 19.0;
 
-  static final LatLng fallbackCenter = const LatLng(
+  static const LatLng fallbackCenter = LatLng(
     fallbackCenterLatitude,
     fallbackCenterLongitude,
   );

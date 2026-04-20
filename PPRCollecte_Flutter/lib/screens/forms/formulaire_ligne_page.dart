@@ -1,31 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math';
-import '../../data/local/piste_storage_helper.dart';
+import '../../data/local/line_storage_helper.dart';
 import '../../data/local/database_helper.dart';
 
 class FormulaireLignePage extends StatefulWidget {
   final List<LatLng> linePoints;
   final String? provisionalCode;
-  final DateTime? startTime; // 🆕 Heure de début de collecte
-  final DateTime? endTime; // 🆕 Heure de fin de collecte
+  final DateTime? startTime;
+  final DateTime? endTime;
   final String? agentName;
-  final Map<String, dynamic>? initialData; // ← NOUVEAU: Données existantes
-  final bool isEditingMode; //  Mode édition
-  final bool isContinuation;
-  final String? continuationSide;
+  final Map<String, dynamic>? initialData;
+  final bool isEditingMode;
 
   const FormulaireLignePage({
     super.key,
     required this.linePoints,
-    this.provisionalCode, // AJOUTER cette ligne
-    this.startTime, //  Passé depuis la page de collecte GPS
-    this.endTime, //  Passé depuis la page de collecte GPS
+    this.provisionalCode,
+    this.startTime,
+    this.endTime,
     this.agentName,
     this.initialData,
     this.isEditingMode = false,
-    this.isContinuation = false,
-    this.continuationSide,
   });
 
   @override
@@ -69,384 +65,9 @@ class _FormulairePageState extends State<FormulaireLignePage> {
   DateTime? _debutTravaux;
   DateTime? _finTravaux;
 
-  String? _communeRurale;
-  String? _typeOccupation;
-  DateTime? _debutOccupation;
-  DateTime? _finOccupation;
-  double? _largeurEmprise; // Largeur de l'emprise de la piste
-  String? _frequenceTrafic;
-  List<String> _selectedTypeTrafic = [];
   DateTime? _dateDebutTravaux;
   DateTime? _dateCreation; // ← NOUVEAU
   DateTime? _dateModification;
-  String _communeAuto = '';
-  // Options pour les dropdowns
-  final List<String> _communesRuralesOptions = [
-    "Boffa-Centre",
-    "Colia",
-    "Douprou",
-    "Koba-Tatema",
-    "Lisso",
-    "Mankountan",
-    "Tamita",
-    "Boké-Centre",
-    "Fermessadou-Pombo",
-    "Tougnifili",
-    "Bintimodiya",
-    "Dabiss",
-    "Kamsar",
-    "Kanfarandé",
-    "Kolaboui",
-    "Malapouyah",
-    "Sangarédi",
-    "Sansalé",
-    "Baguinet",
-    "Banguigny",
-    "Fria-Centre",
-    "Tormélin",
-    "Foulamory",
-    "Gaoual-Centre",
-    "Kakony",
-    "Koumbia",
-    "Kounsitel",
-    "Malanta",
-    "Wendou M'Bour",
-    "Saréboido",
-    "Banankoro",
-    "Guingan",
-    "Kamaby",
-    "Koundara-Centre",
-    "Sambailo",
-    "Gnaléah",
-    "Termessé",
-    "Youkounkoun",
-    "Dixinn",
-    "Kaloum",
-    "Matam",
-    "Matoto",
-    "Ratoma",
-    "Arfamoussaya",
-    "Banko",
-    "Hérémakonon",
-    "Bissikrima",
-    "Dabola-Centre",
-    "Dogomet",
-    "Kankama",
-    "Kindoyé",
-    "Konindou",
-    "N'Déma",
-    "Kobikoro",
-    "Banora",
-    "Diatiféré",
-    "Dinguiraye-Centre",
-    "Marela",
-    "Gagnakaly",
-    "Kalinko",
-    "Lansanya",
-    "Sélouma",
-    "Banian",
-    "Faranah-Centre",
-    "Passayah",
-    "Sandéniah",
-    "Songoyah",
-    "Tiro",
-    "Albadariah",
-    "Banama",
-    "Bardou",
-    "Firawa",
-    "Gbangbadou",
-    "Kissidougou-Centre",
-    "Kondiadou",
-    "Manfran",
-    "Sangardo",
-    "Yendé-Millimou",
-    "Yombiro",
-    "Damaro",
-    "Kérouané-Centre",
-    "Komodou",
-    "Kounsankoro",
-    "Linko",
-    "Sibiribaro",
-    "Soromaya",
-    "Balandougou",
-    "Baté-Nafadji",
-    "Boula",
-    "Gbérédou-Baranama",
-    "Kanfamoriyah",
-    "Kankan-Centre",
-    "Kiniéran",
-    "Koumban",
-    "Mamouroudou",
-    "Missamana",
-    "Moribayah",
-    "Sabadou-Baranama",
-    "Tinti-Oulen",
-    "Tokounou",
-    "Babila",
-    "Balato",
-    "Banfélé",
-    "Baro",
-    "Cisséla",
-    "Diountou",
-    "Douako",
-    "Doura",
-    "Kiniéro",
-    "Komola-Khoura",
-    "Koumana",
-    "Kouroussa-Centre",
-    "Sanguiana",
-    "Balandougouba",
-    "Faralako",
-    "Kantoumanina",
-    "Sansando",
-    "Koundianakoro",
-    "Koundian",
-    "Mandiana-Centre",
-    "Morodou",
-    "Niantanina",
-    "Saladou",
-    "Bankon",
-    "Doko",
-    "Franwalia",
-    "Kiniébakoura",
-    "Kintinian",
-    "Maléah",
-    "Lafou",
-    "Naboun",
-    "Niagassola",
-    "Niandankoro",
-    "Norassoba",
-    "Popodara",
-    "Siguiri-Centre",
-    "Siguirini",
-    "Coyah-Centre",
-    "Kouriah",
-    "Manéah  Coyah",
-    "Wonkifong",
-    "Badi",
-    "Ouassou",
-    "Dubréka-Centre",
-    "Faléssadé",
-    "Khorira",
-    "Sannou",
-    "Tondon",
-    "Alassoya",
-    "Benty",
-    "Maférinya",
-    "Farmoriah",
-    "Forécariah-Centre",
-    "Kaback",
-    "Moussayah",
-    "Hérico",
-    "Kakossa",
-    "Kallia",
-    "Korbé",
-    "Sikhourou",
-    "Bangouyah",
-    "Damankanyah",
-    "Friguiagbé",
-    "Kindia-Centre",
-    "Kolenté",
-    "Daramagnaky",
-    "Lélouma-Centre",
-    "Madina-Oula",
-    "Mambia",
-    "Molota",
-    "Samayah",
-    "Souguéta",
-    "Bourouwal",
-    "Gougoudjé",
-    "Konsotami",
-    "Santou",
-    "Sarékaly",
-    "Sinta",
-    "Sogolon",
-    "Télimélé-Centre",
-    "Kollet_Kindia",
-    "Koba_Mamou",
-    "Tarihoye",
-    "Thionthian",
-    "Fafaya",
-    "Gadha-Woundou",
-    "Koubia-Centre",
-    "Matakaou",
-    "Pilimini",
-    "Balaya",
-    "Linsan-Saran",
-    "Manda",
-    "Parawol",
-    "Sagalé",
-    "Tyanguel-Bori",
-    "Dalein",
-    "Diari",
-    "Dionfo",
-    "Hafia",
-    "Kaalan",
-    "Noussy",
-    "Unknown",
-    "Balaki",
-    "Donghol-Sigon",
-    "Dougountouny",
-    "Fougou",
-    "Gayah",
-    "Hidayatou",
-    "Lébékéren",
-    "Madina-Wora",
-    "Mali-Centre",
-    "Salambandé",
-    "Téliré",
-    "Yimbéring",
-    "Fatako",
-    "Fello-Koundoua",
-    "Kansangui",
-    "Koïn",
-    "Kolangui",
-    "Konah",
-    "Kouratongo",
-    "Tangali",
-    "Tougué-Centre",
-    "Bodié",
-    "Dalaba-Centre",
-    "Ditinn",
-    "Kébali",
-    "Kaala",
-    "Kankalabé",
-    "Koba",
-    "Mafara",
-    "Mitty",
-    "Mombéyah",
-    "Bouliwel",
-    "Dounet",
-    "Gongoret",
-    "Kégnéko",
-    "Konkouré",
-    "Mamou-Centre",
-    "Nyagara",
-    "Ouré-Kaba",
-    "Porédaka",
-    "Saramoussayah",
-    "Soyah",
-    "Ninguélandé",
-    "Téguéréyah",
-    "Timbo",
-    "Tolo",
-    "Bantignel",
-    "Bourouwal-Tappé",
-    "Dongol-Touma",
-    "Gongore",
-    "Ley-Miro",
-    "Maci",
-    "Pita-Centre",
-    "Sangaréah",
-    "Sintali",
-    "Timbi-Madina",
-    "Timbi-Touni",
-    "Beyla-Centre",
-    "Boola",
-    "Sokourala",
-    "Diaraguéréla",
-    "Diassodou",
-    "Fouala",
-    "Gbakédou",
-    "Gbessoba",
-    "Bolodou",
-    "Karala",
-    "Koumandou",
-    "Moussadou",
-    "Nionsomoridou",
-    "Samana",
-    "Sinko",
-    "Fangamadou",
-    "Guéckédou-Centre",
-    "Guendembou",
-    "Kassadou",
-    "Koundou",
-    "Nongoa",
-    "Ouendé-Kénéma",
-    "Tékoulo",
-    "Termessadou-Dibo",
-    "Bossou",
-    "Foumbadou",
-    "Gama-Béréma",
-    "Bofossou",
-    "Guéassou",
-    "Kokota",
-    "Lainé",
-    "Lola-Centre",
-    "N'Zoo",
-    "Tounkarata",
-    "Balizia",
-    "Binikala",
-    "Daro",
-    "Fassankoni",
-    "Kouankan",
-    "Koyamah",
-    "Macenta-Centre",
-    "N'Zébéla",
-    "Soulouta",
-    "Ourémaï",
-    "Panziazou",
-    "Sérédou",
-    "Sengbédou",
-    "Vassérédou",
-    "Watanka",
-    "Bounouma",
-    "Gouécké",
-    "Kobéla",
-    "Koropara",
-    "Koulé",
-    "N'Zérékoré-Centre",
-    "Palé",
-    "Samoé",
-    "Womey",
-    "Yalenzou",
-    "Banié",
-    "Bheeta",
-    "Bignamou",
-    "Bowé",
-    "Diécké",
-    "Péla",
-    "Yomou-Centre",
-    "Missira_Boke",
-    "Missira_Labe",
-    "Beindou_01_Faranah",
-    "Beindou_02_Faranah",
-    "Tanéné_Boke",
-    "Tanéné_Kindia",
-    "Kollet_Labe",
-    "Dialakoro_Faranah",
-    "Dialakoro_Kankan",
-    "Touba_Boke",
-    "Touba_Labe"
-  ];
-
-  final List<String> _typeOccupationOptions = [
-    "Urbain",
-    "Semi Urbain",
-    "Rural",
-    "Rizipiscicole",
-    "Axe",
-    "Axe Déviation",
-    "Axe Coupure",
-    "Traversé Route",
-    "Traversé Piste",
-    "Autre"
-  ];
-
-  final List<String> _typeTraficOptions = [
-    "Véhicules Légers",
-    "Poids Lourds",
-    "Motos",
-    "Piétons",
-    "Autre"
-  ];
-
-  final List<String> _frequenceTraficOptions = [
-    "Quotidien",
-    "Hebdomadaire",
-    "Mensuel",
-    "Saisonnier"
-  ];
 
   @override
   void initState() {
@@ -531,32 +152,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       _codeController.text = widget.provisionalCode!;
     }
 
-    //  MODE CONTINUATION : écraser les coordonnées avec les points fusionnés
-    if (widget.isContinuation && widget.linePoints.isNotEmpty) {
-      final firstPoint = widget.linePoints.first;
-      final lastPoint = widget.linePoints.last;
-      _xOrigineController.text = firstPoint.longitude.toStringAsFixed(6);
-      _yOrigineController.text = firstPoint.latitude.toStringAsFixed(6);
-      _xDestinationController.text = lastPoint.longitude.toStringAsFixed(6);
-      _yDestinationController.text = lastPoint.latitude.toStringAsFixed(6);
-
-      //  Si continuation depuis la FIN → vider nom destination (à re-saisir)
-      if (widget.continuationSide == 'end') {
-        _nomDestinationController.text = '';
-      }
-      //  Si continuation depuis le DÉBUT → vider nom origine (à re-saisir)
-      if (widget.continuationSide == 'start') {
-        _nomOrigineController.text = '';
-      }
-
-      // Mettre à jour l'heure de fin avec l'heure actuelle
-      final now = TimeOfDay.now();
-      _heureFinController.text = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-
-      // Forcer la date de modification
-      _dateModification = DateTime.now();
-    }
-    _determineCommuneAuto();
     // Récupérer automatiquement l'utilisateur connecté et l'heure actuelle
     _userLoginController.text = widget.agentName ?? _getCurrentUser(); // À implémenter selon votre système d'auth
     // Date de création = maintenant par défaut
@@ -599,57 +194,39 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     final data = widget.initialData!;
 
     setState(() {
-      _codeController.text = data['code_piste'] ?? '';
-      _communeRurale = data['commune_rurale_id'];
+      _codeController.text = data['line_code'] ?? '';
       _userLoginController.text = data['user_login'] ?? '';
-      _heureDebutController.text = data['heure_debut'] ?? '';
-      _heureFinController.text = data['heure_fin'] ?? '';
-      _nomOrigineController.text = data['nom_origine_piste'] ?? '';
-      _xOrigineController.text = data['x_origine']?.toString() ?? '';
-      _yOrigineController.text = data['y_origine']?.toString() ?? '';
-      _nomDestinationController.text = data['nom_destination_piste'] ?? '';
-      _xDestinationController.text = data['x_destination']?.toString() ?? '';
-      _yDestinationController.text = data['y_destination']?.toString() ?? '';
-      _typeOccupation = data['type_occupation'];
-      _debutOccupation = data['debut_occupation'] != null ? DateTime.parse(data['debut_occupation']) : null;
-      _finOccupation = data['fin_occupation'] != null ? DateTime.parse(data['fin_occupation']) : null;
-      _largeurEmprise = data['largeur_emprise'];
-      _frequenceTrafic = data['frequence_trafic'];
-      if (data['type_trafic'] != null && data['type_trafic'].toString().isNotEmpty) {
-        _selectedTypeTrafic = data['type_trafic'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-      } else {
-        _selectedTypeTrafic = [];
-      }
-      _travauxRealisesController.text = data['travaux_realises'] ?? '';
-      _dateDebutTravaux = data['date_travaux'] != null ? DateTime.parse(data['date_travaux']) : null;
-      _entrepriseController.text = data['entreprise'] ?? '';
+      _heureDebutController.text = data['start_time'] ?? '';
+      _heureFinController.text = data['end_time'] ?? '';
+      _nomOrigineController.text = data['origin_name'] ?? '';
+      _xOrigineController.text = data['origin_x']?.toString() ?? '';
+      _yOrigineController.text = data['origin_y']?.toString() ?? '';
+      _nomDestinationController.text = data['destination_name'] ?? '';
+      _xDestinationController.text = data['destination_x']?.toString() ?? '';
+      _yDestinationController.text = data['destination_y']?.toString() ?? '';
+      _travauxRealisesController.text = data['completed_works'] ?? '';
+      _dateDebutTravaux = data['work_date'] != null ? DateTime.parse(data['work_date']) : null;
+      _entrepriseController.text = data['company'] ?? '';
       _dateCreation = data['created_at'] != null ? DateTime.parse(data['created_at']) : null;
       _dateModification = DateTime.now(); // ← Date modif actuelle
 
-      _niveauServiceController.text = _cleanEvalValue(data['niveau_service']);
+      _niveauServiceController.text = _cleanEvalValue(data['service_level']);
       _fonctionnaliteController.text = _cleanEvalValue(data['fonctionnalite']);
-      _interetSocioAdminController.text = _cleanEvalValue(data['interet_socio_administratif']);
-      _populationDesservieController.text = _cleanEvalValue(data['population_desservie']);
-      _potentielAgricoleController.text = _cleanEvalValue(data['potentiel_agricole']);
-      _coutInvestissementController.text = _cleanEvalValue(data['cout_investissement']);
-      _protectionEnvController.text = _cleanEvalValue(data['protection_environnement']);
-      _noteGlobale = data['note_globale']?.toDouble() ?? 0.0;
+      _interetSocioAdminController.text = _cleanEvalValue(data['socio_administrative_interest']);
+      _populationDesservieController.text = _cleanEvalValue(data['served_population']);
+      _potentielAgricoleController.text = _cleanEvalValue(data['agricultural_potential']);
+      _coutInvestissementController.text = _cleanEvalValue(data['investment_cost']);
+      _protectionEnvController.text = _cleanEvalValue(data['environmental_protection']);
+      _noteGlobale = data['global_score']?.toDouble() ?? 0.0;
       // ===== CHAMPS TERRAIN =====
-      _plateformeController.text = data['plateforme'] ?? '';
+      _plateformeController.text = data['platform'] ?? '';
       _reliefController.text = data['relief'] ?? '';
       _vegetationController.text = data['vegetation'] ?? '';
-      _debutTravaux = (data['debut_travaux'] != null && data['debut_travaux'].toString().isNotEmpty) ? DateTime.tryParse(data['debut_travaux'].toString()) : null;
-      _finTravaux = (data['fin_travaux'] != null && data['fin_travaux'].toString().isNotEmpty) ? DateTime.tryParse(data['fin_travaux'].toString()) : null;
-      _financementController.text = data['financement'] ?? '';
-      _projetController.text = data['projet'] ?? '';
+      _debutTravaux = (data['work_start'] != null && data['work_start'].toString().isNotEmpty) ? DateTime.tryParse(data['work_start'].toString()) : null;
+      _finTravaux = (data['work_end'] != null && data['work_end'].toString().isNotEmpty) ? DateTime.tryParse(data['work_end'].toString()) : null;
+      _financementController.text = data['funding'] ?? '';
+      _projetController.text = data['project'] ?? '';
     });
-  }
-
-  void _determineCommuneAuto() {
-    // La commune sera affectée automatiquement par le backend lors de la synchronisation
-    _communeAuto = '';
-    _communeRurale = null;
-    print('📍 Commune: sera affectée lors de la synchronisation');
   }
 
   // Méthode pour récupérer l'utilisateur actuel
@@ -683,8 +260,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     return 6371000 * c; // Rayon de la Terre en mètres
   }
 
-  Future<DateTime?> _showDatePickerWithValidation(BuildContext context, DateTime initialDate) async {
-    return await showDatePicker(
+  Future<DateTime?> _showDatePickerWithValidation(BuildContext context, DateTime initialDate) {
+    return showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: DateTime.now(),
@@ -693,7 +270,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         // Bloquer les dates passées
         return !day.isBefore(DateTime.now().subtract(const Duration(days: 1)));
       },
-      builder: (BuildContext context, Widget? child) {
+      builder: (BuildContext _, Widget? child) {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: const ColorScheme.light(
@@ -707,10 +284,11 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     );
   }
 
-  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+  Future<void> _selectDate(BuildContext context) async {
     FocusManager.instance.primaryFocus?.unfocus();
     final DateTime? picked = await _showDatePickerWithValidation(context, DateTime.now());
     FocusManager.instance.primaryFocus?.unfocus();
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
         _dateDebutTravaux = picked;
@@ -718,25 +296,12 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     }
   }
 
-  Future<void> _selectOccupationDate(BuildContext context, bool isStartDate) async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    final DateTime? picked = await _showDatePickerWithValidation(context, DateTime.now());
-    FocusManager.instance.primaryFocus?.unfocus();
-    if (picked != null) {
-      setState(() {
-        if (isStartDate) {
-          _debutOccupation = picked;
-        } else {
-          _finOccupation = picked;
-        }
-      });
-    }
-  }
 
   Future<void> _selectTravauxDate(BuildContext context, bool isStart) async {
     FocusManager.instance.primaryFocus?.unfocus();
     final DateTime? picked = await _showDatePickerWithValidation(context, DateTime.now());
     FocusManager.instance.primaryFocus?.unfocus();
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
         if (isStart) {
@@ -748,7 +313,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     }
   }
 
-  Future<void> _savePiste() async {
+  Future<void> _saveLine() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -761,7 +326,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       final loginId = await dbHelper.resolveLoginId();
 
       if (loginId == null) {
-        print('❌ [_savePiste] Impossible de déterminer login_id');
+        debugPrint('❌ [_saveLine] Impossible de déterminer login_id');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -772,60 +337,37 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         }
         return;
       }
-      int? communeRuralesId;
-      /* GPS-BASED ATTRIBUTION: 
-         The commune is now determined by the backend during sync 
-         based on the coordinates. We don't force the user's home commune anymore.
-      
-      if (ApiService.communeId != null) {
-        // En ligne : utiliser l'API
-        communeRuralesId = ApiService.communeId;
-      } else {
-        // Hors ligne : utiliser la base locale
-        final currentUser = await DatabaseHelper().getCurrentUser();
-        communeRuralesId = currentUser?['communes_rurales'] as int?;
-      }
-      */
-      communeRuralesId = null; // Backend will handle this via ST_Contains during sync
 
-      final pisteData = {
+      final lineData = {
         // ✅ L'ID sera auto-généré par la BDD, ne pas l'inclure ici
         if (widget.isEditingMode) 'id': widget.initialData!['id'],
-        'code_piste': _codeController.text,
-        'commune_rurale_id': _communeRurale,
-        'commune_rurales': communeRuralesId,
+        'line_code': _codeController.text,
         'user_login': widget.agentName,
-        'heure_debut': _heureDebutController.text,
-        'heure_fin': _heureFinController.text,
-        'nom_origine_piste': _nomOrigineController.text,
-        'nom_destination_piste': _nomDestinationController.text,
-        'type_occupation': _typeOccupation,
-        'debut_occupation': _debutOccupation?.toIso8601String(),
-        'fin_occupation': _finOccupation?.toIso8601String(),
-        'largeur_emprise': _largeurEmprise,
-        'frequence_trafic': _frequenceTrafic,
-        'type_trafic': _selectedTypeTrafic.isNotEmpty ? _selectedTypeTrafic.join(',') : null,
-        'travaux_realises': _travauxRealisesController.text.isNotEmpty ? _travauxRealisesController.text : null,
-        'date_travaux': _dateDebutTravaux?.toIso8601String(),
-        'entreprise': _entrepriseController.text.isNotEmpty ? _entrepriseController.text : null,
-        'niveau_service': double.tryParse(_niveauServiceController.text),
+        'start_time': _heureDebutController.text,
+        'end_time': _heureFinController.text,
+        'origin_name': _nomOrigineController.text,
+        'destination_name': _nomDestinationController.text,
+        'completed_works': _travauxRealisesController.text.isNotEmpty ? _travauxRealisesController.text : null,
+        'work_date': _dateDebutTravaux?.toIso8601String(),
+        'company': _entrepriseController.text.isNotEmpty ? _entrepriseController.text : null,
+        'service_level': double.tryParse(_niveauServiceController.text),
         'fonctionnalite': double.tryParse(_fonctionnaliteController.text),
-        'interet_socio_administratif': double.tryParse(_interetSocioAdminController.text),
-        'population_desservie': double.tryParse(_populationDesservieController.text),
-        'potentiel_agricole': double.tryParse(_potentielAgricoleController.text),
-        'cout_investissement': double.tryParse(_coutInvestissementController.text),
-        'protection_environnement': double.tryParse(_protectionEnvController.text),
-        'note_globale': _noteGlobale,
+        'socio_administrative_interest': double.tryParse(_interetSocioAdminController.text),
+        'served_population': double.tryParse(_populationDesservieController.text),
+        'agricultural_potential': double.tryParse(_potentielAgricoleController.text),
+        'investment_cost': double.tryParse(_coutInvestissementController.text),
+        'environmental_protection': double.tryParse(_protectionEnvController.text),
+        'global_score': _noteGlobale,
         // ===== CHAMPS TERRAIN =====
-        'plateforme': _plateformeController.text.isNotEmpty ? _plateformeController.text : null,
+        'platform': _plateformeController.text.isNotEmpty ? _plateformeController.text : null,
         'relief': _reliefController.text.isNotEmpty ? _reliefController.text : null,
         'vegetation': _vegetationController.text.isNotEmpty ? _vegetationController.text : null,
-        'debut_travaux': _debutTravaux?.toIso8601String(),
-        'fin_travaux': _finTravaux?.toIso8601String(),
-        'financement': _financementController.text.isNotEmpty ? _financementController.text : null,
-        'projet': _projetController.text.isNotEmpty ? _projetController.text : null,
+        'work_start': _debutTravaux?.toIso8601String(),
+        'work_end': _finTravaux?.toIso8601String(),
+        'funding': _financementController.text.isNotEmpty ? _financementController.text : null,
+        'project': _projetController.text.isNotEmpty ? _projetController.text : null,
 
-        // ✅ TOUS les points de la piste (MultiLineString)
+        // ✅ TOUS les points de la ligne (MultiLineString)
         'points': widget.linePoints
             .map((p) => {
                   'latitude': p.latitude,
@@ -833,11 +375,11 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                 })
             .toList(),
 
-        // ✅ Coordonnées EXTRACTIVES (depuis les points, pas les TextFields)
-        'x_origine': widget.linePoints.first.latitude, // ← Premier point
-        'y_origine': widget.linePoints.first.longitude, // ← Premier point
-        'x_destination': widget.linePoints.last.latitude, // ← Dernier point
-        'y_destination': widget.linePoints.last.longitude, // ← Dernier point
+        // Coordonnées extraites depuis les points de la ligne
+        'origin_x': widget.linePoints.first.longitude,
+        'origin_y': widget.linePoints.first.latitude,
+        'destination_x': widget.linePoints.last.longitude,
+        'destination_y': widget.linePoints.last.latitude,
 
         // ✅ Dates
         'created_at': widget.initialData != null ? widget.initialData!['created_at'] : DateTime.now().toIso8601String(),
@@ -849,20 +391,16 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         'sync_status': 'pending',
         'login_id': loginId,
       };
-      print('🔍 Données envoyées à savePiste:');
-      print('   commune_rurale_id (nom): ${pisteData['commune_rurale_id']}');
-      print('   commune_rurales (id): ${pisteData['commune_rurales']}');
-      final storageHelper = PisteStorageHelper();
-      if (widget.isEditingMode || widget.isContinuation) {
-        // ✅ MODE ÉDITION / CONTINUATION: Mise à jour
-        await storageHelper.updatePiste(pisteData);
-        print('✅ Piste "${pisteData['code_piste']}" mise à jour (ID: ${pisteData['id']})');
+      final storageHelper = LineStorageHelper();
+      if (widget.isEditingMode) {
+        await storageHelper.updateLine(lineData);
+        debugPrint('✅ Ligne "${lineData['line_code']}" mise à jour (ID: ${lineData['id']})');
       } else {
-        final savedId = await storageHelper.savePiste(pisteData);
+        final savedId = await storageHelper.saveLine(lineData);
         if (savedId != null) {
-          print('✅ Piste sauvegardée en local avec ID: $savedId');
-          await storageHelper.debugPrintAllPistes();
-          await storageHelper.saveDisplayedPiste(_codeController.text, widget.linePoints, Colors.blue, 4.0);
+          debugPrint('✅ Ligne sauvegardée en local avec ID: $savedId');
+          await storageHelper.debugPrintAllLines();
+          await storageHelper.saveDisplayedLine(_codeController.text, widget.linePoints, Colors.blue, 4.0);
         }
       }
 
@@ -879,8 +417,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               ],
             ),
             content: Text(
-              'Piste "${_nomOrigineController.text} → ${_nomDestinationController.text}" enregistrée avec succès\n'
-              'Code Piste: ${_codeController.text}\n'
+              'Ligne "${_nomOrigineController.text} → ${_nomDestinationController.text}" enregistrée avec succès\n'
+              'Code ligne: ${_codeController.text}\n'
               'Origine: ${widget.linePoints.first.latitude.toStringAsFixed(6)}, ${widget.linePoints.first.longitude.toStringAsFixed(6)}\n'
               'Destination: ${widget.linePoints.last.latitude.toStringAsFixed(6)}, ${widget.linePoints.last.longitude.toStringAsFixed(6)}\n'
               'Nombre de points: ${widget.linePoints.length}',
@@ -894,7 +432,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
           ),
         );
         if (mounted) {
-          Navigator.of(context).pop(pisteData);
+          Navigator.of(context).pop(lineData);
         }
       }
     } catch (error) {
@@ -924,6 +462,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       lastDate: DateTime(2100),
     );
     FocusManager.instance.primaryFocus?.unfocus();
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
         _dateModification = picked;
@@ -931,81 +470,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     }
   }
 
-  Future<void> _showCommuneSearchDialog() async {
-    final TextEditingController searchController = TextEditingController();
-    List<String> filteredCommunes = _communesRuralesOptions;
-
-    final String? selectedCommune = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setState) {
-            return AlertDialog(
-              title: const Text('Rechercher une commune'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Tapez pour rechercher...',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: (query) {
-                        setState(() {
-                          if (query.isEmpty) {
-                            filteredCommunes = _communesRuralesOptions;
-                          } else {
-                            filteredCommunes = _communesRuralesOptions.where((commune) => commune.toLowerCase().contains(query.toLowerCase())).toList();
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 300,
-                      width: 400,
-                      child: filteredCommunes.isEmpty
-                          ? const Center(
-                              child: Text('Aucune commune trouvée'),
-                            )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: filteredCommunes.length,
-                              itemBuilder: (context, index) {
-                                final commune = filteredCommunes[index];
-                                return ListTile(
-                                  title: Text(commune),
-                                  onTap: () {
-                                    Navigator.of(context).pop(commune);
-                                  },
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Annuler'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (selectedCommune != null) {
-      setState(() {
-        _communeRurale = selectedCommune;
-      });
-    }
-  }
 
   void _confirmExit() {
     showDialog(
@@ -1078,20 +542,10 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       _financementController.clear();
       _projetController.clear();
 
-      _entrepriseController.clear();
-
-      // Réinitialiser les sélections
-
-      _typeOccupation = null;
-      _debutOccupation = null;
-      _finOccupation = null;
-      _largeurEmprise = null;
-      _frequenceTrafic = null;
-      _selectedTypeTrafic = [];
       _dateDebutTravaux = null;
 
       // Garder les champs en lecture seule (ils seront réinitialisés automatiquement)
-      // _codeController - Garder le code piste
+      // _codeController - Garder le code ligne
       // _userLoginController - Garder le nom de l'agent
       // _heureDebutController - Garder l'heure de début
       // _heureFinController - Garder l'heure de fin
@@ -1108,6 +562,35 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _nomOrigineController.dispose();
+    _nomDestinationController.dispose();
+    _xOrigineController.dispose();
+    _yOrigineController.dispose();
+    _xDestinationController.dispose();
+    _yDestinationController.dispose();
+    _userLoginController.dispose();
+    _heureDebutController.dispose();
+    _heureFinController.dispose();
+    _entrepriseController.dispose();
+    _travauxRealisesController.dispose();
+    _niveauServiceController.dispose();
+    _fonctionnaliteController.dispose();
+    _interetSocioAdminController.dispose();
+    _populationDesservieController.dispose();
+    _potentielAgricoleController.dispose();
+    _coutInvestissementController.dispose();
+    _protectionEnvController.dispose();
+    _plateformeController.dispose();
+    _reliefController.dispose();
+    _vegetationController.dispose();
+    _financementController.dispose();
+    _projetController.dispose();
+    super.dispose();
   }
 
   @override
@@ -1140,7 +623,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                   ),
                   const Expanded(
                     child: Text(
-                      "🛤️ Formulaire Piste",
+                      "🛤️ Formulaire Ligne",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -1153,7 +636,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                     onPressed: _clearForm,
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.white,
-                      backgroundColor: Colors.white.withOpacity(0.2),
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -1172,62 +655,14 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    //  BANNIÈRE CONTINUATION
-                    if (widget.isContinuation) ...[
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3E0),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.shade300, width: 1.5),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.add_road, color: Colors.orange.shade700, size: 24),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'Mode Continuation',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.orange.shade800,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              widget.continuationSide == 'end'
-                                  ? 'La piste a été prolongée depuis le point d\'arrivée.\n'
-                                      'Les coordonnées de destination ont été mises à jour.\n'
-                                      '⚠️ Veuillez re-saisir le Nom Destination.'
-                                  : 'La piste a été prolongée depuis le point de départ.\n'
-                                      'Les coordonnées d\'origine ont été mises à jour.\n'
-                                      '⚠️ Veuillez re-saisir le Nom Origine.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.orange.shade900,
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                     // Section Identification
                     _buildFormSection(
                       title: '🏷️ Identification',
                       children: [
-                        // ⭐ Code Piste - Affichage conditionnel
-                        Builder(builder: (context) {
-                          final String codePiste = _codeController.text;
-                          final bool isTemporary = codePiste.isEmpty || codePiste.startsWith('Piste_0_0_0_') || codePiste.startsWith('TEMP_');
+                        // ⭐ Code ligne - Affichage conditionnel
+                        Builder(builder: (_) {
+                          final String lineCode = _codeController.text;
+                          final bool isTemporary = lineCode.isEmpty || lineCode.startsWith('Line_0_0_0_') || lineCode.startsWith('TEMP_');
 
                           if (isTemporary) {
                             // CAS 1 : Temporaire → message vert
@@ -1237,7 +672,9 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                               decoration: BoxDecoration(
                                 color: const Color(0xFFE8F5E9),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                                border: Border.all(
+                                  color: const Color(0xFF4CAF50).withValues(alpha: 0.4),
+                                ),
                               ),
                               child: const Row(
                                 children: [
@@ -1248,7 +685,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Code Piste',
+                                          'Code ligne',
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
@@ -1274,14 +711,13 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                             // CAS 2 : Officiel → afficher normalement
                             return _buildTextField(
                               controller: _codeController,
-                              label: 'Code Piste',
-                              hint: 'Code unique de la piste',
+                              label: 'Code ligne',
+                              hint: 'Code unique de la ligne',
                               required: false,
                               enabled: false,
                             );
                           }
                         }),
-                        _buildReadOnlyCommuneField(),
                         _buildDateCreationField(),
                         _buildDateModificationField(),
                         // Remplacer le TextField "Utilisateur" par :
@@ -1317,12 +753,12 @@ class _FormulairePageState extends State<FormulaireLignePage> {
 
                     // Section Points
                     _buildFormSection(
-                      title: '🎯 Points de la Piste',
+                      title: '🎯 Points de la ligne',
                       children: [
                         _buildTextField(
                           controller: _nomOrigineController,
                           label: 'Nom Origine *',
-                          hint: 'Point de départ de la piste',
+                          hint: 'Point de départ de la ligne',
                           required: true,
                         ),
                         Row(
@@ -1352,7 +788,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                         _buildTextField(
                           controller: _nomDestinationController,
                           label: 'Nom Destination *',
-                          hint: 'Point d\'arrivée de la piste',
+                          hint: 'Point d\'arrivée de la ligne',
                           required: true,
                         ),
                         Row(
@@ -1381,86 +817,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                       ],
                     ),
 
-                    // Section Occupation
-                    _buildFormSection(
-                      title: '🏘️ Occupation du Sol',
-                      children: [
-                        _buildRadioGroupField(
-                          label: 'Type d\'Occupation',
-                          value: _typeOccupation,
-                          options: _typeOccupationOptions,
-                          onChanged: (value) => setState(() => _typeOccupation = value),
-                        ),
-                        Column(
-                          children: [
-                            _buildDateField(
-                              label: 'Début Occupation',
-                              value: _debutOccupation,
-                              onTap: () => _selectOccupationDate(context, true),
-                            ),
-                            _buildDateField(
-                              label: 'Fin Occupation',
-                              value: _finOccupation,
-                              onTap: () => _selectOccupationDate(context, false),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Largeur Emprise (m)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                initialValue: _largeurEmprise?.toString() ?? '',
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: InputDecoration(
-                                  hintText: 'Largeur de l\'emprise en mètres',
-                                  hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                                  filled: true,
-                                  fillColor: const Color(0xFFF9FAFB),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2)),
-                                  errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red)),
-                                  focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red, width: 2)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) return null;
-                                  final n = double.tryParse(value.trim());
-                                  if (n == null) return 'Veuillez entrer un nombre valide';
-                                  if (n <= 0) return 'La largeur doit être un nombre positif';
-                                  return null;
-                                },
-                                autovalidateMode: AutovalidateMode.onUserInteraction,
-                                onChanged: (value) => _largeurEmprise = double.tryParse(value),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // REMPLACER TOUTE LA SECTION PAR :
-                    _buildFormSection(
-                      title: '🚗 Caractéristiques du Trafic',
-                      children: [
-                        _buildRadioGroupField(
-                          label: 'Fréquence du Trafic',
-                          value: _frequenceTrafic,
-                          options: _frequenceTraficOptions,
-                          onChanged: (value) => setState(() => _frequenceTrafic = value),
-                        ),
-                        _buildMultiSelectRoundField(
-                          label: 'Type de Trafic',
-                          selectedValues: _selectedTypeTrafic,
-                          options: _typeTraficOptions,
-                          onChanged: (values) => setState(() => _selectedTypeTrafic = values),
-                        ),
-                      ],
-                    ),
 
                     // Section Évaluation et Priorisation
                     _buildFormSection(
@@ -1516,7 +872,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                         _buildDateField(
                           label: 'Date des Travaux',
                           value: _dateDebutTravaux,
-                          onTap: () => _selectDate(context, true),
+                          onTap: () => _selectDate(context),
                         ),
                         _buildTextField(
                           controller: _entrepriseController,
@@ -1597,7 +953,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _savePiste,
+                  onPressed: _isLoading ? null : _saveLine,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1976D2),
                     foregroundColor: Colors.white,
@@ -1622,7 +978,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                             Icon(Icons.save, size: 20),
                             SizedBox(width: 8),
                             Text(
-                              'Enregistrer la Piste',
+                              'Enregistrer la ligne',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1639,49 +995,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     );
   }
 
-// AJOUTER cette méthode
-  Widget _buildReadOnlyCommuneField() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Commune Rurale',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(Icons.location_on, size: 20, color: Color(0xFF1976D2)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    (_communeRurale != null && _communeRurale != 'Non spécifié') ? _communeRurale! : 'Auto-détecté lors de la synchronisation',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF374151),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildReadOnlyField({
     required String label,
@@ -1696,7 +1009,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),
@@ -1849,7 +1162,7 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
@@ -1947,163 +1260,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                   }
                 : null,
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextFieldWithCallback({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    bool required = false,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-    Function(String)? onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: controller,
-            keyboardType: keyboardType,
-            maxLines: maxLines,
-            onChanged: onChanged,
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-              filled: true,
-              fillColor: const Color(0xFFF9FAFB),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF1976D2)),
-              ),
-            ),
-            textAlignVertical: maxLines > 1 ? TextAlignVertical.top : null,
-            validator: required
-                ? (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '$label est obligatoire';
-                    }
-                    return null;
-                  }
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDropdownField({
-    required String label,
-    required String? value,
-    required List<String> options,
-    required Function(String?) onChanged,
-  }) {
-    final bool isCommuneRurale = label == 'Commune Rurale *';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (isCommuneRurale)
-            // Bouton spécial pour la commune avec recherche
-            InkWell(
-              onTap: _showCommuneSearchDialog,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        value ?? 'Sélectionner une commune',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: value != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.search, color: Color(0xFF666666)),
-                  ],
-                ),
-              ),
-            )
-          else
-            // Dropdown normal pour les autres champs
-            DropdownButtonFormField<String>(
-              initialValue: value,
-              items: options.map((String option) {
-                return DropdownMenuItem<String>(
-                  value: option,
-                  child: Text(
-                    option,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                );
-              }).toList(),
-              onChanged: onChanged,
-              isExpanded: true,
-              menuMaxHeight: 300,
-              dropdownColor: Colors.white,
-              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF666666)),
-              borderRadius: BorderRadius.circular(8),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFFF9FAFB),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF1976D2)),
-                ),
-              ),
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF374151),
-              ),
-            ),
         ],
       ),
     );
@@ -2271,154 +1427,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     );
   }
 
-  Widget _buildRadioGroupField({
-    required String label,
-    required String? value,
-    required List<String> options,
-    required Function(String?) onChanged,
-    bool required = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: options.map((option) {
-                return RadioListTile<String>(
-                  title: Text(
-                    option,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  value: option,
-                  groupValue: value,
-                  onChanged: onChanged,
-                  activeColor: const Color(0xFF1976D2),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                );
-              }).toList(),
-            ),
-          ),
-          if (required && (value == null || value.isEmpty))
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 12),
-              child: Text(
-                '$label est obligatoire',
-                style: const TextStyle(
-                  color: Colors.red,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMultiSelectRoundField({
-    required String label,
-    required List<String> selectedValues,
-    required List<String> options,
-    required Function(List<String>) onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: options.map((option) {
-                final isSelected = selectedValues.contains(option);
-                return InkWell(
-                  onTap: () {
-                    final newValues = List<String>.from(selectedValues);
-                    if (isSelected) {
-                      newValues.remove(option);
-                    } else {
-                      newValues.add(option);
-                    }
-                    onChanged(newValues);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFF1976D2) : const Color(0xFF9CA3AF),
-                              width: 2,
-                            ),
-                          ),
-                          child: isSelected
-                              ? Center(
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Color(0xFF1976D2),
-                                    ),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          option,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isSelected ? const Color(0xFF1976D2) : const Color(0xFF374151),
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildEvaluationField({
     required TextEditingController controller,

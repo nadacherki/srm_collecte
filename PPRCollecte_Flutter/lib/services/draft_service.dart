@@ -328,8 +328,8 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: Icon(Icons.restore, color: Colors.orange, size: 36),
-        title: Text('Brouillon détecté'),
+        icon: const Icon(Icons.restore, color: Colors.orange, size: 36),
+        title: const Text('Brouillon détecté'),
         content: Text(
           'Un brouillon a été sauvegardé $timeAgo.\n'
           'Voulez-vous reprendre là où vous vous étiez arrêté ?',
@@ -337,12 +337,12 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Ignorer'),
+            child: const Text('Ignorer'),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
-            icon: Icon(Icons.restore),
-            label: Text('Reprendre'),
+            icon: const Icon(Icons.restore),
+            label: const Text('Reprendre'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
@@ -375,7 +375,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
         },
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('✅ Brouillon restauré'),
           backgroundColor: Colors.orange,
           duration: Duration(seconds: 2),

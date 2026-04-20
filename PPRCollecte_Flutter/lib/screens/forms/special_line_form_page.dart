@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
-import '../../widgets/forms/point_form_widget.dart';
-import '../../data/local/piste_storage_helper.dart';
+
+import '../../data/local/database_helper.dart';
+import '../../data/local/line_storage_helper.dart';
+import '../../data/remote/api_service.dart';
 
 class SpecialLineFormPage extends StatefulWidget {
   final List<LatLng> linePoints;
@@ -11,7 +13,7 @@ class SpecialLineFormPage extends StatefulWidget {
   final String agentName;
   final String specialType;
   final double totalDistance;
-  final String? activePisteCode; // ← PARAMÈTRE AJOUTÉ
+  final String? activeLineCode;
 
   const SpecialLineFormPage({
     super.key,
@@ -22,7 +24,7 @@ class SpecialLineFormPage extends StatefulWidget {
     required this.agentName,
     required this.specialType,
     required this.totalDistance,
-    this.activePisteCode, // ← PARAMÈTRE AJOUTÉ
+    this.activeLineCode,
   });
 
   @override
@@ -30,139 +32,248 @@ class SpecialLineFormPage extends StatefulWidget {
 }
 
 class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
-  String? _nearestPisteCode;
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _watercourseController = TextEditingController();
+
+  String? _nearestLineCode;
+  String? _selectedTypeValue;
   bool _isLoading = true;
+  bool _isSaving = false;
+
+  static const List<String> _bacTypes = ['Manuel', 'Motorise'];
+  static const List<String> _submersibleTypes = [
+    'beton',
+    'bloc de pierre',
+    'gabion',
+    'autre',
+  ];
+
+  bool get _isBac => widget.specialType == 'Bac';
+
+  List<String> get _typeOptions => _isBac ? _bacTypes : _submersibleTypes;
+
+  String get _tableName =>
+      _isBac ? 'bacs' : 'passages_submersibles';
 
   @override
   void initState() {
     super.initState();
-    _findNearestPiste();
+    _findNearestLine();
   }
 
-  Future<void> _findNearestPiste() async {
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _watercourseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _findNearestLine() async {
     try {
       final firstPoint = widget.linePoints.first;
       String? nearestCode;
 
-      // ⭐⭐ LOGIQUE IDENTIQUE AUX CHAUSSÉES ⭐⭐
-      print('🔍 Recherche piste pour spécial - Même logique que chaussées');
-
-      // 1. UTILISER DIRECTEMENT le code actif si fourni
-      if (widget.activePisteCode != null && widget.activePisteCode!.isNotEmpty) {
-        nearestCode = widget.activePisteCode;
-        print('✅ Utilisation piste active: $nearestCode');
-      }
-      // 2. SINON utiliser le code provisoire (déjà calculé avec la même logique)
-      else if (widget.provisionalCode != null && widget.provisionalCode!.isNotEmpty) {
+      if (widget.activeLineCode != null && widget.activeLineCode!.isNotEmpty) {
+        nearestCode = widget.activeLineCode;
+      } else if (widget.provisionalCode != null &&
+          widget.provisionalCode!.isNotEmpty) {
         nearestCode = widget.provisionalCode;
-        print('✅ Utilisation code provisoire: $nearestCode');
-      }
-      // 3. FALLBACK : recherche géographique
-      else {
-        print('🔍 Recherche géographique de piste...');
-        nearestCode = await PisteStorageHelper().findNearestPisteCode(firstPoint);
-        print('📍 Piste la plus proche trouvée: $nearestCode');
+      } else {
+        nearestCode = await LineStorageHelper().findNearestLineCode(firstPoint);
       }
 
+      if (!mounted) return;
       setState(() {
-        _nearestPisteCode = nearestCode;
+        _nearestLineCode = nearestCode;
         _isLoading = false;
       });
-    } catch (e) {
-      print('❌ Erreur recherche piste: $e');
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
-        _nearestPisteCode = widget.provisionalCode;
+        _nearestLineCode = widget.provisionalCode;
         _isLoading = false;
       });
     }
   }
 
-  Map<String, dynamic> _prepareFormData() {
-    final firstPoint = widget.linePoints.first;
-    final lastPoint = widget.linePoints.last;
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    print('📍 Premier point: ${firstPoint.latitude}, ${firstPoint.longitude}');
-    print('📍 Dernier point: ${lastPoint.latitude}, ${lastPoint.longitude}');
-    print('📍 Distance: ${widget.totalDistance}m');
-    print('📍 Code Piste final: $_nearestPisteCode');
+    setState(() => _isSaving = true);
+    try {
+      final dbHelper = DatabaseHelper();
+      final loginId = await dbHelper.resolveLoginId();
+      if (loginId == null) {
+        throw Exception('login_id introuvable');
+      }
 
-    return {
-      'id': null,
-      'latitude': firstPoint.latitude,
-      'longitude': firstPoint.longitude,
-      'latitude_debut': firstPoint.latitude,
-      'longitude_debut': firstPoint.longitude,
-      'latitude_fin': lastPoint.latitude,
-      'longitude_fin': lastPoint.longitude,
-      'distance': widget.totalDistance,
-      'code_piste': _nearestPisteCode,
-      'date_creation': DateTime.now().toIso8601String(),
-      'enqueteur': widget.agentName,
-      'nom': null,
-    };
+      final firstPoint = widget.linePoints.first;
+      final lastPoint = widget.linePoints.last;
+      final now = DateTime.now().toIso8601String();
+
+      final data = <String, dynamic>{
+        'nom': _nameController.text.trim().isEmpty
+            ? widget.specialType
+            : _nameController.text.trim(),
+        'line_code': _nearestLineCode,
+        'enqueteur': widget.agentName,
+        'date_creation': now,
+        'id_agent_crea': loginId,
+        'login_id': loginId,
+        'id_projet': ApiService.currentProjetId,
+        'synced': 0,
+        'downloaded': 0,
+      };
+
+      if (_isBac) {
+        data.addAll({
+          'type_bac': _selectedTypeValue,
+          'nom_cours_eau': _watercourseController.text.trim(),
+          'x_debut_traversee_bac': firstPoint.longitude,
+          'y_debut_traversee_bac': firstPoint.latitude,
+          'x_fin_traversee_bac': lastPoint.longitude,
+          'y_fin_traversee_bac': lastPoint.latitude,
+        });
+      } else {
+        data.addAll({
+          'type_materiau': _selectedTypeValue,
+          'x_debut_passage_submersible': firstPoint.longitude,
+          'y_debut_passage_submersible': firstPoint.latitude,
+          'x_fin_passage_submersible': lastPoint.longitude,
+          'y_fin_passage_submersible': lastPoint.latitude,
+        });
+      }
+
+      await dbHelper.insertEntityLocal(
+        _tableName,
+        data,
+        recordHistory: true,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur sauvegarde: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _confirmCancel() async {
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Abandonner la saisie ?'),
+        content:
+            const Text('Les données non sauvegardées seront perdues.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Abandonner'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLeave == true && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Recherche de la piste la plus proche...',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    final formData = _prepareFormData();
-
     return Scaffold(
-      body: PointFormWidget(
-        category: "Ouvrages",
-        type: widget.specialType,
-        pointData: formData,
-        onBack: () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text("Abandonner la saisie ?"),
-              content: const Text("Les données non sauvegardées seront perdues."),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text("Annuler"),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
-                  },
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text("Abandonner"),
-                ),
-              ],
+      appBar: AppBar(
+        title: Text(widget.specialType),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _confirmCancel,
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Nom',
+                border: OutlineInputBorder(),
+              ),
             ),
-          );
-        },
-        onSaved: () {
-          Navigator.of(context).pop(true);
-        },
-        agentName: widget.agentName,
-        nearestPisteCode: _nearestPisteCode,
-        isSpecialLine: true,
+            const SizedBox(height: 16),
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Code ligne',
+                border: OutlineInputBorder(),
+              ),
+              child: Text(_nearestLineCode ?? 'Non spécifié'),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedTypeValue,
+              items: _typeOptions
+                  .map(
+                    (value) => DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _selectedTypeValue = value),
+              decoration: InputDecoration(
+                labelText: _isBac ? 'Type de bac' : 'Type de matériau',
+                border: const OutlineInputBorder(),
+              ),
+              validator: (value) =>
+                  value == null || value.isEmpty ? 'Champ requis' : null,
+            ),
+            if (_isBac) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _watercourseController,
+                decoration: const InputDecoration(
+                  labelText: 'Nom du cours d\'eau',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Distance',
+                border: OutlineInputBorder(),
+              ),
+              child: Text('${widget.totalDistance.toStringAsFixed(2)} m'),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _isSaving ? null : _save,
+              child: Text(_isSaving ? 'Enregistrement...' : 'Enregistrer'),
+            ),
+          ],
+        ),
       ),
     );
   }

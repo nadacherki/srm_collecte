@@ -12,7 +12,7 @@ import 'collection_service.dart';
 class CollectionManager extends ChangeNotifier {
   final CollectionService _collectionService = CollectionService();
   static const double _duplicatePointThresholdMeters = 0.1;
-  static int _nextPisteId = 1;
+  static int _nextLineCollectionId = 1;
   LigneCollection? _ligneCollection;
   SpecialCollection? _specialCollection;
   int _countdown = 0;
@@ -27,13 +27,11 @@ class CollectionManager extends ChangeNotifier {
   double? get currentAltitude => _collectionService.currentAltitude;
 
   /// Altitudes Z de tous les points capturés (parallèle à collection.points)
-  List<double?> get capturedAltitudes => _collectionService.capturedAltitudes;
 
   /// Altitude Z moyenne des points capturés (pour hasZ=true)
   double? get averageAltitude => _collectionService.getAverageAltitude();
 
   /// FK SRM à injecter à la sauvegarde
-  Map<String, dynamic> get srmFkData => _collectionService.getSrmFkData();
 
   bool get hasActiveCollection => (_ligneCollection?.isActive ?? false) || (_specialCollection?.isActive ?? false);
   bool get hasPausedCollection => (_ligneCollection?.isPaused ?? false) || (_specialCollection?.isPaused ?? false);
@@ -54,7 +52,7 @@ class CollectionManager extends ChangeNotifier {
     }
 
     _specialCollection = SpecialCollection(
-      id: _nextPisteId++,
+      id: _nextLineCollectionId++,
       specialType: specialType,
       status: CollectionStatus.active,
       points: const [],
@@ -75,7 +73,7 @@ class CollectionManager extends ChangeNotifier {
 
     final result = CollectionResult(
       id: _specialCollection!.id,
-      codePiste: null,
+      lineCode: null,
       type: CollectionType.special,
       points: List<LatLng>.from(_specialCollection!.points),
       totalDistance: _specialCollection!.totalDistance,
@@ -93,7 +91,7 @@ class CollectionManager extends ChangeNotifier {
 
   /// Démarre une collecte de ligne
   void startLigneCollection({
-    required String codePiste, // ✅ Code piste saisi par l'utilisateur
+    required String lineCode,
     required LatLng initialPosition,
     required Stream<LocationData> locationStream,
   }) {
@@ -102,8 +100,8 @@ class CollectionManager extends ChangeNotifier {
     }
 
     _ligneCollection = LigneCollection(
-      id: _nextPisteId++, // ✅ Générer ID automatiquement
-      codePiste: codePiste, // ✅ Utiliser le code piste fourni
+      id: _nextLineCollectionId++,
+      lineCode: lineCode,
       status: CollectionStatus.active,
       points: const [],
       startTime: DateTime.now(),
@@ -259,7 +257,7 @@ class CollectionManager extends ChangeNotifier {
 
     final result = CollectionResult(
       id: _ligneCollection!.id,
-      codePiste: _ligneCollection!.codePiste,
+      lineCode: _ligneCollection!.lineCode,
       type: CollectionType.ligne,
       points: List<LatLng>.from(_ligneCollection!.points),
       totalDistance: _ligneCollection!.totalDistance,
@@ -368,7 +366,7 @@ class CollectionManager extends ChangeNotifier {
       if (_ligneCollection?.isPaused ?? false) {
         data['collectionType'] = 'ligne';
         data['id'] = _ligneCollection!.id;
-        data['codePiste'] = _ligneCollection!.codePiste;
+        data['lineCode'] = _ligneCollection!.lineCode;
         data['points'] = _ligneCollection!.points
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList();
@@ -446,7 +444,7 @@ class CollectionManager extends ChangeNotifier {
 
     _ligneCollection = LigneCollection(
       id: data['id'] as int,
-      codePiste: data['codePiste'] as String,
+      lineCode: (data['lineCode']) as String,
       status: CollectionStatus.paused,
       points: points,
       startTime: DateTime.parse(data['startTime'] as String),

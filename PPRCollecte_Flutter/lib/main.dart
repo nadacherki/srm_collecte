@@ -1,10 +1,38 @@
+import 'dart:ui';
+
+import 'package:executor_lib/executor_lib.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:dargon2_flutter/dargon2_flutter.dart';
 import 'screens/auth/login_page.dart';
+
+bool _isIgnorableAppError(Object error) {
+  return error is CancellationException || error.toString() == 'Cancelled';
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   DArgon2Flutter.init();
+
+  final previousFlutterError = FlutterError.onError;
+  FlutterError.onError = (FlutterErrorDetails details) {
+    if (_isIgnorableAppError(details.exception)) {
+      return;
+    }
+    previousFlutterError?.call(details);
+  };
+
+  final previousPlatformError = PlatformDispatcher.instance.onError;
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    if (_isIgnorableAppError(error)) {
+      return true;
+    }
+    if (previousPlatformError != null) {
+      return previousPlatformError(error, stack);
+    }
+    return false;
+  };
+
   runApp(const MyApp());
 }
 

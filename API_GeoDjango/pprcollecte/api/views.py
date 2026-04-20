@@ -288,14 +288,16 @@ class ProjetMissionFilterMixin(UpsertByUuidMixin):
         id_mission = self._parse_positive_int_param('id_mission')
         id_agent = self._parse_positive_int_param('id_agent_crea')
         updated_after = self._parse_datetime_param('updated_after')
-        if id_projet is not None:
+        if id_projet is not None and self._has_model_field(qs, 'id_projet'):
             qs = qs.filter(id_projet=id_projet)
-        if id_mission is not None:
+        if id_mission is not None and self._has_model_field(qs, 'id_mission'):
             qs = qs.filter(id_mission=id_mission)
-        if id_agent is not None:
+        if id_agent is not None and self._has_model_field(qs, 'id_agent_crea'):
             qs = qs.filter(id_agent_crea=id_agent)
         if updated_after is not None and self._has_model_field(qs, 'updated_at'):
             qs = qs.filter(updated_at__gt=updated_after)
+        if not qs.ordered:
+            qs = qs.order_by(qs.model._meta.pk.attname)
         return qs
 
 

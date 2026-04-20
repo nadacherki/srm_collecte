@@ -6,11 +6,14 @@ Utilise ModelSerializer standard pour les tables sans gÃ©omÃ©trie.
 Les donnÃ©es spatiales sont sÃ©rialisÃ©es en GeoJSON (RFC 7946) avec SRID 26191.
 """
 
+import datetime
 import json
 import math
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
@@ -212,6 +215,30 @@ class StrictModelSerializer(StrictSerializerMixin, serializers.ModelSerializer):
 
 class StrictGeoFeatureModelSerializer(StrictSerializerMixin, GeoFeatureModelSerializer):
     pass
+
+
+class LenientDateField(serializers.DateField):
+    """Accepts datetime values from PostgreSQL timestamp columns and exposes a date."""
+
+    def to_representation(self, value):
+        if isinstance(value, datetime.datetime):
+            if timezone.is_aware(value):
+                value = timezone.localtime(value)
+            value = value.date()
+        return super().to_representation(value)
+
+    def to_internal_value(self, data):
+        if isinstance(data, datetime.datetime):
+            if timezone.is_aware(data):
+                data = timezone.localtime(data)
+            data = data.date()
+        elif isinstance(data, str):
+            parsed_datetime = parse_datetime(data.strip())
+            if parsed_datetime is not None:
+                if timezone.is_aware(parsed_datetime):
+                    parsed_datetime = timezone.localtime(parsed_datetime)
+                data = parsed_datetime.date()
+        return super().to_internal_value(data)
 
 
 class LoginRequestSerializer(serializers.Serializer):
@@ -579,6 +606,8 @@ class EpBorneOnepSerializer(StrictGeoFeatureModelSerializer):
 
 
 class EpBoucheClesSerializer(StrictGeoFeatureModelSerializer):
+    date_leve = LenientDateField(required=False, allow_null=True)
+
     class Meta:
         model = EpBoucheCles
         geo_field = 'geom'

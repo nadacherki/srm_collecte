@@ -3,7 +3,7 @@
 // Fonctionne pour EP / ASS / ELEC selon srm_config.dart
 // Les photos photo_1..photo_4 sont portées directement par l'objet
 //
-// ── SPRINT 6 — Modifications ──
+// â”€â”€ SPRINT 6 â€” Modifications â”€â”€
 //  1. uuid retiré du formulaire (généré automatiquement par Uuid().v4() dans _save)
 //  2. Champs obligatoires marqués * via SrmConfig.isRequiredField() + validator
 //  3. Champs auto (coordonnées GPS) affichés readOnly sans *
@@ -57,11 +57,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
 
-  // ── Anomalie (existant) ──
+  // â”€â”€ Anomalie (existant) â”€â”€
   bool _hasAnomalie = false;
   String? _typeAnomalie;
 
-  // ── Objet Incomplet (NOUVEAU) ──
+  // â”€â”€ Objet Incomplet (NOUVEAU) â”€â”€
   bool _isObjetIncomplet = false;
   String? _raisonIncomplet;
   final TextEditingController _detailRaisonController = TextEditingController();
@@ -77,7 +77,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   late final List<String> _typeOptions;
   late final String? _typeField;
   late final int _maxPhotos;
-  late final bool _hasZ;
   late double _merchichX;
   late double _merchichY;
 
@@ -90,7 +89,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     _typeOptions   = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
     _typeField     = _entityConfig?['typeField'] as String?;
     _maxPhotos     = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
-    _hasZ          = SrmConfig.hasAltitudeZ(widget.metier, widget.entityType);
 
     final m = ProjectionService().wgs84ToMerchich(
       longitude: widget.longitude,
@@ -161,7 +159,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   void dispose() {
     // ── SPRINT 7 : arrêter le timer de brouillon ──
     if (widget.existingData == null) disposeDraft();
-    for (final c in _controllers.values) c.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     _detailRaisonController.dispose(); // NOUVEAU
     super.dispose();
   }
@@ -222,9 +222,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Photos
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _pickPhoto(int index) async {
     final source = await showDialog<ImageSource>(
       context: context,
@@ -296,7 +296,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       );
       return;
     }
-    // ────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     if (!mounted) return;
     setState(() => _photoPaths[index] = picked.path);
@@ -321,9 +321,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Sauvegarde
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _save() async {
     if (_isLocked) return;
     // Si objet incomplet : on ne valide PAS les champs métier (ils sont grisés)
@@ -345,7 +345,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
       final data = <String, dynamic>{};
 
-      // ── UUID : toujours automatique, jamais saisi ──
+      // â”€â”€ UUID : toujours automatique, jamais saisi â”€â”€
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
 
       // ── Champs métier (ignorés si objet incomplet) ──
@@ -372,7 +372,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       if (xField.isNotEmpty) data[xField] = _merchichX.toStringAsFixed(3);
       if (yField.isNotEmpty) data[yField] = _merchichY.toStringAsFixed(3);
 
-      // ── Anomalie ──
+      // â”€â”€ Anomalie â”€â”€
       data['anomalie'] = _hasAnomalie ? 1 : 0;
       if (_hasAnomalie && _typeAnomalie != null) {
         data['type_anomalie'] = _typeAnomalie;
@@ -382,7 +382,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       // Les détails vont dans la table objet_incomplet séparément
       data['objet_incomplet'] = _isObjetIncomplet ? 1 : 0;
 
-      // ── Photos ──
+      // â”€â”€ Photos â”€â”€
       for (int i = 1; i <= 4; i++) {
         data['photo_$i'] = _photoPaths[i];
       }
@@ -448,6 +448,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       if (mounted) {
         // ── SPRINT 7 : supprimer le brouillon après enregistrement réussi ──
         await clearDraftAfterSave();
+        if (!mounted) return;
         final label = _isObjetIncomplet
             ? '⚠️ ${widget.entityType} signalé incomplet'
             : '✅ ${widget.entityType} enregistré';
@@ -470,9 +471,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Construction d'un champ
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool _isCoordField(String field) =>
       field.endsWith('_coor_x') ||
       field.endsWith('_coor_y') ||
@@ -481,7 +482,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   Widget _buildField(String field) {
     final isCoord    = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
-    // ── NOUVEAU : champ obligatoire ? ──
+    // â”€â”€ NOUVEAU : champ obligatoire ? â”€â”€
     final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     final isRequired =
         !isCoord && (_requiredFields.contains(field) || rule.required);
@@ -559,9 +560,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return fieldWidget;
   }
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // InputDecoration avec astérisque si requis
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   InputDecoration _deco(String label, {bool required = false}) =>
       InputDecoration(
         // ── NOUVEAU : astérisque rouge sur les champs obligatoires ──
@@ -721,8 +722,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'date_leve': 'Date leve',
       'ep_coor_x': 'X Merchich (m)', 'ep_coor_y': 'Y Merchich (m)',
       'ep_coor_z': 'Z Altitude (m)', 'ep_pression': 'Pression (bar)',
-      'ep_calibre': 'Calibre', 'ep_numero': 'Numéro',
-      'ep_diam_amont': 'Diam. amont (mm)', 'ep_diam_aval': 'Diam. aval (mm)',
+      'ep_calibre': 'Calibre',
       'ep_capacite': 'Capacité (m³)', 'ep_cote_radier': 'Cote radier (m)',
       'ep_cote_trop_plein': 'Cote trop-plein', 'ep_cote_tn': 'Cote TN',
       'ep_nb_pompes': 'Nb pompes', 'ep_profondeur': 'Profondeur (m)',
@@ -736,7 +736,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'etat': 'État', 'type_regard': 'Type regard',
       'type_tampon': 'Type tampon', 'typereseau': 'Type réseau',
       'classe_tampon': 'Classe tampon', 'forme': 'Forme',
-      'date_pose': 'Date pose', 'verrouille': 'Verrouillé',
+      'verrouille': 'Verrouillé',
       'accessibilite': 'Accessibilité', 'rehabilitation': 'Réhabilitation',
       'date_rehabilitation': 'Date réhabilitation',
       'nature_corps': 'Nature corps', 'presence_cunette': 'Présence cunette',
@@ -744,7 +744,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'chute': 'Chute (m)', 'profondeur_radier': 'Profondeur radier (m)',
       'ass_coor_x': 'X Merchich (m)', 'ass_coor_y': 'Y Merchich (m)',
       'ass_coor_z': 'Z Altitude (m)', 'centre': 'Centre',
-      'commentaire': 'Commentaire', 'nom': 'Nom',
+      'commentaire': 'Commentaire',
       // ELEC
       'type_support': 'Type support', 'console': 'Console',
       'etat_support': 'État support', 'materiel_supp': 'Matériel',
@@ -763,9 +763,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return labels[field] ?? field.replaceAll('_', ' ');
   }
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Section Photos
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildPhotoSection() {
     if (_maxPhotos == 0) return const SizedBox.shrink();
     return Column(
@@ -777,7 +777,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 8),
         Text(
-          'Formats autorises: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
+          'Formats autorisés: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
         ),
         const SizedBox(height: 8),
@@ -842,9 +842,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Section Anomalie (inchangée)
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildAnomalieSection() {
     final disabled = _isObjetIncomplet || _isLocked;
     return Opacity(
@@ -857,7 +857,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             title: const Text('Anomalie détectée',
                 style: TextStyle(fontWeight: FontWeight.bold)),
             value: _hasAnomalie,
-            activeColor: Colors.red,
+            activeThumbColor: Colors.red,
             onChanged: disabled
                 ? null
                 : (v) => setState(() {
@@ -870,7 +870,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: DropdownButtonFormField<String>(
-                value: _typeAnomalie,
+                initialValue: _typeAnomalie,
                 decoration: _deco('Type d\'anomalie'),
                 hint: const Text('Sélectionner'),
                 items: const [
@@ -890,9 +890,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // ────────────────────────────────────────────
-  // NOUVEAU — Section Objet Incomplet
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // NOUVEAU â€” Section Objet Incomplet
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildObjetIncompletSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -908,8 +908,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.orange.shade300),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 Icon(Icons.warning_amber_rounded,
                     color: Colors.orange, size: 18),
                 SizedBox(width: 8),
@@ -934,7 +934,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             style: TextStyle(fontSize: 12),
           ),
           value: _isObjetIncomplet,
-          activeColor: Colors.orange,
+          activeThumbColor: Colors.orange,
           onChanged: (v) => setState(() {
             _isObjetIncomplet = v;
             // Si on désactive l'incomplet, on remet les anomalies à zéro
@@ -955,9 +955,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         if (_isObjetIncomplet) ...[
           const SizedBox(height: 8),
 
-          // Raison (OBLIGATOIRE) — depuis enum raison_incomplet_enum de la BDD
+          // Raison (OBLIGATOIRE) â€” depuis enum raison_incomplet_enum de la BDD
           DropdownButtonFormField<String>(
-            value: _raisonIncomplet,
+            initialValue: _raisonIncomplet,
             decoration: _deco('Raison', required: true),
             hint: const Text('Sélectionner une raison'),
             isExpanded: true,
@@ -1009,9 +1009,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Build principal
-  // ────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1039,7 +1039,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Row(
@@ -1060,7 +1060,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text('INCOMPLET',
@@ -1128,14 +1128,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                   ],
                 ),
               ),
-            // ── Bandeau GPS ──
+            // â”€â”€ Bandeau GPS â”€â”€
             Container(
               padding: const EdgeInsets.all(10),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: _metierColor.withOpacity(0.08),
+                color: _metierColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _metierColor.withOpacity(0.3)),
+                border: Border.all(color: _metierColor.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1172,10 +1172,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
             // ── Légende champs obligatoires ──
             if (_requiredFields.isNotEmpty && !_isObjetIncomplet && !_isLocked)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
                 child: Row(
-                  children: const [
+                  children: [
                     Text(' * ', style: TextStyle(
                         color: Colors.red,
                         fontWeight: FontWeight.bold,
@@ -1186,10 +1186,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 ),
               ),
 
-            // ── Champs dynamiques ──
+            // â”€â”€ Champs dynamiques â”€â”€
             ..._fields.map(_buildField),
 
-            // ── Sections Anomalie + Incomplet ──
+            // â”€â”€ Sections Anomalie + Incomplet â”€â”€
             _buildAnomalieSection(),
             if (!_isLocked) _buildObjetIncompletSection(),
             _buildPhotoSection(),

@@ -2,8 +2,7 @@
 // Exports de tous les modèles
 
 // Modèles principaux
-export 'piste_model.dart';
-export 'chaussee_model.dart';
+export 'line_model.dart';
 export 'collection_models.dart';
 
 // Entités

@@ -1,6 +1,6 @@
 // lib/core/config/srm_config.dart
 // Configuration centrale des entités SRM (Eau Potable, Assainissement, Électricité)
-// Remplace infrastructure_config.dart de GeoDNGR
+// Configuration centrale des entites SRM
 // Chaque entité correspond à une table PostGIS (schéma ep, ass, elec)
 //
 // ── SPRINT 6 — Modifications ──
@@ -257,7 +257,7 @@ class SrmConfig {
           "tableName": "autre_objet", "schema": "ep",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type_objet", "typeOptions": [],
-          "fields": ["type_objet","ep_diam","ref_rue","observation","ep_coor_z","conformite_plan"],
+          "fields": ["type_objet","ep_diam","ref_rue","date_leve","observation","ep_coor_z","conformite_plan"],
           "requiredFields": ["type_objet","conformite_plan"],
         },
       },

@@ -1,6 +1,4 @@
 ﻿import 'package:flutter/material.dart';
-import '../../data/remote/api_service.dart';
-import '../../data/local/database_helper.dart';
 import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 import '../../screens/home/home_page.dart'; // Pour MapFocusTarget + HomePage
@@ -35,15 +33,11 @@ class _DataListViewState extends State<DataListView> {
   final TextEditingController _searchController = TextEditingController();
   final Map<String, String> _dateCache = {};
 
-  late Future<_AdminNames> _adminFuture;
-
   @override
   void initState() {
     super.initState();
     _filteredData = widget.data;
     _searchController.addListener(_filterData);
-
-    _adminFuture = _loadAdminNames(); // ✅ une seule fois, offline-friendly
   }
 
   @override
@@ -52,32 +46,6 @@ class _DataListViewState extends State<DataListView> {
     if (oldWidget.data != widget.data) {
       _filterData();
     }
-  }
-
-  Future<_AdminNames> _loadAdminNames() async {
-    // Sprint 4 SRM: pas de région/préfecture/commune par utilisateur.
-    // On affiche la région du projet actif depuis ApiService.
-    final r1 = (ApiService.currentProjetRegion ?? '').toString().trim();
-    final p1 = (ApiService.currentProjetNom ?? '').toString().trim();
-
-    if (r1.isNotEmpty) {
-      return _AdminNames(
-        region: r1,
-        prefecture: p1.isEmpty ? '----' : p1,
-        commune: '----',
-      );
-    }
-
-    // Fallback offline : lire depuis SQLite (utilisateur_local SRM)
-    final user = await DatabaseHelper().getCurrentUserSrm();
-    final login = (user?['login'] ?? '').toString().trim();
-    final role  = (user?['role']  ?? '').toString().trim();
-
-    return _AdminNames(
-      region: login.isEmpty ? '----' : login,
-      prefecture: role.isEmpty ? '----' : role,
-      commune: '----',
-    );
   }
 
   void _filterData() {
@@ -90,14 +58,14 @@ class _DataListViewState extends State<DataListView> {
         _filteredData = widget.data.where((item) {
           final nom = item['nom']?.toString().toLowerCase() ?? '';
           final type = item['type']?.toString().toLowerCase() ?? '';
-          final codePiste = item['code_piste']?.toString().toLowerCase() ?? '';
+          final lineCode = item['line_code']?.toString().toLowerCase() ?? '';
           final displayTitle = item['display_title']?.toString().toLowerCase() ?? '';
           final sourceEntity = item['source_entity']?.toString().toLowerCase() ?? '';
           final sourceMetier = item['source_metier']?.toString().toLowerCase() ?? '';
           final sourceTable = item['source_table']?.toString().toLowerCase() ?? '';
           return nom.contains(query) ||
               type.contains(query) ||
-              codePiste.contains(query) ||
+              lineCode.contains(query) ||
               displayTitle.contains(query) ||
               sourceEntity.contains(query) ||
               sourceMetier.contains(query) ||
@@ -182,7 +150,7 @@ class _DataListViewState extends State<DataListView> {
         ),
         const SizedBox(height: 8),
         ...intersections.map((inter) {
-          final code = inter['code_piste']?.toString() ?? '----';
+          final code = inter['line_code']?.toString() ?? '----';
           final x = inter['x'];
           final y = inter['y'];
           return Container(
@@ -310,7 +278,7 @@ class _DataListViewState extends State<DataListView> {
           if (intersections.isNotEmpty) ...[
             const SizedBox(height: 4),
             ...intersections.take(3).map((inter) {
-              final code = inter['code_piste'] ?? '----';
+              final code = inter['line_code'] ?? '----';
               final x = inter['x'];
               final y = inter['y'];
               return Padding(
@@ -369,8 +337,8 @@ class _DataListViewState extends State<DataListView> {
 
   Widget _buildListItem(Map<String, dynamic> item, BuildContext context) {
     final hasModification = item['updated_at'] != null && item['updated_at'] != item['created_at'];
-    final isChaussee = widget.entityType == "Chaussées";
-    final titleText = (item['display_title']?.toString().trim().isNotEmpty ?? false) ? item['display_title'].toString() : isChaussee ? 'Chauss\u00E9e - ${(item['type_chaussee'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})' : (item['nom'] ?? item['code_piste'] ?? 'Sans nom').toString();
+    final isLine = widget.entityType == "Lignes";
+    final titleText = (item['display_title']?.toString().trim().isNotEmpty ?? false) ? item['display_title'].toString() : isLine ? 'Ligne - ${(item['line_type'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})' : (item['nom'] ?? item['line_code'] ?? 'Sans nom').toString();
     return Card(
       elevation: 0.8, // au lieu de default / gros shadow
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -383,7 +351,7 @@ class _DataListViewState extends State<DataListView> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (item['code_piste'] != null) Text('Code: ${item['code_piste']}'),
+            if (item['line_code'] != null) Text('Code: ${item['line_code']}'),
             if (item['type'] != null) Text('Type: ${item['type']}'),
 
             if (item['created_at'] != null) Text('Cr\u00E9\u00E9 : ${_formatDate(item['created_at'])}'),
@@ -505,7 +473,7 @@ class _DataListViewState extends State<DataListView> {
       }
 
       // Administration / rattachements
-      if (k.contains('commune') || k.contains('commune_rurale_id') || k.contains('code_piste') || k.contains('piste') || k.contains('region') || k.contains('prefecture')) {
+      if (k.contains('commune') || k.contains('commune_rurale_id') || k.contains('line_code') || k.contains('region') || k.contains('prefecture')) {
         return 'Administration';
       }
 
@@ -709,15 +677,15 @@ class _DataListViewState extends State<DataListView> {
 
   String _getFieldLabel(String key) {
     final labels = {
-      'code_piste': 'Code Piste',
+      'line_code': 'Code Ligne',
       'commune_rurale_id': 'Commune',
       'user_login': 'Utilisateur',
       'heure_debut': 'Heure Début',
       'heure_fin': 'Heure Fin',
       'created_at': 'Date Création',
       'updated_at': 'Date Modification',
-      'nom_origine_piste': 'Origine',
-      'nom_destination_piste': 'Destination',
+      'origin_name': 'Origine',
+      'destination_name': 'Destination',
       'type_occupation': 'Type Occupation',
       'enqueteur': 'Enquêteur',
       'id': 'ID',
@@ -799,17 +767,5 @@ class _DataListViewState extends State<DataListView> {
     _dateCache[dateString] = out;
     return out;
   }
-}
-
-class _AdminNames {
-  final String region;
-  final String prefecture;
-  final String commune;
-
-  const _AdminNames({
-    required this.region,
-    required this.prefecture,
-    required this.commune,
-  });
 }
 

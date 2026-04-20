@@ -207,7 +207,7 @@ class OfflineBasemapService {
     final activePackage = await db.getActiveOfflineBasemapPackage(style: style);
 
     var shouldActivate = activePackage == null;
-    if (!shouldActivate && activePackage != null) {
+    if (!shouldActivate) {
       final sameZone = activePackage['zone_id']?.toString() ==
           packageRow['zone_id']?.toString();
       final sameStyle = _normalizedStyle(activePackage['style']?.toString()) ==

@@ -6,8 +6,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
-import '../screens/home/home_page.dart';
 import '../data/remote/api_service.dart';
+import '../models/map_overlay_tap_data.dart';
 
 class SpecialLinesService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
@@ -290,7 +290,7 @@ class DownloadedSpecialLinesService {
                 'start_lng': start.longitude,
                 'end_lat': end.latitude,
                 'end_lng': end.longitude,
-                'code_piste': (r['code_piste'] ?? '----').toString(),
+                'line_code': (r['line_code'] ?? '----').toString(),
                 'distance_km': _haversineDistance(start, end),
                 'region_name': (r['region_name'] ?? '----').toString(),
                 'prefecture_name': (r['prefecture_name'] ?? '----').toString(),

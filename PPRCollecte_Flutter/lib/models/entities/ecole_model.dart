@@ -7,7 +7,7 @@ class Ecole {
   final String enqueteur;
   final String dateCreation;
   final String? dateModification;
-  final String? codePiste;
+  final String? lineCode;
   final String? codeGps;
   final int? communeId;
 
@@ -20,7 +20,7 @@ class Ecole {
     required this.enqueteur,
     required this.dateCreation,
     this.dateModification,
-    this.codePiste,
+    this.lineCode,
     this.codeGps,
     this.communeId,
   });
@@ -35,7 +35,7 @@ class Ecole {
       'enqueteur': enqueteur,
       'date_creation': dateCreation,
       'date_modification': dateModification,
-      'code_piste': codePiste,
+      'line_code': lineCode,
       'code_gps': codeGps,
       'commune_id': communeId,
     };
@@ -51,7 +51,7 @@ class Ecole {
       enqueteur: map['enqueteur'],
       dateCreation: map['date_creation'],
       dateModification: map['date_modification'],
-      codePiste: map['code_piste'],
+      lineCode: map['line_code'],
       codeGps: map['code_gps'],
       communeId: map['commune_id'],
     );

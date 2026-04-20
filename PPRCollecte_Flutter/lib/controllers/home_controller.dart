@@ -22,16 +22,18 @@ class HomeController extends ChangeNotifier {
   LatLng userPosition = const LatLng(34.683100, -1.909800); // Oujda
   List<Marker> formMarkers = []; // Marqueurs des formulaires enregistrés
   final List<Polyline> collectedPolylines = <Polyline>[];
+
   // Anciens états ligne pour compatibilité
   bool lineActive = false;
   bool linePaused = false;
   List<LatLng> linePoints = [];
   double lineTotalDistance = 0.0;
-  String? _activePisteCode;
+  String? _activeLineCode;
   String? _specialCollectionType;
   StreamSubscription<LocationData>? _locationSub;
 
-  HomeController({LocationService? locationService}) : _locationService = locationService ?? LocationService() {
+  HomeController({LocationService? locationService})
+      : _locationService = locationService ?? LocationService() {
     _collectionManager.addListener(_onCollectionChanged);
   }
 
@@ -40,10 +42,11 @@ class HomeController extends ChangeNotifier {
   bool get hasActiveCollection => _collectionManager.hasActiveCollection;
   bool get hasPausedCollection => _collectionManager.hasPausedCollection;
   String? get activeCollectionType => _collectionManager.activeCollectionType;
-  String? get activePisteCode => _activePisteCode;
+  String? get activeLineCode => _activeLineCode;
   SpecialCollection? get specialCollection => _collectionManager.specialCollection;
   int get collectionCountdown => _collectionManager.countdown;
   bool get isMockLocationEnabled => _locationService.isMockLocationEnabled;
+
   LatLng? get mockPosition {
     final mock = _locationService.lastMockLocation;
     if (mock?.latitude == null || mock?.longitude == null) {
@@ -51,7 +54,8 @@ class HomeController extends ChangeNotifier {
     }
     return LatLng(mock!.latitude!, mock.longitude!);
   }
-// Expose le collection manager pour la simulation
+
+  // Expose le collection manager pour la simulation
   CollectionManager get collectionManager => _collectionManager;
 
   void setMockPosition({
@@ -92,6 +96,7 @@ class HomeController extends ChangeNotifier {
     lastSync = _formatTimeNow();
     notifyListeners();
   }
+
   Future<void> startSpecialCollection(String specialType) async {
     try {
       _collectionManager.startSpecialCollection(
@@ -100,8 +105,8 @@ class HomeController extends ChangeNotifier {
         locationStream: _locationService.onLocationChanged(), // ← flux GPS réel
       );
       notifyListeners();
-    } catch (e) {
-      throw Exception(e.toString());
+    } catch (_) {
+      rethrow;
     }
   }
 
@@ -123,11 +128,10 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-//  SIMULATION ÉMULATEUR — À SUPPRIMER POUR LA PRODUCTION
+  // SIMULATION ÉMULATEUR — À SUPPRIMER POUR LA PRODUCTION
   void simulatePolygonPoints() {
     if (specialCollection == null || !specialCollection!.isActive) return;
 
-    final random = Random();
     final centerLat = userPosition.latitude;
     final centerLng = userPosition.longitude;
 
@@ -147,11 +151,11 @@ class HomeController extends ChangeNotifier {
       _collectionManager.addManualPoint(CollectionType.special, point);
     }
 
-    print('🧪 SIMULATION: ${points.length} points de polygone simulés');
+    debugPrint('🧪 SIMULATION: ${points.length} points de polygone simulés');
     notifyListeners();
   }
 
-  //  FIN SIMULATION
+  // FIN SIMULATION
 
   // méthode pour la simulation spéciale ( Bacs + Passages)
   void addManualPointToSpecialCollection() {
@@ -179,7 +183,7 @@ class HomeController extends ChangeNotifier {
       _collectionManager.addManualPoint(CollectionType.special, point);
     }
 
-    print('✅ $numberOfPoints points réalistes simulés pour collection spéciale');
+    debugPrint('✅ $numberOfPoints points réalistes simulés pour collection spéciale');
     notifyListeners();
   }
 
@@ -192,16 +196,18 @@ class HomeController extends ChangeNotifier {
     if (ligne != null) {
       lineActive = ligne.isActive;
       linePaused = ligne.isPaused;
-      linePoints = List<LatLng>.from(ligne.points);
-      lineTotalDistance = ligne.totalDistance;
     } else {
       lineActive = false;
       linePaused = false;
-      linePoints = [];
-      lineTotalDistance = 0.0;
     }
 
-    //  AJOUTER LA COLLECTION SPÉCIALE
+    // AJOUTER LA COLLECTION SPÉCIALE
+    linePoints = [];
+    lineTotalDistance = 0.0;
+    if (ligne != null) {
+      linePoints = List<LatLng>.from(ligne.points);
+      lineTotalDistance = ligne.totalDistance;
+    }
     if (special != null) {
       // Mettre à jour les points pour le traçage
       linePoints = List<LatLng>.from(special.points);
@@ -225,22 +231,21 @@ class HomeController extends ChangeNotifier {
       final loc = await _locationService.getCurrent();
       if (loc.latitude != null && loc.longitude != null) {
         userPosition = LatLng(loc.latitude!, loc.longitude!);
-        notifyListeners();
       }
 
       gpsAccuracy = loc.accuracy?.round();
       lastSync = _formatTimeNow();
       notifyListeners();
-    } catch (e) {
+    } catch (_) {
       gpsEnabled = false;
       notifyListeners();
     }
 
     startLocationTracking();
-    updateStatus();
+    setSyncAvailability(false);
   }
 
-//  Une methode pour tester les lignes dans l'emulateur à supprimer après
+  // Une methode pour tester les lignes dans l'emulateur à supprimer après
   void addRealisticLineSimulation() {
     if (!hasActiveCollection) return;
 
@@ -250,7 +255,7 @@ class HomeController extends ChangeNotifier {
     double currentLat = userPosition.latitude;
     double currentLng = userPosition.longitude;
 
-    //  DIRECTION COMPLÈTEMENT ALÉATOIRE à chaque appel
+    // DIRECTION COMPLÈTEMENT ALÉATOIRE à chaque appel
     double angle = random.nextDouble() * 2 * pi; // 0 à 360°
     double curveIntensity = 0.03; // Léger virage
 
@@ -276,7 +281,7 @@ class HomeController extends ChangeNotifier {
     }
 
     final bearingDeg = (angle * 180 / pi % 360).toStringAsFixed(0);
-    print('🧪 SIMULATION LIGNE: $numberOfPoints pts, direction ~$bearingDeg°');
+    debugPrint('🧪 SIMULATION LIGNE: $numberOfPoints pts, direction ~$bearingDeg°');
 
     collectedPolylines.add(
       Polyline(
@@ -289,7 +294,7 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addRealisticPisteSimulation() {
+  void addRealisticLineCollectionSimulation() {
     addRealisticLineSimulation();
   }
 
@@ -298,7 +303,9 @@ class HomeController extends ChangeNotifier {
     final double dLat = _degToRad(lat2 - lat1);
     final double dLon = _degToRad(lon2 - lon1);
 
-    final double a = sin(dLat / 2) * sin(dLat / 2) + cos(_degToRad(lat1)) * cos(_degToRad(lat2)) * sin(dLon / 2) * sin(dLon / 2);
+    final double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_degToRad(lat1)) * cos(_degToRad(lat2)) *
+        sin(dLon / 2) * sin(dLon / 2);
 
     final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
@@ -306,20 +313,27 @@ class HomeController extends ChangeNotifier {
   }
 
   double _degToRad(double deg) => deg * (pi / 180.0);
+
   void startLocationTracking() {
     stopLocationTracking();
-    _locationSub = _locationService.onLocationChanged().listen((loc) {
-      if (loc.latitude == null || loc.longitude == null) return;
+    _locationSub = _locationService.onLocationChanged().listen(
+      (loc) {
+        if (loc.latitude == null || loc.longitude == null) return;
 
-      final lat = loc.latitude!;
-      final lon = loc.longitude!;
-      if (lat.abs() > 90 || lon.abs() > 180) return;
+        final lat = loc.latitude!;
+        final lon = loc.longitude!;
+        if (lat.abs() > 90 || lon.abs() > 180) return;
 
-      userPosition = LatLng(lat, lon);
-      gpsAccuracy = loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
-      lastSync = _formatTimeNow();
-      notifyListeners();
-    });
+        userPosition = LatLng(lat, lon);
+        gpsAccuracy = loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
+        lastSync = _formatTimeNow();
+        notifyListeners();
+      },
+      onError: (_) {
+        gpsEnabled = false;
+        notifyListeners();
+      },
+    );
   }
 
   void stopLocationTracking() {
@@ -329,18 +343,18 @@ class HomeController extends ChangeNotifier {
 
   // === MÉTHODES DE COLLECTE ===
 
-  Future<void> startLigneCollection(String codePiste) async {
+  Future<void> startLigneCollection(String lineCode) async {
     try {
-      _activePisteCode = codePiste; //  STOCKER LE CODE
+      _activeLineCode = lineCode;
 
       _collectionManager.startLigneCollection(
-        codePiste: codePiste,
+        lineCode: lineCode,
         initialPosition: userPosition,
         locationStream: _locationService.onLocationChanged(),
       );
       notifyListeners();
-    } catch (e) {
-      throw Exception(e.toString());
+    } catch (_) {
+      rethrow;
     }
   }
 
@@ -353,7 +367,7 @@ class HomeController extends ChangeNotifier {
     } else if (ligne.isPaused) {
       try {
         _collectionManager.resumeLigneCollection(_locationService.onLocationChanged());
-      } catch (e) {
+      } catch (_) {
         rethrow;
       }
     }
@@ -368,7 +382,7 @@ class HomeController extends ChangeNotifier {
     } else if (special.isPaused) {
       try {
         _collectionManager.resumeSpecialCollection(_locationService.onLocationChanged());
-      } catch (e) {
+      } catch (_) {
         rethrow;
       }
     }
@@ -403,22 +417,21 @@ class HomeController extends ChangeNotifier {
   Map<String, dynamic>? finishLigneCollection() {
     final result = _collectionManager.finishLigneCollection();
 
-    //  EFFACER IMMÉDIATEMENT LE CODE PISTE ACTIF
-    final String? finishedCode = _activePisteCode;
-    _activePisteCode = null;
+    final String? finishedCode = _activeLineCode;
+    _activeLineCode = null;
     notifyListeners();
 
     if (result == null) return null;
-    print('📏 Résultat ligne - Points: ${result.points.length}');
-    print('📏 Résultat ligne - Distance: ${result.totalDistance}m');
+    debugPrint('📏 Résultat ligne - Points: ${result.points.length}');
+    debugPrint('📏 Résultat ligne - Distance: ${result.totalDistance}m');
     if (result.points.isNotEmpty) {
-      print('📏 Premier point: ${result.points.first}');
-      print('📏 Dernier point: ${result.points.last}');
+      debugPrint('📏 Premier point: ${result.points.first}');
+      debugPrint('📏 Dernier point: ${result.points.last}');
     }
     return {
       'points': result.points,
       'id': result.id,
-      'codePiste': result.codePiste ?? finishedCode, //  GARDE LE CODE SI NULL
+      'lineCode': result.lineCode ?? finishedCode,
       'totalDistance': result.totalDistance,
       'startTime': result.startTime,
       'endTime': result.endTime,
@@ -427,7 +440,7 @@ class HomeController extends ChangeNotifier {
 
   void cancelLigneCollection() {
     _collectionManager.cancelLigneCollection();
-    _activePisteCode = null;
+    _activeLineCode = null;
     notifyListeners();
   }
 
@@ -436,13 +449,13 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setActivePisteCode(String code) {
-    _activePisteCode = code;
+  void setActiveLineCode(String code) {
+    _activeLineCode = code;
     notifyListeners();
   }
 
-  void clearActivePisteCode() {
-    _activePisteCode = null;
+  void clearActiveLineCode() {
+    _activeLineCode = null;
     notifyListeners();
   }
 
@@ -455,9 +468,7 @@ class HomeController extends ChangeNotifier {
   void startLine() {
     lineActive = true;
     linePaused = false;
-    linePoints = [
-      userPosition
-    ];
+    linePoints = [userPosition];
     lineTotalDistance = 0.0;
     startLocationTracking();
     notifyListeners();
@@ -492,7 +503,12 @@ class HomeController extends ChangeNotifier {
       final last = linePoints.isNotEmpty ? linePoints.last : userPosition;
       final newPt = LatLng(last.latitude + 0.0005, last.longitude + 0.0005);
       linePoints.add(newPt);
-      lineTotalDistance += _haversineDistance(last.latitude, last.longitude, newPt.latitude, newPt.longitude);
+      lineTotalDistance += _haversineDistance(
+        last.latitude,
+        last.longitude,
+        newPt.latitude,
+        newPt.longitude,
+      );
       notifyListeners();
     }
   }
@@ -512,7 +528,18 @@ class HomeController extends ChangeNotifier {
   }
 
   void updateStatus() {
-    isOnline = Random().nextDouble() > 0.2;
+    notifyListeners();
+  }
+
+  void setSyncAvailability(bool canSyncNow) {
+    if (isOnline == canSyncNow) {
+      return;
+    }
+    isOnline = canSyncNow;
+    notifyListeners();
+  }
+
+  void markSyncSuccess() {
     lastSync = _formatTimeNow();
     notifyListeners();
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:location/location.dart';
 
 import 'projection_service.dart';
@@ -33,48 +34,58 @@ class LocationService {
   LocationData? _lastMockLocation;
 
   LocationService() {
-    _deviceLocationSubscription = _location.onLocationChanged.listen((loc) {
-      if (!_mockLocationEnabled && !_locationStreamController.isClosed) {
-        _locationStreamController.add(loc);
-      }
-    });
+    _deviceLocationSubscription = _location.onLocationChanged.listen(
+      (loc) {
+        if (!_mockLocationEnabled && !_locationStreamController.isClosed) {
+          _locationStreamController.add(loc);
+        }
+      },
+      onError: (_) {
+        // Ignore plugin-side stream errors caused by transient permission/service
+        // state during app restarts or emulator changes.
+      },
+    );
   }
 
   Future<bool> requestPermissionAndService() async {
-    bool serviceEnabled = await _location.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await _location.requestService();
+    try {
+      bool serviceEnabled = await _location.serviceEnabled();
       if (!serviceEnabled) {
+        serviceEnabled = await _location.requestService();
+        if (!serviceEnabled) {
+          return false;
+        }
+      }
+
+      PermissionStatus permission = await _location.hasPermission();
+      if (permission == PermissionStatus.denied) {
+        permission = await _location.requestPermission();
+      }
+      if (permission == PermissionStatus.denied ||
+          permission == PermissionStatus.deniedForever) {
         return false;
       }
-    }
 
-    PermissionStatus permission = await _location.hasPermission();
-    if (permission == PermissionStatus.denied) {
-      permission = await _location.requestPermission();
-    }
-    if (permission == PermissionStatus.denied ||
-        permission == PermissionStatus.deniedForever) {
+      try {
+        await _location.changeSettings(
+          accuracy: LocationAccuracy.high,
+          interval: 1000,
+          distanceFilter: 0,
+        );
+      } catch (_) {
+        // Certaines versions du plugin ne supportent pas changeSettings.
+      }
+
+      try {
+        await _location.enableBackgroundMode(enable: true);
+      } catch (_) {
+        // Le mode background n'est pas critique pour les tests.
+      }
+
+      return true;
+    } on PlatformException catch (_) {
       return false;
     }
-
-    try {
-      await _location.changeSettings(
-        accuracy: LocationAccuracy.high,
-        interval: 1000,
-        distanceFilter: 0,
-      );
-    } catch (_) {
-      // Certaines versions du plugin ne supportent pas changeSettings.
-    }
-
-    try {
-      await _location.enableBackgroundMode(enable: true);
-    } catch (_) {
-      // Le mode background n'est pas critique pour les tests.
-    }
-
-    return true;
   }
 
   bool get isMockLocationEnabled => _mockLocationEnabled;
@@ -84,7 +95,11 @@ class LocationService {
     if (_mockLocationEnabled && _lastMockLocation != null) {
       return _lastMockLocation!;
     }
-    return _location.getLocation();
+    try {
+      return await _location.getLocation();
+    } on PlatformException {
+      return LocationData.fromMap(const {});
+    }
   }
 
   Future<EnrichedLocation> getCurrentEnriched() async {

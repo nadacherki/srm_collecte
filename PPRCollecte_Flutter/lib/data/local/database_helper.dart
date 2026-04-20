@@ -1202,6 +1202,11 @@ class DatabaseHelper {
     final db = await database;
     await _assertSrmTableExists(db, tableName);
     final cleaned = _sanitizeSrmPayload(tableName, data);
+    await _ensureSrmEntityColumns(
+      db,
+      tableName,
+      cleaned.keys.toList(),
+    );
     final uuid = cleaned['uuid']?.toString().trim();
 
     if (uuid != null && uuid.isNotEmpty) {

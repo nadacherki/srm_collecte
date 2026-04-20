@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -75,8 +76,11 @@ class _MapWidgetState extends State<MapWidget> {
   vmt.SpriteStyle? _vectorSprites;
   String? _loadedBasemapPath;
   String? _loadedBasemapFormat;
+  String? _requestedBasemapPath;
+  String? _requestedBasemapFormat;
   String? _basemapLoadError;
   bool _isBasemapLoading = false;
+  int _basemapLoadRequestId = 0;
 
   final _polylineHitNotifier = ValueNotifier<LayerHitResult<Object>?>(null);
   final _polygonHitNotifier = ValueNotifier<LayerHitResult<Object>?>(null);
@@ -134,18 +138,26 @@ class _MapWidgetState extends State<MapWidget> {
 
   void _zoomIn() {
     if (_controllerReady) {
+      final targetZoom = math.min(
+        _mapController.camera.zoom + 1,
+        _mapController.camera.maxZoom ?? double.infinity,
+      ).toDouble();
       _mapController.move(
         _mapController.camera.center,
-        _mapController.camera.zoom + 1,
+        targetZoom,
       );
     }
   }
 
   void _zoomOut() {
     if (_controllerReady) {
+      final targetZoom = math.max(
+        _mapController.camera.zoom - 1,
+        _mapController.camera.minZoom ?? 1,
+      ).toDouble();
       _mapController.move(
         _mapController.camera.center,
-        _mapController.camera.zoom - 1,
+        targetZoom,
       );
     }
   }
@@ -153,7 +165,11 @@ class _MapWidgetState extends State<MapWidget> {
   void _goToUserLocation() {
     if (_controllerReady) {
       widget.onGpsButtonPressed?.call();
-      _mapController.move(widget.userPosition, 17);
+      final targetZoom = math.min(
+        17.0,
+        _mapController.camera.maxZoom ?? 17.0,
+      );
+      _mapController.move(widget.userPosition, targetZoom);
     }
   }
 
@@ -170,24 +186,34 @@ class _MapWidgetState extends State<MapWidget> {
     String? basemapFormat,
   ) async {
     final normalizedFormat = _normalizedBasemapFormat(basemapFormat);
+    final hasLoadedProvider =
+        _rasterTileProvider != null ||
+        (_vectorTileProvider != null && _vectorTheme != null);
     if (basemapPath == _loadedBasemapPath &&
         normalizedFormat == _loadedBasemapFormat &&
-        (basemapPath == null ||
-            _rasterTileProvider != null ||
-            (_vectorTileProvider != null && _vectorTheme != null))) {
+        (basemapPath == null || hasLoadedProvider)) {
       return;
     }
 
-    final previousRasterProvider = _rasterTileProvider;
-    _rasterTileProvider = null;
-    _vectorTileProvider = null;
-    _vectorTheme = null;
-    _vectorSprites = null;
-    _loadedBasemapPath = basemapPath;
-    _loadedBasemapFormat = normalizedFormat;
-    _basemapLoadError = null;
+    if (_isBasemapLoading &&
+        basemapPath == _requestedBasemapPath &&
+        normalizedFormat == _requestedBasemapFormat) {
+      return;
+    }
+
+    _requestedBasemapPath = basemapPath;
+    _requestedBasemapFormat = normalizedFormat;
+    final requestId = ++_basemapLoadRequestId;
 
     if (basemapPath == null || basemapPath.isEmpty) {
+      final previousRasterProvider = _rasterTileProvider;
+      _rasterTileProvider = null;
+      _vectorTileProvider = null;
+      _vectorTheme = null;
+      _vectorSprites = null;
+      _loadedBasemapPath = null;
+      _loadedBasemapFormat = normalizedFormat;
+      _basemapLoadError = null;
       previousRasterProvider?.dispose();
       if (mounted) {
         setState(() {
@@ -200,10 +226,9 @@ class _MapWidgetState extends State<MapWidget> {
     if (mounted) {
       setState(() {
         _isBasemapLoading = true;
+        _basemapLoadError = null;
       });
     }
-
-    previousRasterProvider?.dispose();
 
     try {
       TileProvider? rasterProvider;
@@ -225,6 +250,7 @@ class _MapWidgetState extends State<MapWidget> {
       }
 
       if (!mounted ||
+          requestId != _basemapLoadRequestId ||
           widget.offlineBasemapPath != basemapPath ||
           _normalizedBasemapFormat(widget.offlineBasemapFormat) !=
               normalizedFormat) {
@@ -232,6 +258,7 @@ class _MapWidgetState extends State<MapWidget> {
         return;
       }
 
+      final previousRasterProvider = _rasterTileProvider;
       setState(() {
         _rasterTileProvider = rasterProvider;
         _vectorTileProvider = vectorProvider;
@@ -241,8 +268,11 @@ class _MapWidgetState extends State<MapWidget> {
         _loadedBasemapFormat = normalizedFormat;
         _isBasemapLoading = false;
       });
+      if (!identical(previousRasterProvider, rasterProvider)) {
+        previousRasterProvider?.dispose();
+      }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestId != _basemapLoadRequestId) return;
       setState(() {
         _basemapLoadError = e.toString();
         _isBasemapLoading = false;
@@ -300,7 +330,7 @@ class _MapWidgetState extends State<MapWidget> {
     final fallbackCenter = widget.basemapCenter ?? BasemapConstants.fallbackCenter;
     final requestedCenter =
         widget.gpsEnabled ? widget.userPosition : fallbackCenter;
-    final initialZoom =
+    final desiredInitialZoom =
         widget.gpsEnabled
             ? 15.0
             : (widget.basemapDefaultZoom ??
@@ -317,6 +347,12 @@ class _MapWidgetState extends State<MapWidget> {
         _vectorTheme != null &&
         _normalizedBasemapFormat(widget.offlineBasemapFormat) == 'pmtiles' &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
+    // In rasterized vector mode, the provider can still serve translated tiles
+    // above its native zoom. Keep the user-facing zoom limit from the active
+    // basemap package instead of clamping to the provider's native max zoom.
+    final effectiveMaxZoom = maxZoom;
+    final initialZoom =
+        desiredInitialZoom.clamp(minZoom, effectiveMaxZoom).toDouble();
     final hasOfflineBasemap =
         (hasRasterBasemap || hasVectorBasemap) &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
@@ -336,12 +372,13 @@ class _MapWidgetState extends State<MapWidget> {
     return Stack(
       children: [
         FlutterMap(
+          key: const PageStorageKey<String>('home-flutter-map'),
           mapController: _mapController,
           options: MapOptions(
             initialCenter: initialCenter,
             initialZoom: initialZoom,
             minZoom: minZoom,
-            maxZoom: maxZoom,
+            maxZoom: effectiveMaxZoom,
             cameraConstraint: shouldConstrainCamera
                 ? CameraConstraint.containCenter(bounds: basemapBounds)
                 : const CameraConstraint.unconstrained(),
@@ -358,7 +395,7 @@ class _MapWidgetState extends State<MapWidget> {
               TileLayer(
                 tileProvider: _rasterTileProvider!,
                 userAgentPackageName: 'com.example.srmcollecte',
-                maxZoom: maxZoom,
+                maxZoom: effectiveMaxZoom,
               ),
             if (hasVectorBasemap)
               vmt.VectorTileLayer(
@@ -367,8 +404,11 @@ class _MapWidgetState extends State<MapWidget> {
                 tileProviders: vmt.TileProviders({
                   'protomaps': _vectorTileProvider!,
                 }),
-                layerMode: vmt.VectorTileLayerMode.vector,
-                maximumZoom: maxZoom,
+                // Use rasterized vector tiles for the basemap to keep the
+                // background stable during aggressive zooming and tile
+                // cancellations.
+                layerMode: vmt.VectorTileLayerMode.raster,
+                maximumZoom: effectiveMaxZoom,
                 fileCacheTtl: Duration.zero,
               ),
             PolylineLayer(
@@ -570,12 +610,12 @@ class MapTypeToggle extends StatelessWidget {
   }
 }
 
-class DownloadedPistesToggle extends StatelessWidget {
+class DownloadedLinesToggle extends StatelessWidget {
   final bool isOn;
   final int count;
   final ValueChanged<bool> onChanged;
 
-  const DownloadedPistesToggle({
+  const DownloadedLinesToggle({
     super.key,
     required this.isOn,
     required this.onChanged,
@@ -619,7 +659,7 @@ class DownloadedPistesToggle extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Pistes telechargees',
+                    'Lignes telechargees',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -666,98 +706,3 @@ class DownloadedPistesToggle extends StatelessWidget {
   }
 }
 
-class DownloadedChausseesToggle extends StatelessWidget {
-  final bool isOn;
-  final int count;
-  final ValueChanged<bool> onChanged;
-
-  const DownloadedChausseesToggle({
-    super.key,
-    required this.isOn,
-    required this.onChanged,
-    this.count = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 206,
-      right: 10,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => onChanged(!isOn),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.alt_route_rounded,
-                    size: 22,
-                    color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Chaussees telechargees',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  if (count > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isOn
-                            ? const Color(0xFFB86E1D).withOpacity(0.12)
-                            : Colors.grey.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color:
-                              isOn ? const Color(0xFFB86E1D) : Colors.grey,
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isOn
-                              ? const Color(0xFFB86E1D)
-                              : Colors.grey[700],
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

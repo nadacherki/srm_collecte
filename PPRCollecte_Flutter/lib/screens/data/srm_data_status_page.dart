@@ -214,7 +214,6 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   bool _matchesCurrentContext(Map<String, dynamic> item) {
     final currentProjetId = ApiService.currentProjetId;
     final rowProjetId = _toInt(item['id_projet']);
-    final rowMissionId = _toInt(item['id_mission']);
     if (currentProjetId != null && rowProjetId != currentProjetId) return false;
     return true;
   }
@@ -246,7 +245,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
   String _buildDisplayTitle(String entity, Map<String, dynamic> row) {
     const preferredKeys = [
-      'nom', 'code', 'ep_num', 'ep_numero', 'reference', 'type',
+      'nom', 'code', 'ep_num', 'reference', 'type',
       'type_objet', 'type_regard', 'type_conduite', 'type_station',
       'type_poste', 'type_support', 'type_bassin',
     ];
@@ -526,10 +525,10 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Icon(
+          const Icon(
             Icons.inventory_2_outlined,
             size: 16,
-            color: const Color(0xFF1976D2),
+            color: Color(0xFF1976D2),
           ),
           const SizedBox(width: 8),
           Text(
