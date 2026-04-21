@@ -200,6 +200,7 @@ class ObjetPhoto(models.Model):
     id_projet = models.IntegerField(null=True, blank=True)
     id_mission = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
+    date_prise_reelle = models.DateTimeField(null=True, blank=True)
     date_upload = models.DateTimeField(null=True, blank=True)
     actif = models.BooleanField(default=True)
 

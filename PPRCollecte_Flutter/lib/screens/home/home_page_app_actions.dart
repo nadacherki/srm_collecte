@@ -99,9 +99,7 @@ void handleMenuPress() {
     _loadDisplayedPoints();
     _loadDisplayedLines();
     _loadDisplayedSpecialLines();
-    if (_legendVisibility['zone_plaine'] != false) {
-      _loadDisplayedPolygons();
-    }
+    _loadDisplayedPolygons();
     _loadPointCountsByTable();
 
     if (HomePage.pendingFocusTarget != null) {

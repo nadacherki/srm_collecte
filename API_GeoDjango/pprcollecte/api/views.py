@@ -5,6 +5,7 @@ Chaque ViewSet filtre par id_projet et id_mission via query params.
 Le login vérifie le mot de passe hashé PBKDF2 via Django.
 """
 
+import datetime
 import hashlib
 import os
 import re
@@ -32,6 +33,11 @@ from rest_framework import status
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 import json
+try:
+    from PIL import Image, ExifTags
+except ImportError:  # pragma: no cover - depends on runtime env
+    Image = None
+    ExifTags = None
 
 from .models import (
     Utilisateur, Projet, Mission, Commune,
@@ -87,6 +93,76 @@ from .serializers import (
     ElecTronconBtSerializer, ElecTronconHtaSerializer,
     LoginRequestSerializer, PhotoUploadSerializer,
 )
+
+
+def _coerce_exif_text(value):
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        try:
+            value = value.decode('utf-8', errors='ignore')
+        except Exception:
+            return None
+    value = str(value).strip()
+    return value or None
+
+
+def _parse_exif_datetime(raw_value, raw_offset=None):
+    raw_value = _coerce_exif_text(raw_value)
+    if raw_value is None:
+        return None
+
+    try:
+        naive_value = datetime.datetime.strptime(raw_value, '%Y:%m:%d %H:%M:%S')
+    except ValueError:
+        parsed = parse_datetime(raw_value)
+        if parsed is None:
+            return None
+        if timezone.is_naive(parsed):
+            return timezone.make_aware(parsed, timezone.get_current_timezone())
+        return parsed
+
+    offset = _coerce_exif_text(raw_offset)
+    if offset:
+        iso_base = naive_value.strftime('%Y-%m-%dT%H:%M:%S')
+        parsed = parse_datetime(f'{iso_base}{offset}')
+        if parsed is not None:
+            return parsed
+
+    return timezone.make_aware(naive_value, timezone.get_current_timezone())
+
+
+def _extract_photo_taken_at(photo_path):
+    if Image is None or ExifTags is None:
+        return None
+
+    try:
+        with Image.open(photo_path) as image:
+            exif = image.getexif()
+    except Exception:
+        return None
+
+    if not exif:
+        return None
+
+    exif_values = {
+        ExifTags.TAGS.get(tag_id, str(tag_id)): value
+        for tag_id, value in exif.items()
+    }
+
+    for date_tag, offset_tag in (
+        ('DateTimeOriginal', 'OffsetTimeOriginal'),
+        ('DateTimeDigitized', 'OffsetTimeDigitized'),
+        ('DateTime', None),
+    ):
+        captured_at = _parse_exif_datetime(
+            exif_values.get(date_tag),
+            exif_values.get(offset_tag) if offset_tag else None,
+        )
+        if captured_at is not None:
+            return captured_at
+
+    return None
 def _normalized_db_table(model):
     return str(model._meta.db_table).replace('"', '')
 
@@ -1251,6 +1327,8 @@ def photo_upload_view(request):
     os.replace(temp_path, final_path)
 
     relative_path = (relative_dir / file_name).as_posix()
+    captured_at = _extract_photo_taken_at(final_path)
+    uploaded_at = timezone.now()
     with transaction.atomic():
         _set_local_audit_user_id(data.get('id_agent_crea'))
         setattr(instance, field_name, relative_path)
@@ -1270,7 +1348,8 @@ def photo_upload_view(request):
                 'id_projet': data.get('id_projet'),
                 'id_mission': data.get('id_mission'),
                 'id_agent_crea': data.get('id_agent_crea'),
-                'date_upload': timezone.now(),
+                'date_prise_reelle': captured_at,
+                'date_upload': uploaded_at,
                 'actif': True,
             },
         )
@@ -1286,6 +1365,8 @@ def photo_upload_view(request):
             'field_name': field_name,
             'relative_path': relative_path,
             'media_url': media_url,
+            'date_prise_reelle': captured_at.isoformat() if captured_at else None,
+            'date_upload': uploaded_at.isoformat(),
         },
         status=status.HTTP_201_CREATED,
     )

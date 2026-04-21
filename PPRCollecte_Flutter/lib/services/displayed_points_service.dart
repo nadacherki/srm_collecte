@@ -41,6 +41,17 @@ class DisplayedPointsService {
           for (final row in rows) {
             final latLng = _extractLatLng(row, metier);
             if (latLng == null) continue;
+            final editableItem = Map<String, dynamic>.from(row);
+            editableItem['source_table'] = tableName;
+            editableItem['source_metier'] = metier;
+            editableItem['source_entity'] = entityType;
+            editableItem['geometry_type'] = 'Point';
+            if (editableItem['latitude_gps'] == null) {
+              editableItem['latitude_gps'] = latLng.latitude;
+            }
+            if (editableItem['longitude_gps'] == null) {
+              editableItem['longitude_gps'] = latLng.longitude;
+            }
 
             // Detecter l'anomalie stockee comme 1 / true en base.
             final hasAnomalie =
@@ -71,6 +82,7 @@ class DisplayedPointsService {
                     'lat': latLng.latitude,
                     'lng': latLng.longitude,
                     'synced': (row['synced'] ?? 0).toString(),
+                    'existing_item': editableItem,
                     'region_name':
                         (row['region_name'] ?? ApiService.currentProjetRegion ?? '')
                             .toString(),

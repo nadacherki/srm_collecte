@@ -270,6 +270,7 @@ class DatabaseHelper {
         photo_slot INTEGER NOT NULL,
         local_path TEXT NOT NULL,
         remote_path TEXT,
+        date_prise_reelle TEXT,
         id_projet INTEGER,
         id_mission INTEGER,
         id_agent_crea INTEGER,
@@ -738,6 +739,7 @@ class DatabaseHelper {
       'photo_slot': 'INTEGER',
       'local_path': 'TEXT',
       'remote_path': 'TEXT',
+      'date_prise_reelle': 'TEXT',
       'id_projet': 'INTEGER',
       'id_mission': 'INTEGER',
       'id_agent_crea': 'INTEGER',
@@ -1894,6 +1896,7 @@ class DatabaseHelper {
   Future<void> markPhotoSyncItemSynced(
     int id, {
     required String remotePath,
+    String? datePriseReelle,
   }) async {
     final db = await database;
     await db.update(
@@ -1901,6 +1904,7 @@ class DatabaseHelper {
       {
         'synced': 1,
         'remote_path': remotePath,
+        'date_prise_reelle': datePriseReelle,
         'last_error': null,
         'updated_at': DateTime.now().toIso8601String(),
       },
@@ -1911,7 +1915,11 @@ class DatabaseHelper {
       eventType: 'PHOTO_SYNC_SUCCESS',
       tableName: 'photo_sync_queue',
       idObjet: id,
-      payload: {'remote_path': remotePath},
+      payload: {
+        'remote_path': remotePath,
+        if (datePriseReelle != null && datePriseReelle.isNotEmpty)
+          'date_prise_reelle': datePriseReelle,
+      },
     );
   }
 

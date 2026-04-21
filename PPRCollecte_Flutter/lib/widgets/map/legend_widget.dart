@@ -579,7 +579,11 @@ class _LegendWidgetState extends State<LegendWidget> {
               hasIncomplet: incomplets > 0,
             )
           else if (isPolygon)
-            _polygonSymbol(entityColor)
+            _polygonSymbol(
+              entityColor,
+              hasAnomalie: anomalies > 0,
+              hasIncomplet: incomplets > 0,
+            )
           else
             _pointSymbol(entityIcon, entityColor),
           const SizedBox(width: 6),
@@ -693,14 +697,67 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  Widget _polygonSymbol(Color color) {
-    return Container(
-      width: 20,
-      height: 14,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color, width: 1.5),
+  Widget _polygonSymbol(
+    Color color, {
+    bool hasAnomalie = false,
+    bool hasIncomplet = false,
+  }) {
+    final displayColor = hasAnomalie
+        ? const Color(0xFFD32F2F)
+        : hasIncomplet
+            ? const Color(0xFFF57C00)
+            : color;
+    return SizedBox(
+      width: 22,
+      height: 16,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 22,
+            height: 16,
+            decoration: BoxDecoration(
+              color: displayColor.withOpacity(hasAnomalie || hasIncomplet ? 0.28 : 0.32),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: displayColor,
+                width: hasAnomalie || hasIncomplet ? 2.2 : 1.8,
+              ),
+            ),
+          ),
+          if (hasAnomalie)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                3,
+                (_) => Container(
+                  width: 2,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ),
+            )
+          else if (hasIncomplet)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                4,
+                (_) => Container(
+                  width: 2,
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

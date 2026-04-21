@@ -3,14 +3,16 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class BottomButtonsWidget extends StatelessWidget {
   final VoidCallback onSave;
-  final VoidCallback onSync;
+  final VoidCallback? onSync;
   final VoidCallback onMenu;
+  final bool isSyncEnabled;
 
   const BottomButtonsWidget({
     super.key,
     required this.onSave,
     required this.onSync,
     required this.onMenu,
+    this.isSyncEnabled = true,
   });
 
   @override
@@ -40,12 +42,14 @@ class BottomButtonsWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2196F3),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                disabledForegroundColor: Colors.white70,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const FaIcon(FontAwesomeIcons.sync, size: 14),
               label: const Text("Synchroniser", style: TextStyle(fontWeight: FontWeight.w500)),
-              onPressed: onSync,
+              onPressed: isSyncEnabled ? onSync : null,
             ),
           ),
           const SizedBox(width: 8),

@@ -14,6 +14,7 @@ void _showSpecialLineDetailsSheetImpl(
   required double startLng,
   required double endLat,
   required double endLng,
+  Map<String, dynamic>? editableItem,
 }) {
   String safe(dynamic value) {
     final text = (value ?? '').toString().trim();
@@ -78,9 +79,23 @@ void _showSpecialLineDetailsSheetImpl(
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Fermer'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (editableItem != null &&
+                      FormLockService.isEditable(editableItem))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapItem(editableItem);
+                      },
+                      child: const Text('Editer'),
+                    ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Fermer'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -113,6 +128,7 @@ void _showLineDetailsSheetImpl(
   String? financement,
   String? projet,
   String? entreprise,
+  Map<String, dynamic>? editableItem,
 }) {
   String safe(String? value) => (value ?? '').trim().isEmpty ? '----' : value!.trim();
 
@@ -196,9 +212,23 @@ void _showLineDetailsSheetImpl(
               const Divider(),
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Fermer'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (editableItem != null &&
+                        FormLockService.isEditable(editableItem))
+                      TextButton(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await state._editMapItem(editableItem);
+                        },
+                        child: const Text('Editer'),
+                      ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Fermer'),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -222,6 +252,7 @@ void _showPointDetailsSheetImpl(
   required double lat,
   required double lng,
   required String statut,
+  Map<String, dynamic>? editableItem,
 }) {
   String safe(String value) => value.trim().isEmpty ? '----' : value.trim();
 
@@ -278,9 +309,23 @@ void _showPointDetailsSheetImpl(
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Fermer'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (editableItem != null &&
+                      FormLockService.isEditable(editableItem))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapItem(editableItem);
+                      },
+                      child: const Text('Editer'),
+                    ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Fermer'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -296,6 +341,7 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
   final tapData = hitValue;
   final type = tapData.type;
   final data = tapData.data;
+  final editableItem = _editableItemFromDynamicImpl(data['existing_item']);
 
   debugPrint('[Polyline] tapped: type=$type');
 
@@ -340,6 +386,7 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         financement: (data['funding'] ?? '----').toString(),
         projet: (data['project'] ?? '----').toString(),
         entreprise: (data['company'] ?? '----').toString(),
+        editableItem: editableItem,
       );
       break;
 
@@ -374,6 +421,7 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         startLng: (data['start_lng'] as num).toDouble(),
         endLat: (data['end_lat'] as num).toDouble(),
         endLng: (data['end_lng'] as num).toDouble(),
+        editableItem: editableItem,
       );
       break;
   }
@@ -382,6 +430,9 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
 void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
   if (hitValue == null || hitValue is! PolygonTapData) return;
   final data = hitValue;
+  final titlePrefix = data.entityType.trim().isEmpty
+      ? 'Polygone'
+      : data.entityType.trim();
 
   showModalBottomSheet(
     context: state.context,
@@ -410,18 +461,29 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             ),
             const SizedBox(height: 12),
             Text(
-              'Zone de Plaine - ${data.nom}',
+              '$titlePrefix - ${data.nom}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             state._detailRow('Statut', data.statut),
-            state._detailRow('Code ligne', data.lineCode),
+            if (data.metier.trim().isNotEmpty)
+              state._detailRow('Metier', data.metier),
+            state._detailRow('Code', data.code),
             if (data.downloaded || data.synced) ...[
               state._detailRow('Region', data.regionName.isEmpty ? '----' : data.regionName),
               state._detailRow('Prefecture', data.prefectureName.isEmpty ? '----' : data.prefectureName),
               state._detailRow('Commune', data.communeName.isEmpty ? '----' : data.communeName),
             ],
+            if (data.hasAnomalie)
+              state._detailRow(
+                'Anomalie',
+                data.typeAnomalie?.trim().isNotEmpty == true
+                    ? data.typeAnomalie!
+                    : 'Oui',
+              ),
+            if (data.hasIncomplet)
+              state._detailRow('Objet incomplet', 'Oui'),
             state._detailRow('Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
             state._detailRow('Sommets', '${data.nbSommets} points'),
             state._detailRow(
@@ -440,9 +502,23 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Fermer'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (data.editableItem != null &&
+                      FormLockService.isEditable(data.editableItem!))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapItem(data.editableItem!);
+                      },
+                      child: const Text('Editer'),
+                    ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Fermer'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -450,4 +526,142 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
       );
     },
   );
+}
+
+Map<String, dynamic>? _editableItemFromDynamicImpl(dynamic raw) {
+  if (raw == null) return null;
+  if (raw is Map<String, dynamic>) return Map<String, dynamic>.from(raw);
+  if (raw is Map) return Map<String, dynamic>.from(raw);
+  return null;
+}
+
+List<LatLng> _decodeGeometryPointsImpl(dynamic rawPoints) {
+  if (rawPoints == null) return const [];
+
+  try {
+    final decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
+    if (decoded is! List) return const [];
+
+    final points = <LatLng>[];
+    for (final coord in decoded) {
+      if (coord is Map) {
+        final lat = coord['lat'] ?? coord['latitude'];
+        final lng = coord['lon'] ?? coord['lng'] ?? coord['longitude'];
+        if (lat is num && lng is num) {
+          points.add(LatLng(lat.toDouble(), lng.toDouble()));
+        }
+      } else if (coord is List && coord.length >= 2) {
+        final lng = coord[0];
+        final lat = coord[1];
+        if (lat is num && lng is num) {
+          points.add(LatLng(lat.toDouble(), lng.toDouble()));
+        }
+      }
+    }
+    return points;
+  } catch (_) {
+    return const [];
+  }
+}
+
+Future<void> _editMapItemImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (!FormLockService.isEditable(item)) {
+    if (!state.mounted) return;
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      SnackBar(
+        content: Text(FormLockService.lockReason(item)),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final geoType = item['geometry_type']?.toString() ?? 'Point';
+  if (metier == null || entityType == null) return;
+
+  if (geoType == 'LineString') {
+    final points = _decodeGeometryPointsImpl(item['points_json']);
+    if (points.length < 2) return;
+
+    await Navigator.push(
+      state.context,
+      MaterialPageRoute(
+        builder: (_) => SrmLigneFormPage(
+          metier: metier,
+          entityType: entityType,
+          linePoints: points,
+          agentName: state.widget.agentName,
+          existingData: item,
+        ),
+      ),
+    );
+  } else if (geoType == 'Polygon') {
+    final points = _decodeGeometryPointsImpl(item['points_json']);
+    if (points.length > 1 &&
+        points.first.latitude == points.last.latitude &&
+        points.first.longitude == points.last.longitude) {
+      points.removeLast();
+    }
+    if (points.length < 3) {
+      if (!state.mounted) return;
+      ScaffoldMessenger.of(state.context).showSnackBar(
+        const SnackBar(
+          content: Text('Polygone invalide'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      state.context,
+      MaterialPageRoute(
+        builder: (_) => PolygonFormPage(
+          polygonPoints: points,
+          startTime: item['date_collecte'] != null
+              ? DateTime.tryParse(item['date_collecte'].toString()) ??
+                  DateTime.now()
+              : DateTime.now(),
+          endTime: DateTime.now(),
+          agentName: state.widget.agentName,
+          existingData: item,
+          metier: metier,
+          entityType: entityType,
+        ),
+      ),
+    );
+  } else {
+    final lat = (item['latitude_gps'] as num?)?.toDouble() ?? 0.0;
+    final lon = (item['longitude_gps'] as num?)?.toDouble() ?? 0.0;
+
+    await Navigator.push(
+      state.context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          body: SrmPointFormWidget(
+            metier: metier,
+            entityType: entityType,
+            latitude: lat,
+            longitude: lon,
+            altitude: (item['altitude_gps'] as num?)?.toDouble(),
+            agentName: state.widget.agentName,
+            existingData: item,
+            onSaved: () {
+              Navigator.pop(state.context);
+            },
+            onCancel: () => Navigator.pop(state.context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  if (state.mounted) {
+    await state._refreshAfterNavigation();
+  }
 }

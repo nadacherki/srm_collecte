@@ -45,6 +45,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isLocked = false;
+  bool _hasAnomalie = false;
+  String? _typeAnomalie;
+  bool _isObjetIncomplet = false;
+  String? _raisonIncomplet;
+  final _detailRaisonController = TextEditingController();
   final _nomController = TextEditingController();
   final _codeGpsController = TextEditingController();
 
@@ -72,6 +77,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   double _xMerchich = 0.0;
   double _yMerchich = 0.0;
 
+  late List<LatLng> _polygonPoints;
   late double _superficieHa;
   late List<List<double>> _closedCoordinates;
 
@@ -80,6 +86,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
   bool get _isRegardEp =>
       widget.metier == 'Eau Potable' && widget.entityType == 'Regard EP';
+
+  bool _isTruthyFlag(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' || text == 'true' || text == 't';
+  }
 
   Color get _categoryColor =>
       Color(SrmConfig.getMetierColor(widget.metier));
@@ -94,6 +108,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   @override
   void initState() {
     super.initState();
+    _polygonPoints = List<LatLng>.from(widget.polygonPoints);
     _initializeData();
     _setupAutoCapitalize();
 
@@ -110,6 +125,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       for (final c in allControllers) {
         c.addListener(onFieldChanged);
       }
+      _detailRaisonController.addListener(onFieldChanged);
       initDraft();
     }
   }
@@ -156,7 +172,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     if (_isEditing) {
       _nomController.text = widget.existingData!['nom']?.toString() ?? '';
       _codeGpsController.text =
-          widget.existingData!['code_gps']?.toString() ?? '';
+          widget.existingData!['code']?.toString() ??
+              widget.existingData!['code_gps']?.toString() ??
+              '';
       _epNumController.text =
           widget.existingData!['ep_num']?.toString() ?? '';
       _epTypeController.text =
@@ -170,6 +188,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       _observationController.text =
           widget.existingData!['observation']?.toString() ?? '';
 
+      _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
+          (_isRegardEp && _isTruthyFlag(widget.existingData!['ep_anomalie']));
+      _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
+      _isObjetIncomplet =
+          _isTruthyFlag(widget.existingData!['objet_incomplet']);
+      _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
+      _detailRaisonController.text =
+          widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
       _isLocked = FormLockService.isLocked(widget.existingData!);
     }
 
@@ -201,8 +227,72 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       for (final controller in _regardEpControllers.values) {
         controller.addListener(onFieldChanged);
       }
+      _detailRaisonController.addListener(onFieldChanged);
       initDraft();
     }
+  }
+
+  void _recomputePolygonGeometry({bool prefillDerivedFields = false}) {
+    _superficieHa = _calculateAreaHectares(_polygonPoints);
+
+    _closedCoordinates = _polygonPoints
+        .map((p) => <double>[p.longitude, p.latitude])
+        .toList();
+    if (_closedCoordinates.isNotEmpty) {
+      _closedCoordinates.add(List<double>.from(_closedCoordinates.first));
+    }
+
+    if (_polygonPoints.isEmpty) {
+      _xMerchich = 0.0;
+      _yMerchich = 0.0;
+      return;
+    }
+
+    final centroidLat =
+        _polygonPoints.map((p) => p.latitude).reduce((a, b) => a + b) /
+            _polygonPoints.length;
+    final centroidLon =
+        _polygonPoints.map((p) => p.longitude).reduce((a, b) => a + b) /
+            _polygonPoints.length;
+    final merchich = ProjectionService()
+        .wgs84ToMerchich(longitude: centroidLon, latitude: centroidLat);
+    _xMerchich = merchich.x;
+    _yMerchich = merchich.y;
+
+    if (prefillDerivedFields && _epLongueurController.text.trim().isEmpty) {
+      _epLongueurController.text =
+          (_polygonPoints.length > 1 ? sqrt(_superficieHa * 10000) : 0.0)
+              .toStringAsFixed(2);
+    }
+  }
+
+  List<LatLng> _decodeDraftPolygonPoints(dynamic raw) {
+    if (raw is! List) return const <LatLng>[];
+
+    final points = <LatLng>[];
+    for (final item in raw) {
+      if (item is Map) {
+        final lat = item['lat'] ?? item['latitude'];
+        final lng = item['lng'] ?? item['lon'] ?? item['longitude'];
+        if (lat is num && lng is num) {
+          points.add(LatLng(lat.toDouble(), lng.toDouble()));
+        }
+      } else if (item is List && item.length >= 2) {
+        final lat = item[0];
+        final lng = item[1];
+        if (lat is num && lng is num) {
+          points.add(LatLng(lat.toDouble(), lng.toDouble()));
+        }
+      }
+    }
+
+    if (points.length > 1 &&
+        points.first.latitude == points.last.latitude &&
+        points.first.longitude == points.last.longitude) {
+      points.removeLast();
+    }
+
+    return points;
   }
 
   Future<void> _loadRegardEpOptions() async {
@@ -375,6 +465,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
   bool _isRegardEpReadOnlyField(String field) {
     return _isLocked ||
+        _isObjetIncomplet ||
         SrmConfig.getReadOnlyFields(widget.metier, widget.entityType)
             .contains(field);
   }
@@ -591,6 +682,21 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return;
     }
 
+    if (_isObjetIncomplet && _raisonIncomplet == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Veuillez sÃ©lectionner une raison pour l\'objet incomplet.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      setState(() => _isSaving = false);
+      return;
+    }
+
     try {
       final now = DateTime.now();
       final dbHelper = DatabaseHelper();
@@ -606,13 +712,16 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         final data = <String, dynamic>{
           'uuid': _regardEpUuid,
           'points_json': jsonEncode(_closedCoordinates),
-          'nb_points': widget.polygonPoints.length,
+          'nb_points': _polygonPoints.length,
           'ep_coor_x': double.tryParse(_xMerchich.toStringAsFixed(3)),
           'ep_coor_y': double.tryParse(_yMerchich.toStringAsFixed(3)),
           'id_projet':
               widget.existingData?['id_projet'] ?? ApiService.currentProjetId,
           'id_agent_crea':
               widget.existingData?['id_agent_crea'] ?? ApiService.userId,
+          'anomalie': (_hasAnomalie || _isRegardEpAnomalieActive()) ? 1 : 0,
+          'type_anomalie': _hasAnomalie ? _typeAnomalie : null,
+          'objet_incomplet': _isObjetIncomplet ? 1 : 0,
           'synced': 0,
           'date_collecte':
               widget.existingData?['date_collecte'] ?? now.toIso8601String(),
@@ -622,14 +731,16 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           data['mode_localisation'] = modeLocalisationCode;
         }
 
-        for (final field in fields) {
-          final controller = _regardEpControllers[field];
-          if (controller == null) continue;
+        if (!_isObjetIncomplet) {
+          for (final field in fields) {
+            final controller = _regardEpControllers[field];
+            if (controller == null) continue;
 
-          final normalized =
-              _normalizeRegardEpFieldValue(field, controller.text.trim());
-          if (normalized != null) {
-            data[field] = normalized;
+            final normalized =
+                _normalizeRegardEpFieldValue(field, controller.text.trim());
+            if (normalized != null) {
+              data[field] = normalized;
+            }
           }
         }
 
@@ -677,6 +788,24 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             recordHistory: true,
           );
         }
+        if (_isObjetIncomplet) {
+          await dbHelper.insertEntitySrm(
+            'objet_incomplet',
+            {
+              'nom_classe': _tableName,
+              'metier': 'EP',
+              'raison': _raisonIncomplet,
+              'detail_raison': _detailRaisonController.text.trim(),
+              'date_signalement': now.toIso8601String(),
+              'id_agent_signal': ApiService.userId,
+              'statut': 'A_COMPLETER',
+              'id_projet': ApiService.currentProjetId,
+              'synced': 0,
+              'date_collecte': now.toIso8601String(),
+            },
+            recordHistory: true,
+          );
+        }
 
         if (mounted) {
           await clearDraftAfterSave();
@@ -696,6 +825,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
       final data = <String, dynamic>{
         'uuid': widget.existingData?['uuid'] ?? const Uuid().v4(),
+        'nom': _nomController.text.trim().isEmpty ? null : _nomController.text.trim(),
+        'code': _codeGpsController.text.trim().isEmpty
+            ? null
+            : _codeGpsController.text.trim(),
         'ep_num':
             _epNumController.text.trim().isEmpty ? null : _epNumController.text.trim(),
         'ep_type': _epTypeController.text.trim().isEmpty
@@ -741,13 +874,39 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         'ep_coor_y': _yMerchich,
         'points_json': jsonEncode(_closedCoordinates),
         'superficie_ha': _superficieHa,
-        'nb_points': widget.polygonPoints.length,
+        'nb_points': _polygonPoints.length,
+        'anomalie': _hasAnomalie ? 1 : 0,
+        'type_anomalie': _hasAnomalie ? _typeAnomalie : null,
+        'objet_incomplet': _isObjetIncomplet ? 1 : 0,
         'id_projet': ApiService.currentProjetId,
         'id_agent_crea': ApiService.userId,
         'mode_localisation': 'gnss',
         'synced': 0,
         'date_collecte': now.toIso8601String(),
       };
+
+      if (_isObjetIncomplet) {
+        for (final key in const [
+          'nom',
+          'code',
+          'ep_num',
+          'ep_type',
+          'ep_forme',
+          'ep_longueur',
+          'ep_largeur',
+          'ep_cote_tampon',
+          'ep_cote_radier',
+          'ep_cote_fil_eau',
+          'ep_etat',
+          'emplacement',
+          'ref_rue',
+          'etage_aqua',
+          'secteur_aqua',
+          'observation',
+        ]) {
+          data.remove(key);
+        }
+      }
 
       if (_isEditing) {
         final existingId = widget.existingData!['id'] is int
@@ -767,6 +926,29 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         await dbHelper.insertEntitySrm(
           _tableName,
           data,
+          recordHistory: true,
+        );
+      }
+
+      if (_isObjetIncomplet) {
+        await dbHelper.insertEntitySrm(
+          'objet_incomplet',
+          {
+            'nom_classe': _tableName,
+            'metier': widget.metier == 'Eau Potable'
+                ? 'EP'
+                : widget.metier == 'Assainissement'
+                    ? 'ASS'
+                    : 'ELEC',
+            'raison': _raisonIncomplet,
+            'detail_raison': _detailRaisonController.text.trim(),
+            'date_signalement': now.toIso8601String(),
+            'id_agent_signal': ApiService.userId,
+            'statut': 'A_COMPLETER',
+            'id_projet': ApiService.currentProjetId,
+            'synced': 0,
+            'date_collecte': now.toIso8601String(),
+          },
           recordHistory: true,
         );
       }
@@ -809,6 +991,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       setState(() {
         _regardEpCommuneName = '';
         _regardEpProvinceName = '';
+        _hasAnomalie = false;
+        _typeAnomalie = null;
+        _isObjetIncomplet = false;
+        _raisonIncomplet = null;
+        _detailRaisonController.clear();
         for (final field in _regardEpControllers.keys) {
           _regardEpControllers[field]!.text =
               _resolveRegardEpInitialValue(field, now);
@@ -824,6 +1011,12 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
     setState(() {
       _nomController.clear();
+      _codeGpsController.clear();
+      _hasAnomalie = false;
+      _typeAnomalie = null;
+      _isObjetIncomplet = false;
+      _raisonIncomplet = null;
+      _detailRaisonController.clear();
     });
   }
 
@@ -970,11 +1163,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         _buildFormSection(
           title: 'Coordonnées des sommets',
           children: [
-            for (int i = 0; i < widget.polygonPoints.length; i++)
+            for (int i = 0; i < _polygonPoints.length; i++)
               _buildGpsInfoRow(
                 'Sommet ${i + 1}:',
-                '${widget.polygonPoints[i].latitude.toStringAsFixed(7)}, '
-                '${widget.polygonPoints[i].longitude.toStringAsFixed(7)}',
+                '${_polygonPoints[i].latitude.toStringAsFixed(7)}, '
+                '${_polygonPoints[i].longitude.toStringAsFixed(7)}',
               ),
           ],
         ),
@@ -984,18 +1177,28 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             _buildReadOnlyAgentField(),
           ],
         ),
+        _buildAnomalieStatusSection(),
         const SizedBox(height: 120),
       ],
     ];
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F8FF),
-      body: SafeArea(
-        child: Column(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!_isEditing) await saveDraftBeforeExit();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F8FF),
+        body: SafeArea(
+          child: Column(
           children: [
             // ===== Header =====
             Container(
-              decoration: BoxDecoration(color: _categoryColor),
+              decoration: BoxDecoration(
+                color: _isLocked
+                    ? Colors.grey.shade700
+                    : (_isObjetIncomplet ? Colors.orange : _categoryColor),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Row(
                 children: [
@@ -1063,7 +1266,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _handleSave,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _categoryColor,
+                    backgroundColor:
+                        _isObjetIncomplet ? Colors.orange : _categoryColor,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1071,18 +1275,32 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                   ),
                   child: _isSaving
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Row(
+                      : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.save, size: 20),
-                            SizedBox(width: 8),
-                            Text('Enregistrer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                            Icon(
+                              _isObjetIncomplet
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.save,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _isObjetIncomplet
+                                  ? 'Signaler incomplet'
+                                  : 'Enregistrer',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                 ),
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -1249,10 +1467,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 ],
               ),
               const SizedBox(height: 12),
-              for (int i = 0; i < widget.polygonPoints.length; i++)
+              for (int i = 0; i < _polygonPoints.length; i++)
                 _buildGpsInfoRow(
                   'Sommet ${i + 1}:',
-                  '${widget.polygonPoints[i].latitude.toStringAsFixed(7)}, ${widget.polygonPoints[i].longitude.toStringAsFixed(7)}',
+                  '${_polygonPoints[i].latitude.toStringAsFixed(7)}, ${_polygonPoints[i].longitude.toStringAsFixed(7)}',
                 ),
             ],
           ),
@@ -1554,7 +1772,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     required TextEditingController controller,
     bool enabled = true,
   }) {
-    final effectiveEnabled = enabled && !_isLocked;
+    final effectiveEnabled = enabled && !_isLocked && !_isObjetIncomplet;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1701,7 +1919,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             ],
           ),
           const SizedBox(height: 12),
-          _buildGpsInfoRow('Nombre de sommets :', '${widget.polygonPoints.length} points'),
+          _buildGpsInfoRow('Nombre de sommets :', '${_polygonPoints.length} points'),
           _buildGpsInfoRow('Superficie :', '${_superficieHa.toStringAsFixed(4)} ha'),
           _buildGpsInfoRow('Surface :', '${(_superficieHa * 10000).toStringAsFixed(1)} m\u00B2'),
         ],
@@ -1782,6 +2000,172 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     );
   }
 
+  Widget _buildAnomalieStatusSection() {
+    return _buildFormSection(
+      title: 'Statut de l\'objet',
+      children: [
+        if (_isObjetIncomplet)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade300),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: 18,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Les champs du formulaire sont neutralisÃ©s.\nSeule la gÃ©omÃ©trie et la raison sont conservÃ©es.',
+                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SwitchListTile(
+          title: const Text(
+            'Anomalie dÃ©tectÃ©e',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          value: _hasAnomalie,
+          activeThumbColor: Colors.red,
+          contentPadding: EdgeInsets.zero,
+          onChanged: (_isLocked || _isObjetIncomplet)
+              ? null
+              : (value) => setState(() {
+                    _hasAnomalie = value;
+                    if (!value) _typeAnomalie = null;
+                  }),
+        ),
+        if (_hasAnomalie && !_isObjetIncomplet)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: DropdownButtonFormField<String>(
+              initialValue: _typeAnomalie,
+              decoration: _statusDecoration('Type d\'anomalie'),
+              hint: const Text('SÃ©lectionner'),
+              items: const [
+                DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
+                DropdownMenuItem(
+                  value: 'Corrosion',
+                  child: Text('Corrosion'),
+                ),
+                DropdownMenuItem(
+                  value: 'Obstruction',
+                  child: Text('Obstruction'),
+                ),
+                DropdownMenuItem(
+                  value: 'Dommage physique',
+                  child: Text('Dommage physique'),
+                ),
+                DropdownMenuItem(value: 'Autre', child: Text('Autre')),
+              ],
+              onChanged: _isLocked
+                  ? null
+                  : (value) => setState(() => _typeAnomalie = value),
+            ),
+          ),
+        if (!_isLocked) ...[
+          SwitchListTile(
+            title: const Text(
+              'Signaler comme objet incomplet',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Active si l\'objet est inaccessible ou impossible Ã  collecter',
+              style: TextStyle(fontSize: 12),
+            ),
+            value: _isObjetIncomplet,
+            activeThumbColor: Colors.orange,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (value) => setState(() {
+              _isObjetIncomplet = value;
+              if (!value) {
+                _raisonIncomplet = null;
+                _detailRaisonController.clear();
+              }
+              if (value) {
+                _hasAnomalie = false;
+                _typeAnomalie = null;
+              }
+            }),
+          ),
+          if (_isObjetIncomplet) ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _raisonIncomplet,
+              decoration: _statusDecoration('Raison'),
+              hint: const Text('SÃ©lectionner une raison'),
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(
+                  value: 'ACCES_BLOQUE',
+                  child: Text('AccÃ¨s bloquÃ©'),
+                ),
+                DropdownMenuItem(
+                  value: 'VEHICULE_STATIONNE',
+                  child: Text('VÃ©hicule stationnÃ© sur la voie'),
+                ),
+                DropdownMenuItem(
+                  value: 'TAMPON_INACCESSIBLE',
+                  child: Text('Tampon inaccessible / scellÃ©'),
+                ),
+                DropdownMenuItem(
+                  value: 'CONDITIONS_METEO',
+                  child: Text('Conditions mÃ©tÃ©o dÃ©favorables'),
+                ),
+                DropdownMenuItem(
+                  value: 'DANGER',
+                  child: Text('Danger sur site'),
+                ),
+                DropdownMenuItem(
+                  value: 'AUTRE',
+                  child: Text('Autre raison'),
+                ),
+              ],
+              onChanged: (value) => setState(() => _raisonIncomplet = value),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _detailRaisonController,
+              decoration:
+                  _statusDecoration('DÃ©tail / commentaire (facultatif)'),
+              maxLines: 2,
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  InputDecoration _statusDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: const Color(0xFFF9FAFB),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF1976D2)),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     if (!_isEditing) disposeDraft();
@@ -1804,6 +2188,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     _etageAquaController.dispose();
     _secteurAquaController.dispose();
     _observationController.dispose();
+    _detailRaisonController.dispose();
     super.dispose();
   }
 
@@ -1822,12 +2207,13 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return {
         for (final entry in _regardEpControllers.entries)
           entry.key: entry.value.text,
+        '__detail_raison': _detailRaisonController.text,
       };
     }
 
     return {
       'nom': _nomController.text,
-      'code_gps': _codeGpsController.text,
+      'code': _codeGpsController.text,
       'ep_num': _epNumController.text,
       'ep_type': _epTypeController.text,
       'ep_forme': _epFormeController.text,
@@ -1842,6 +2228,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       'etage_aqua': _etageAquaController.text,
       'secteur_aqua': _secteurAquaController.text,
       'observation': _observationController.text,
+      '__detail_raison': _detailRaisonController.text,
     };
   }
 
@@ -1849,10 +2236,28 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   Map<int, String?> collectPhotoPaths() => {};
 
   @override
+  Map<String, dynamic> collectExtraState() => {
+        'hasAnomalie': _hasAnomalie,
+        'typeAnomalie': _typeAnomalie,
+        'isObjetIncomplet': _isObjetIncomplet,
+        'raisonIncomplet': _raisonIncomplet,
+        'polygonPoints': _polygonPoints
+            .map((p) => {
+                  'lat': p.latitude,
+                  'lng': p.longitude,
+                })
+            .toList(),
+        if (_isRegardEp && _regardEpUuid.trim().isNotEmpty)
+          'regardEpUuid': _regardEpUuid,
+      };
+
+  @override
   void restoreFormData(Map<String, String> data) {
     if (_isRegardEp) {
       for (final entry in data.entries) {
-        if (_regardEpControllers.containsKey(entry.key)) {
+        if (entry.key == '__detail_raison') {
+          _detailRaisonController.text = entry.value;
+        } else if (_regardEpControllers.containsKey(entry.key)) {
           _regardEpControllers[entry.key]!.text = entry.value;
         }
       }
@@ -1861,6 +2266,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
     final mapping = <String, TextEditingController>{
       'nom': _nomController,
+      'code': _codeGpsController,
       'code_gps': _codeGpsController,
       'ep_num': _epNumController,
       'ep_type': _epTypeController,
@@ -1878,7 +2284,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       'observation': _observationController,
     };
     for (final entry in data.entries) {
-      if (mapping.containsKey(entry.key)) {
+      if (entry.key == '__detail_raison') {
+        _detailRaisonController.text = entry.value;
+      } else if (mapping.containsKey(entry.key)) {
         mapping[entry.key]!.text = entry.value;
       }
     }
@@ -1886,4 +2294,21 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
   @override
   void restorePhotoPaths(Map<int, String?> photos) {}
+
+  @override
+  void restoreExtraState(Map<String, dynamic> extra) {
+    _hasAnomalie = extra['hasAnomalie'] == true;
+    _typeAnomalie = extra['typeAnomalie'] as String?;
+    _isObjetIncomplet = extra['isObjetIncomplet'] == true;
+    _raisonIncomplet = extra['raisonIncomplet'] as String?;
+    final restoredPoints = _decodeDraftPolygonPoints(extra['polygonPoints']);
+    if (restoredPoints.length >= 3) {
+      _polygonPoints = restoredPoints;
+      _recomputePolygonGeometry();
+    }
+    final restoredUuid = extra['regardEpUuid']?.toString().trim() ?? '';
+    if (restoredUuid.isNotEmpty) {
+      _regardEpUuid = restoredUuid;
+    }
+  }
 }

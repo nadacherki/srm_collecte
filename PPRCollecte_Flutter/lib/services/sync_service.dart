@@ -8,16 +8,18 @@ import 'photo_reference_service.dart';
 
 class SyncResult {
   int successCount = 0;
+  int photoSuccessCount = 0;
   int failedCount = 0;
   int skippedCount = 0;
   final List<String> errors = [];
   final List<String> warnings = [];
 
   int get warningCount => warnings.length;
+  int get displaySuccessCount => successCount - photoSuccessCount;
 
   @override
   String toString() =>
-      'Synchronisation: $successCount succes, $failedCount echecs, '
+      'Synchronisation: $displaySuccessCount succes, $failedCount echecs, '
       '$skippedCount ignores, $warningCount avertissements';
 }
 
@@ -326,6 +328,7 @@ class SyncService {
         }
 
         result.successCount++;
+        result.photoSuccessCount++;
       } catch (e) {
         result.failedCount++;
         result.errors.add(_formatRowSyncError(info, row, e));
@@ -573,11 +576,19 @@ class SyncService {
         );
 
         final remotePath = response['relative_path']?.toString().trim() ?? '';
+        final datePriseReelle =
+            response['date_prise_reelle']?.toString().trim();
         if (remotePath.isEmpty) {
           throw Exception('chemin photo distant vide');
         }
 
-        await dbHelper.markPhotoSyncItemSynced(id, remotePath: remotePath);
+        await dbHelper.markPhotoSyncItemSynced(
+          id,
+          remotePath: remotePath,
+          datePriseReelle: (datePriseReelle == null || datePriseReelle.isEmpty)
+              ? null
+              : datePriseReelle,
+        );
         await dbHelper.updatePhotoReferenceByUuid(
           tableName,
           uuidObjet,

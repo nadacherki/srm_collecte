@@ -39,6 +39,8 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
   showDialog(
     context: state.context,
     builder: (ctx) {
+      final displaySuccessCount =
+          result.displaySuccessCount < 0 ? 0 : result.displaySuccessCount;
       final errorsToShow = result.errors.take(10).toList();
       final remaining = result.errors.length - errorsToShow.length;
       final warningsToShow = result.warnings.take(10).toList();
@@ -95,11 +97,11 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (result.successCount > 0)
+              if (displaySuccessCount > 0)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${result.successCount} donnee(s) synchronisee(s)',
+                    '$displaySuccessCount donnee(s) synchronisee(s)',
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,
@@ -205,16 +207,15 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              state._loadDisplayedPolygons();
-              state._loadDownloadedLineOverlays();
-              state._loadDownloadedSpecialLines();
             },
             child: const Text('OK'),
           ),
         ],
       );
     },
-  );
+  ).then((_) async {
+    await state._refreshAfterNavigation();
+  });
 }
 
 void _showSaveConfirmationDialogImpl(_HomePageState state) {

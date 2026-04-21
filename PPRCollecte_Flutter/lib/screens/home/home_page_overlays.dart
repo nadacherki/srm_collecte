@@ -153,6 +153,51 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     final db = await DatabaseHelper().database;
     final loginId = await DatabaseHelper().resolveLoginId();
     final List<Polygon> mapPolygons = [];
+    final Map<String, List<Polygon>> anomalieByTable = {};
+    final Map<String, List<Polygon>> incompletByTable = {};
+
+    bool isTruthy(dynamic value) {
+      if (value == null) return false;
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      final text = value.toString().trim().toLowerCase();
+      return text == '1' || text == 'true' || text == 't';
+    }
+
+    bool hasRowAnomalie(Map<String, dynamic> row) {
+      return isTruthy(row['anomalie']) || isTruthy(row['ep_anomalie']);
+    }
+
+    bool hasRowIncomplet(Map<String, dynamic> row) {
+      return isTruthy(row['objet_incomplet']);
+    }
+
+    Polygon _buildPolygon({
+      required List<LatLng> points,
+      required Color baseColor,
+      required PolygonTapData hitValue,
+      bool hasAnomalie = false,
+      bool hasIncomplet = false,
+    }) {
+      final borderColor = hasAnomalie
+          ? const Color(0xFFD32F2F)
+          : hasIncomplet
+              ? const Color(0xFFF57C00)
+              : baseColor;
+      final fillColor = hasAnomalie
+          ? const Color(0xFFD32F2F).withValues(alpha: 0.22)
+          : hasIncomplet
+              ? const Color(0xFFF57C00).withValues(alpha: 0.22)
+              : baseColor.withValues(alpha: 0.25);
+
+      return Polygon(
+        points: points,
+        color: fillColor,
+        borderColor: borderColor,
+        borderStrokeWidth: hasAnomalie || hasIncomplet ? 2.8 : 2.0,
+        hitValue: hitValue,
+      );
+    }
 
     final polygonTables = await db.rawQuery(
       "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
@@ -169,22 +214,34 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       for (final poly in genericPolygons) {
         final points = _extractPolygonPointsImpl(poly['points_json']);
         if (points.length < 3) continue;
+        final hasAnomalie = hasRowAnomalie(poly);
+        final hasIncomplet = hasRowIncomplet(poly);
 
         mapPolygons.add(
-          Polygon(
+          _buildPolygon(
             points: points,
-            color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
-            borderColor: const Color(0xFF2E7D32),
-            borderStrokeWidth: 2.0,
+            baseColor: const Color(0xFF2E7D32),
+            hasAnomalie: hasAnomalie,
+            hasIncomplet: hasIncomplet,
             hitValue: PolygonTapData(
               nom: poly['nom']?.toString() ?? '----',
-              lineCode: poly['line_code']?.toString() ?? '----',
-              superficie: (poly['superficie_en_ha'] as num?)?.toDouble() ?? 0.0,
+              code: poly['code']?.toString() ??
+                  poly['line_code']?.toString() ??
+                  '----',
+              entityType:
+                  poly['entity_type']?.toString() ?? 'Zone de Plaine',
+              metier: poly['metier']?.toString() ?? '',
+              superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
+                  (poly['superficie_en_ha'] as num?)?.toDouble() ??
+                  0.0,
               nbSommets: points.length,
               enqueteur: poly['enqueteur']?.toString() ?? '',
               dateCreation: poly['date_creation']?.toString() ?? '----',
               synced: poly['synced'] == 1,
               downloaded: poly['downloaded'] == 1,
+              hasAnomalie: hasAnomalie,
+              hasIncomplet: hasIncomplet,
+              typeAnomalie: poly['type_anomalie']?.toString(),
               regionName: poly['region_name']?.toString() ?? '',
               prefectureName: poly['prefecture_name']?.toString() ?? '',
               communeName: poly['commune_name']?.toString() ?? '',
@@ -239,17 +296,30 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
           for (final poly in rows) {
             final points = _extractPolygonPointsImpl(poly['points_json']);
             if (points.length < 3) continue;
+            final hasAnomalie = hasRowAnomalie(poly);
+            final hasIncomplet = hasRowIncomplet(poly);
+            final editableItem = Map<String, dynamic>.from(poly);
+            editableItem['source_table'] = tableName;
+            editableItem['source_metier'] = metier;
+            editableItem['source_entity'] = entity;
+            editableItem['geometry_type'] = 'Polygon';
 
-            final polygon = Polygon(
+            final polygon = _buildPolygon(
               points: points,
-              color: Color(SrmConfig.getMetierColor(metier)).withValues(alpha: 0.25),
-              borderColor: Color(SrmConfig.getMetierColor(metier)),
-              borderStrokeWidth: 2.0,
+              baseColor: Color(SrmConfig.getMetierColor(metier)),
+              hasAnomalie: hasAnomalie,
+              hasIncomplet: hasIncomplet,
               hitValue: PolygonTapData(
                 nom: poly['nom']?.toString() ??
                     poly['ep_num']?.toString() ??
                     entity,
-                lineCode: poly['line_code']?.toString() ?? '----',
+                code: poly['code']?.toString() ??
+                    poly['code_gps']?.toString() ??
+                    poly['line_code']?.toString() ??
+                    poly['ep_num']?.toString() ??
+                    '----',
+                entityType: entity,
+                metier: metier,
                 superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
                     (poly['superficie_en_ha'] as num?)?.toDouble() ??
                     0.0,
@@ -262,12 +332,22 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
                     '----',
                 synced: poly['synced'] == 1,
                 downloaded: poly['downloaded'] == 1,
+                hasAnomalie: hasAnomalie,
+                hasIncomplet: hasIncomplet,
+                typeAnomalie: poly['type_anomalie']?.toString(),
                 regionName: poly['region_name']?.toString() ?? '',
                 prefectureName: poly['prefecture_name']?.toString() ?? '',
                 communeName: poly['commune_name']?.toString() ?? '',
+                editableItem: editableItem,
               ),
             );
             srmPolygonsByTable.putIfAbsent(tableName, () => []).add(polygon);
+            if (hasAnomalie) {
+              anomalieByTable.putIfAbsent(tableName, () => []).add(polygon);
+            }
+            if (hasIncomplet) {
+              incompletByTable.putIfAbsent(tableName, () => []).add(polygon);
+            }
             mapPolygons.add(polygon);
           }
         } catch (e) {
@@ -285,6 +365,8 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       state._setStateFromPart(() {
         state._displayedPolygons = mapPolygons;
         state._displayedSrmPolygonsByTable = srmPolygonsByTable;
+        state._displayedPolygonAnomalieByTable = anomalieByTable;
+        state._displayedPolygonIncompletByTable = incompletByTable;
         if (previewLoaded) {
           state._pendingPolygonPreviewPoints = null;
         }
@@ -389,6 +471,7 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
           statut: (data['synced'].toString() == '1')
               ? 'Synchronisee'
               : 'Enregistree localement',
+          editableItem: _editableItemFromDynamicImpl(data['existing_item']),
         );
       },
       onMarkerCreated: (
@@ -508,6 +591,12 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
           tables.add(tableName);
         }
       }
+      for (final entity in SrmConfig.getPolygonEntities(metier)) {
+        final tableName = SrmConfig.getTableName(metier, entity);
+        if (tableName != null && tableName.isNotEmpty) {
+          tables.add(tableName);
+        }
+      }
     }
 
     for (final table in tables) {
@@ -540,10 +629,18 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
 
         final whereClause =
             filters.isEmpty ? '' : ' WHERE ${filters.join(' OR ')}';
+        final anomalyExpr = availableColumns.contains('anomalie') &&
+                availableColumns.contains('ep_anomalie')
+            ? "SUM(CASE WHEN anomalie = 1 OR ep_anomalie = 1 THEN 1 ELSE 0 END)"
+            : availableColumns.contains('anomalie')
+                ? "SUM(CASE WHEN anomalie = 1 THEN 1 ELSE 0 END)"
+                : availableColumns.contains('ep_anomalie')
+                    ? "SUM(CASE WHEN ep_anomalie = 1 THEN 1 ELSE 0 END)"
+                    : "0";
         final result = await db.rawQuery(
           'SELECT '
           'COUNT(*) as c, '
-          '${availableColumns.contains('anomalie') ? "SUM(CASE WHEN anomalie = 1 THEN 1 ELSE 0 END)" : "0"} as anomalies, '
+          '$anomalyExpr as anomalies, '
           '${availableColumns.contains('objet_incomplet') ? "SUM(CASE WHEN objet_incomplet = 1 THEN 1 ELSE 0 END)" : "0"} as incomplets '
           'FROM $table$whereClause',
           args,

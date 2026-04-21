@@ -333,8 +333,11 @@ SELECT
     p.mime_type,
     p.taille_octets,
     p.actif,
+    p.date_prise_reelle,
     p.date_upload,
-    p.date_upload::date AS jour_upload
+    p.date_upload::date AS jour_upload,
+    COALESCE(p.date_prise_reelle, p.date_upload) AS date_photo_reference,
+    COALESCE(p.date_prise_reelle, p.date_upload)::date AS jour_photo
 FROM public.objet_photo p
 LEFT JOIN public.vw_srm_objet_fact o
     ON o.nom_schema = p.nom_schema
@@ -506,7 +509,7 @@ WITH objet_metrics AS (
 ),
 photo_metrics AS (
     SELECT
-        p.jour_upload AS jour,
+        p.jour_photo AS jour,
         p.id_agent,
         p.id_projet,
         p.id_mission,
@@ -533,9 +536,9 @@ photo_metrics AS (
         0::bigint AS nb_sessions_logout,
         0::bigint AS nb_evenements_sync
     FROM public.vw_srm_photo_fact p
-    WHERE p.jour_upload IS NOT NULL
+    WHERE p.jour_photo IS NOT NULL
     GROUP BY
-        p.jour_upload,
+        p.jour_photo,
         p.id_agent,
         p.id_projet,
         p.id_mission,

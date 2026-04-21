@@ -38,6 +38,11 @@ class SpecialLinesService {
           for (final row in rows) {
             final points = _extractLinePoints(row);
             if (points.length < 2) continue;
+            final editableItem = Map<String, dynamic>.from(row);
+            editableItem['source_table'] = tableName;
+            editableItem['source_metier'] = metier;
+            editableItem['source_entity'] = entityType;
+            editableItem['geometry_type'] = 'LineString';
 
             final hasAnomalie =
                 row['anomalie'] == 1 || row['anomalie'] == true;
@@ -70,6 +75,7 @@ class SpecialLinesService {
                   'end_lng': points.last.longitude,
                   'distance_km': _polylineDistanceKm(points),
                   'synced': (row['synced'] ?? 0).toString(),
+                  'existing_item': editableItem,
                   'region_name':
                       (row['region_name'] ??
                               ApiService.currentProjetRegion ??

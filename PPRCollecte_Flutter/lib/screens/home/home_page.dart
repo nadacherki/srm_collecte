@@ -59,6 +59,7 @@ import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/downloaded_lines_service.dart';
 import '../../core/constants/basemap_constants.dart';
+import '../../services/form_lock_service.dart';
 
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
@@ -152,6 +153,8 @@ class _HomePageState extends State<HomePage> {
   bool _isPolygonCollection = false;
   List<Polygon> _displayedPolygons = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
+  Map<String, List<Polygon>> _displayedPolygonAnomalieByTable = {};
+  Map<String, List<Polygon>> _displayedPolygonIncompletByTable = {};
   List<LatLng>? _pendingPolygonPreviewPoints;
   bool _isLegendExpanded = false;
   Map<String, int> _pointCountsByTable = {};
@@ -340,6 +343,7 @@ class _HomePageState extends State<HomePage> {
     required double startLng,
     required double endLat,
     required double endLng,
+    Map<String, dynamic>? editableItem,
   }) => _showSpecialLineDetailsSheetImpl(
         this,
         context: context,
@@ -354,6 +358,7 @@ class _HomePageState extends State<HomePage> {
         startLng: startLng,
         endLat: endLat,
         endLng: endLng,
+        editableItem: editableItem,
       );
 
   void _showLineDetailsSheet({
@@ -378,6 +383,7 @@ class _HomePageState extends State<HomePage> {
     String? financement,
     String? projet,
     String? entreprise,
+    Map<String, dynamic>? editableItem,
   }) => _showLineDetailsSheetImpl(
         this,
         context: context,
@@ -401,6 +407,7 @@ class _HomePageState extends State<HomePage> {
         financement: financement,
         projet: projet,
         entreprise: entreprise,
+        editableItem: editableItem,
       );
 
   void _showPointDetailsSheet({
@@ -415,6 +422,7 @@ class _HomePageState extends State<HomePage> {
     required double lat,
     required double lng,
     required String statut,
+    Map<String, dynamic>? editableItem,
   }) => _showPointDetailsSheetImpl(
         this,
         context: context,
@@ -428,7 +436,11 @@ class _HomePageState extends State<HomePage> {
         lat: lat,
         lng: lng,
         statut: statut,
+        editableItem: editableItem,
       );
+
+  Future<void> _editMapItem(Map<String, dynamic> item) =>
+      _editMapItemImpl(this, item);
 
   void _handlePolylineTap(Object? hitValue) =>
       _handlePolylineTapImpl(this, hitValue);
@@ -676,6 +688,63 @@ class _HomePageState extends State<HomePage> {
     return filtered;
   }
 
+  List<Polygon> _getFilteredPolygons() {
+    final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
+    final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
+    final List<Polygon> filtered = <Polygon>[];
+
+    if (anomalieFilterOn && !incompletFilterOn) {
+      for (final entry in _displayedPolygonAnomalieByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          filtered.addAll(entry.value);
+        }
+      }
+      return filtered;
+    }
+
+    if (incompletFilterOn && !anomalieFilterOn) {
+      for (final entry in _displayedPolygonIncompletByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          filtered.addAll(entry.value);
+        }
+      }
+      return filtered;
+    }
+
+    if (anomalieFilterOn && incompletFilterOn) {
+      final combined = <Polygon>{};
+      for (final entry in _displayedPolygonAnomalieByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          combined.addAll(entry.value);
+        }
+      }
+      for (final entry in _displayedPolygonIncompletByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) {
+          combined.addAll(entry.value);
+        }
+      }
+      return combined.toList();
+    }
+
+    if (_legendVisibility['zone_plaine'] != false) {
+      filtered.addAll(
+        _displayedPolygons.where(
+          (polygon) => !_displayedSrmPolygonsByTable.values.any(
+            (list) => list.contains(polygon),
+          ),
+        ),
+      );
+    }
+
+    for (final entry in _displayedSrmPolygonsByTable.entries) {
+      if (_isSrmTableVisible(entry.key)) {
+        filtered.addAll(entry.value);
+      }
+    }
+
+    return filtered;
+  }
+
   void _updateVisibilityFromLegend(Map<String, bool> visibility) {
     setState(() {
       _legendVisibility = visibility;
@@ -685,13 +754,6 @@ class _HomePageState extends State<HomePage> {
       final showBac = visibility['bac'] ?? true;
       final showPassage = visibility['passage_submersible'] ?? true;
       _showDownloadedSpecialLines = showBac || showPassage;
-
-      // Zone de plaine
-      if (visibility['zone_plaine'] == false) {
-        _displayedPolygons = [];
-      } else {
-        _loadDisplayedPolygons();
-      }
     });
   }
 
@@ -873,16 +935,7 @@ class _HomePageState extends State<HomePage> {
     final List<Marker> filteredMarkers = _getFilteredMarkers()..addAll(_focusOverlayMarkers);
 
     final List<Polyline> filteredPolylines = _getFilteredPolylines()..addAll(_focusOverlayPolylines);
-    List<Polygon> filteredPolygons = (_legendVisibility['zone_plaine'] != false)
-        ? _displayedPolygons
-            .where((p) => !_displayedSrmPolygonsByTable.values.any((list) => list.contains(p)))
-            .toList()
-        : <Polygon>[];
-    for (final entry in _displayedSrmPolygonsByTable.entries) {
-      if (_isSrmTableVisible(entry.key)) {
-        filteredPolygons.addAll(entry.value);
-      }
-    }
+    final List<Polygon> filteredPolygons = _getFilteredPolygons();
     if (homeController.specialCollection != null) {
       final specialPoints = homeController.specialCollection!.points;
       if (specialPoints.length > 1) {
@@ -1156,7 +1209,10 @@ class _HomePageState extends State<HomePage> {
             ),
             BottomButtonsWidget(
               onSave: isDownloading ? () {} : _showSaveConfirmationDialog,
-              onSync: isSyncing ? () {} : _showSyncConfirmationDialog,
+              onSync: (!_isOnlineDynamic || isSyncing)
+                  ? null
+                  : _showSyncConfirmationDialog,
+              isSyncEnabled: _isOnlineDynamic && !isSyncing,
               onMenu: handleMenuPress,
             ),
           ],
