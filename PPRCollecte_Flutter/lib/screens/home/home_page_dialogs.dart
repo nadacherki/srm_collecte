@@ -1,6 +1,21 @@
 part of 'home_page.dart';
 
-void _showSyncConfirmationDialogImpl(_HomePageState state) {
+void _showSyncConfirmationDialogImpl(_HomePageState state) async {
+  final reachable = await state._refreshOnlineStatusForNetworkAction();
+  if (!state.mounted) return;
+
+  if (!reachable) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Synchronisation impossible en mode hors ligne.',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
@@ -20,9 +35,9 @@ void _showSyncConfirmationDialogImpl(_HomePageState state) {
           child: const Text('Non'),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             Navigator.pop(ctx);
-            state._performSync();
+            await state._performSync();
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
           child: const Text(
@@ -218,7 +233,22 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
   });
 }
 
-void _showSaveConfirmationDialogImpl(_HomePageState state) {
+void _showSaveConfirmationDialogImpl(_HomePageState state) async {
+  final reachable = await state._refreshOnlineStatusForNetworkAction();
+  if (!state.mounted) return;
+
+  if (!reachable) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Telechargement impossible en mode hors ligne.',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
@@ -238,9 +268,9 @@ void _showSaveConfirmationDialogImpl(_HomePageState state) {
           child: const Text('Non'),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             Navigator.pop(ctx);
-            state._performDownload();
+            await state._performDownload();
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
           child: const Text(

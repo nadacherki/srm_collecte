@@ -219,6 +219,19 @@ void _startOnlineWatcherImpl(_HomePageState state) {
 
 Future<void> _checkOnlineStatusImpl(_HomePageState state) async {
   final reachable = await _isApiReachableForStatusImpl();
+  await _applyOnlineStatusImpl(state, reachable);
+}
+
+Future<bool> _refreshOnlineStatusForNetworkActionImpl(_HomePageState state) async {
+  final reachable = await _isApiReachableForStatusImpl();
+  await _applyOnlineStatusImpl(state, reachable);
+  return reachable;
+}
+
+Future<void> _applyOnlineStatusImpl(
+  _HomePageState state,
+  bool reachable,
+) async {
   if (!state.mounted) return;
 
   final wasOffline = !state._isOnlineDynamic;

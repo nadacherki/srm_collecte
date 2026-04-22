@@ -80,6 +80,20 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   late double _merchichX;
   late double _merchichY;
 
+  bool _isTruthyFlag(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' || text == 'true' || text == 't';
+  }
+
+  String get _metierCode => widget.metier == 'Eau Potable'
+      ? 'EP'
+      : widget.metier == 'Assainissement'
+          ? 'ASS'
+          : 'ELEC';
+
   @override
   void initState() {
     super.initState();
@@ -104,13 +118,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     _prefillCoordinates();
 
     if (widget.existingData != null) {
-      _hasAnomalie = widget.existingData!['anomalie'] == 1 ||
-          widget.existingData!['anomalie'] == true;
+      _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
+          _isTruthyFlag(widget.existingData!['ep_anomalie']);
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
 
       // Restaurer état objet incomplet en mode édition
-      _isObjetIncomplet = widget.existingData!['objet_incomplet'] == 1 ||
-          widget.existingData!['objet_incomplet'] == true;
+      _isObjetIncomplet = _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
@@ -120,6 +133,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       }
 
       _isLocked = FormLockService.isLocked(widget.existingData!);
+      _restoreLinkedObjetIncompletDetails();
     }
 
     // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
@@ -153,6 +167,35 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         _controllers[entry.key]!.text = entry.value;
       }
     }
+  }
+
+  Future<void> _restoreLinkedObjetIncompletDetails() async {
+    if (!_isObjetIncomplet) return;
+    if ((_raisonIncomplet?.trim().isNotEmpty ?? false) &&
+        _detailRaisonController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    final existingId = widget.existingData?['id'] is int
+        ? widget.existingData!['id'] as int
+        : int.tryParse(widget.existingData?['id']?.toString() ?? '');
+    final tableName =
+        SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+    if (existingId == null || tableName.isEmpty) return;
+
+    final linked = await DatabaseHelper().getOpenObjetIncompletForEntity(
+      tableName: tableName,
+      idObjet: existingId,
+    );
+    if (!mounted || linked == null) return;
+
+    setState(() {
+      _raisonIncomplet ??= linked['raison']?.toString();
+      if (_detailRaisonController.text.trim().isEmpty) {
+        _detailRaisonController.text =
+            linked['detail_raison']?.toString() ?? '';
+      }
+    });
   }
 
   @override
@@ -393,6 +436,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final db = DatabaseHelper();
 
       // ── INSERT ou UPDATE dans la table métier ──
+      late final int localId;
       if (widget.existingData != null && widget.existingData!['id'] != null) {
         final existingId = widget.existingData!['id'] is int
             ? widget.existingData!['id'] as int
@@ -400,6 +444,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         if (existingId == null) {
           throw Exception('Identifiant local invalide pour la mise à jour');
         }
+        localId = existingId;
         await db.updateEntitySrm(
           tableName,
           existingId,
@@ -407,37 +452,25 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           recordHistory: true,
         );
       } else {
-        await db.insertEntitySrm(
+        localId = await db.insertEntitySrm(
           tableName,
           data,
           recordHistory: true,
         );
       }
 
-      // ── INSERT dans objet_incomplet si toggle activé ──
       if (_isObjetIncomplet) {
-        final metierCode = widget.metier == 'Eau Potable'
-            ? 'EP'
-            : widget.metier == 'Assainissement'
-                ? 'ASS'
-                : 'ELEC';
-        final incompletData = {
-          // Colonnes exactes de public.objet_incomplet (PostgreSQL)
-          'nom_classe':        tableName,         // ex: coffret_bt
-          'metier':            metierCode,         // EP / ASS / ELEC
-          'raison':            _raisonIncomplet,   // raison choisie
-          'detail_raison':     _detailRaisonController.text.trim(),
-          'date_signalement':  DateTime.now().toIso8601String(),
-          'id_agent_signal':   ApiService.userId,
-          'statut':            'A_COMPLETER',
-          'id_projet':         ApiService.currentProjetId,
-          'synced':            0,
-          'date_collecte':     DateTime.now().toIso8601String(),
-        };
-        await db.insertEntitySrm(
-          'objet_incomplet',
-          incompletData,
-          recordHistory: true,
+        await db.upsertObjetIncompletForEntity(
+          tableName: tableName,
+          idObjet: localId,
+          metierCode: _metierCode,
+          raison: _raisonIncomplet,
+          detailRaison: _detailRaisonController.text.trim(),
+        );
+      } else {
+        await db.resolveObjetIncompletForEntity(
+          tableName: tableName,
+          idObjet: localId,
         );
       }
 

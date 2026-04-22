@@ -97,6 +97,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
   Color get _categoryColor =>
       Color(SrmConfig.getMetierColor(widget.metier));
+  String get _metierCode => widget.metier == 'Eau Potable'
+      ? 'EP'
+      : widget.metier == 'Assainissement'
+          ? 'ASS'
+          : 'ELEC';
 
   String get _pageTitle => widget.entityType;
 
@@ -197,6 +202,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
       _isLocked = FormLockService.isLocked(widget.existingData!);
+      await _restoreLinkedObjetIncompletDetails();
     }
 
     if (!mounted) return;
@@ -468,6 +474,31 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         _isObjetIncomplet ||
         SrmConfig.getReadOnlyFields(widget.metier, widget.entityType)
             .contains(field);
+  }
+
+  Future<void> _restoreLinkedObjetIncompletDetails() async {
+    if (!_isObjetIncomplet) return;
+    if ((_raisonIncomplet?.trim().isNotEmpty ?? false) &&
+        _detailRaisonController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    final existingId = widget.existingData?['id'] is int
+        ? widget.existingData!['id'] as int
+        : int.tryParse(widget.existingData?['id']?.toString() ?? '');
+    if (existingId == null) return;
+
+    final linked = await DatabaseHelper().getOpenObjetIncompletForEntity(
+      tableName: _tableName,
+      idObjet: existingId,
+    );
+    if (!mounted || linked == null) return;
+
+    _raisonIncomplet ??= linked['raison']?.toString();
+    if (_detailRaisonController.text.trim().isEmpty) {
+      _detailRaisonController.text =
+          linked['detail_raison']?.toString() ?? '';
+    }
   }
 
   bool _isRegardEpAnomalieActive() {
@@ -767,6 +798,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           data['ep_date_insertion'] ??= _formatDateOnly(now);
         }
 
+        late final int localId;
         if (_isEditing) {
           final existingId = widget.existingData!['id'] is int
               ? widget.existingData!['id'] as int
@@ -774,6 +806,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           if (existingId == null) {
             throw Exception('Identifiant local invalide pour la mise à jour');
           }
+          localId = existingId;
 
           await dbHelper.updateEntitySrm(
             _tableName,
@@ -782,28 +815,24 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             recordHistory: true,
           );
         } else {
-          await dbHelper.insertEntitySrm(
+          localId = await dbHelper.insertEntitySrm(
             _tableName,
             data,
             recordHistory: true,
           );
         }
         if (_isObjetIncomplet) {
-          await dbHelper.insertEntitySrm(
-            'objet_incomplet',
-            {
-              'nom_classe': _tableName,
-              'metier': 'EP',
-              'raison': _raisonIncomplet,
-              'detail_raison': _detailRaisonController.text.trim(),
-              'date_signalement': now.toIso8601String(),
-              'id_agent_signal': ApiService.userId,
-              'statut': 'A_COMPLETER',
-              'id_projet': ApiService.currentProjetId,
-              'synced': 0,
-              'date_collecte': now.toIso8601String(),
-            },
-            recordHistory: true,
+          await dbHelper.upsertObjetIncompletForEntity(
+            tableName: _tableName,
+            idObjet: localId,
+            metierCode: _metierCode,
+            raison: _raisonIncomplet,
+            detailRaison: _detailRaisonController.text.trim(),
+          );
+        } else {
+          await dbHelper.resolveObjetIncompletForEntity(
+            tableName: _tableName,
+            idObjet: localId,
           );
         }
 
@@ -908,6 +937,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         }
       }
 
+      late final int localId;
       if (_isEditing) {
         final existingId = widget.existingData!['id'] is int
             ? widget.existingData!['id'] as int
@@ -915,6 +945,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         if (existingId == null) {
           throw Exception('Identifiant local invalide pour la mise à jour');
         }
+        localId = existingId;
 
         await dbHelper.updateEntitySrm(
           _tableName,
@@ -923,7 +954,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           recordHistory: true,
         );
       } else {
-        await dbHelper.insertEntitySrm(
+        localId = await dbHelper.insertEntitySrm(
           _tableName,
           data,
           recordHistory: true,
@@ -931,25 +962,17 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       }
 
       if (_isObjetIncomplet) {
-        await dbHelper.insertEntitySrm(
-          'objet_incomplet',
-          {
-            'nom_classe': _tableName,
-            'metier': widget.metier == 'Eau Potable'
-                ? 'EP'
-                : widget.metier == 'Assainissement'
-                    ? 'ASS'
-                    : 'ELEC',
-            'raison': _raisonIncomplet,
-            'detail_raison': _detailRaisonController.text.trim(),
-            'date_signalement': now.toIso8601String(),
-            'id_agent_signal': ApiService.userId,
-            'statut': 'A_COMPLETER',
-            'id_projet': ApiService.currentProjetId,
-            'synced': 0,
-            'date_collecte': now.toIso8601String(),
-          },
-          recordHistory: true,
+        await dbHelper.upsertObjetIncompletForEntity(
+          tableName: _tableName,
+          idObjet: localId,
+          metierCode: _metierCode,
+          raison: _raisonIncomplet,
+          detailRaison: _detailRaisonController.text.trim(),
+        );
+      } else {
+        await dbHelper.resolveObjetIncompletForEntity(
+          tableName: _tableName,
+          idObjet: localId,
         );
       }
 

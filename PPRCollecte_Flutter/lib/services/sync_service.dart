@@ -179,6 +179,11 @@ class SyncService {
           if (response == null) {
             throw Exception('reponse vide API');
           }
+          _assertResponseUuidMatches(
+            tableName: info.table,
+            expectedUuid: payload['uuid']?.toString(),
+            response: response,
+          );
 
           final localId = _asIntOrNull(row['id']);
           if (localId != null) {
@@ -298,6 +303,11 @@ class SyncService {
         if (response == null) {
           throw Exception('reponse vide API');
         }
+        _assertResponseUuidMatches(
+          tableName: info.table,
+          expectedUuid: payload['uuid']?.toString(),
+          response: response,
+        );
 
         final localId = _asIntOrNull(row['id']);
         if (localId != null) {
@@ -390,6 +400,45 @@ class SyncService {
       return Map<String, dynamic>.from(raw['properties'] as Map);
     }
     return raw;
+  }
+
+  Map<String, dynamic>? _normalizeSyncResponseItem(dynamic item) {
+    if (item is! Map) return null;
+
+    final raw = Map<String, dynamic>.from(item);
+    if (raw['properties'] is Map) {
+      return Map<String, dynamic>.from(raw['properties'] as Map);
+    }
+    return raw;
+  }
+
+  void _assertResponseUuidMatches({
+    required String tableName,
+    required String? expectedUuid,
+    required dynamic response,
+  }) {
+    final cleanExpected = expectedUuid?.trim() ?? '';
+    if (cleanExpected.isEmpty) {
+      throw Exception('uuid local manquant pour $tableName');
+    }
+
+    final normalizedResponse = _normalizeSyncResponseItem(response);
+    if (normalizedResponse == null) {
+      throw Exception('reponse API invalide pour $tableName');
+    }
+
+    final responseUuid = normalizedResponse['uuid']?.toString().trim() ?? '';
+    if (responseUuid.isEmpty) {
+      throw Exception(
+        'uuid absent dans la reponse serveur pour $tableName',
+      );
+    }
+
+    if (responseUuid != cleanExpected) {
+      throw Exception(
+        'uuid incoherent pour $tableName (local=$cleanExpected, serveur=$responseUuid)',
+      );
+    }
   }
 
   String? _resolveEndpoint(String schema, String table) {

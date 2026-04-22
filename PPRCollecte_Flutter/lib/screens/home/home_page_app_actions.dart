@@ -2,6 +2,25 @@ part of 'home_page.dart';
 
 extension _HomePageAppActions on _HomePageState {
 Future<void> _performDownload() async {
+  if (isDownloading) return;
+
+  final reachable = await _refreshOnlineStatusForNetworkAction();
+  if (!mounted) return;
+
+  if (!reachable) {
+    _setStateFromPart(() {
+      isDownloading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Telechargement impossible en mode hors ligne.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+    return;
+  }
+
   _setStateFromPart(() {
     isDownloading = true;
     _progressValue = 0.0;
@@ -130,6 +149,25 @@ Future<void> _performLogout() async {
 }
 
 Future<void> _performSync() async {
+  if (isSyncing) return;
+
+  final reachable = await _refreshOnlineStatusForNetworkAction();
+  if (!mounted) return;
+
+  if (!reachable) {
+    _setStateFromPart(() {
+      isSyncing = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Synchronisation impossible en mode hors ligne.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+    return;
+  }
+
   _setStateFromPart(() {
     isSyncing = true;
     _syncProgressValue = 0.0;

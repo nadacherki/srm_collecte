@@ -114,6 +114,13 @@ class StrictSerializerMixin:
     def validate(self, attrs):
         errors = {}
 
+        instance = getattr(self, 'instance', None)
+        current_uuid = getattr(instance, 'uuid', None) if instance is not None else None
+        incoming_uuid = attrs.get('uuid')
+        if current_uuid not in (None, '') and incoming_uuid not in (None, ''):
+            if str(current_uuid).strip() != str(incoming_uuid).strip():
+                errors['uuid'] = 'UUID immuable : modification interdite'
+
         for field_name in self.latitude_fields:
             value = attrs.get(field_name)
             if value is None:

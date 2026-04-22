@@ -795,11 +795,29 @@ class UpsertByUuidMixin:
             )
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
+            response_uuid = getattr(serializer.instance, 'uuid', None)
+            if response_uuid is not None and str(response_uuid).strip() != uuid_clean:
+                return Response(
+                    {
+                        'error': (
+                            'UUID incoherent apres mise a jour '
+                            f'({uuid_clean} != {response_uuid})'
+                        )
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except qs.model.DoesNotExist:
             pass
-        except Exception:
-            pass
+        except qs.model.MultipleObjectsReturned:
+            return Response(
+                {
+                    'error': (
+                        f'UUID ambigu detecte pour {qs.model.__name__}: {uuid_clean}'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
 
         return super().create(request, *args, **kwargs)
 

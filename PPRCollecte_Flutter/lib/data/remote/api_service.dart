@@ -390,7 +390,22 @@ class ApiService {
         print('❌ Erreur API POST ($endpoint): '
             '${response.statusCode} - ${response.body}');
         if (throwOnError) {
-          throw Exception('Erreur POST $endpoint: ${response.statusCode}');
+          var message = 'Erreur POST $endpoint: ${response.statusCode}';
+          try {
+            final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+            if (decoded is Map<String, dynamic>) {
+              final serverMessage = decoded['error'] ??
+                  decoded['detail'] ??
+                  decoded['message'];
+              final serverText = serverMessage?.toString().trim() ?? '';
+              if (serverText.isNotEmpty) {
+                message = serverText;
+              }
+            }
+          } catch (_) {
+            // On garde le message par défaut.
+          }
+          throw Exception(message);
         }
         return null;
       }

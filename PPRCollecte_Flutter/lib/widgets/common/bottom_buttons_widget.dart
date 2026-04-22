@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class BottomButtonsWidget extends StatelessWidget {
-  final VoidCallback onSave;
+  final VoidCallback? onSave;
   final VoidCallback? onSync;
   final VoidCallback onMenu;
+  final bool isSaveEnabled;
   final bool isSyncEnabled;
 
   const BottomButtonsWidget({
@@ -12,6 +13,7 @@ class BottomButtonsWidget extends StatelessWidget {
     required this.onSave,
     required this.onSync,
     required this.onMenu,
+    this.isSaveEnabled = true,
     this.isSyncEnabled = true,
   });
 
@@ -28,12 +30,14 @@ class BottomButtonsWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                disabledForegroundColor: Colors.white70,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const FaIcon(FontAwesomeIcons.save, size: 14),
               label: const Text("Télécharger", style: TextStyle(fontWeight: FontWeight.w500)),
-              onPressed: onSave,
+              onPressed: isSaveEnabled ? onSave : null,
             ),
           ),
           const SizedBox(width: 8),

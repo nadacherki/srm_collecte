@@ -36,6 +36,55 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   List<Map<String, dynamic>> _allData = [];
   List<Map<String, dynamic>> _filteredData = [];
 
+  List<LatLng> _decodeGeometryPoints(dynamic rawPoints) {
+    if (rawPoints == null) return const [];
+
+    try {
+      final decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
+      if (decoded is! List) {
+        if (rawPoints is String) {
+          return RegExp(
+            r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
+          ).allMatches(rawPoints).map((match) {
+            final lat = double.tryParse(match.group(1) ?? '');
+            final lon = double.tryParse(match.group(2) ?? '');
+            if (lat == null || lon == null) return null;
+            return LatLng(lat, lon);
+          }).whereType<LatLng>().toList();
+        }
+        return const [];
+      }
+
+      final points = <LatLng>[];
+      for (final coord in decoded) {
+        if (coord is Map) {
+          final lat = coord['lat'] ?? coord['latitude'];
+          final lng = coord['lon'] ?? coord['lng'] ?? coord['longitude'];
+          if (lat is num && lng is num) {
+            points.add(LatLng(lat.toDouble(), lng.toDouble()));
+          }
+        } else if (coord is List && coord.length >= 2) {
+          final lng = coord[0];
+          final lat = coord[1];
+          if (lat is num && lng is num) {
+            points.add(LatLng(lat.toDouble(), lng.toDouble()));
+          }
+        }
+      }
+      return points;
+    } catch (_) {
+      if (rawPoints is! String) return const [];
+      return RegExp(
+        r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
+      ).allMatches(rawPoints).map((match) {
+        final lat = double.tryParse(match.group(1) ?? '');
+        final lon = double.tryParse(match.group(2) ?? '');
+        if (lat == null || lon == null) return null;
+        return LatLng(lat, lon);
+      }).whereType<LatLng>().toList();
+    }
+  }
+
   Future<void> _editItem(Map<String, dynamic> item) async {
     final metier = item['source_metier']?.toString();
     final entityType = item['source_entity']?.toString();
@@ -43,27 +92,16 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     if (metier == null || entityType == null) return;
 
     if (geoType == 'LineString') {
-      List<LatLng> points = [];
-      final pointsJson = item['points_json'];
-      if (pointsJson is String && pointsJson.isNotEmpty) {
-        try {
-          final raw = jsonDecode(pointsJson) as List;
-          points = raw.map<LatLng>((coord) {
-            if (coord is Map) {
-              return LatLng(
-                (coord['lat'] as num).toDouble(),
-                (coord['lon'] as num).toDouble(),
-              );
-            }
-            if (coord is List && coord.length >= 2) {
-              return LatLng(
-                (coord[1] as num).toDouble(),
-                (coord[0] as num).toDouble(),
-              );
-            }
-            return const LatLng(0, 0);
-          }).toList();
-        } catch (_) {}
+      final points = _decodeGeometryPoints(item['points_json']);
+      if (points.length < 2) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ligne invalide'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
       }
 
       await Navigator.push(

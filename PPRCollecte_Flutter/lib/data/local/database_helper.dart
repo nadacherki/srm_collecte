@@ -1780,6 +1780,136 @@ class DatabaseHelper {
     }
   }
 
+  Future<Map<String, dynamic>?> getOpenObjetIncompletForEntity({
+    required String tableName,
+    required int idObjet,
+  }) async {
+    try {
+      _assertAllowedSrmTable(tableName);
+      final db = await database;
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        ['objet_incomplet'],
+      );
+      if (tables.isEmpty) return null;
+
+      final rows = await db.query(
+        'objet_incomplet',
+        where:
+            'nom_classe = ? AND id_objet = ? AND (statut IS NULL OR statut = ?)',
+        whereArgs: [tableName, idObjet, 'A_COMPLETER'],
+        orderBy: 'date_signalement DESC, id DESC',
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      return Map<String, dynamic>.from(rows.first);
+    } catch (e) {
+      print('❌ getOpenObjetIncompletForEntity $tableName/$idObjet: $e');
+      return null;
+    }
+  }
+
+  Future<void> upsertObjetIncompletForEntity({
+    required String tableName,
+    required int idObjet,
+    required String metierCode,
+    required String? raison,
+    String? detailRaison,
+  }) async {
+    final existing = await getOpenObjetIncompletForEntity(
+      tableName: tableName,
+      idObjet: idObjet,
+    );
+    final nowIso = DateTime.now().toIso8601String();
+    final cleanReason = raison?.trim();
+    final cleanDetail = detailRaison?.trim();
+
+    final payload = <String, dynamic>{
+      'id_objet': idObjet,
+      'nom_classe': tableName,
+      'metier': metierCode,
+      'raison': (cleanReason == null || cleanReason.isEmpty)
+          ? null
+          : cleanReason,
+      'detail_raison': (cleanDetail == null || cleanDetail.isEmpty)
+          ? null
+          : cleanDetail,
+      'date_signalement': existing?['date_signalement'] ?? nowIso,
+      'id_agent_signal': ApiService.userId,
+      'statut': 'A_COMPLETER',
+      'date_planification': null,
+      'id_agent_retour': null,
+      'date_completion': null,
+      'id_projet': ApiService.currentProjetId,
+      'synced': 0,
+      'downloaded': 0,
+      'date_collecte': nowIso,
+      'date_sync': null,
+    };
+
+    final existingId = _asInt(existing?['id']);
+    if (existingId != null) {
+      await updateEntitySrm(
+        'objet_incomplet',
+        existingId,
+        payload,
+        recordHistory: true,
+      );
+      return;
+    }
+
+    await insertEntitySrm(
+      'objet_incomplet',
+      payload,
+      recordHistory: true,
+    );
+  }
+
+  Future<void> resolveObjetIncompletForEntity({
+    required String tableName,
+    required int idObjet,
+  }) async {
+    try {
+      _assertAllowedSrmTable(tableName);
+      final db = await database;
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        ['objet_incomplet'],
+      );
+      if (tables.isEmpty) return;
+
+      final rows = await db.query(
+        'objet_incomplet',
+        columns: ['id'],
+        where:
+            'nom_classe = ? AND id_objet = ? AND (statut IS NULL OR statut = ?)',
+        whereArgs: [tableName, idObjet, 'A_COMPLETER'],
+      );
+      if (rows.isEmpty) return;
+
+      final nowIso = DateTime.now().toIso8601String();
+      for (final row in rows) {
+        final localId = _asInt(row['id']);
+        if (localId == null) continue;
+        await updateEntitySrm(
+          'objet_incomplet',
+          localId,
+          {
+            'statut': 'COMPLETE',
+            'id_agent_retour': ApiService.userId,
+            'date_completion': nowIso,
+            'synced': 0,
+            'date_collecte': nowIso,
+            'date_sync': null,
+          },
+          recordHistory: true,
+        );
+      }
+    } catch (e) {
+      print('❌ resolveObjetIncompletForEntity $tableName/$idObjet: $e');
+    }
+  }
+
   /// Récupère les entités non synchronisées d'une table SRM.
   Future<List<Map<String, dynamic>>> getUnsyncedSrm(
       String tableName) async {

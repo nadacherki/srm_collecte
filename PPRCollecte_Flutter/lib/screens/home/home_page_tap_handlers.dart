@@ -535,12 +535,32 @@ Map<String, dynamic>? _editableItemFromDynamicImpl(dynamic raw) {
   return null;
 }
 
+List<LatLng> _decodeGeometryPointsFromLooseStringImpl(String raw) {
+  final matches = RegExp(
+    r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
+  ).allMatches(raw);
+  return matches
+      .map((match) {
+        final lat = double.tryParse(match.group(1) ?? '');
+        final lon = double.tryParse(match.group(2) ?? '');
+        if (lat == null || lon == null) return null;
+        return LatLng(lat, lon);
+      })
+      .whereType<LatLng>()
+      .toList();
+}
+
 List<LatLng> _decodeGeometryPointsImpl(dynamic rawPoints) {
   if (rawPoints == null) return const [];
 
   try {
     final decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
-    if (decoded is! List) return const [];
+    if (decoded is! List) {
+      if (rawPoints is String) {
+        return _decodeGeometryPointsFromLooseStringImpl(rawPoints);
+      }
+      return const [];
+    }
 
     final points = <LatLng>[];
     for (final coord in decoded) {
@@ -560,6 +580,9 @@ List<LatLng> _decodeGeometryPointsImpl(dynamic rawPoints) {
     }
     return points;
   } catch (_) {
+    if (rawPoints is String) {
+      return _decodeGeometryPointsFromLooseStringImpl(rawPoints);
+    }
     return const [];
   }
 }

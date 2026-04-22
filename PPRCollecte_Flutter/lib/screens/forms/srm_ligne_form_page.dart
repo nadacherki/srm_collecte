@@ -1,5 +1,6 @@
 // lib/screens/forms/srm_ligne_form_page.dart
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -71,6 +72,73 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   late double _yFin;
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
+  String get _metierCode => widget.metier == 'Eau Potable'
+      ? 'EP'
+      : widget.metier == 'Assainissement'
+          ? 'ASS'
+          : 'ELEC';
+
+  bool _isTruthyFlag(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' || text == 'true' || text == 't';
+  }
+
+  List<LatLng> _decodeExistingLinePoints(dynamic rawPoints) {
+    if (rawPoints == null) return const [];
+
+    try {
+      final decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
+      if (decoded is! List) {
+        if (rawPoints is String) {
+          return RegExp(
+            r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
+          ).allMatches(rawPoints).map((match) {
+            final lat = double.tryParse(match.group(1) ?? '');
+            final lon = double.tryParse(match.group(2) ?? '');
+            if (lat == null || lon == null) return null;
+            return LatLng(lat, lon);
+          }).whereType<LatLng>().toList();
+        }
+        return const [];
+      }
+
+      final points = <LatLng>[];
+      for (final item in decoded) {
+        if (item is Map) {
+          final lat = item['lat'] ?? item['latitude'];
+          final lng = item['lon'] ?? item['lng'] ?? item['longitude'];
+          if (lat is num && lng is num) {
+            points.add(LatLng(lat.toDouble(), lng.toDouble()));
+          }
+        } else if (item is List && item.length >= 2) {
+          final lng = item[0];
+          final lat = item[1];
+          if (lat is num && lng is num) {
+            points.add(LatLng(lat.toDouble(), lng.toDouble()));
+          }
+        }
+      }
+      return points;
+    } catch (_) {
+      if (rawPoints is! String) return const [];
+      return RegExp(
+        r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
+      ).allMatches(rawPoints).map((match) {
+        final lat = double.tryParse(match.group(1) ?? '');
+        final lon = double.tryParse(match.group(2) ?? '');
+        if (lat == null || lon == null) return null;
+        return LatLng(lat, lon);
+      }).whereType<LatLng>().toList();
+    }
+  }
+
+  List<LatLng> get _effectiveLinePoints {
+    if (widget.linePoints.length >= 2) return widget.linePoints;
+    return _decodeExistingLinePoints(widget.existingData?['points_json']);
+  }
 
   @override
   void initState() {
@@ -82,12 +150,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       widget.entityType,
     )?['typeField'] as String?;
     _maxPhotos = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
-    _distanceTotaleM = _calcDistance(widget.linePoints);
+    final initialLinePoints = _effectiveLinePoints;
+    _distanceTotaleM = _calcDistance(initialLinePoints);
 
     final proj = ProjectionService();
-    if (widget.linePoints.isNotEmpty) {
-      final debut = widget.linePoints.first;
-      final fin = widget.linePoints.last;
+    if (initialLinePoints.isNotEmpty) {
+      final debut = initialLinePoints.first;
+      final fin = initialLinePoints.last;
       final md = proj.wgs84ToMerchich(
         longitude: debut.longitude,
         latitude: debut.latitude,
@@ -114,11 +183,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     _prefillCoordinates();
 
     if (widget.existingData != null) {
-      _hasAnomalie = widget.existingData!['anomalie'] == 1 ||
-          widget.existingData!['anomalie'] == true;
+      _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
+          _isTruthyFlag(widget.existingData!['ep_anomalie']);
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
-      _isObjetIncomplet = widget.existingData!['objet_incomplet'] == 1 ||
-          widget.existingData!['objet_incomplet'] == true;
+      _isObjetIncomplet = _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
@@ -126,6 +194,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
       _isLocked = FormLockService.isLocked(widget.existingData!);
+      _restoreLinkedObjetIncompletDetails();
     }
 
     if (widget.existingData == null) {
@@ -267,6 +336,35 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     _raisonIncomplet = extra['raisonIncomplet'] as String?;
   }
 
+  Future<void> _restoreLinkedObjetIncompletDetails() async {
+    if (!_isObjetIncomplet) return;
+    if ((_raisonIncomplet?.trim().isNotEmpty ?? false) &&
+        _detailRaisonController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    final existingId = widget.existingData?['id'] is int
+        ? widget.existingData!['id'] as int
+        : int.tryParse(widget.existingData?['id']?.toString() ?? '');
+    final tableName =
+        SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+    if (existingId == null || tableName.isEmpty) return;
+
+    final linked = await DatabaseHelper().getOpenObjetIncompletForEntity(
+      tableName: tableName,
+      idObjet: existingId,
+    );
+    if (!mounted || linked == null) return;
+
+    setState(() {
+      _raisonIncomplet ??= linked['raison']?.toString();
+      if (_detailRaisonController.text.trim().isEmpty) {
+        _detailRaisonController.text =
+            linked['detail_raison']?.toString() ?? '';
+      }
+    });
+  }
+
   Future<void> _pickPhoto(int index) async {
     final source = await showDialog<ImageSource>(
       context: context,
@@ -361,6 +459,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       final tableName =
           SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
       if (tableName.isEmpty) throw Exception('Table non trouvée');
+      final effectiveLinePoints = _effectiveLinePoints;
+      if (effectiveLinePoints.length < 2) {
+        throw Exception('Geometrie de ligne invalide');
+      }
 
       final data = <String, dynamic>{};
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
@@ -374,11 +476,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         }
       }
 
-      data['points_json'] = widget.linePoints
+      data['points_json'] = jsonEncode(effectiveLinePoints
           .map((p) => {'lat': p.latitude, 'lon': p.longitude})
-          .toList()
-          .toString();
-      data['nb_points'] = widget.linePoints.length;
+          .toList());
+      data['nb_points'] = effectiveLinePoints.length;
       data['distance_m'] = _distanceTotaleM;
 
       if (widget.averageAltitude != null) {
@@ -395,11 +496,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       data['x_fin'] = _xFin;
       data['y_fin'] = _yFin;
 
-      if (widget.linePoints.isNotEmpty) {
-        data['lat_debut'] = widget.linePoints.first.latitude;
-        data['lon_debut'] = widget.linePoints.first.longitude;
-        data['lat_fin'] = widget.linePoints.last.latitude;
-        data['lon_fin'] = widget.linePoints.last.longitude;
+      if (effectiveLinePoints.isNotEmpty) {
+        data['lat_debut'] = effectiveLinePoints.first.latitude;
+        data['lon_debut'] = effectiveLinePoints.first.longitude;
+        data['lat_fin'] = effectiveLinePoints.last.latitude;
+        data['lon_fin'] = effectiveLinePoints.last.longitude;
       }
 
       data['anomalie'] = _hasAnomalie ? 1 : 0;
@@ -419,6 +520,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       data['date_collecte'] = DateTime.now().toIso8601String();
 
       final dbHelper = DatabaseHelper();
+      late final int localId;
       if (widget.existingData != null && widget.existingData!['id'] != null) {
         final existingId = widget.existingData!['id'] is int
             ? widget.existingData!['id'] as int
@@ -426,6 +528,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         if (existingId == null) {
           throw Exception('Identifiant local invalide pour la mise à jour');
         }
+        localId = existingId;
         await dbHelper.updateEntitySrm(
           tableName,
           existingId,
@@ -433,7 +536,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           recordHistory: true,
         );
       } else {
-        await dbHelper.insertEntitySrm(
+        localId = await dbHelper.insertEntitySrm(
           tableName,
           data,
           recordHistory: true,
@@ -441,27 +544,17 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       }
 
       if (_isObjetIncomplet) {
-        final metierCode = widget.metier == 'Eau Potable'
-            ? 'EP'
-            : widget.metier == 'Assainissement'
-                ? 'ASS'
-                : 'ELEC';
-        final incompletData = {
-          'nom_classe': tableName,
-          'metier': metierCode,
-          'raison': _raisonIncomplet,
-          'detail_raison': _detailRaisonController.text.trim(),
-          'date_signalement': DateTime.now().toIso8601String(),
-          'id_agent_signal': ApiService.userId,
-          'statut': 'A_COMPLETER',
-          'id_projet': ApiService.currentProjetId,
-          'synced': 0,
-          'date_collecte': DateTime.now().toIso8601String(),
-        };
-        await dbHelper.insertEntitySrm(
-          'objet_incomplet',
-          incompletData,
-          recordHistory: true,
+        await dbHelper.upsertObjetIncompletForEntity(
+          tableName: tableName,
+          idObjet: localId,
+          metierCode: _metierCode,
+          raison: _raisonIncomplet,
+          detailRaison: _detailRaisonController.text.trim(),
+        );
+      } else {
+        await dbHelper.resolveObjetIncompletForEntity(
+          tableName: tableName,
+          idObjet: localId,
         );
       }
 

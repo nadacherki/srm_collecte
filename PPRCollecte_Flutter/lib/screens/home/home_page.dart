@@ -760,6 +760,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _checkOnlineStatus() =>
       _checkOnlineStatusImpl(this);
 
+  Future<bool> _refreshOnlineStatusForNetworkAction() =>
+      _refreshOnlineStatusForNetworkActionImpl(this);
+
   Future<void> _loadLastSyncTime() =>
       _loadLastSyncTimeImpl(this);
 
@@ -1208,7 +1211,10 @@ class _HomePageState extends State<HomePage> {
               lastSyncTime: _lastSyncTimeText,
             ),
             BottomButtonsWidget(
-              onSave: isDownloading ? () {} : _showSaveConfirmationDialog,
+              onSave: (!_isOnlineDynamic || isDownloading)
+                  ? null
+                  : _showSaveConfirmationDialog,
+              isSaveEnabled: _isOnlineDynamic && !isDownloading,
               onSync: (!_isOnlineDynamic || isSyncing)
                   ? null
                   : _showSyncConfirmationDialog,

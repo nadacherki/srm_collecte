@@ -3,7 +3,8 @@ class FormLockService {
 
   static bool isLocked(Map<String, dynamic> item) {
     final synced = _isTruthy(item['synced']);
-    final hasAnomalie = _isTruthy(item['anomalie']);
+    final hasAnomalie =
+        _isTruthy(item['anomalie']) || _isTruthy(item['ep_anomalie']);
     final hasIncomplet = _isTruthy(item['objet_incomplet']);
 
     if (!synced) return false;

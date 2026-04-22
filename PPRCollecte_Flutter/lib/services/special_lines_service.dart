@@ -14,6 +14,14 @@ import '../models/map_overlay_tap_data.dart';
 class SpecialLinesService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
+  bool _isTruthy(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' || text == 'true' || text == 't';
+  }
+
   Future<List<Polyline>> getDisplayedSpecialLines({
     required void Function(Map<String, dynamic>) onTapDetails,
     void Function(String tableName, String metier, Polyline polyline)?
@@ -45,10 +53,8 @@ class SpecialLinesService {
             editableItem['geometry_type'] = 'LineString';
 
             final hasAnomalie =
-                row['anomalie'] == 1 || row['anomalie'] == true;
-            final hasIncomplet =
-                row['objet_incomplet'] == 1 ||
-                row['objet_incomplet'] == true;
+                _isTruthy(row['anomalie']) || _isTruthy(row['ep_anomalie']);
+            final hasIncomplet = _isTruthy(row['objet_incomplet']);
             final lineStyle = _lineStyleForStatus(
               baseColor: _lineColorForMetier(metier),
               hasAnomalie: hasAnomalie,
