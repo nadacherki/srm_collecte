@@ -1,0 +1,5 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+type_coffret,varchar(254),Type Coffret,non,,,"Paninter, Soclinter, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type coffret BT
+statut_coffret,varchar(254),Statut Coffret,non,,,"En service, Hors service, Abandonné",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Statut coffret
+enveloppe_coffret,varchar(254),Enveloppe Coffret,non,,,"Polyester, Métallique",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Enveloppe coffret
+anomalie,bool,Anomalie,non,false,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence d'anomalie

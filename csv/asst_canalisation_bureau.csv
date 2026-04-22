@@ -1,0 +1,6 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+classe,varchar(254),Classe,non,,,"K7, K9, K10, 135A, 190A, 90A, CR8, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Classe conduite/canalisation
+nature,varchar(254),Nature,non,,,"Amiante ciment, PEHD, Fonte, PVC, CAO, Béton vibré, Béton vibré armé, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Nature du materiau
+type_ecoulement,varchar(254),Type Ecoulement,non,,,"Gravitaire, Sous pression","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type ecoulement (gravitaire, sous pression...)"
+type_conduite,varchar(254),Type Conduite,non,,,"Circulaire, Cadre, Ovoïde, Arche, En U, Trapézoïde, Quelconque, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type conduite
+protection_anticorrosion,varchar(254),Protection Anticorrosion,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Protection anticorrosion

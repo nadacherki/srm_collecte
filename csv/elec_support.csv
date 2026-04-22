@@ -1,0 +1,8 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+type_support,varchar(254),Type Support,non,,,"Candélabre, Candélabre Courbe, Mât, Potelet Ambiance, Potelet Réseau, Façade, Poteau","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type support (beton, bois, metallique...)"
+etat_support,varchar(254),Etat Support,non,,,"Bon, Moyen, Mauvais, Dangereux à changer",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Etat support
+type_assemblage,varchar(254),Type Assemblage,non,,,"Simple, Jumelé, Contre Fiché, Haubané, Double",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type assemblage
+type_protection,varchar(254),Type Protection,non,,,"Pas de protection, Fusible, Fusible cartouche, Fusible HPC, Fusible couteau, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type protection
+mise_a_la_terre,varchar(254),Mise A La Terre,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Mise a la terre
+type_balise,varchar(254),Type Balise,non,,,"Ballon, Encrage, Arrêt, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type balise
+anomalie,bool,Anomalie,non,false,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence d'anomalie

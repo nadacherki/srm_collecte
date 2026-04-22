@@ -1,0 +1,4 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+conformite_plan,varchar(254),Conformite Plan,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Conformite avec plans existants
+etat,varchar(254),Etat,non,,,"En service, Hors service, Réhabilité, Abandonné","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Etat general (bon, moyen, mauvais...)"
+type_ecoulement,varchar(254),Type Ecoulement,non,,,"Gravitaire, Sous pression","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type ecoulement (gravitaire, sous pression...)"

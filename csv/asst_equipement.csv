@@ -1,0 +1,5 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+conformite_plan,varchar(254),Conformite Plan,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Conformite avec plans existants
+typereseau,varchar(254),Typereseau,non,,,"Eaux usées, Eaux pluviales, Unitaire, Irrigation, Pseudo-séparatif","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type reseau (unitaire, separatif, pluvial...)"
+situation_equipement,varchar(254),Situation Equipement,non,,,"En service, Hors service","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Situation (en service, hors service...)"
+anomalie,bool,Anomalie,non,false,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence d'anomalie

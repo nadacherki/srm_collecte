@@ -1,0 +1,4 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+conformite_plan,varchar(254),Conformite Plan,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Conformite avec plans existants
+type_ouvrage,varchar(254),Type Ouvrage,non,,,"Déversoir d'orage, Ouvrage traverse, Fosse septique, Puit perdu, Puit infiltration, Exutoire, Déshuileur",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type ouvrage
+pretraitement,varchar(254),Pretraitement,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence pretraitement

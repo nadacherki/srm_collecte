@@ -1,0 +1,5 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+techcable,varchar(254),Techcable,non,,,"Cuivre, Tors BT Alu, Armé cuivre, Armé Alu, Alu",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Technologie cable
+status_troncon,varchar(254),Status Troncon,non,,,"En service, Hors service, Abandonné",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Statut troncon
+nu,varchar(254),Nu,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Nu (oui/non)
+arme,varchar(254),Arme,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Cable arme

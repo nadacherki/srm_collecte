@@ -1,0 +1,3 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+fonction,varchar(254),Fonction,non,,,"Départ, Arrivée, Couplage, Condensateur, Interrupteur, Autre",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Fonction objet
+type_commande,varchar(254),Type Commande,non,,,"Cellule, Horloge, Horloge Astro., Pulsadis, Manuel, Télécommandé, Aucune","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type commande (manuelle, electrique...)"

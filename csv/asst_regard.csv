@@ -1,0 +1,10 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+conformite_plan,varchar(254),Conformite Plan,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Conformite avec plans existants
+type_regard,varchar(254),Type regard,non,,,"Regard de visite, Regard borgne, Regard avaloir, Grille avaloir","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type regard (visite, chasse, cascade...)"
+typereseau,varchar(254),Typereseau,non,,,"Eaux usées, Eaux pluviales, Unitaire, Irrigation, Pseudo-séparatif","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type reseau (unitaire, separatif, pluvial...)"
+forme,varchar(254),Forme,non,,,"Circulaire, Rectangulaire, Carré","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Forme (circulaire, rectangulaire...)"
+verrouille,varchar(254),Verrouille,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Tampon verrouille (oui/non)
+rehabilitation,varchar(254),Rehabilitation,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Rehabilitation effectuee (oui/non)
+nature_corps,varchar(254),Nature Corps,non,,,"Béton, Préfabriqué, Maçonnerie, Brique",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Nature corps regard
+chute,varchar(254),Chute,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence chute
+anomalie,bool,Anomalie,non,false,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence d'anomalie

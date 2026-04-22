@@ -1,0 +1,2 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+tension_hta,varchar(254),Tension Hta,non,,,"225kV, 60kV, 20kV, 11kV, 5.5kV, 400V",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Tension HTA

@@ -1,0 +1,5 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+conformite_plan,varchar(254),Conformite Plan,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Conformite avec plans existants
+etat,varchar(254),Etat,non,,,"En service, Hors service, Réhabilité, Abandonné","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Etat general (bon, moyen, mauvais...)"
+sortie,varchar(254),Sortie,non,,,"Aucun dispositif, Vers réseau, Vers milieu naturel, Vers puit infiltration",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Type sortie
+anomalie,bool,Anomalie,non,false,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence d'anomalie

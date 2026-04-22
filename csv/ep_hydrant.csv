@@ -1,0 +1,48 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+ep_type,varchar(400),Type d'hydrant,non,,,,Mode de remplissage: saisie agent mobile
+ep_etat,varchar(400),Etat d'ouverture,non,,,Ouvert (OUVERT) | Ferme (FERME),Mode de remplissage: saisie agent mobile
+ep_conform,varchar(400),Conformité.,non,,,,Mode de remplissage: saisie agent mobile
+statut,varchar(400),Statut,non,,,Privé (PRIVE) | Public (PUBLIC),Mode de remplissage: saisie agent mobile
+type,varchar(400),Type,non,,,Bouche incendie (BOU_INC) | Poteau incendie (POT_INC) | Citerne incendie (CITERNE) | Prise réservoir (PRISERSV) | Prise en rivière (PRISERIV) | Non défini (NON_DEF),Mode de remplissage: saisie agent mobile
+marque,varchar(400),Marque,non,,,RAYARD (RAYARD) | BMX (BMX) | RAMUS (RAMUS) | ILLISIBLE (ILLISIBLE),Mode de remplissage: saisie agent mobile
+diametre,int4,Diamètre,non,,,16 (16) | 25 (25) | 32 (32) | 40 (40) | 50 (50) | 60 (60) | 63 (63) | 70 (70) | 75 (75) | 80 (80) | 90 (90) | 100 (100) | 110 (110) | 125 (125) | 135 (135) | 140 (140) | 150 (150) | 160 (160) | 175 (175) | 180 (180) | 200 (200) | 225 (225) | 250 (250) | 300 (300) | 350 (350) | 400 (400) | 450 (450) | 500 (500) | 600 (600) | 800 (800) | 900 (900) | 1000 (1000) | 1200 (1200) | Inconnu (-1),Mode de remplissage: saisie agent mobile
+diamcond,int4,Diamètre raccordement de la conduite,non,,,16 (16) | 25 (25) | 32 (32) | 40 (40) | 50 (50) | 60 (60) | 63 (63) | 70 (70) | 75 (75) | 80 (80) | 90 (90) | 100 (100) | 110 (110) | 125 (125) | 135 (135) | 140 (140) | 150 (150) | 160 (160) | 175 (175) | 180 (180) | 200 (200) | 225 (225) | 250 (250) | 300 (300) | 350 (350) | 400 (400) | 450 (450) | 500 (500) | 600 (600) | 800 (800) | 900 (900) | 1000 (1000) | 1200 (1200) | Inconnu (-1),Mode de remplissage: saisie agent mobile
+conform,varchar(400),Conformité,non,,,Oui (O) | Non (N),Mode de remplissage: saisie agent mobile
+dispo,varchar(400),Disponibilité,non,,,Oui (O) | Non (N),Mode de remplissage: saisie agent mobile
+vanne,varchar(400),Présence d'une vanne,non,,,Oui (O) | Non (N),Mode de remplissage: saisie agent mobile
+codinsee,varchar(400),Code INSEE,non,,,A,Mode de remplissage: saisie agent mobile
+ep_conf_plan,varchar(400),Conformité des plans,non,,,Conforme aux plan (Conforme aux plan) | Objet découvrt sur terrain (Objet découvrt sur terrain) | Objet non trouvé sur le terrain (Objet non trouvé sur le terrain),Mode de remplissage: saisie agent mobile
+ep_observation,varchar(400),Observation,non,,,,Mode de remplissage: saisie agent mobile
+ep_anomalie,varchar(400),Anomalie,non,,,,Mode de remplissage: saisie agent mobile
+mode_localisation,varchar(400),Mode localisation,non,,,Levé topographique (Levé topographique) | Triangulé (Triangulé) | Schématique (Schématique) | Indéterminé (Indéterminé),Mode de remplissage: saisie agent mobile
+emplacement,varchar(400),Emplacement regard,non,,,TR (S-TROTTOIR) | CH (S-CHAUSSEE) | TR-CH (S-TROTOIR C-CHAISSI) | TN (TN) | PISTE (PISTE) | AGRI (TERRE_AGRICOLE),Mode de remplissage: saisie agent mobile
+ep_ref_regard,varchar(400),Existence d'un regard,non,,,Oui (O) | Non (N),Mode de remplissage: saisie agent mobile
+fid,serial (PK),Identifiant unique (PK),non,nextval('ep.ep_hydrant_fid_seq'),,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+uuid,varchar(254),Identifiant unique universel,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_alti,float8,Altitude(Z),non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_ref_rue,varchar(400),Référence rue,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_date_insertion,date,Date D'Insertion Sur Elex,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_coor_x,float8,Coordonnées relevées  X,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_coor_y,float8,Coordonnées relevées Y,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_coor_z,float8,Coordonnées relevées Z,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+geom,geometry,Géométrie PostGIS,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_commune,int4,FK commune,non,,-> public.commune.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_province,int4,FK province,non,,-> public.province.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_creat,int4,FK utilisateur créateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_modif,int4,FK utilisateur modificateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_creation,timestamptz,Date/heure de création,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_modif,timestamptz,Date/heure dernière modification,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_deleted,bool,Suppression logique,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_validated,bool,Validation exploitant,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Validation exploitant
+id_user_valid,int4,FK utilisateur validateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_validation,timestamp,Date/heure validation,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_secteur_com,varchar(400),Secteur commercial,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_agent,varchar(400),Dernier intervenant SIG,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_zone_hydro,varchar(400),Zone hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_secteur_hydro,varchar(400),Secteur hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+adresse,varchar(400),Adresse,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_statut,varchar(400),Statut de la conduite,non,,,EP_POSE (EP_POSE) | (EP_REHABILITE) | EP_EXISTANT (EP_EXISTANT) | EP_PROJETE (EP_PROJETE) | EP_A REHABILITE (EP_A REHABI) | EP_EN COURS (EP_EN COURSS) | EP_A RESILISER (EP_A RESILISE),Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_agent_crea,varchar(400),Agent de création SIG,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+sec_com,varchar(400),Sec Com,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+sect_hydr,varchar(400),CopieDeSecteur hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+zone,varchar(400),CopieDeZone hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source

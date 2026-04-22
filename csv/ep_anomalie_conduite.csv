@@ -1,0 +1,15 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+type_anomalie,varchar(400),Type d'anomalie,non,,,,"Mode de remplissage: saisie agent mobile | Valeur attendue: FUITE , conduite apparente , .."
+fid,serial (PK),Identifiant unique (PK),non,nextval('ep.anomalie_conduite_fid_seq'),,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+uuid,varchar(254),Identifiant unique universel,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+geom,geometry,Géométrie PostGIS,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_commune,int4,FK commune,non,,-> public.commune.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_province,int4,FK province,non,,-> public.province.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_creat,int4,FK utilisateur créateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_modif,int4,FK utilisateur modificateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_creation,timestamptz,Date/heure de création,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_modif,timestamptz,Date/heure dernière modification,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_deleted,bool,Suppression logique,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_validated,bool,Validation exploitant,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Validation exploitant
+id_user_valid,int4,FK utilisateur validateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_validation,timestamp,Date/heure validation,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source

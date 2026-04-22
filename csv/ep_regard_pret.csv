@@ -1,0 +1,43 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+ep_agent,varchar(400),Dernier intervenant SIG,non,ETAFAT,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_sect_com,varchar(400),Secteur commercial,non,public.commune.nom_commune,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_statut,varchar(400),Statut,non,,,EP_POSE (EP_POSE) | EP_REHABILITE (EP_REHABILITE) | EP_EXISTANT (EP_EXISTANT) | EP_PROJETE (EP_PROJETE) | EP_A REHABILITE (EP_A REHABI) | EP_EN COURS (EP_EN COURSS) | EP_A RESILISER (EP_A RESILISE),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_adresse,varchar(400),Adresse,non,Réécrire la valeur depuis ep_ref_rue,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_agent_crea,varchar(400),Agent de création SIG,non,ETAFAT,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+sec_com,varchar(400),SEC_COM,non,même chose que ep_sect_com,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+sect_hydr,varchar(400),Secteur hydraulique,non,public.commune.nom_commune,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+zone,varchar(400),Zone hydraulique,non,public.commune.nom_commune,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+fid,serial (PK),ID lisible serveur,oui,Identifiant unique auto-incrémenté côté serveur,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+uuid,uuid,UUID objet,non,se génère en version 4 depuis le mobile,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+z_radier,varchar(400),Côte radier,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+z_surf,varchar(400),Côte surface,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_date_insertion,date,Date d'insertion Elyx,non,on remplit avec date_creation,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_coor_x,float8,Coordonnée X,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_coor_y,float8,Coordonnée Y,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_coor_z,float8,Coordonnée Z,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+geom,geometry,Géométrie,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+id_commune,int4,Commune,non,public.commune.fid,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+id_province,int4,Province,non,public.province.fid,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+id_user_creat,int4,Utilisateur créateur,non,public.utilisateur.id_user,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+id_user_modif,int4,Dernier utilisateur modificateur,non,public.utilisateur.id_user,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+date_creation,timestamptz,Date de création,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+date_modif,timestamptz,Date de modification,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+is_deleted,bool,Suppression logique,non,False,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+is_validated,bool,Validation exploitant,non,False,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+id_user_valid,int4,Utilisateur validateur,non,public.utilisateur.id_user,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+date_validation,timestamp,Date de validation,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+emplacement,varchar(400),Emplacement du regard,non,,,TR (S-TROTTOIR) | CH (S-CHAUSSEE) | TR-CH (S-TROTOIR C-CHAISSI) | TN (TN) | PISTE (PISTE) | AGRI (TERRE_AGRICOLE),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_ref_rue,varchar(400),Référence rue / Douar,non,,,REF RUE / DOUAR,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_section,varchar(400),Section du regard,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_tampon,varchar(400),Type de tampon,non,,,FD400 (FD400) | FD250 (FD250) | Béton (Béton),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_conf_plan,varchar(400),Conformité au plan,non,,,Conforme aux plan (Conforme aux plan) | Objet découvrt sur terrain (Objet découvrt sur terrain) | Objet non trouvé sur le terrain (Objet non trouvé sur le terrain),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_observation,varchar(400),Observation,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_anomalie,bool,Anomalie,non,False,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+mode_localisation,varchar(400),Mode de localisation,non,PAR DEFAUT LEVE TOPOGRAPHIQUE,,Levé topographique (Levé topographique) | Triangulé (Triangulé) | Schématique (Schématique) | Indéterminé (Indéterminé),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+echelon,varchar(400),Existence échelon,non,,,Oui (O) | Non (N),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+anomalie_tamp,varchar(400),Anomalie tampon,non,,,Tampons en mauvais état (Tampons en mauvais état) | Tampons Manquant (Tampons Manquant) | Tampons Scellés (Tampons Scellés),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+anomalie_regard,varchar(400),Anomalie regard,non,,,A mettre à la cote (A mettre à la cote) | Inaccessible (Inaccessible) | Ouvrage dégradés (Ouvrage dégradés) | Regards Enterrés (Regards Enterrés) | Regards Noyés (Regards Noyés) | Regards à curer (Regards à curer) | Sectionnement enterré (Sectionnement enterré) | Autre (Autre),Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+GENRATRICE_SUP,float8,Génératrice supérieure,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+ep_profondeur,float8,Profondeur,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+z levée par gps va correspondre a z surface ou z radier.,zsurface,Z levée par gps va correspondre a z surface ou z radier.,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee
+Règles de gestion,,Règles de gestion,non,,,,Source: feuille pre-formatee sans code couleur | Obligatoire derive du champ Null faute de colonne obligatoire dediee

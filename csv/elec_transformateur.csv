@@ -1,0 +1,4 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+puiss_transfo,varchar(254),Puiss Transfo,non,,,"50, 100, 160, 250, 400, 630, 1000, 1250 (kVA)",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Puissance transfo (kVA)
+regleur_en_charge,varchar(254),Regleur En Charge,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Regleur en charge
+anomalie,bool,Anomalie,non,false,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Presence d'anomalie

@@ -1,0 +1,48 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+ep_type,varchar(400),Type,non,,,DISTRIBUTION (DISTRIBUTION) | DI_PRINCIPAL (DI_PRINCIPAL) | ADDUCTION (ADDUCTION) | ADD_POMPAGE (ADD_POMPAGE) | ABANDONNEE (ABANDONNEE) | ADDUCTION MIXTE (ADDUCTION MIXTE) | PRODUCTION (PRODUCTION) | DECHARGE (DECHARGE) | SOCIETE TIERCE (SOCIETE TIERCE) | EAU BRUTE (EAU BRUTE) | BRANCHEMENT INDUSTRIEL (BRANCHEMENT INDUSTRIEL) | GALERIE (GALERIE) | LIAISON (LIAISON),Mode de remplissage: saisie agent mobile
+ep_diam,int4,Diamètre,non,,,1000 (1000) | 800 (800) | 700 (700) | 600 (600) | 500 (500) | 400 (400) | 350 (350) | 315 (315) | 300 (300) | 250 (250) | 225 (225) | 200 (200) | 160 (160) | 150 (150) | 125 (125) | 110 (110) | 100 (100) | 90 (90) | 80 (80) | 75 (75) | 63 (63) | 60 (60) | 40 (40) | 50 (50) | 32 (32),Mode de remplissage: saisie agent mobile
+ep_mat,varchar(400),Matériau,non,,,Acier (AC) | Amiante Ciment (AMC) | Beton (BE) | Beton précontraint (BEP) | Fonte (FO) | Fonte Ductile (FOD) | Fonte grise (FOG) | Plomb (PB) | PVC (PVC) | Polyethylene (PE) | Indéfini (IN) | BVA (BVA) | CAO (CAO) | POLYPROBELENE (PP) | POLYPROBELENE2 (PEHD) | BETON ARME (BETON ARME) | Inconnu (INC),Mode de remplissage: saisie agent mobile
+ep_profondeur,float8,Profondeur,non,,,,Mode de remplissage: saisie agent mobile
+ep_classe_conduite,varchar(400),Ep Classe,non,,,PN6 (PN6) | PN10 (PN10) | PN16 (PN16) | PN25 (PN25) | (Inconnue),Mode de remplissage: saisie agent mobile
+emplacement,varchar(400),Emplacement,non,,,TR (S-TROTTOIR) | CH (S-CHAUSSEE) | TR-CH (S-TROTOIR C-CHAISSI) | TN (TN) | PISTE (PISTE) | AGRI (TERRE_AGRICOLE),Mode de remplissage: saisie agent mobile
+ep_ref_rue,varchar(400),Référence rue,non,,,,Mode de remplissage: saisie agent mobile
+ep_observ,varchar(400),Observation,non,,,,Mode de remplissage: saisie agent mobile
+ep_conf_plan,varchar(400),Conformité des plans,non,,,Conforme aux plan (Conforme aux plan) | Objet découvrt sur terrain (Objet découvrt sur terrain) | Objet non trouvé sur le terrain (Objet non trouvé sur le terrain),Mode de remplissage: saisie agent mobile
+ep_observation,varchar(400),Observation,non,,,,Mode de remplissage: saisie agent mobile
+ep_anomalie,varchar(400),Anomalie,non,,,NON_RACCORDER (NON_RACCORDER) | ANO_REGARD (ANO_REGARD) | NON_GEORADAR (NON_GEORADAR),Mode de remplissage: saisie agent mobile
+mode_localisation,varchar(400),Mode localisation,non,,,Levé topographique (Levé topographique) | Triangulé (Triangulé) | Schématique (Schématique) | Indéterminé (Indéterminé),Mode de remplissage: saisie agent mobile
+fid,serial (PK),Identifiant unique (PK),non,nextval('ep.ep_conduite_fid_seq'),,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+uuid,varchar(254),Identifiant unique universel,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_date_insertion,date,Date D'Insertion Sur Elex,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_long_c,float8,Longueur calculée,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_long_r,float8,Longueur réelle,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_photo,varchar(400),Photo,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+altitute,float8,Altitude,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+pente,float8,Pente (mm/m),non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+zamont,float8,Z amont,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+zaval,float8,Z aval,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+zalerte,float8,Z alerte,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_coor_x,float8,Coordonnées relevées  X,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_coor_y,float8,Coordonnées relevées Y,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_coor_z,float8,Coordonnées relevées Z,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+geom,geometry,Géométrie PostGIS,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_commune,int4,FK commune,non,,-> public.commune.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_province,int4,FK province,non,,-> public.province.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_creat,int4,FK utilisateur créateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_modif,int4,FK utilisateur modificateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_creation,timestamptz,Date/heure de création,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_modif,timestamptz,Date/heure dernière modification,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_deleted,bool,Suppression logique,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_validated,bool,Validation exploitant,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Validation exploitant
+id_user_valid,int4,FK utilisateur validateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_validation,timestamp,Date/heure validation,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_adresse,varchar(400),Adresse,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_secteur_com,varchar(400),Secteur commercial,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_agent_maj,varchar(400),Dernier intervenant SIG,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_zone_hydro,varchar(400),Zone hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_sect_hydro,varchar(400),Secteut hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_statut,varchar(400),Statut de la conduite,non,,,EP_POSE (EP_POSE) | (EP_REHABILITE) | EP_EXISTANT (EP_EXISTANT) | EP_PROJETE (EP_PROJETE) | EP_A REHABILITE (EP_A REHABI) | EP_EN COURS (EP_EN COURSS) | EP_A RESILISER (EP_A RESILISE),Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_agent_crea,varchar(400),Agent de création SIG,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+sec_com,varchar(400),Sec Com,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+sect_hydr,varchar(400),Secteur hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+zone,varchar(400),CopieDeZone hydraulique,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source

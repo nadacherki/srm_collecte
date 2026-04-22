@@ -1,0 +1,8 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+nature_poste,varchar(254),Nature Poste,non,,,"Maçonné, Préfabriqué, Abrité, Intégré bâtiment",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Nature poste
+etat_service,varchar(254),Etat Service,non,,,"En service, Hors service, Abandonné",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Etat service poste
+tableau_ep,varchar(254),Tableau Ep,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Tableau EP (oui/non)
+support_communication,varchar(254),Support Communication,non,,,"GSM, LS, Radio, GPRS, LS & GSM, LS & RADIO, 4G, Autre","Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Support communication (GSM, fibre...)"
+presence_ild,varchar(254),Presence Ild,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Indicateur lumineux defaut
+tableau_bt,varchar(254),Tableau Bt,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Tableau BT
+conformite_plan,varchar(254),Conformite Plan,non,,,"Oui, Non",Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Conformite avec plans existants
