@@ -1,0 +1,507 @@
+{
+  "input_dir": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\csv",
+  "output_dir": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql",
+  "file_count": 50,
+  "files": [
+    {
+      "csv_name": "asst_bassin.csv",
+      "schema": "asst",
+      "table_name": "bassin",
+      "column_count": 3,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_bassin.sql"
+    },
+    {
+      "csv_name": "asst_branchement.csv",
+      "schema": "asst",
+      "table_name": "branchement",
+      "column_count": 6,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_branchement.sql"
+    },
+    {
+      "csv_name": "asst_canalisation_bureau.csv",
+      "schema": "asst",
+      "table_name": "canalisation_bureau",
+      "column_count": 5,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_canalisation_bureau.sql"
+    },
+    {
+      "csv_name": "asst_canalisation_reutilisation.csv",
+      "schema": "asst",
+      "table_name": "canalisation_reutilisation",
+      "column_count": 3,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_canalisation_reutilisation.sql"
+    },
+    {
+      "csv_name": "asst_canalisation_terrain.csv",
+      "schema": "asst",
+      "table_name": "canalisation_terrain",
+      "column_count": 7,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_canalisation_terrain.sql"
+    },
+    {
+      "csv_name": "asst_equipement.csv",
+      "schema": "asst",
+      "table_name": "equipement",
+      "column_count": 4,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_equipement.sql"
+    },
+    {
+      "csv_name": "asst_ouvrage.csv",
+      "schema": "asst",
+      "table_name": "ouvrage",
+      "column_count": 3,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_ouvrage.sql"
+    },
+    {
+      "csv_name": "asst_regard.csv",
+      "schema": "asst",
+      "table_name": "regard",
+      "column_count": 9,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_regard.sql"
+    },
+    {
+      "csv_name": "asst_regard_branchement.csv",
+      "schema": "asst",
+      "table_name": "regard_branchement",
+      "column_count": 7,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_regard_branchement.sql"
+    },
+    {
+      "csv_name": "asst_station.csv",
+      "schema": "asst",
+      "table_name": "station",
+      "column_count": 4,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\asst_station.sql"
+    },
+    {
+      "csv_name": "elec_cellule.csv",
+      "schema": "elec",
+      "table_name": "cellule",
+      "column_count": 2,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_cellule.sql"
+    },
+    {
+      "csv_name": "elec_coffret_bt.csv",
+      "schema": "elec",
+      "table_name": "coffret_bt",
+      "column_count": 4,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_coffret_bt.sql"
+    },
+    {
+      "csv_name": "elec_depart_bt.csv",
+      "schema": "elec",
+      "table_name": "depart_bt",
+      "column_count": 2,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_depart_bt.sql"
+    },
+    {
+      "csv_name": "elec_depart_hta.csv",
+      "schema": "elec",
+      "table_name": "depart_hta",
+      "column_count": 1,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_depart_hta.sql"
+    },
+    {
+      "csv_name": "elec_noeud_raccord.csv",
+      "schema": "elec",
+      "table_name": "noeud_raccord",
+      "column_count": 2,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_noeud_raccord.sql"
+    },
+    {
+      "csv_name": "elec_point_desserte.csv",
+      "schema": "elec",
+      "table_name": "point_desserte",
+      "column_count": 3,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_point_desserte.sql"
+    },
+    {
+      "csv_name": "elec_poste.csv",
+      "schema": "elec",
+      "table_name": "poste",
+      "column_count": 7,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_poste.sql"
+    },
+    {
+      "csv_name": "elec_support.csv",
+      "schema": "elec",
+      "table_name": "support",
+      "column_count": 7,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_support.sql"
+    },
+    {
+      "csv_name": "elec_transformateur.csv",
+      "schema": "elec",
+      "table_name": "transformateur",
+      "column_count": 3,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 1,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_transformateur.sql"
+    },
+    {
+      "csv_name": "elec_troncon_bt.csv",
+      "schema": "elec",
+      "table_name": "troncon_bt",
+      "column_count": 4,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_troncon_bt.sql"
+    },
+    {
+      "csv_name": "elec_troncon_hta.csv",
+      "schema": "elec",
+      "table_name": "troncon_hta",
+      "column_count": 4,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 1,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\elec_troncon_hta.sql"
+    },
+    {
+      "csv_name": "ep_anomalie_conduite.csv",
+      "schema": "ep",
+      "table_name": "anomalie_conduite",
+      "column_count": 14,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_anomalie_conduite.sql"
+    },
+    {
+      "csv_name": "ep_bache.csv",
+      "schema": "ep",
+      "table_name": "ep_bache",
+      "column_count": 35,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 4,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_bache.sql"
+    },
+    {
+      "csv_name": "ep_bf.csv",
+      "schema": "ep",
+      "table_name": "ep_bf",
+      "column_count": 44,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 14,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_bf.sql"
+    },
+    {
+      "csv_name": "ep_bouche_arro.csv",
+      "schema": "ep",
+      "table_name": "ep_bouche_arro",
+      "column_count": 34,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 3,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_bouche_arro.sql"
+    },
+    {
+      "csv_name": "ep_branchement.csv",
+      "schema": "ep",
+      "table_name": "ep_branchement",
+      "column_count": 31,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 5,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_branchement.sql"
+    },
+    {
+      "csv_name": "ep_brc_pt.csv",
+      "schema": "ep",
+      "table_name": "ep_brc_pt",
+      "column_count": 41,
+      "inferred_type_count": 2,
+      "reference_count": 5,
+      "check_count": 2,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_brc_pt.sql"
+    },
+    {
+      "csv_name": "ep_centre_tampon.csv",
+      "schema": "ep",
+      "table_name": "centre_tampon",
+      "column_count": 16,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_centre_tampon.sql"
+    },
+    {
+      "csv_name": "ep_compteur_i.csv",
+      "schema": "ep",
+      "table_name": "ep_compteur_i",
+      "column_count": 42,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 7,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_compteur_i.sql"
+    },
+    {
+      "csv_name": "ep_conduite_bureau.csv",
+      "schema": "ep",
+      "table_name": "ep_conduite",
+      "column_count": 47,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 9,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_conduite_bureau.sql"
+    },
+    {
+      "csv_name": "ep_conduite_terrain.csv",
+      "schema": "ep",
+      "table_name": "conduite_terrain",
+      "column_count": 16,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 1,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_conduite_terrain.sql"
+    },
+    {
+      "csv_name": "ep_cone_reduc.csv",
+      "schema": "ep",
+      "table_name": "ep_cone_reduc",
+      "column_count": 37,
+      "inferred_type_count": 1,
+      "reference_count": 5,
+      "check_count": 6,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_cone_reduc.sql"
+    },
+    {
+      "csv_name": "ep_forage.csv",
+      "schema": "ep",
+      "table_name": "ep_forage",
+      "column_count": 41,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 2,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_forage.sql"
+    },
+    {
+      "csv_name": "ep_hydrant.csv",
+      "schema": "ep",
+      "table_name": "ep_hydrant",
+      "column_count": 47,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 14,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_hydrant.sql"
+    },
+    {
+      "csv_name": "ep_noeud.csv",
+      "schema": "ep",
+      "table_name": "noeud",
+      "column_count": 11,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_noeud.sql"
+    },
+    {
+      "csv_name": "ep_obturateur.csv",
+      "schema": "ep",
+      "table_name": "ep_obturateur",
+      "column_count": 29,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 4,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_obturateur.sql"
+    },
+    {
+      "csv_name": "ep_pompe.csv",
+      "schema": "ep",
+      "table_name": "ep_pompe",
+      "column_count": 34,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 3,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_pompe.sql"
+    },
+    {
+      "csv_name": "ep_puit.csv",
+      "schema": "ep",
+      "table_name": "ep_puit",
+      "column_count": 28,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 3,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_puit.sql"
+    },
+    {
+      "csv_name": "ep_reduc_pres.csv",
+      "schema": "ep",
+      "table_name": "ep_reduc_pres",
+      "column_count": 38,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 3,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_reduc_pres.sql"
+    },
+    {
+      "csv_name": "ep_regard.csv",
+      "schema": "ep",
+      "table_name": "ep_regard",
+      "column_count": 43,
+      "inferred_type_count": 1,
+      "reference_count": 5,
+      "check_count": 9,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_regard.sql"
+    },
+    {
+      "csv_name": "ep_regard_pret.csv",
+      "schema": "ep",
+      "table_name": "regard_pret",
+      "column_count": 42,
+      "inferred_type_count": 1,
+      "reference_count": 0,
+      "check_count": 8,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_regard_pret.sql"
+    },
+    {
+      "csv_name": "ep_reservoir.csv",
+      "schema": "ep",
+      "table_name": "ep_reservoir",
+      "column_count": 45,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 5,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_reservoir.sql"
+    },
+    {
+      "csv_name": "ep_st_demineralisation.csv",
+      "schema": "ep",
+      "table_name": "st_demineralisation",
+      "column_count": 0,
+      "inferred_type_count": 0,
+      "reference_count": 0,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_st_demineralisation.sql"
+    },
+    {
+      "csv_name": "ep_station_pompage.csv",
+      "schema": "ep",
+      "table_name": "ep_station_pompage",
+      "column_count": 38,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 3,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_station_pompage.sql"
+    },
+    {
+      "csv_name": "ep_tn.csv",
+      "schema": "ep",
+      "table_name": "tn",
+      "column_count": 16,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_tn.sql"
+    },
+    {
+      "csv_name": "ep_traversee.csv",
+      "schema": "ep",
+      "table_name": "ep_traversee",
+      "column_count": 35,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 9,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_traversee.sql"
+    },
+    {
+      "csv_name": "ep_vanne.csv",
+      "schema": "ep",
+      "table_name": "ep_vanne",
+      "column_count": 44,
+      "inferred_type_count": 1,
+      "reference_count": 5,
+      "check_count": 11,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_vanne.sql"
+    },
+    {
+      "csv_name": "ep_ventouse.csv",
+      "schema": "ep",
+      "table_name": "ep_ventouse",
+      "column_count": 39,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 7,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_ventouse.sql"
+    },
+    {
+      "csv_name": "ep_vidange.csv",
+      "schema": "ep",
+      "table_name": "ep_vidange",
+      "column_count": 40,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 10,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_vidange.sql"
+    },
+    {
+      "csv_name": "ep_voie.csv",
+      "schema": "ep",
+      "table_name": "voie",
+      "column_count": 14,
+      "inferred_type_count": 0,
+      "reference_count": 5,
+      "check_count": 0,
+      "sql_path": "C:\\Users\\ANASDA~1\\AppData\\Local\\Temp\\branch-mobile-csvs-to-sql-5iobreqe\\sql\\ep_voie.sql"
+    }
+  ]
+}
