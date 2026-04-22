@@ -1,0 +1,572 @@
+{
+  "git_ref": "origin/codex/automation",
+  "file_count": 49,
+  "schema_count": 3,
+  "schemas": {
+    "asst": [
+      "bassin",
+      "branchement",
+      "canalisation_bureau",
+      "canalisation_reutilisation",
+      "canalisation_terrain",
+      "equipement",
+      "ouvrage",
+      "regard",
+      "regard_branchement",
+      "station"
+    ],
+    "elec": [
+      "cellule",
+      "coffret_bt",
+      "depart_bt",
+      "depart_hta",
+      "noeud_raccord",
+      "point_desserte",
+      "poste",
+      "support",
+      "transformateur",
+      "troncon_bt",
+      "troncon_hta"
+    ],
+    "ep": [
+      "anomalie_conduite",
+      "centre_tampon",
+      "conduite_terrain",
+      "ep_bache",
+      "ep_bf",
+      "ep_bouche_arro",
+      "ep_branchement",
+      "ep_brc_pt",
+      "ep_compteur_i",
+      "ep_conduite",
+      "ep_cone_reduc",
+      "ep_forage",
+      "ep_hydrant",
+      "ep_obturateur",
+      "ep_pompe",
+      "ep_puit",
+      "ep_reduc_pres",
+      "ep_regard",
+      "ep_reservoir",
+      "ep_station_pompage",
+      "ep_traversee",
+      "ep_vanne",
+      "ep_ventouse",
+      "ep_vidange",
+      "noeud",
+      "regard_pret",
+      "tn",
+      "voie"
+    ]
+  },
+  "files": [
+    {
+      "sql_name": "asst_bassin.sql",
+      "schema": "asst",
+      "table": "bassin",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_branchement.sql",
+      "schema": "asst",
+      "table": "branchement",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_canalisation_bureau.sql",
+      "schema": "asst",
+      "table": "canalisation_bureau",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_canalisation_reutilisation.sql",
+      "schema": "asst",
+      "table": "canalisation_reutilisation",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_canalisation_terrain.sql",
+      "schema": "asst",
+      "table": "canalisation_terrain",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_equipement.sql",
+      "schema": "asst",
+      "table": "equipement",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_ouvrage.sql",
+      "schema": "asst",
+      "table": "ouvrage",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_regard.sql",
+      "schema": "asst",
+      "table": "regard",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_regard_branchement.sql",
+      "schema": "asst",
+      "table": "regard_branchement",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "asst_station.sql",
+      "schema": "asst",
+      "table": "station",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_cellule.sql",
+      "schema": "elec",
+      "table": "cellule",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_coffret_bt.sql",
+      "schema": "elec",
+      "table": "coffret_bt",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_depart_bt.sql",
+      "schema": "elec",
+      "table": "depart_bt",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_depart_hta.sql",
+      "schema": "elec",
+      "table": "depart_hta",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_noeud_raccord.sql",
+      "schema": "elec",
+      "table": "noeud_raccord",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_point_desserte.sql",
+      "schema": "elec",
+      "table": "point_desserte",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_poste.sql",
+      "schema": "elec",
+      "table": "poste",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_support.sql",
+      "schema": "elec",
+      "table": "support",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_transformateur.sql",
+      "schema": "elec",
+      "table": "transformateur",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_troncon_bt.sql",
+      "schema": "elec",
+      "table": "troncon_bt",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "elec_troncon_hta.sql",
+      "schema": "elec",
+      "table": "troncon_hta",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "ep_anomalie_conduite.sql",
+      "schema": "ep",
+      "table": "anomalie_conduite",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_bache.sql",
+      "schema": "ep",
+      "table": "ep_bache",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_bf.sql",
+      "schema": "ep",
+      "table": "ep_bf",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_bouche_arro.sql",
+      "schema": "ep",
+      "table": "ep_bouche_arro",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_branchement.sql",
+      "schema": "ep",
+      "table": "ep_branchement",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_brc_pt.sql",
+      "schema": "ep",
+      "table": "ep_brc_pt",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_centre_tampon.sql",
+      "schema": "ep",
+      "table": "centre_tampon",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_compteur_i.sql",
+      "schema": "ep",
+      "table": "ep_compteur_i",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_conduite_bureau.sql",
+      "schema": "ep",
+      "table": "ep_conduite",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_conduite_terrain.sql",
+      "schema": "ep",
+      "table": "conduite_terrain",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_cone_reduc.sql",
+      "schema": "ep",
+      "table": "ep_cone_reduc",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_forage.sql",
+      "schema": "ep",
+      "table": "ep_forage",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_hydrant.sql",
+      "schema": "ep",
+      "table": "ep_hydrant",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_noeud.sql",
+      "schema": "ep",
+      "table": "noeud",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_obturateur.sql",
+      "schema": "ep",
+      "table": "ep_obturateur",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_pompe.sql",
+      "schema": "ep",
+      "table": "ep_pompe",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_puit.sql",
+      "schema": "ep",
+      "table": "ep_puit",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_reduc_pres.sql",
+      "schema": "ep",
+      "table": "ep_reduc_pres",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_regard.sql",
+      "schema": "ep",
+      "table": "ep_regard",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_regard_pret.sql",
+      "schema": "ep",
+      "table": "regard_pret",
+      "reference_count": 0,
+      "references": []
+    },
+    {
+      "sql_name": "ep_reservoir.sql",
+      "schema": "ep",
+      "table": "ep_reservoir",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_station_pompage.sql",
+      "schema": "ep",
+      "table": "ep_station_pompage",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_tn.sql",
+      "schema": "ep",
+      "table": "tn",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_traversee.sql",
+      "schema": "ep",
+      "table": "ep_traversee",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_vanne.sql",
+      "schema": "ep",
+      "table": "ep_vanne",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_ventouse.sql",
+      "schema": "ep",
+      "table": "ep_ventouse",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_vidange.sql",
+      "schema": "ep",
+      "table": "ep_vidange",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    },
+    {
+      "sql_name": "ep_voie.sql",
+      "schema": "ep",
+      "table": "voie",
+      "reference_count": 3,
+      "references": [
+        "public.commune",
+        "public.province",
+        "public.utilisateur"
+      ]
+    }
+  ],
+  "ordered_files": [
+    "asst_bassin.sql",
+    "asst_branchement.sql",
+    "asst_canalisation_bureau.sql",
+    "asst_canalisation_reutilisation.sql",
+    "asst_canalisation_terrain.sql",
+    "asst_equipement.sql",
+    "asst_ouvrage.sql",
+    "asst_regard.sql",
+    "asst_regard_branchement.sql",
+    "asst_station.sql",
+    "elec_cellule.sql",
+    "elec_coffret_bt.sql",
+    "elec_depart_bt.sql",
+    "elec_depart_hta.sql",
+    "elec_noeud_raccord.sql",
+    "elec_point_desserte.sql",
+    "elec_poste.sql",
+    "elec_support.sql",
+    "elec_transformateur.sql",
+    "elec_troncon_bt.sql",
+    "elec_troncon_hta.sql",
+    "ep_anomalie_conduite.sql",
+    "ep_bache.sql",
+    "ep_bf.sql",
+    "ep_bouche_arro.sql",
+    "ep_branchement.sql",
+    "ep_brc_pt.sql",
+    "ep_centre_tampon.sql",
+    "ep_compteur_i.sql",
+    "ep_conduite_bureau.sql",
+    "ep_conduite_terrain.sql",
+    "ep_cone_reduc.sql",
+    "ep_forage.sql",
+    "ep_hydrant.sql",
+    "ep_noeud.sql",
+    "ep_obturateur.sql",
+    "ep_pompe.sql",
+    "ep_puit.sql",
+    "ep_reduc_pres.sql",
+    "ep_regard.sql",
+    "ep_regard_pret.sql",
+    "ep_reservoir.sql",
+    "ep_station_pompage.sql",
+    "ep_tn.sql",
+    "ep_traversee.sql",
+    "ep_vanne.sql",
+    "ep_ventouse.sql",
+    "ep_vidange.sql",
+    "ep_voie.sql"
+  ],
+  "skipped_files": [
+    {
+      "sql_name": "ep_st_demineralisation.sql",
+      "reason": "No CREATE TABLE found in sql/ep_st_demineralisation.sql."
+    }
+  ]
+}
