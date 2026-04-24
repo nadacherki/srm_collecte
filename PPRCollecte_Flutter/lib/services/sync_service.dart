@@ -5,6 +5,7 @@ import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
 import 'photo_reference_service.dart';
+import 'projection_service.dart';
 
 class SyncResult {
   int successCount = 0;
@@ -85,6 +86,11 @@ class SyncService {
           }
 
           map.remove('id');
+          if (ApiService.currentProjetId != null &&
+              (map['id_projet'] == null ||
+                  map['id_projet'].toString().trim().isEmpty)) {
+            map['id_projet'] = ApiService.currentProjetId;
+          }
           map['downloaded'] = 1;
           map['synced'] = 1;
           map['date_sync'] = nowIso;
@@ -101,6 +107,8 @@ class SyncService {
         result.errors.add('Telechargement ${info.table}: ${_short(e)}');
       }
     }
+
+    await refreshEpRegardMiroirCache(result: result);
 
     if (result.failedCount == 0 && result.skippedCount == 0) {
       await dbHelper.saveLastDownloadTime(downloadStartedAt);
@@ -160,16 +168,7 @@ class SyncService {
 
           final payload = Map<String, dynamic>.from(row);
           final localPhotos = _extractLocalPhotos(payload);
-          payload.remove('id');
-          payload.remove('downloaded');
-          payload.remove('synced');
-          payload.remove('date_sync');
-          payload.remove('photo_1');
-          payload.remove('photo_2');
-          payload.remove('photo_3');
-          payload.remove('photo_4');
-          _removeKnownObsoleteKeys(info, payload);
-          _normalizeSyncPayload(payload);
+          _sanitizePayloadForSync(info, payload);
 
           final response = await ApiService.postData(
             info.endpoint,
@@ -234,6 +233,49 @@ class SyncService {
     return result;
   }
 
+  Future<void> refreshEpRegardMiroirCache({
+    SyncResult? result,
+  }) async {
+    try {
+      final remoteItems = await ApiService.fetchRegardsMiroirEP();
+      final rows = <Map<String, dynamic>>[];
+      final nowIso = DateTime.now().toIso8601String();
+      var skippedWithoutGeometry = 0;
+
+      for (final item in remoteItems) {
+        final map = _normalizeRemoteItem(item);
+        if (map == null) continue;
+
+        final geometryText = map['geometry_geojson']?.toString().trim();
+        final pointsJson = _buildPolygonPointsJsonFromGeometry(geometryText);
+        if (pointsJson == null || pointsJson.isEmpty) {
+          skippedWithoutGeometry++;
+          continue;
+        }
+
+        final row = Map<String, dynamic>.from(map);
+        row['points_json'] = pointsJson;
+        row['downloaded'] = 1;
+        row['synced'] = 1;
+        row['date_sync'] = nowIso;
+        rows.add(row);
+      }
+
+      await dbHelper.saveRegardMiroirCache(
+        rows,
+        projetId: ApiService.currentProjetId,
+      );
+      print(
+        '[REGARD-MIROIR] cache maj depuis serveur: ${rows.length}/${remoteItems.length}'
+        ' (geometrie ignoree: $skippedWithoutGeometry)',
+      );
+    } catch (e) {
+      result?.warnings.add(
+        'Miroir Regard non mis a jour: ${_short(e)}',
+      );
+    }
+  }
+
   Future<bool> _syncRowsForTableV2({
     required _TableInfo info,
     required int current,
@@ -284,16 +326,7 @@ class SyncService {
       try {
         final payload = Map<String, dynamic>.from(row);
         final localPhotos = _extractLocalPhotos(payload);
-        payload.remove('id');
-        payload.remove('downloaded');
-        payload.remove('synced');
-        payload.remove('date_sync');
-        payload.remove('photo_1');
-        payload.remove('photo_2');
-        payload.remove('photo_3');
-        payload.remove('photo_4');
-        _removeKnownObsoleteKeys(info, payload);
-        _normalizeSyncPayload(payload);
+        _sanitizePayloadForSync(info, payload);
 
         final response = await ApiService.postData(
           info.endpoint,
@@ -397,7 +430,13 @@ class SyncService {
 
     final raw = Map<String, dynamic>.from(item);
     if (raw['properties'] is Map) {
-      return Map<String, dynamic>.from(raw['properties'] as Map);
+      final properties = Map<String, dynamic>.from(raw['properties'] as Map);
+      properties['fid'] ??= raw['id'];
+      final geometry = raw['geometry'];
+      if (geometry != null) {
+        properties['geometry_geojson'] = jsonEncode(geometry);
+      }
+      return properties;
     }
     return raw;
   }
@@ -463,6 +502,7 @@ class SyncService {
       'ep/pompe': 'ep/pompes',
       'ep/reservoir': 'ep/reservoirs',
       'ep/station_de_pompage': 'ep/stations-pompage',
+      'ep/regard': 'ep/regards',
       'ep/regard_ep': 'ep/regards',
       'ep/autre_objet': 'ep/autres-objets',
       'ep/ep_conduite_terrain': 'ep/conduites-terrain',
@@ -493,6 +533,28 @@ class SyncService {
   String _short(Object e) {
     final value = e.toString();
     return value.length > 180 ? value.substring(0, 180) : value;
+  }
+
+  void _sanitizePayloadForSync(
+    _TableInfo info,
+    Map<String, dynamic> payload,
+  ) {
+    payload.remove('id');
+    payload.remove('downloaded');
+    payload.remove('synced');
+    payload.remove('date_sync');
+    payload.remove('photo_1');
+    payload.remove('photo_2');
+    payload.remove('photo_3');
+    payload.remove('photo_4');
+    _removeKnownObsoleteKeys(info, payload);
+
+    if (info.schema == 'ep' && info.table == 'regard') {
+      _normalizeRegardPayload(payload);
+      return;
+    }
+
+    _normalizeSyncPayload(payload);
   }
 
   Future<void> _markRowSyncedByUuid({
@@ -868,6 +930,157 @@ class SyncService {
       default:
         payload['mode_localisation'] = rawMode.toLowerCase();
     }
+  }
+
+  String? _buildPolygonPointsJsonFromGeometry(String? geometryText) {
+    if (geometryText == null || geometryText.isEmpty) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(geometryText);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final type = decoded['type']?.toString();
+      final coordinates = decoded['coordinates'];
+      List<dynamic>? ring;
+
+      if (type == 'Polygon' && coordinates is List && coordinates.isNotEmpty) {
+        final first = coordinates.first;
+        if (first is List) {
+          ring = first;
+        }
+      } else if (type == 'MultiPolygon' &&
+          coordinates is List &&
+          coordinates.isNotEmpty) {
+        final firstPolygon = coordinates.first;
+        if (firstPolygon is List && firstPolygon.isNotEmpty) {
+          final firstRing = firstPolygon.first;
+          if (firstRing is List) {
+            ring = firstRing;
+          }
+        }
+      }
+
+      if (ring == null || ring.isEmpty) {
+        return null;
+      }
+
+      final points = <List<double>>[];
+      for (final vertex in ring) {
+        if (vertex is List && vertex.length >= 2) {
+          final lng = vertex[0];
+          final lat = vertex[1];
+          if (lng is num && lat is num) {
+            points.add(_toWgs84GeometryPoint(lng.toDouble(), lat.toDouble()));
+          }
+        }
+      }
+
+      if (points.length < 4) {
+        return null;
+      }
+
+      return jsonEncode(points);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<double> _toWgs84GeometryPoint(double x, double y) {
+    if (x.abs() <= 180 && y.abs() <= 90) {
+      return <double>[x, y];
+    }
+
+    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+    return <double>[projected.longitude, projected.latitude];
+  }
+
+  void _normalizeRegardPayload(Map<String, dynamic> payload) {
+    final hasAnomalie = _isTruthy(payload['ep_anomalie']) ||
+        _isTruthy(payload['anomalie']);
+
+    payload['ep_anomalie'] = hasAnomalie ? 1 : 0;
+
+    final anomalyLabel = payload['anomalie_regard']?.toString().trim();
+    final fallbackAnomalyLabel = payload['type_anomalie']?.toString().trim();
+    if ((anomalyLabel == null || anomalyLabel.isEmpty) &&
+        fallbackAnomalyLabel != null &&
+        fallbackAnomalyLabel.isNotEmpty) {
+      payload['anomalie_regard'] = fallbackAnomalyLabel;
+    }
+
+    if (!hasAnomalie) {
+      payload['anomalie_regard'] = null;
+      payload['anomalie_tamp'] = null;
+    }
+
+    final rawMode = payload['mode_localisation']?.toString().trim();
+    if (rawMode == null || rawMode.isEmpty) {
+      payload['mode_localisation'] = 'Levé topographique';
+    } else {
+      switch (rawMode.toLowerCase()) {
+        case 'gps':
+        case 'gps mock':
+        case 'gps_mock':
+        case 'mock':
+        case 'gnss':
+        case 'levé topographique':
+        case 'leve topographique':
+          payload['mode_localisation'] = 'Levé topographique';
+          break;
+        case 'dessin':
+          payload['mode_localisation'] = 'Dessin';
+          break;
+        case 'georadar':
+        case 'geo-radar':
+        case 'géo-radar':
+          payload['mode_localisation'] = 'Géo-radar';
+          break;
+        default:
+          payload['mode_localisation'] = rawMode;
+      }
+    }
+
+    payload['id_user_creat'] ??= payload['id_agent_crea'];
+
+    const localOnlyKeys = <String>{
+      'anomalie',
+      'type_anomalie',
+      'objet_incomplet',
+      'latitude_gps',
+      'longitude_gps',
+      'altitude_gps',
+      'id_projet',
+      'id_agent_crea',
+      'id_mission',
+      'id_planche',
+      'x_debut',
+      'y_debut',
+      'x_fin',
+      'y_fin',
+      'lat_debut',
+      'lon_debut',
+      'lat_fin',
+      'lon_fin',
+      'nb_points',
+      'distance_m',
+      'points_json',
+      'date_collecte',
+    };
+    payload.removeWhere((key, _) => localOnlyKeys.contains(key));
+  }
+
+  bool _isTruthy(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final normalized = value?.toString().trim().toLowerCase();
+    return normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'oui' ||
+        normalized == 'yes';
   }
 
   void _removeKnownObsoleteKeys(_TableInfo info, Map<String, dynamic> payload) {

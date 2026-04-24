@@ -12,6 +12,7 @@ import math
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.contrib.gis.geos import Point
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import serializers
@@ -21,6 +22,7 @@ from .models import (
     # Public
     Utilisateur, Projet, Mission, Commune,
     HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, FondDePlan, EvaluationAgent,
+    StatistiqueConduite, StatistiqueConduiteSegment,
     SrmFieldOption, BasemapZone, BasemapPackage,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
@@ -31,7 +33,7 @@ from .models import (
     EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
-    EpRegardEp, EpAutreObjet,
+    EpRegard, EpRegardMiroir, EpRegardEp, EpAutreObjet,
     # EP linÃ©aires + surfacique
     EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
     # ASS
@@ -283,6 +285,60 @@ class PhotoUploadSerializer(serializers.Serializer):
             raise serializers.ValidationError('Photo trop volumineuse (maximum 5 Mo)')
 
         return value
+
+
+class StatistiqueConduiteNodeSerializer(serializers.Serializer):
+    fid = serializers.IntegerField(required=False, allow_null=True)
+    uuid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=254,
+        trim_whitespace=True,
+    )
+    ep_num = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=254,
+        trim_whitespace=True,
+    )
+
+    def validate(self, attrs):
+        fid = attrs.get('fid')
+        uuid = (attrs.get('uuid') or '').strip()
+        if fid is None and not uuid:
+            raise serializers.ValidationError(
+                'Chaque regard doit fournir fid ou uuid.'
+            )
+        return attrs
+
+
+class StatistiqueConduiteValidateSerializer(serializers.Serializer):
+    id_agent = serializers.IntegerField(min_value=1)
+    jour = LenientDateField()
+    nodes = StatistiqueConduiteNodeSerializer(many=True)
+
+    def validate_nodes(self, value):
+        if len(value) < 2:
+            raise serializers.ValidationError(
+                'Au moins deux regards sont necessaires pour valider une conduite.'
+            )
+        return value
+
+
+class StatistiqueConduiteSegmentSerializer(StrictGeoFeatureModelSerializer):
+    class Meta:
+        model = StatistiqueConduiteSegment
+        geo_field = 'geom'
+        fields = '__all__'
+
+
+class StatistiqueConduiteSerializer(StrictGeoFeatureModelSerializer):
+    class Meta:
+        model = StatistiqueConduite
+        geo_field = 'geom'
+        fields = '__all__'
 
 # =====================================================================
 #  SCHÃ‰MA PUBLIC
@@ -708,6 +764,47 @@ class EpReservoirSerializer(StrictGeoFeatureModelSerializer):
 class EpStationDePompageSerializer(StrictGeoFeatureModelSerializer):
     class Meta:
         model = EpStationDePompage
+        geo_field = 'geom'
+        fields = '__all__'
+
+
+class EpRegardSerializer(StrictGeoFeatureModelSerializer):
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        geom = attrs.get('geom')
+        x = attrs.get(
+            'ep_coor_x',
+            getattr(self.instance, 'ep_coor_x', None),
+        )
+        y = attrs.get(
+            'ep_coor_y',
+            getattr(self.instance, 'ep_coor_y', None),
+        )
+        z = attrs.get(
+            'ep_coor_z',
+            getattr(self.instance, 'ep_coor_z', None),
+        )
+
+        if geom is None and x is not None and y is not None:
+            attrs['geom'] = Point(
+                float(x),
+                float(y),
+                float(z if z is not None else 0.0),
+                srid=26191,
+            )
+
+        return attrs
+
+    class Meta:
+        model = EpRegard
+        geo_field = 'geom'
+        fields = '__all__'
+
+
+class EpRegardMiroirSerializer(StrictGeoFeatureModelSerializer):
+    class Meta:
+        model = EpRegardMiroir
         geo_field = 'geom'
         fields = '__all__'
 

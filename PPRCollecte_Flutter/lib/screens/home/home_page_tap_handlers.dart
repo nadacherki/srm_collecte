@@ -659,8 +659,11 @@ Future<void> _editMapItemImpl(
       ),
     );
   } else {
-    final lat = (item['latitude_gps'] as num?)?.toDouble() ?? 0.0;
-    final lon = (item['longitude_gps'] as num?)?.toDouble() ?? 0.0;
+    final latLng = _resolveEditablePointLatLngImpl(
+      item: item,
+      metier: metier,
+      entityType: entityType,
+    );
 
     await Navigator.push(
       state.context,
@@ -669,8 +672,8 @@ Future<void> _editMapItemImpl(
           body: SrmPointFormWidget(
             metier: metier,
             entityType: entityType,
-            latitude: lat,
-            longitude: lon,
+            latitude: latLng?.latitude ?? 0.0,
+            longitude: latLng?.longitude ?? 0.0,
             altitude: (item['altitude_gps'] as num?)?.toDouble(),
             agentName: state.widget.agentName,
             existingData: item,
@@ -687,4 +690,36 @@ Future<void> _editMapItemImpl(
   if (state.mounted) {
     await state._refreshAfterNavigation();
   }
+}
+
+LatLng? _resolveEditablePointLatLngImpl({
+  required Map<String, dynamic> item,
+  required String metier,
+  required String entityType,
+}) {
+  final latitude = (item['latitude_gps'] as num?)?.toDouble();
+  final longitude = (item['longitude_gps'] as num?)?.toDouble();
+  if (latitude != null && longitude != null) {
+    return LatLng(latitude, longitude);
+  }
+
+  final schema = SrmConfig.getSchema(metier, entityType);
+  if (schema == null || schema.isEmpty) {
+    return null;
+  }
+
+  final x = _dynamicToDoubleImpl(item['${schema}_coor_x']);
+  final y = _dynamicToDoubleImpl(item['${schema}_coor_y']);
+  if (x == null || y == null) {
+    return null;
+  }
+
+  final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+  return LatLng(projected.latitude, projected.longitude);
+}
+
+double? _dynamicToDoubleImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString().trim());
 }

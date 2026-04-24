@@ -89,6 +89,10 @@ class CustomMarkerIcons {
       icon: Icons.crop_square,
       color: const Color(0xFF2E7D32),
     ),
+    'regard': MarkerIconConfig(
+      icon: Icons.crop_square,
+      color: const Color(0xFF2E7D32),
+    ),
     'bouche_cles': MarkerIconConfig(
       icon: Icons.vpn_key,
       color: const Color(0xFF0288D1),
@@ -198,8 +202,16 @@ class CustomMarkerIcons {
   };
 
   /// Retourne un Widget pour le marqueur (utilisé dans flutter_map)
-  static Widget getMarkerWidget(String tableName, {double size = 40.0, VoidCallback? onTap}) {
+  static Widget getMarkerWidget(String tableName, {double size = 36.0, VoidCallback? onTap}) {
     final config = iconConfig[tableName];
+
+    if (tableName == 'regard' || tableName == 'regard_ep') {
+      return _buildRegardMarker(
+        size,
+        onTap,
+        color: config?.color ?? const Color(0xFF2E7D32),
+      );
+    }
 
     if (config == null) {
       return _buildDefaultMarker(size, onTap);
@@ -210,6 +222,9 @@ class CustomMarkerIcons {
 
   /// Construit un marqueur personnalisé
   static Widget _buildCustomMarker(MarkerIconConfig config, double size, VoidCallback? onTap) {
+    final borderWidth = size <= 18 ? 1.0 : (size <= 32 ? 1.5 : 2.0);
+    final iconSize = size * 0.54;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -218,19 +233,19 @@ class CustomMarkerIcons {
         decoration: BoxDecoration(
           color: config.color,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: Colors.white, width: borderWidth),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.24),
+              blurRadius: 3,
+              offset: const Offset(0, 1.5),
             ),
           ],
         ),
         child: Icon(
           config.icon,
           color: Colors.white,
-          size: size * 0.6,
+          size: iconSize,
         ),
       ),
     );
@@ -244,6 +259,44 @@ class CustomMarkerIcons {
         Icons.location_pin,
         color: Colors.red,
         size: size,
+      ),
+    );
+  }
+
+  /// Regard EP : meme taille de rendu que les autres points, avec un
+  /// pictogramme carre. Le polygone miroir porte l'emprise autour.
+  static Widget _buildRegardMarker(
+    double size,
+    VoidCallback? onTap, {
+    required Color color,
+  }) {
+    final borderWidth = size <= 18 ? 1.0 : (size <= 32 ? 1.5 : 2.0);
+    final iconSize = size * 0.56;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: borderWidth),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.24),
+              blurRadius: 3,
+              offset: const Offset(0, 1.5),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Icon(
+            Icons.crop_square,
+            color: Colors.white,
+            size: iconSize,
+          ),
+        ),
       ),
     );
   }
@@ -266,7 +319,7 @@ class CustomMarkerIcons {
   // Panneau danger terrain : triangle rouge comme un vrai panneau de signalisation.
   // Immédiatement reconnaissable sur le terrain sans ambiguïté.
   static Widget getAnomalieMarkerWidget(String tableName,
-      {double size = 44.0, VoidCallback? onTap}) {
+      {double size = 40.0, VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
@@ -283,7 +336,7 @@ class CustomMarkerIcons {
   // Cercle orange avec icône de l'entité + badge ✏ en haut à droite.
   // Signal clair : objet collecté mais données incomplètes.
   static Widget getIncompletMarkerWidget(String tableName,
-      {double size = 44.0, VoidCallback? onTap}) {
+      {double size = 40.0, VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(

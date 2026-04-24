@@ -1313,6 +1313,7 @@ class DatabaseHelper {
 
     const fixedCols = '''
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fid INTEGER,
       uuid TEXT UNIQUE,
       id_projet INTEGER,
       id_mission INTEGER,
@@ -1362,7 +1363,7 @@ class DatabaseHelper {
 
   bool _isFixedCol(String col) {
     const fixed = {
-      'id', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
+      'id', 'fid', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
       'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
       'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
       'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
@@ -2154,7 +2155,7 @@ class DatabaseHelper {
   }
 
   static const Set<String> _fixedSrmColumns = {
-    'id', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
+    'id', 'fid', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
     'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
     'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
     'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
@@ -2172,6 +2173,7 @@ class DatabaseHelper {
   };
 
   static const Map<String, String> _migratableFixedSrmColumns = {
+    'fid': 'INTEGER',
     'uuid': 'TEXT',
     'id_projet': 'INTEGER',
     'id_mission': 'INTEGER',
@@ -2221,6 +2223,7 @@ class DatabaseHelper {
     if (_fixedSrmColumns.contains(field)) {
       switch (field) {
         case 'id':
+        case 'fid':
         case 'id_projet':
         case 'id_mission':
         case 'id_agent_crea':
@@ -3135,6 +3138,43 @@ class DatabaseHelper {
     );
     if (res.isEmpty) return null;
     return res.first['value'] as String?;
+  }
+
+  String _regardMiroirCacheKey({int? projetId}) =>
+      'ep_regard_miroir_cache_${projetId ?? 'all'}';
+
+  Future<void> saveRegardMiroirCache(
+    List<Map<String, dynamic>> items, {
+    int? projetId,
+  }) async {
+    await saveAppMetadataValue(
+      _regardMiroirCacheKey(projetId: projetId),
+      jsonEncode(items),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getRegardMiroirCache({
+    int? projetId,
+  }) async {
+    final raw = await getAppMetadataValue(
+      _regardMiroirCacheKey(projetId: projetId),
+    );
+    if (raw == null || raw.trim().isEmpty) {
+      return const <Map<String, dynamic>>[];
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const <Map<String, dynamic>>[];
+      }
+      return decoded
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return const <Map<String, dynamic>>[];
+    }
   }
 
   Future<void> deleteAppMetadataValue(

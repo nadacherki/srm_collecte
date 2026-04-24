@@ -161,9 +161,9 @@ class SrmConfig {
           "fields": ["ep_num","ep_type","ep_puissance","ep_debit","ep_etat","emplacement","ref_rue","etage_aqua","secteur_aqua","ep_statut","observation","ep_coor_x","ep_coor_y","ep_coor_z","conformite_plan"],
           "requiredFields": ["ep_type","ep_etat","conformite_plan"],
         },
-        "Regard EP": {
-          "tableName": "regard_ep", "schema": "ep",
-          "geometryType": "Polygon", "hasZ": true, "isPolygon": true, "maxPhotos": 0,
+        "Regard": {
+          "tableName": "regard", "schema": "ep",
+          "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": null, "typeOptions": [],
           "fields": [
             "ep_sect_com","ep_adresse","sec_com","sect_hydr","zone",

@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.contrib.gis.geos import LineString, Point
 from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -42,6 +43,7 @@ except ImportError:  # pragma: no cover - depends on runtime env
 from .models import (
     Utilisateur, Projet, Mission, Commune,
     HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto, FondDePlan, EvaluationAgent,
+    StatistiqueConduite, StatistiqueConduiteSegment,
     SrmFieldOption,
     BasemapZone, BasemapPackage, AgentBasemapZone,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
@@ -52,7 +54,7 @@ from .models import (
     EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
-    EpRegardEp, EpAutreObjet,
+    EpRegard, EpRegardMiroir, EpRegardEp, EpAutreObjet,
     EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
     AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
     AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
@@ -79,7 +81,7 @@ from .serializers import (
     EpNoeudSerializer, EpObturateurSerializer, EpReducteurDePressionSerializer,
     EpForageSerializer, EpPuitSerializer, EpPompeSerializer,
     EpReservoirSerializer, EpStationDePompageSerializer,
-    EpRegardEpSerializer, EpAutreObjetSerializer,
+    EpRegardSerializer, EpRegardMiroirSerializer, EpRegardEpSerializer, EpAutreObjetSerializer,
     EpConduiteTerrainSerializer, EpConduiteBureauSerializer,
     EpBranchementSerializer, EpTraverseSerializer, EpPlancheSerializer,
     AssRegardSerializer, AssRegardBranchementSerializer,
@@ -92,6 +94,7 @@ from .serializers import (
     ElecDepartBtSerializer, ElecDepartHtaSerializer,
     ElecTronconBtSerializer, ElecTronconHtaSerializer,
     LoginRequestSerializer, PhotoUploadSerializer,
+    StatistiqueConduiteValidateSerializer,
 )
 
 
@@ -163,6 +166,205 @@ def _extract_photo_taken_at(photo_path):
             return captured_at
 
     return None
+
+
+def _resolve_conduite_regard_node(node_payload):
+    fid = node_payload.get('fid')
+    uuid_value = (node_payload.get('uuid') or '').strip()
+    ep_num = (node_payload.get('ep_num') or '').strip()
+
+    if fid is not None:
+        try:
+            regard = EpRegard.objects.get(fid=fid)
+        except EpRegard.DoesNotExist as exc:
+            raise ValidationError(
+                {
+                    'nodes': [
+                        f'Regard introuvable sur le serveur pour fid={fid}.'
+                    ]
+                }
+            ) from exc
+        if regard.geom is None:
+            x = regard.ep_coor_x
+            y = regard.ep_coor_y
+            z = regard.ep_coor_z
+            if x is not None and y is not None:
+                regard.geom = Point(
+                    float(x),
+                    float(y),
+                    float(z if z is not None else 0.0),
+                    srid=26191,
+                )
+            else:
+                raise ValidationError(
+                    {'nodes': [f'Regard fid={fid} sans geometrie exploitable.']}
+                )
+        return regard
+
+    if uuid_value:
+        qs = EpRegard.objects.filter(uuid=uuid_value)
+        count = qs.count()
+        if count == 0:
+            label = ep_num or uuid_value
+            raise ValidationError(
+                {
+                    'nodes': [
+                        f'Regard {label} absent du serveur. Synchronisez les regards du jour avant validation.'
+                    ]
+                }
+            )
+        if count > 1:
+            raise ValidationError(
+                {
+                    'nodes': [
+                        f'UUID de regard ambigu sur le serveur: {uuid_value}.'
+                    ]
+                }
+            )
+        regard = qs.first()
+        if regard is None:
+            raise ValidationError(
+                {
+                    'nodes': [
+                        f'Regard {ep_num or uuid_value} introuvable.'
+                    ]
+                }
+            )
+        if regard.geom is None:
+            x = regard.ep_coor_x
+            y = regard.ep_coor_y
+            z = regard.ep_coor_z
+            if x is not None and y is not None:
+                regard.geom = Point(
+                    float(x),
+                    float(y),
+                    float(z if z is not None else 0.0),
+                    srid=26191,
+                )
+            else:
+                raise ValidationError(
+                    {
+                        'nodes': [
+                            f'Regard {ep_num or uuid_value} sans geometrie exploitable.'
+                        ]
+                    }
+                )
+        return regard
+
+    raise ValidationError(
+        {'nodes': ['Chaque regard doit fournir fid ou uuid pour la validation.']}
+    )
+
+
+def _build_unique_conduite_segments(regard_nodes):
+    unique_segments = []
+    seen_pairs = set()
+
+    for left, right in zip(regard_nodes, regard_nodes[1:]):
+        if left.fid == right.fid:
+            continue
+
+        pair_key = tuple(sorted((left.fid, right.fid)))
+        if pair_key in seen_pairs:
+            continue
+
+        line = LineString(left.geom.coords, right.geom.coords, srid=26191)
+        unique_segments.append(
+            {
+                'fid_regard_a': left.fid,
+                'fid_regard_b': right.fid,
+                'geom': line,
+            }
+        )
+        seen_pairs.add(pair_key)
+
+    return unique_segments
+
+
+def _insert_statistique_conduite_segments(
+    id_statistique_conduite,
+    unique_segments,
+    now,
+):
+    if not unique_segments:
+        return
+
+    rows = [
+        (
+            id_statistique_conduite,
+            segment['fid_regard_a'],
+            segment['fid_regard_b'],
+            segment['geom'].ewkt,
+            0.0,
+            now,
+            now,
+        )
+        for segment in unique_segments
+    ]
+
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            """
+            INSERT INTO public.statistique_conduite_segment (
+                id_statistique_conduite,
+                fid_regard_a,
+                fid_regard_b,
+                geom,
+                longueur_segment_m,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                ST_GeomFromEWKT(%s),
+                %s,
+                %s,
+                %s
+            )
+            """,
+            rows,
+        )
+
+
+def _segment_geom_to_wgs84_points(geom):
+    if geom is None:
+        return []
+
+    transformed = geom.clone()
+    transformed.transform(4326)
+    return [
+        {'lat': float(coord[1]), 'lng': float(coord[0])}
+        for coord in transformed.coords
+    ]
+
+
+def _statistique_conduite_snapshot(stat_row):
+    segment_qs = StatistiqueConduiteSegment.objects.filter(
+        id_statistique_conduite=stat_row.id_statistique_conduite
+    ).order_by('fid_regard_min', 'fid_regard_max')
+
+    segments_wgs84 = [
+        {
+            'fid_regard_a': segment.fid_regard_a,
+            'fid_regard_b': segment.fid_regard_b,
+            'points': _segment_geom_to_wgs84_points(segment.geom),
+            'longueur_segment_m': float(segment.longueur_segment_m or 0.0),
+        }
+        for segment in segment_qs
+    ]
+
+    return {
+        'exists': True,
+        'frozen': True,
+        'id_statistique_conduite': stat_row.id_statistique_conduite,
+        'id_agent': stat_row.id_agent,
+        'jour': stat_row.jour.isoformat(),
+        'longueur_conduite_m': float(stat_row.longueur_conduite_m or 0.0),
+        'segments_count': len(segments_wgs84),
+        'segments_wgs84': segments_wgs84,
+    }
 def _normalized_db_table(model):
     return str(model._meta.db_table).replace('"', '')
 
@@ -184,7 +386,7 @@ _SRM_PHOTO_MODELS = [
     EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
-    EpRegardEp, EpAutreObjet,
+    EpRegard, EpRegardEp, EpAutreObjet,
     EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
     AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
     AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
@@ -1390,6 +1592,111 @@ def photo_upload_view(request):
     )
 
 
+@api_view(['GET'])
+def statistique_conduite_jour_view(request):
+    raw_agent = (request.query_params.get('id_agent') or '').strip()
+    raw_jour = (request.query_params.get('jour') or '').strip()
+
+    if not raw_agent:
+        return Response(
+            {'error': 'Parametre id_agent requis.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not raw_jour:
+        return Response(
+            {'error': 'Parametre jour requis.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        id_agent = int(raw_agent)
+    except ValueError:
+        return Response(
+            {'error': 'Parametre id_agent invalide.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    jour = parse_date(raw_jour)
+    if jour is None:
+        return Response(
+            {'error': 'Parametre jour invalide (YYYY-MM-DD attendu).'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    row = StatistiqueConduite.objects.filter(
+        id_agent=id_agent,
+        jour=jour,
+    ).first()
+
+    if row is None:
+        return Response(
+            {
+                'exists': False,
+                'frozen': False,
+                'id_agent': id_agent,
+                'jour': jour.isoformat(),
+                'longueur_conduite_m': 0.0,
+                'segments_count': 0,
+                'segments_wgs84': [],
+            }
+        )
+
+    return Response(_statistique_conduite_snapshot(row))
+
+
+@api_view(['POST'])
+def statistique_conduite_validate_view(request):
+    serializer = StatistiqueConduiteValidateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    validated = serializer.validated_data
+    id_agent = validated['id_agent']
+    jour = validated['jour']
+    raw_nodes = validated['nodes']
+
+    existing = StatistiqueConduite.objects.filter(
+        id_agent=id_agent,
+        jour=jour,
+    ).first()
+    if existing is not None:
+        payload = _statistique_conduite_snapshot(existing)
+        payload['error'] = 'La conduite de ce jour est deja figee.'
+        return Response(payload, status=status.HTTP_409_CONFLICT)
+
+    resolved_nodes = [_resolve_conduite_regard_node(node) for node in raw_nodes]
+    unique_segments = _build_unique_conduite_segments(resolved_nodes)
+    if not unique_segments:
+        raise ValidationError(
+            {
+                'nodes': [
+                    'Aucun segment unique exploitable a enregistrer pour cette conduite.'
+                ]
+            }
+        )
+
+    now = timezone.now()
+    with transaction.atomic():
+        conduite = StatistiqueConduite.objects.create(
+            id_agent=id_agent,
+            jour=jour,
+            geom=None,
+            longueur_conduite_m=0.0,
+            created_at=now,
+            updated_at=now,
+        )
+        _insert_statistique_conduite_segments(
+            conduite.id_statistique_conduite,
+            unique_segments,
+            now,
+        )
+        conduite.refresh_from_db()
+
+    return Response(
+        _statistique_conduite_snapshot(conduite),
+        status=status.HTTP_201_CREATED,
+    )
+
+
 @api_view(['POST'])
 def mobile_history_upload_view(request):
     serializer = MobileHistoryUploadSerializer(data=request.data)
@@ -2017,9 +2324,42 @@ class EpStationDePompageViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet)
     serializer_class = EpStationDePompageSerializer
 
 
-class EpRegardEpViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
-    queryset = EpRegardEp.objects.all()
-    serializer_class = EpRegardEpSerializer
+class EpRegardViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+    queryset = EpRegard.objects.all()
+    serializer_class = EpRegardSerializer
+
+
+class EpRegardMiroirViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = EpRegardMiroir.objects.all()
+    serializer_class = EpRegardMiroirSerializer
+
+    def _table_exists(self):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT to_regclass(%s)", ['ep.regard_miroir'])
+            row = cursor.fetchone()
+        return bool(row and row[0])
+
+    def get_queryset(self):
+        if not self._table_exists():
+            return EpRegardMiroir.objects.none()
+        return super().get_queryset()
+
+    def list(self, request, *args, **kwargs):
+        if not self._table_exists():
+            return Response(
+                {
+                    'count': 0,
+                    'next': None,
+                    'previous': None,
+                    'results': [],
+                    'warning': (
+                        'La table ep.regard_miroir n existe pas encore. '
+                        'Executer le script SQL 2026-04-23_ep_regard_miroir.sql '
+                        'pour activer les carres miroir des regards.'
+                    ),
+                }
+            )
+        return super().list(request, *args, **kwargs)
 
 
 class EpAutreObjetViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):

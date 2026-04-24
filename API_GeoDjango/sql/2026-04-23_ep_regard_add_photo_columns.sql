@@ -1,0 +1,9 @@
+BEGIN;
+
+ALTER TABLE IF EXISTS ep.regard
+    ADD COLUMN IF NOT EXISTS photo_1 text,
+    ADD COLUMN IF NOT EXISTS photo_2 text,
+    ADD COLUMN IF NOT EXISTS photo_3 text,
+    ADD COLUMN IF NOT EXISTS photo_4 text;
+
+COMMIT;

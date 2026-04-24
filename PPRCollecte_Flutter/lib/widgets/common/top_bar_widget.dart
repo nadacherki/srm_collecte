@@ -1,18 +1,22 @@
 // lib/widgets/common/top_bar_widget.dart
 // Sprint 6 — Icône profil cliquable → ProfilePage
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../screens/profile/profile_page.dart';
 
 class TopBarWidget extends StatelessWidget {
   final String agentName;
   final VoidCallback onLogout;
-  final VoidCallback? onReturnFromProfile;
+  final FutureOr<void> Function()? onReturnFromProfile;
+  final FutureOr<void> Function()? onStartConduiteDrawing;
 
   const TopBarWidget({
     super.key,
     required this.agentName,
     required this.onLogout,
     this.onReturnFromProfile,
+    this.onStartConduiteDrawing,
   });
 
   String _getInitials(String name) {
@@ -33,7 +37,7 @@ class TopBarWidget extends StatelessWidget {
           // ── Icône profil cliquable ──
           GestureDetector(
             onTap: () async {
-              await Navigator.push(
+              final result = await Navigator.push<Object?>(
                 context,
                 MaterialPageRoute(
                   builder: (_) => ProfilePage(
@@ -42,7 +46,10 @@ class TopBarWidget extends StatelessWidget {
                   ),
                 ),
               );
-              onReturnFromProfile?.call();
+              await onReturnFromProfile?.call();
+              if (result == ProfilePage.startConduiteDrawingResult) {
+                await onStartConduiteDrawing?.call();
+              }
             },
             child: Row(
               children: [

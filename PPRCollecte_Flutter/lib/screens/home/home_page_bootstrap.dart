@@ -418,6 +418,11 @@ Future<void> _focusOnTargetImpl(
 void _onMapCreatedImpl(_HomePageState state, MapController controller) {
   state._mapController = controller;
 
+  if (state._isConduiteDrawingMode && state._conduiteModeMarkers.isNotEmpty) {
+    state._focusConduiteModeBounds();
+    return;
+  }
+
   if (state.widget.initialFocus != null) {
     state._suspendAutoCenterFor(const Duration(seconds: 10));
 
@@ -442,6 +447,7 @@ void _onMapCreatedImpl(_HomePageState state, MapController controller) {
 }
 
 void _moveCameraIfNeededImpl(_HomePageState state) {
+  if (state._isConduiteDrawingMode) return;
   if (state._mapController == null || state.userPosition == null) return;
 
   try {

@@ -12,6 +12,8 @@ import '../../services/offline_basemap_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 
 class ProfilePage extends StatefulWidget {
+  static const String startConduiteDrawingResult = 'start_conduite_drawing';
+
   final String agentName;
   final VoidCallback onLogout;
 
@@ -567,6 +569,20 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _startConduiteDrawingMode,
+                    icon: const Icon(Icons.alt_route),
+                    label: const Text('Dessiner une conduite'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1B4F72),
+                      side: const BorderSide(color: Color(0xFF1B4F72)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -826,6 +842,10 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  void _startConduiteDrawingMode() {
+    Navigator.of(context).pop(ProfilePage.startConduiteDrawingResult);
   }
 
   Widget _buildBasemapPackageDownloadRow(Map<String, dynamic> packageRow) {

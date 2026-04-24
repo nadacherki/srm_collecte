@@ -94,6 +94,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           ? 'ASS'
           : 'ELEC';
 
+  String get _tableName =>
+      SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+
+  bool get _isEpRegardPoint =>
+      widget.metier == 'Eau Potable' && _tableName == 'regard';
+
   @override
   void initState() {
     super.initState();
@@ -116,11 +122,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _controllers[field] = TextEditingController(text: initial);
     }
     _prefillCoordinates();
+    _applyEntitySpecificDefaults();
 
     if (widget.existingData != null) {
       _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
           _isTruthyFlag(widget.existingData!['ep_anomalie']);
-      _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
+      _typeAnomalie = widget.existingData!['type_anomalie']?.toString() ??
+          widget.existingData!['anomalie_regard']?.toString() ??
+          widget.existingData!['anomalie_tamp']?.toString();
 
       // Restaurer état objet incomplet en mode édition
       _isObjetIncomplet = _isTruthyFlag(widget.existingData!['objet_incomplet']);
@@ -196,6 +205,49 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             linked['detail_raison']?.toString() ?? '';
       }
     });
+  }
+
+  void _applyEntitySpecificDefaults() {
+    if (!_isEpRegardPoint || widget.existingData != null) return;
+
+    final now = DateTime.now();
+    _setControllerIfEmpty('ep_agent', 'ETAFAT');
+    _setControllerIfEmpty('ep_agent_crea', 'ETAFAT');
+    _setControllerIfEmpty('ep_date_insertion', _formatDateOnly(now));
+    _setControllerIfEmpty('id_user_creat', ApiService.userId?.toString() ?? '');
+    _setControllerIfEmpty('date_creation', now.toIso8601String());
+    _setControllerIfEmpty('mode_localisation', 'Levé topographique');
+    _setControllerIfEmpty('ep_anomalie', '0');
+  }
+
+  void _setControllerIfEmpty(String field, String value) {
+    if (value.trim().isEmpty) return;
+    final controller = _controllers[field];
+    if (controller == null) return;
+    if (controller.text.trim().isEmpty) {
+      controller.text = value;
+    }
+  }
+
+  String _formatDateOnly(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  bool _isConfiguredReadOnlyField(String field) {
+    return SrmConfig.getReadOnlyFields(widget.metier, widget.entityType)
+        .contains(field);
+  }
+
+  bool _isHiddenField(String field) {
+    if (_isEpRegardPoint) {
+      return field == 'ep_anomalie' ||
+          field == 'anomalie_tamp' ||
+          field == 'anomalie_regard';
+    }
+    return false;
   }
 
   @override
@@ -415,6 +467,31 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       data['anomalie'] = _hasAnomalie ? 1 : 0;
       if (_hasAnomalie && _typeAnomalie != null) {
         data['type_anomalie'] = _typeAnomalie;
+      } else {
+        data['type_anomalie'] = null;
+      }
+
+      if (_isEpRegardPoint) {
+        data['ep_anomalie'] = _hasAnomalie ? 1 : 0;
+        data['mode_localisation'] =
+            (_controllers['mode_localisation']?.text.trim().isNotEmpty ?? false)
+                ? _controllers['mode_localisation']!.text.trim()
+                : 'Levé topographique';
+        data['id_user_creat'] ??= ApiService.userId;
+        if (widget.existingData != null) {
+          data['id_user_modif'] = ApiService.userId;
+          data['date_modif'] = DateTime.now().toIso8601String();
+        } else {
+          data['date_creation'] ??= DateTime.now().toIso8601String();
+        }
+        if (_hasAnomalie) {
+          data['anomalie_regard'] = _typeAnomalie?.trim().isEmpty ?? true
+              ? null
+              : _typeAnomalie?.trim();
+        } else {
+          data['anomalie_regard'] = null;
+          data['anomalie_tamp'] = null;
+        }
       }
 
       // ── Objet Incomplet : flag dans la table métier uniquement ──
@@ -427,10 +504,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       }
 
       // ── Clés étrangères (injectées automatiquement) ──
-      data['id_projet']     = ApiService.currentProjetId;
+      data['id_projet'] = ApiService.currentProjetId;
       data['id_agent_crea'] = ApiService.userId;
-      data['mode_localisation'] = 'gnss';
-      data['synced']        = 0;
+      if (!_isEpRegardPoint) {
+        data['mode_localisation'] = 'gnss';
+      } else {
+        data['mode_localisation'] =
+            data['mode_localisation']?.toString().trim().isNotEmpty == true
+                ? data['mode_localisation']
+                : 'Levé topographique';
+      }
+      data['synced'] = 0;
       data['date_collecte'] = DateTime.now().toIso8601String();
 
       final db = DatabaseHelper();
@@ -507,6 +591,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       field.endsWith('_coor_z');
 
   Widget _buildField(String field) {
+    if (_isHiddenField(field)) {
+      return const SizedBox.shrink();
+    }
+
     final isCoord    = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
     final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
@@ -556,7 +644,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         ),
       );
     } else {
-      final fieldIsReadOnly = _isLocked || _isObjetIncomplet;
+      final fieldIsReadOnly =
+          _isLocked || _isObjetIncomplet || _isConfiguredReadOnlyField(field);
       fieldWidget = Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(
@@ -712,6 +801,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   String _fieldLabel(String field) {
+    final configuredLabel = SrmConfig.getFieldLabel(
+      widget.metier,
+      widget.entityType,
+      field,
+    );
+    final defaultConfigLabel = field.replaceAll('_', ' ');
+    if (configuredLabel != defaultConfigLabel) {
+      return configuredLabel;
+    }
+
     final labels = <String, String>{
       'marque': 'Marque',
       'ref': 'Reference',
@@ -784,7 +883,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'tension': 'Tension (kV)', 'code_poste': 'Code poste',
       'type_coffret': 'Type coffret', 'num_coffret': 'N° coffret',
     };
-    return labels[field] ?? field.replaceAll('_', ' ');
+    return labels[field] ?? configuredLabel;
   }
 
   // Section photos

@@ -60,6 +60,23 @@ Future<void> _performDownload() async {
         result.failedCount == 0 &&
         downloadedLocalCount == 0 &&
         result.skippedCount == 0;
+    final bool fullFailure =
+        result.failedCount > 0 &&
+        result.successCount == 0 &&
+        result.skippedCount == 0;
+    final bool partialFailure =
+        result.failedCount > 0 && !fullFailure;
+    final bool networkFailure = fullFailure &&
+        result.errors.isNotEmpty &&
+        result.errors.every((error) {
+          final lower = error.toLowerCase();
+          return lower.contains('erreur reseau') ||
+              lower.contains('erreur réseau') ||
+              lower.contains('timeout') ||
+              lower.contains('socketexception') ||
+              lower.contains('connection refused') ||
+              lower.contains('failed host lookup');
+        });
 
     _showDownloadResult(
       result,
@@ -67,24 +84,36 @@ Future<void> _performDownload() async {
       nothingAvailable: nothingAvailable,
     );
 
+    final snackBarMessage = alreadyDownloaded
+        ? 'Aucune nouvelle donnée à télécharger'
+        : nothingAvailable
+            ? 'Aucune donnée disponible pour votre compte'
+            : fullFailure
+                ? networkFailure
+                    ? 'Serveur SRM injoignable. Vérifiez la connexion.'
+                    : 'Téléchargement impossible (${result.failedCount} erreurs)'
+                : partialFailure
+                    ? 'Téléchargement partiel : ${result.successCount} nouvelles, ${result.failedCount} erreurs'
+                    : result.successCount > 0
+                        ? 'Téléchargement : ${result.successCount} nouvelles, ${result.skippedCount} déjà à jour'
+                        : 'Toutes les données sont déjà à jour (${result.skippedCount})';
+
+    final snackBarColor = alreadyDownloaded
+        ? Colors.blue
+        : nothingAvailable
+            ? Colors.orange
+            : fullFailure
+                ? Colors.red
+                : partialFailure
+                    ? Colors.orange
+                    : result.successCount > 0
+                        ? Colors.green
+                        : Colors.blue;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          alreadyDownloaded
-              ? 'Aucune nouvelle donnée à télécharger'
-              : nothingAvailable
-                  ? 'Aucune donnée disponible pour votre compte'
-                  : result.successCount > 0
-                      ? 'Téléchargement : ${result.successCount} nouvelles, ${result.skippedCount} déjà à jour'
-                      : 'Toutes les données sont déjà à jour (${result.skippedCount})',
-        ),
-        backgroundColor: alreadyDownloaded
-            ? Colors.blue
-            : nothingAvailable
-                ? Colors.orange
-                : result.successCount > 0
-                    ? Colors.green
-                    : Colors.blue,
+        content: Text(snackBarMessage),
+        backgroundColor: snackBarColor,
       ),
     );
   } catch (e) {
@@ -176,7 +205,8 @@ Future<void> _performSync() async {
   });
 
   try {
-    final result = await SyncService().syncAllDataSequential(
+    final syncService = SyncService();
+    final result = await syncService.syncAllDataSequential(
       onProgress: (progress, currentOperation, processed, total) {
         final safeProgress = progress.isNaN || progress.isInfinite
             ? 0.0
@@ -206,6 +236,8 @@ Future<void> _performSync() async {
           _lastSyncTimeText = _formatTimeHHmm(now);
         });
       }
+
+      await syncService.refreshEpRegardMiroirCache(result: result);
     }
 
     if (mounted) {
@@ -243,8 +275,7 @@ Widget _buildStepIndicator() {
       lowerOperation.contains('conduite')) {
     currentStep = 'Lignes';
   } else if (lowerOperation.contains('polyg') ||
-      lowerOperation.contains('planche') ||
-      lowerOperation.contains('regard_ep')) {
+      lowerOperation.contains('planche')) {
     currentStep = 'Polygones';
   }
 

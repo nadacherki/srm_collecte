@@ -43,6 +43,7 @@ class LegendWidget extends StatefulWidget {
 }
 
 class _LegendWidgetState extends State<LegendWidget> {
+  static const String _readOnlyRegardMiroirTable = 'regard_miroir';
   late Map<String, bool> _visibility;
   bool _isExpanded = false;
   bool _anomalieFilterActive = false;
@@ -65,6 +66,12 @@ class _LegendWidgetState extends State<LegendWidget> {
   static String _vk(String tableName) => 'srm_$tableName';
   static String _mk(String metier) => 'srm_metier_$metier';
 
+  Iterable<String> _readOnlyTablesForMetier(String metier) sync* {
+    if (metier == 'Eau Potable') {
+      yield _readOnlyRegardMiroirTable;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +88,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     }
     _anomalieFilterActive = _visibility['srm_anomalie'] == true;
     _incompletFilterActive = _visibility['srm_incomplet'] == true;
+    _visibility.putIfAbsent(_vk(_readOnlyRegardMiroirTable), () => true);
   }
 
   void _toggle(String key, bool value) {
@@ -96,6 +104,9 @@ class _LegendWidgetState extends State<LegendWidget> {
       for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
         final t = SrmConfig.getTableName(metier, entity);
         if (t != null) _visibility[_vk(t)] = value;
+      }
+      for (final table in _readOnlyTablesForMetier(metier)) {
+        _visibility[_vk(table)] = value;
       }
       widget.onVisibilityChanged(Map.from(_visibility));
     });
@@ -149,18 +160,27 @@ class _LegendWidgetState extends State<LegendWidget> {
   }
 
   int get _totalObjects =>
-      widget.pointCountsByTable.values.fold(0, (a, b) => a + b);
+      widget.pointCountsByTable.entries
+          .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+          .fold(0, (sum, entry) => sum + entry.value);
 
   int get _totalAnomalies =>
-      widget.anomalieCountsByTable.values.fold(0, (a, b) => a + b);
+      widget.anomalieCountsByTable.entries
+          .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+          .fold(0, (sum, entry) => sum + entry.value);
 
   int get _totalIncompletes =>
-      widget.incompletCountsByTable.values.fold(0, (a, b) => a + b);
+      widget.incompletCountsByTable.entries
+          .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+          .fold(0, (sum, entry) => sum + entry.value);
 
   bool _isMetierFullyChecked(String metier) {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
       final t = SrmConfig.getTableName(metier, e);
       if (t != null && !(_visibility[_vk(t)] ?? true)) return false;
+    }
+    for (final t in _readOnlyTablesForMetier(metier)) {
+      if (!(_visibility[_vk(t)] ?? true)) return false;
     }
     return true;
   }
@@ -170,6 +190,13 @@ class _LegendWidgetState extends State<LegendWidget> {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
       final t = SrmConfig.getTableName(metier, e);
       if (t == null) continue;
+      if (_visibility[_vk(t)] ?? true) {
+        anyOn = true;
+      } else {
+        anyOff = true;
+      }
+    }
+    for (final t in _readOnlyTablesForMetier(metier)) {
       if (_visibility[_vk(t)] ?? true) {
         anyOn = true;
       } else {
@@ -526,9 +553,16 @@ class _LegendWidgetState extends State<LegendWidget> {
           Padding(
             padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
             child: Column(
-              children: SrmConfig.getEntitiesForMetier(metier)
-                  .map((e) => _buildEntityRow(metier, e, color))
-                  .toList(),
+              children: [
+                ...SrmConfig.getEntitiesForMetier(metier)
+                    .map((e) => _buildEntityRow(metier, e, color)),
+                if (metier == 'Eau Potable')
+                  _buildReadOnlyPolygonRow(
+                    label: 'Regard miroir',
+                    tableName: _readOnlyRegardMiroirTable,
+                    color: const Color(0xFF2E7D32),
+                  ),
+              ],
             ),
           ),
 
@@ -697,6 +731,73 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
+  Widget _buildReadOnlyPolygonRow({
+    required String label,
+    required String tableName,
+    required Color color,
+  }) {
+    final visKey = _vk(tableName);
+    final isVisible = _visibility[visKey] ?? true;
+    final count = _countForTable(tableName);
+    final anomalies = _anomaliesForTable(tableName);
+    final incomplets = _incompletForTable(tableName);
+    final displayColor = isVisible ? color : Colors.grey.shade300;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: Checkbox(
+              value: isVisible,
+              onChanged: (v) => _toggle(visKey, v ?? false),
+              activeColor: color,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 5),
+          _polygonSymbol(
+            displayColor,
+            hasAnomalie: anomalies > 0,
+            hasIncomplet: incomplets > 0,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isVisible
+                    ? Colors.grey.shade700
+                    : Colors.grey.shade400,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (incomplets > 0) ...[
+            _badge(incomplets,
+                color: const Color(0xFFF57C00),
+                icon: Icons.edit_off,
+                small: true),
+            const SizedBox(width: 3),
+          ],
+          if (anomalies > 0) ...[
+            _badge(anomalies,
+                color: const Color(0xFFD32F2F),
+                icon: Icons.warning_amber_rounded,
+                small: true),
+            const SizedBox(width: 3),
+          ],
+          if (count > 0)
+            _badge(count, color: color, small: true),
+        ],
+      ),
+    );
+  }
+
   Widget _polygonSymbol(
     Color color, {
     bool hasAnomalie = false,
@@ -717,7 +818,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             width: 22,
             height: 16,
             decoration: BoxDecoration(
-              color: displayColor.withOpacity(hasAnomalie || hasIncomplet ? 0.28 : 0.32),
+              color: displayColor.withOpacity(hasAnomalie || hasIncomplet ? 0.28 : 0.0),
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
                 color: displayColor,

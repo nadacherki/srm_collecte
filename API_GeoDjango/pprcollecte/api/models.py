@@ -244,6 +244,46 @@ class EvaluationAgent(models.Model):
         db_table = 'evaluation_agent'
 
 
+class StatistiqueConduite(models.Model):
+    id_statistique_conduite = models.BigAutoField(primary_key=True)
+    id_agent = models.IntegerField()
+    jour = models.DateField()
+    geom = models.MultiLineStringField(srid=26191, dim=3, null=True, blank=True)
+    longueur_conduite_m = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'statistique_conduite'
+
+    def __str__(self):
+        return f"Stat conduite agent={self.id_agent} jour={self.jour}"
+
+
+class StatistiqueConduiteSegment(models.Model):
+    id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
+    id_statistique_conduite = models.BigIntegerField()
+    fid_regard_a = models.IntegerField()
+    fid_regard_b = models.IntegerField()
+    fid_regard_min = models.IntegerField()
+    fid_regard_max = models.IntegerField()
+    geom = models.LineStringField(srid=26191, dim=3)
+    longueur_segment_m = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'statistique_conduite_segment'
+
+    def __str__(self):
+        return (
+            f"Segment conduite stat={self.id_statistique_conduite} "
+            f"{self.fid_regard_min}-{self.fid_regard_max}"
+        )
+
+
 class SrmFieldOption(models.Model):
     id_option = models.BigAutoField(primary_key=True)
     table_schema = models.CharField(max_length=50)
@@ -1111,6 +1151,115 @@ class EpStationDePompage(SrmTrackedModel):
 
     def __str__(self):
         return f"Station pompage {self.ep_num or self.fid}"
+
+
+class EpRegard(models.Model):
+    fid = models.AutoField(primary_key=True)
+    geom = models.PointField(srid=26191, dim=3, null=True, blank=True)
+    ep_agent = models.CharField(max_length=400, null=True, blank=True)
+    ep_sect_com = models.CharField(max_length=400, null=True, blank=True)
+    ep_statut = models.CharField(max_length=400, null=True, blank=True)
+    ep_adresse = models.CharField(max_length=400, null=True, blank=True)
+    ep_agent_crea = models.CharField(max_length=400, null=True, blank=True)
+    sec_com = models.CharField(max_length=400, null=True, blank=True)
+    sect_hydr = models.CharField(max_length=400, null=True, blank=True)
+    zone = models.CharField(max_length=400, null=True, blank=True)
+    uuid = models.UUIDField(null=True, blank=True, unique=True)
+    z_radier = models.CharField(max_length=400, null=True, blank=True)
+    z_surf = models.CharField(max_length=400, null=True, blank=True)
+    ep_date_insertion = models.DateField(null=True, blank=True)
+    ep_coor_x = models.FloatField(null=True, blank=True)
+    ep_coor_y = models.FloatField(null=True, blank=True)
+    ep_coor_z = models.FloatField(null=True, blank=True)
+    id_commune = models.IntegerField(null=True, blank=True)
+    id_province = models.IntegerField(null=True, blank=True)
+    id_user_creat = models.IntegerField(null=True, blank=True)
+    id_user_modif = models.IntegerField(null=True, blank=True)
+    date_creation = models.DateTimeField(null=True, blank=True)
+    date_modif = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(null=True, blank=True, default=False)
+    is_validated = models.BooleanField(null=True, blank=True, default=False)
+    id_user_valid = models.IntegerField(null=True, blank=True)
+    date_validation = models.DateTimeField(null=True, blank=True)
+    ep_section = models.CharField(max_length=254, null=True, blank=True)
+    emplacement = models.CharField(max_length=254, null=True, blank=True)
+    ep_tampon = models.CharField(max_length=254, null=True, blank=True)
+    ep_ref_rue = models.CharField(max_length=400, null=True, blank=True)
+    ep_conf_plan = models.CharField(max_length=400, null=True, blank=True)
+    ep_observation = models.CharField(max_length=400, null=True, blank=True)
+    ep_anomalie = models.BooleanField(null=True, blank=True, default=False)
+    mode_localisation = models.CharField(max_length=400, null=True, blank=True)
+    echelon = models.CharField(max_length=400, null=True, blank=True)
+    anomalie_tamp = models.CharField(max_length=400, null=True, blank=True)
+    anomalie_regard = models.CharField(max_length=400, null=True, blank=True)
+    GENRATRICE_SUP = models.FloatField(db_column='GENRATRICE_SUP', null=True, blank=True)
+    ep_profondeur = models.FloatField(null=True, blank=True)
+    photo_1 = models.TextField(null=True, blank=True)
+    photo_2 = models.TextField(null=True, blank=True)
+    photo_3 = models.TextField(null=True, blank=True)
+    photo_4 = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = '"ep"."regard"'
+
+    def __str__(self):
+        return f"Regard EP point {self.uuid or self.fid}"
+
+
+class EpRegardMiroir(models.Model):
+    fid = models.AutoField(primary_key=True)
+    fid_regard_source = models.IntegerField(unique=True)
+    geom = models.PolygonField(srid=26191, dim=3, null=True, blank=True)
+    ep_agent = models.CharField(max_length=400, null=True, blank=True)
+    ep_sect_com = models.CharField(max_length=400, null=True, blank=True)
+    ep_statut = models.CharField(max_length=400, null=True, blank=True)
+    ep_adresse = models.CharField(max_length=400, null=True, blank=True)
+    ep_agent_crea = models.CharField(max_length=400, null=True, blank=True)
+    sec_com = models.CharField(max_length=400, null=True, blank=True)
+    sect_hydr = models.CharField(max_length=400, null=True, blank=True)
+    zone = models.CharField(max_length=400, null=True, blank=True)
+    uuid = models.UUIDField(null=True, blank=True, unique=True)
+    z_radier = models.CharField(max_length=400, null=True, blank=True)
+    z_surf = models.CharField(max_length=400, null=True, blank=True)
+    ep_date_insertion = models.DateField(null=True, blank=True)
+    ep_coor_x = models.FloatField(null=True, blank=True)
+    ep_coor_y = models.FloatField(null=True, blank=True)
+    ep_coor_z = models.FloatField(null=True, blank=True)
+    id_commune = models.IntegerField(null=True, blank=True)
+    id_province = models.IntegerField(null=True, blank=True)
+    id_user_creat = models.IntegerField(null=True, blank=True)
+    id_user_modif = models.IntegerField(null=True, blank=True)
+    date_creation = models.DateTimeField(null=True, blank=True)
+    date_modif = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(null=True, blank=True, default=False)
+    is_validated = models.BooleanField(null=True, blank=True, default=False)
+    id_user_valid = models.IntegerField(null=True, blank=True)
+    date_validation = models.DateTimeField(null=True, blank=True)
+    ep_section = models.CharField(max_length=254, null=True, blank=True)
+    emplacement = models.CharField(max_length=254, null=True, blank=True)
+    ep_tampon = models.CharField(max_length=254, null=True, blank=True)
+    ep_ref_rue = models.CharField(max_length=400, null=True, blank=True)
+    ep_conf_plan = models.CharField(max_length=400, null=True, blank=True)
+    ep_observation = models.CharField(max_length=400, null=True, blank=True)
+    ep_anomalie = models.BooleanField(null=True, blank=True, default=False)
+    mode_localisation = models.CharField(max_length=400, null=True, blank=True)
+    echelon = models.CharField(max_length=400, null=True, blank=True)
+    anomalie_tamp = models.CharField(max_length=400, null=True, blank=True)
+    anomalie_regard = models.CharField(max_length=400, null=True, blank=True)
+    GENRATRICE_SUP = models.FloatField(db_column='GENRATRICE_SUP', null=True, blank=True)
+    ep_profondeur = models.FloatField(null=True, blank=True)
+    photo_1 = models.TextField(null=True, blank=True)
+    photo_2 = models.TextField(null=True, blank=True)
+    photo_3 = models.TextField(null=True, blank=True)
+    photo_4 = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = '"ep"."regard_miroir"'
+
+    def __str__(self):
+        return f"Regard EP miroir {self.uuid or self.fid}"
 
 
 class EpRegardEp(models.Model):

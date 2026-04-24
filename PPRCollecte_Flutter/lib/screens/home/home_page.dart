@@ -58,6 +58,7 @@ import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/downloaded_lines_service.dart';
+import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
 
@@ -72,6 +73,7 @@ part 'home_page_overlays.dart';
 part 'home_page_collection_actions.dart';
 part 'home_page_bootstrap.dart';
 part 'home_page_app_actions.dart';
+part 'home_page_conduite_mode.dart';
 
 class MapFocusTarget {
   final String kind; // 'point' | 'polyline'
@@ -96,6 +98,20 @@ class MapFocusTarget {
   })  : kind = 'polyline',
         point = null,
         pointStyle = 'normal';
+}
+
+class _ConduiteRegardNode {
+  final int nodeId;
+  final int? sourceFid;
+  final LatLng point;
+  final Map<String, dynamic> row;
+
+  const _ConduiteRegardNode({
+    required this.nodeId,
+    required this.sourceFid,
+    required this.point,
+    required this.row,
+  });
 }
 
 class HomePage extends StatefulWidget {
@@ -194,6 +210,21 @@ class _HomePageState extends State<HomePage> {
   double? _offlineBasemapMaxZoom;
   late bool _isOnlineDynamic;
   Timer? _onlineWatchTimer;
+  bool _isConduiteDrawingMode = false;
+  DateTime? _conduiteModeDay;
+  List<Marker> _conduiteModeMarkers = [];
+  List<Polyline> _conduiteModePolylines = [];
+  final Map<int, _ConduiteRegardNode> _conduiteRegardNodesById = {};
+  final List<int> _conduiteSelectionHistoryNodeIds = <int>[];
+  final Set<String> _conduiteSegmentKeys = <String>{};
+  double _conduitePreviewLengthM = 0.0;
+  int? _conduiteCurrentRegardNodeId;
+  LatLng? _conduiteCurrentRegardPoint;
+  bool _conduiteIsFrozenForDay = false;
+  bool _conduiteIsSaving = false;
+  int? _conduiteSavedStatId;
+  String? _conduiteModeError;
+  String _conduiteModeStatusText = 'Touchez un regard pour commencer.';
 // Dans _HomePageState
   Map<String, bool> _legendVisibility = {
     'points': true,
@@ -210,6 +241,7 @@ class _HomePageState extends State<HomePage> {
     'bac': true,
     'passage_submersible': true,
     'zone_plaine': true,
+    'srm_regard_miroir': true,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -821,6 +853,24 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadPointCountsByTable() =>
       _loadPointCountsByTableImpl(this);
 
+  Future<void> _enterConduiteDrawingMode() =>
+      _enterConduiteDrawingModeImpl(this);
+
+  void _exitConduiteDrawingMode() =>
+      _exitConduiteDrawingModeImpl(this);
+
+  Widget _buildConduiteModeHeader() =>
+      _buildConduiteModeHeaderImpl(this);
+
+  void _handleConduiteRegardTap(Map<String, dynamic> data) =>
+      _handleConduiteRegardTapImpl(this, data);
+
+  void _handleConduiteMapTap(TapPosition tapPosition, LatLng latLng) =>
+      _handleConduiteMapTapImpl(this, tapPosition, latLng);
+
+  void _focusConduiteModeBounds() =>
+      _focusConduiteModeBoundsImpl(this);
+
   void _onMapCreated(MapController controller) =>
       _onMapCreatedImpl(this, controller);
 
@@ -935,10 +985,107 @@ class _HomePageState extends State<HomePage> {
   Widget build(
     BuildContext context,
   ) {
-    final List<Marker> filteredMarkers = _getFilteredMarkers()..addAll(_focusOverlayMarkers);
+    final bool isConduiteMode = _isConduiteDrawingMode;
+    final List<Marker> filteredMarkers = isConduiteMode
+        ? [
+            ..._conduiteModeMarkers,
+            if (_conduiteCurrentRegardPoint != null)
+              Marker(
+                point: _conduiteCurrentRegardPoint!,
+                width: 44,
+                height: 44,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00ACC1).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF00ACC1),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00ACC1).withValues(alpha: 0.25),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ]
+        : (_getFilteredMarkers()..addAll(_focusOverlayMarkers));
 
-    final List<Polyline> filteredPolylines = _getFilteredPolylines()..addAll(_focusOverlayPolylines);
-    final List<Polygon> filteredPolygons = _getFilteredPolygons();
+    final List<Polyline> filteredPolylines = isConduiteMode
+        ? List<Polyline>.from(_conduiteModePolylines)
+        : (_getFilteredPolylines()..addAll(_focusOverlayPolylines));
+    final List<Polygon> filteredPolygons =
+        isConduiteMode ? <Polygon>[] : _getFilteredPolygons();
+    if (isConduiteMode) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F8FF),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildConduiteModeHeader(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    MapWidget(
+                      userPosition: userPosition ?? homeController.userPosition,
+                      gpsEnabled: false,
+                      useOnlineBasemap: _isOnlineDynamic,
+                      markers: filteredMarkers,
+                      polylines: filteredPolylines,
+                      polygons: filteredPolygons,
+                      onPolygonTap: null,
+                      onMapCreated: _onMapCreated,
+                      formMarkers: const [],
+                      isSatellite: _isSatellite,
+                      onPolylineTap: null,
+                      onMapTap: _handleConduiteMapTap,
+                      offlineBasemapPath: _offlineBasemapPath,
+                      offlineBasemapFormat: _offlineBasemapFormat,
+                      basemapUnavailableMessage: _basemapUnavailableMessage,
+                      basemapCenter: _offlineBasemapCenter,
+                      basemapBounds: _offlineBasemapBounds,
+                      basemapDefaultZoom: _offlineBasemapDefaultZoom,
+                      basemapMinZoom: _offlineBasemapMinZoom,
+                      basemapMaxZoom: _offlineBasemapMaxZoom,
+                      showMapButtons: false,
+                    ),
+                    if (_conduiteModeError != null)
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        right: 12,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD32F2F).withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _conduiteModeError!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (homeController.specialCollection != null) {
       final specialPoints = homeController.specialCollection!.points;
       if (specialPoints.length > 1) {
@@ -1031,6 +1178,7 @@ class _HomePageState extends State<HomePage> {
                 agentName: widget.agentName,
                 onLogout: _showLogoutConfirmation,
                 onReturnFromProfile: _hydrateOfflineBasemapState,
+                onStartConduiteDrawing: _enterConduiteDrawingMode,
               ),
             Expanded(
               child: Stack(
@@ -1055,6 +1203,8 @@ class _HomePageState extends State<HomePage> {
                     basemapDefaultZoom: _offlineBasemapDefaultZoom,
                     basemapMinZoom: _offlineBasemapMinZoom,
                     basemapMaxZoom: _offlineBasemapMaxZoom,
+                    showMapButtons: true,
+                    onMapTap: null,
                     onUserInteraction: () {
                       _autoCenterDisabledByUser = true;
                     },
@@ -1101,7 +1251,7 @@ class _HomePageState extends State<HomePage> {
                     bottom: 280,
                     right: 16,
                     child: Visibility(
-                      visible: kDebugMode && !_isLegendExpanded,
+                      visible: kDebugMode && !_isLegendExpanded && !_isConduiteDrawingMode,
                       child: FloatingActionButton(
                         onPressed: _showMockLocationDialogSafe,
                         backgroundColor: homeController.isMockLocationEnabled

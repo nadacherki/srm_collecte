@@ -30,6 +30,36 @@ class ApiService {
   static String? currentProjetSrm;
   static int? currentMissionId;
 
+  static String _extractApiErrorMessage(String body, String fallback) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final nodesError = decoded['nodes'];
+        if (nodesError is List && nodesError.isNotEmpty) {
+          return nodesError.first.toString();
+        }
+        final message = decoded['error'] ?? decoded['detail'] ?? decoded['message'];
+        if (message != null && message.toString().trim().isNotEmpty) {
+          return message.toString().trim();
+        }
+      }
+    } on FormatException {
+      // Fallback texte brut plus bas.
+    }
+
+    final plainText = body
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (plainText.isNotEmpty) {
+      return plainText.length > 180
+          ? '${plainText.substring(0, 180).trim()}...'
+          : plainText;
+    }
+
+    return fallback;
+  }
+
   // ── Mission (choisi/créé après login) ──
   // SUPPRIMÉ : plus de gestion de mission — chaque objet porte sa date_collecte
 
@@ -659,6 +689,98 @@ class ApiService {
     );
   }
 
+  static Future<Map<String, dynamic>> fetchStatistiqueConduiteJour({
+    int? idAgent,
+    DateTime? jour,
+  }) async {
+    final effectiveAgentId = idAgent ?? userId;
+    if (effectiveAgentId == null) {
+      throw Exception('Utilisateur non connecte pour lire la conduite du jour');
+    }
+
+    final effectiveDay = jour ?? DateTime.now();
+    final uri = Uri.parse('$baseUrl/api/statistiques-conduite/jour/').replace(
+      queryParameters: {
+        'id_agent': effectiveAgentId.toString(),
+        'jour': _formatDateParam(effectiveDay),
+      },
+    );
+
+    try {
+      final response = await http
+          .get(uri, headers: _headers())
+          .timeout(const Duration(seconds: 30));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse conduite du jour invalide');
+      }
+
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur lecture conduite ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout lecture conduite du jour');
+    } on SocketException {
+      throw Exception('Erreur reseau lecture conduite du jour');
+    } on FormatException {
+      throw Exception('Reponse conduite du jour invalide');
+    }
+  }
+
+  static Future<Map<String, dynamic>> validateStatistiqueConduite({
+    int? idAgent,
+    required DateTime jour,
+    required List<Map<String, dynamic>> nodes,
+  }) async {
+    final effectiveAgentId = idAgent ?? userId;
+    if (effectiveAgentId == null) {
+      throw Exception('Utilisateur non connecte pour valider la conduite');
+    }
+
+    final uri = Uri.parse('$baseUrl/api/statistiques-conduite/valider/');
+    final payload = <String, dynamic>{
+      'id_agent': effectiveAgentId,
+      'jour': _formatDateParam(jour),
+      'nodes': nodes,
+    };
+
+    try {
+      final response = await http
+          .post(uri, headers: _headers(), body: jsonEncode(payload))
+          .timeout(const Duration(seconds: 30));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse validation conduite invalide');
+      }
+
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur validation conduite ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout validation conduite');
+    } on SocketException {
+      throw Exception('Erreur reseau validation conduite');
+    } on FormatException {
+      throw Exception('Reponse validation conduite invalide');
+    }
+  }
+
   // ══════════════════════════════════════════════════════
   // ██ ENDPOINTS SPÉCIFIQUES (EP / ASS / ELEC)
   // ══════════════════════════════════════════════════════
@@ -685,6 +807,7 @@ class ApiService {
   static Future<List<dynamic>> fetchPuits() => fetchData('ep/puits');
   static Future<List<dynamic>> fetchPompes() => fetchData('ep/pompes');
   static Future<List<dynamic>> fetchRegardsEP() => fetchData('ep/regards');
+  static Future<List<dynamic>> fetchRegardsMiroirEP() => fetchData('ep/regards-miroir');
   static Future<List<dynamic>> fetchConduitesTerrain() => fetchData('ep/conduites-terrain');
   static Future<List<dynamic>> fetchBranchementsEP() => fetchData('ep/branchements');
   static Future<List<dynamic>> fetchTraverses() => fetchData('ep/traverses');

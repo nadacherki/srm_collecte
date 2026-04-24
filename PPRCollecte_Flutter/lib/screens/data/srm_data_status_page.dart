@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../services/projection_service.dart';
 import '../../widgets/lists/data_list_view.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
 import '../forms/srm_ligne_form_page.dart';
@@ -175,8 +176,11 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
         ),
       );
     } else {
-      final lat = (item['latitude_gps'] as num?)?.toDouble() ?? 0.0;
-      final lon = (item['longitude_gps'] as num?)?.toDouble() ?? 0.0;
+      final latLng = _resolveEditablePointLatLng(
+        item: item,
+        metier: metier,
+        entityType: entityType,
+      );
 
       await Navigator.push(
         context,
@@ -185,8 +189,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             body: SrmPointFormWidget(
               metier: metier,
               entityType: entityType,
-              latitude: lat,
-              longitude: lon,
+              latitude: latLng?.latitude ?? 0.0,
+              longitude: latLng?.longitude ?? 0.0,
               altitude: (item['altitude_gps'] as num?)?.toDouble(),
               agentName: widget.agentName,
               existingData: item,
@@ -204,6 +208,38 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     if (mounted) {
       _loadData();
     }
+  }
+
+  LatLng? _resolveEditablePointLatLng({
+    required Map<String, dynamic> item,
+    required String metier,
+    required String entityType,
+  }) {
+    final latitude = (item['latitude_gps'] as num?)?.toDouble();
+    final longitude = (item['longitude_gps'] as num?)?.toDouble();
+    if (latitude != null && longitude != null) {
+      return LatLng(latitude, longitude);
+    }
+
+    final schema = SrmConfig.getSchema(metier, entityType);
+    if (schema == null || schema.isEmpty) {
+      return null;
+    }
+
+    final x = _toDouble(item['${schema}_coor_x']);
+    final y = _toDouble(item['${schema}_coor_y']);
+    if (x == null || y == null) {
+      return null;
+    }
+
+    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+    return LatLng(projected.latitude, projected.longitude);
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().trim());
   }
 
   // Filtres actifs

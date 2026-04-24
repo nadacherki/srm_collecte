@@ -37,6 +37,7 @@ class MapWidget extends StatefulWidget {
   final Function(Object?)? onPolylineTap;
   final VoidCallback? onUserInteraction;
   final VoidCallback? onGpsButtonPressed;
+  final void Function(TapPosition, LatLng)? onMapTap;
   final String? offlineBasemapPath;
   final String? offlineBasemapFormat;
   final String? basemapUnavailableMessage;
@@ -45,6 +46,7 @@ class MapWidget extends StatefulWidget {
   final double? basemapDefaultZoom;
   final double? basemapMinZoom;
   final double? basemapMaxZoom;
+  final bool showMapButtons;
 
   const MapWidget({
     super.key,
@@ -61,6 +63,7 @@ class MapWidget extends StatefulWidget {
     this.onPolylineTap,
     this.onUserInteraction,
     this.onGpsButtonPressed,
+    this.onMapTap,
     this.offlineBasemapPath,
     this.offlineBasemapFormat,
     this.basemapUnavailableMessage,
@@ -69,6 +72,7 @@ class MapWidget extends StatefulWidget {
     this.basemapDefaultZoom,
     this.basemapMinZoom,
     this.basemapMaxZoom,
+    this.showMapButtons = true,
   });
 
   @override
@@ -1545,6 +1549,9 @@ class _MapWidgetState extends State<MapWidget> {
             cameraConstraint: const CameraConstraint.unconstrained(),
             interactionOptions:
                 const InteractionOptions(flags: InteractiveFlag.all),
+            onTap: (tapPosition, latLng) {
+              widget.onMapTap?.call(tapPosition, latLng);
+            },
             onMapEvent: (event) {
               if (event is MapEventMoveStart) {
                 widget.onUserInteraction?.call();
@@ -1682,73 +1689,75 @@ class _MapWidgetState extends State<MapWidget> {
               ),
             ),
           ),
-        Positioned(
-          top: 8,
-          right: 10,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
+        if (widget.showMapButtons)
+          Positioned(
+            top: 8,
+            right: 10,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.my_location, color: Colors.blue),
+                onPressed: _goToUserLocation,
+                tooltip: 'Ma position',
+              ),
+            ),
+          ),
+        if (widget.showMapButtons)
+          Positioned(
+            right: 5,
+            bottom: 10,
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.add, color: Colors.black87),
+                    onPressed: _zoomIn,
+                    tooltip: 'Zoom avant',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.remove, color: Colors.black87),
+                    onPressed: _zoomOut,
+                    tooltip: 'Zoom arriere',
+                  ),
                 ),
               ],
             ),
-            child: IconButton(
-              icon: const Icon(Icons.my_location, color: Colors.blue),
-              onPressed: _goToUserLocation,
-              tooltip: 'Ma position',
-            ),
           ),
-        ),
-        Positioned(
-          right: 5,
-          bottom: 10,
-          child: Column(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.add, color: Colors.black87),
-                  onPressed: _zoomIn,
-                  tooltip: 'Zoom avant',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.remove, color: Colors.black87),
-                  onPressed: _zoomOut,
-                  tooltip: 'Zoom arriere',
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }

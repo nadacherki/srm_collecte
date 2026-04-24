@@ -155,6 +155,9 @@ BASEMAP_BUILD_OSM_SOURCE_NAME = (
     os.environ.get("BASEMAP_BUILD_OSM_SOURCE_NAME", "OpenStreetMap contributors").strip()
     or "OpenStreetMap contributors"
 )
+REGARD_MIROIR_SQUARE_SIZE_METERS = float(
+    os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "24.0")
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

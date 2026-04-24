@@ -1,5 +1,8 @@
 part of 'home_page.dart';
 
+const String _epRegardMiroirOverlayTable = 'regard_miroir';
+const double _regardMiroirLocalSquareSizeMeters = 24.0;
+
 Future<void> _loadDownloadedSpecialLinesImpl(_HomePageState state) async {
   if (state.mounted) {
     state._setStateFromPart(() {
@@ -178,6 +181,10 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       required PolygonTapData hitValue,
       bool hasAnomalie = false,
       bool hasIncomplet = false,
+      double normalFillAlpha = 0.25,
+      double alertFillAlpha = 0.22,
+      double normalBorderWidth = 2.0,
+      double alertBorderWidth = 2.8,
     }) {
       final borderColor = hasAnomalie
           ? const Color(0xFFD32F2F)
@@ -185,16 +192,17 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
               ? const Color(0xFFF57C00)
               : baseColor;
       final fillColor = hasAnomalie
-          ? const Color(0xFFD32F2F).withValues(alpha: 0.22)
+          ? const Color(0xFFD32F2F).withValues(alpha: alertFillAlpha)
           : hasIncomplet
-              ? const Color(0xFFF57C00).withValues(alpha: 0.22)
-              : baseColor.withValues(alpha: 0.25);
+              ? const Color(0xFFF57C00).withValues(alpha: alertFillAlpha)
+              : baseColor.withValues(alpha: normalFillAlpha);
 
       return Polygon(
         points: points,
         color: fillColor,
         borderColor: borderColor,
-        borderStrokeWidth: hasAnomalie || hasIncomplet ? 2.8 : 2.0,
+        borderStrokeWidth:
+            hasAnomalie || hasIncomplet ? alertBorderWidth : normalBorderWidth,
         hitValue: hitValue,
       );
     }
@@ -356,6 +364,111 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       }
     }
 
+    final dbHelper = DatabaseHelper();
+    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache(
+      projetId: ApiService.currentProjetId,
+    );
+    final regardMiroirRows = <Map<String, dynamic>>[
+      ...cachedRegardMiroirRows,
+    ];
+    final cachedUuids = cachedRegardMiroirRows
+        .map((row) => row['uuid']?.toString().trim())
+        .whereType<String>()
+        .where((uuid) => uuid.isNotEmpty)
+        .toSet();
+
+    var localGeneratedCount = 0;
+    try {
+      final localRegards = await dbHelper.getEntities('regard');
+      for (final regard in localRegards) {
+        final uuid = regard['uuid']?.toString().trim();
+        if (uuid != null && uuid.isNotEmpty && cachedUuids.contains(uuid)) {
+          continue;
+        }
+
+        final miroir = _buildLocalRegardMiroirRowImpl(regard);
+        if (miroir == null) continue;
+        regardMiroirRows.add(miroir);
+        localGeneratedCount++;
+      }
+    } catch (e) {
+      debugPrint('[REGARD-MIROIR] generation locale impossible: $e');
+    }
+
+    debugPrint(
+      '[REGARD-MIROIR] ${cachedRegardMiroirRows.length} miroir(s) serveur en cache'
+      ' + $localGeneratedCount miroir(s) local(aux)',
+    );
+    if (regardMiroirRows.isNotEmpty) {
+      var renderedRegardMiroirs = 0;
+      for (final poly in regardMiroirRows) {
+        final points = _extractPolygonPointsImpl(poly['points_json']);
+        if (points.length < 3) continue;
+
+        final hasAnomalie = hasRowAnomalie(poly);
+        final hasIncomplet = hasRowIncomplet(poly);
+        final polygon = _buildPolygon(
+          points: points,
+          baseColor: const Color(0xFF2E7D32),
+          hasAnomalie: hasAnomalie,
+          hasIncomplet: hasIncomplet,
+          normalFillAlpha: 0.00,
+          alertFillAlpha: 0.04,
+          normalBorderWidth: 2.0,
+          alertBorderWidth: 2.4,
+          hitValue: PolygonTapData(
+            nom: poly['nom']?.toString() ??
+                poly['ep_num']?.toString() ??
+                'Regard',
+            code: poly['code']?.toString() ??
+                poly['code_gps']?.toString() ??
+                poly['ep_num']?.toString() ??
+                poly['uuid']?.toString() ??
+                '----',
+            entityType: 'Regard miroir',
+            metier: 'Eau Potable',
+            superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
+                (poly['superficie_en_ha'] as num?)?.toDouble() ??
+                0.0,
+            nbSommets: points.length,
+            enqueteur: poly['enqueteur']?.toString() ??
+                ApiService.nomPrenom ??
+                '',
+            dateCreation: poly['date_collecte']?.toString() ??
+                poly['date_creation']?.toString() ??
+                '----',
+            synced: true,
+            downloaded: true,
+            hasAnomalie: hasAnomalie,
+            hasIncomplet: hasIncomplet,
+            typeAnomalie: poly['type_anomalie']?.toString() ??
+                poly['anomalie_regard']?.toString(),
+            regionName: poly['region_name']?.toString() ?? '',
+            prefectureName: poly['prefecture_name']?.toString() ?? '',
+            communeName: poly['commune_name']?.toString() ?? '',
+          ),
+        );
+        srmPolygonsByTable
+            .putIfAbsent(_epRegardMiroirOverlayTable, () => [])
+            .add(polygon);
+        if (hasAnomalie) {
+          anomalieByTable
+              .putIfAbsent(_epRegardMiroirOverlayTable, () => [])
+              .add(polygon);
+        }
+        if (hasIncomplet) {
+          incompletByTable
+              .putIfAbsent(_epRegardMiroirOverlayTable, () => [])
+              .add(polygon);
+        }
+        mapPolygons.add(polygon);
+        renderedRegardMiroirs++;
+      }
+      debugPrint(
+        '[REGARD-MIROIR] $renderedRegardMiroirs miroir(s) affiche(s)',
+      );
+    }
+
     if (state.mounted) {
       final previewLoaded = state._pendingPolygonPreviewPoints != null &&
           _containsPolygonPreviewImpl(
@@ -376,6 +489,72 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
   } catch (e) {
     debugPrint('[POLYGONE] Error loading polygons: $e');
   }
+}
+
+Map<String, dynamic>? _buildLocalRegardMiroirRowImpl(
+  Map<String, dynamic> regard,
+) {
+  final center = _extractRegardLatLngImpl(regard);
+  if (center == null) return null;
+
+  final points = _buildSquareAroundPointImpl(
+    center,
+    _regardMiroirLocalSquareSizeMeters,
+  );
+  if (points.length < 4) return null;
+
+  return {
+    ...regard,
+    'points_json': jsonEncode(
+      points
+          .map((point) => <double>[point.longitude, point.latitude])
+          .toList(),
+    ),
+    'fid_regard_source': regard['fid'] ?? regard['id'],
+    'downloaded': regard['downloaded'] ?? 0,
+    'synced': regard['synced'] ?? 0,
+  };
+}
+
+LatLng? _extractRegardLatLngImpl(Map<String, dynamic> row) {
+  final x = _toDoubleImpl(row['ep_coor_x']);
+  final y = _toDoubleImpl(row['ep_coor_y']);
+  if (x != null && y != null) {
+    final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
+    return LatLng(wgs84.latitude, wgs84.longitude);
+  }
+
+  final latitude = _toDoubleImpl(row['latitude_gps']);
+  final longitude = _toDoubleImpl(row['longitude_gps']);
+  if (latitude != null && longitude != null) {
+    return LatLng(latitude, longitude);
+  }
+
+  return null;
+}
+
+double? _toDoubleImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+List<LatLng> _buildSquareAroundPointImpl(LatLng center, double sizeMeters) {
+  final halfSize = sizeMeters / 2.0;
+  const metersPerLatDegree = 111320.0;
+  final cosLat = math.cos(center.latitude * math.pi / 180.0).abs();
+  if (cosLat < 0.000001) return const [];
+
+  final deltaLat = halfSize / metersPerLatDegree;
+  final deltaLng = halfSize / (metersPerLatDegree * cosLat);
+
+  return [
+    LatLng(center.latitude - deltaLat, center.longitude - deltaLng),
+    LatLng(center.latitude - deltaLat, center.longitude + deltaLng),
+    LatLng(center.latitude + deltaLat, center.longitude + deltaLng),
+    LatLng(center.latitude + deltaLat, center.longitude - deltaLng),
+    LatLng(center.latitude - deltaLat, center.longitude - deltaLng),
+  ];
 }
 
 List<LatLng> _extractPolygonPointsImpl(dynamic rawPoints) {
@@ -656,6 +835,42 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
       }
     }
 
+    final dbHelper = DatabaseHelper();
+    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache(
+      projetId: ApiService.currentProjetId,
+    );
+    final regardMiroirRows = <Map<String, dynamic>>[
+      ...cachedRegardMiroirRows,
+    ];
+    final cachedUuids = cachedRegardMiroirRows
+        .map((row) => row['uuid']?.toString().trim())
+        .whereType<String>()
+        .where((uuid) => uuid.isNotEmpty)
+        .toSet();
+    try {
+      final localRegards = await dbHelper.getEntities('regard');
+      for (final regard in localRegards) {
+        final uuid = regard['uuid']?.toString().trim();
+        if (uuid != null && uuid.isNotEmpty && cachedUuids.contains(uuid)) {
+          continue;
+        }
+        final miroir = _buildLocalRegardMiroirRowImpl(regard);
+        if (miroir != null) {
+          regardMiroirRows.add(miroir);
+        }
+      }
+    } catch (_) {}
+
+    counts[_epRegardMiroirOverlayTable] = regardMiroirRows.length;
+    anomalieCounts[_epRegardMiroirOverlayTable] = regardMiroirRows
+        .where((row) =>
+            _isTruthyCountImpl(row['anomalie']) ||
+            _isTruthyCountImpl(row['ep_anomalie']))
+        .length;
+    incompletCounts[_epRegardMiroirOverlayTable] = regardMiroirRows
+        .where((row) => _isTruthyCountImpl(row['objet_incomplet']))
+        .length;
+
     if (state.mounted) {
       state._setStateFromPart(() {
         state._pointCountsByTable = counts;
@@ -667,6 +882,14 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
   } catch (e) {
     debugPrint('[COUNTS] Error counting points: $e');
   }
+}
+
+bool _isTruthyCountImpl(dynamic value) {
+  if (value == null) return false;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final normalized = value.toString().trim().toLowerCase();
+  return normalized == '1' || normalized == 'true' || normalized == 't';
 }
 
 Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {

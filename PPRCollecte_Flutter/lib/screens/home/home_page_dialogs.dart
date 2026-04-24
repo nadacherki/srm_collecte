@@ -61,13 +61,19 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
       final warningsToShow = result.warnings.take(10).toList();
       final remainingWarnings = result.warnings.length - warningsToShow.length;
 
-      final hasConnectionErrors = result.errors.any(
-        (error) =>
-            error.contains('connexion perdue') ||
-            error.contains('serveur injoignable') ||
-            error.contains('Timeout') ||
-            error.contains('reseau'),
-      );
+      bool isConnectionError(String error) {
+        final lower = error.toLowerCase();
+        return lower.contains('connexion perdue') ||
+            lower.contains('serveur injoignable') ||
+            lower.contains('timeout') ||
+            lower.contains('reseau') ||
+            lower.contains('réseau') ||
+            lower.contains('socketexception') ||
+            lower.contains('connection refused') ||
+            lower.contains('failed host lookup');
+      }
+
+      final hasConnectionErrors = result.errors.any(isConnectionError);
 
       final String title;
       final IconData titleIcon;
@@ -87,6 +93,12 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
         title = 'Synchronisation partielle';
         titleIcon = Icons.warning_amber;
         titleColor = Colors.orange;
+      } else if (result.successCount == 0 &&
+          result.failedCount > 0 &&
+          hasConnectionErrors) {
+        title = 'Connexion au serveur indisponible';
+        titleIcon = Icons.cloud_off;
+        titleColor = Colors.red;
       } else if (result.successCount == 0 && result.failedCount > 0) {
         title = 'Synchronisation echouee';
         titleIcon = Icons.error;
@@ -158,6 +170,29 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                     'La connexion a ete interrompue pendant la synchronisation. Les donnees deja envoyees ont ete sauvegardees. Relancez la synchronisation pour envoyer le reste.',
                     style: TextStyle(fontSize: 13),
                   ),
+                ),
+              ] else if (hasConnectionErrors && result.failedCount > 0) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: const Text(
+                    'La synchronisation n a pas pu joindre le serveur SRM. Cela peut venir d une connexion Internet absente, d un reseau instable, ou d un backend Django arrete ou inaccessible.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Verifiez le reseau de l appareil, puis assurez-vous que le serveur Django est demarre et joignable avant de reessayer.',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Details techniques : ${result.failedCount} donnee(s) n ont pas pu etre envoyee(s).',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ] else if (result.failedCount > 0) ...[
                 const SizedBox(height: 8),
@@ -294,6 +329,25 @@ void _showDownloadResultImpl(
     builder: (ctx) {
       final errorsToShow = result.errors.take(10).toList();
       final remaining = result.errors.length - errorsToShow.length;
+      bool isLikelyNetworkFailure(String error) {
+        final lower = error.toLowerCase();
+        return lower.contains('erreur reseau') ||
+            lower.contains('erreur réseau') ||
+            lower.contains('timeout') ||
+            lower.contains('socketexception') ||
+            lower.contains('connection refused') ||
+            lower.contains('failed host lookup');
+      }
+
+      final hasFailures = result.failedCount > 0;
+      final fullFailure =
+          hasFailures && result.successCount == 0 && result.skippedCount == 0;
+      final partialFailure =
+          hasFailures && !fullFailure && !alreadyDownloaded && !nothingAvailable;
+      final networkOnlyFailure =
+          hasFailures &&
+          result.errors.isNotEmpty &&
+          result.errors.every(isLikelyNetworkFailure);
 
       return AlertDialog(
         title: Text(
@@ -301,7 +355,13 @@ void _showDownloadResultImpl(
               ? 'Aucune nouvelle donnee a telecharger'
               : nothingAvailable
                   ? 'Aucune donnee disponible'
-                  : 'Telechargement termine',
+                  : fullFailure
+                      ? networkOnlyFailure
+                          ? 'Connexion au serveur indisponible'
+                          : 'Telechargement impossible'
+                      : partialFailure
+                          ? 'Telechargement partiel'
+                          : 'Telechargement termine',
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -325,23 +385,49 @@ void _showDownloadResultImpl(
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ],
+              if (fullFailure) ...[
+                Text(
+                  networkOnlyFailure
+                      ? 'Aucune donnee n a pu etre telechargee pour le moment.'
+                      : 'Aucune donnee n a pu etre telechargee sur cet appareil.',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  networkOnlyFailure
+                      ? 'L application ne parvient pas a joindre le serveur SRM. Cela peut venir d une connexion Internet absente, d un reseau instable, ou d un backend Django arrete ou inaccessible.'
+                      : 'Le telechargement a echoue avant de pouvoir mettre a jour les donnees.',
+                ),
+                const SizedBox(height: 8),
+              ],
               if (!nothingAvailable &&
                   !alreadyDownloaded &&
+                  !fullFailure &&
                   result.successCount > 0)
                 Text('${result.successCount} nouvelles donnees telechargees'),
               if (!nothingAvailable && result.skippedCount > 0)
                 Text('${result.skippedCount} donnees deja a jour'),
               if (result.failedCount > 0)
                 Text(
-                  '${result.failedCount} types de donnees n ont pas pu etre mis a jour',
+                  networkOnlyFailure
+                      ? '${result.failedCount} types de donnees restent en attente.'
+                      : '${result.failedCount} types de donnees n ont pas pu etre mis a jour',
                 ),
               if (result.failedCount > 0) ...[
                 const SizedBox(height: 8),
-                const Text(
-                  'Verifiez votre connexion internet ou reessayez plus tard.',
+                Text(
+                  networkOnlyFailure
+                      ? 'Verifiez le reseau de l appareil, puis assurez-vous que le serveur Django est demarre et joignable avant de reessayer.'
+                      : 'Corrigez les erreurs ci-dessous puis relancez le telechargement.',
                 ),
               ],
-              if (errorsToShow.isNotEmpty) ...[
+              if (networkOnlyFailure && result.failedCount > 0) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Details techniques : ${result.failedCount} appel(s) API n ont pas repondu pendant cette tentative.',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+              if (errorsToShow.isNotEmpty && !networkOnlyFailure) ...[
                 const SizedBox(height: 10),
                 const Text('Details des erreurs :'),
                 const SizedBox(height: 5),
