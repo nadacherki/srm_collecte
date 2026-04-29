@@ -260,6 +260,13 @@ class PhotoUploadSerializer(serializers.Serializer):
     table_name = serializers.CharField(max_length=100, trim_whitespace=True)
     uuid_objet = serializers.CharField(max_length=254, trim_whitespace=True)
     photo_slot = serializers.IntegerField(min_value=1, max_value=4)
+    sync_session_uuid = serializers.CharField(
+        max_length=64,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
     id_projet = serializers.IntegerField(required=False, allow_null=True)
     id_mission = serializers.IntegerField(required=False, allow_null=True)
     id_agent_crea = serializers.IntegerField(required=False, allow_null=True)
@@ -296,6 +303,30 @@ class StatistiqueConduiteNodeSerializer(serializers.Serializer):
         max_length=254,
         trim_whitespace=True,
     )
+    label = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=254,
+        trim_whitespace=True,
+    )
+    table_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=100,
+        trim_whitespace=True,
+    )
+    metier = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=20,
+        trim_whitespace=True,
+    )
+    x = serializers.FloatField(required=False, allow_null=True)
+    y = serializers.FloatField(required=False, allow_null=True)
+    z = serializers.FloatField(required=False, allow_null=True)
     ep_num = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -315,6 +346,20 @@ class StatistiqueConduiteNodeSerializer(serializers.Serializer):
 
 
 class StatistiqueConduiteValidateSerializer(serializers.Serializer):
+    metier = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=20,
+        trim_whitespace=True,
+    )
+    sync_uuid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=128,
+        trim_whitespace=True,
+    )
     id_agent = serializers.IntegerField(min_value=1)
     jour = LenientDateField()
     nodes = StatistiqueConduiteNodeSerializer(many=True)

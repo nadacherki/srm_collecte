@@ -8,6 +8,18 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
 
+class ApiPageResult {
+  final List<dynamic> items;
+  final int? nextPage;
+  final int? count;
+
+  const ApiPageResult({
+    required this.items,
+    this.nextPage,
+    this.count,
+  });
+}
+
 class ApiService {
   // ── URL de base du serveur Django SRM ──
   // Émulateur Android : 10.0.2.2 = localhost de la machine hôte
@@ -245,7 +257,7 @@ class ApiService {
 
     final response = await http
         .post(url, headers: _headers(), body: jsonEncode(payload))
-        .timeout(const Duration(seconds: 120));
+        .timeout(const Duration(minutes: 5));
 
     if (response.statusCode != 200) {
       try {
@@ -397,20 +409,31 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> data, {
     bool throwOnError = false,
+    String? syncSessionUuid,
+    String? syncClientItemUuid,
   }) async {
     try {
       final url = Uri.parse('$baseUrl/api/$endpoint/');
+      final payload = Map<String, dynamic>.from(data);
 
       // Injecter automatiquement le contexte SRM dans chaque requête
-      if (currentProjetId != null && !data.containsKey('id_projet')) {
-        data['id_projet'] = currentProjetId;
+      if (currentProjetId != null && !payload.containsKey('id_projet')) {
+        payload['id_projet'] = currentProjetId;
       }
-      if (userId != null && !data.containsKey('id_agent_crea')) {
-        data['id_agent_crea'] = userId;
+      if (userId != null && !payload.containsKey('id_agent_crea')) {
+        payload['id_agent_crea'] = userId;
+      }
+      final cleanSyncUuid = syncSessionUuid?.trim() ?? '';
+      if (cleanSyncUuid.isNotEmpty) {
+        payload['_sync_session_uuid'] = cleanSyncUuid;
+      }
+      final cleanClientItemUuid = syncClientItemUuid?.trim() ?? '';
+      if (cleanClientItemUuid.isNotEmpty) {
+        payload['_sync_client_item_uuid'] = cleanClientItemUuid;
       }
 
       final response = await http
-          .post(url, headers: _headers(), body: jsonEncode(data))
+          .post(url, headers: _headers(), body: jsonEncode(payload))
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -461,6 +484,52 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> createSyncManifest({
+    required String syncUuid,
+    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> attachments,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/sync/manifest/');
+    final payload = <String, dynamic>{
+      'sync_uuid': syncUuid,
+      'id_agent': userId,
+      'id_projet': currentProjetId,
+      'id_mission': currentMissionId,
+      'items': items,
+      'attachments': attachments,
+      if (metadata != null) 'metadata': metadata,
+    };
+
+    try {
+      final response = await http
+          .post(uri, headers: _headers(), body: jsonEncode(payload))
+          .timeout(const Duration(seconds: 30));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse manifeste sync invalide');
+      }
+
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur manifeste sync ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout manifeste sync');
+    } on SocketException {
+      throw Exception('Erreur reseau manifeste sync');
+    } on FormatException {
+      throw Exception('Reponse manifeste sync invalide');
+    }
+  }
+
   static Future<Map<String, dynamic>> uploadPhoto({
     required String schemaName,
     required String tableName,
@@ -470,6 +539,7 @@ class ApiService {
     int? idProjet,
     int? idMission,
     int? idAgentCrea,
+    String? syncSessionUuid,
   }) async {
     final uri = Uri.parse('$baseUrl/api/photos/upload/');
     final request = http.MultipartRequest('POST', uri);
@@ -482,6 +552,10 @@ class ApiService {
     request.fields['table_name'] = tableName;
     request.fields['uuid_objet'] = uuidObjet;
     request.fields['photo_slot'] = photoSlot.toString();
+    final cleanSyncUuid = syncSessionUuid?.trim() ?? '';
+    if (cleanSyncUuid.isNotEmpty) {
+      request.fields['sync_session_uuid'] = cleanSyncUuid;
+    }
     if (idProjet != null) {
       request.fields['id_projet'] = idProjet.toString();
     }
@@ -529,12 +603,41 @@ class ApiService {
     String endpoint, {
     DateTime? updatedAfter,
   }) async {
+    final items = <dynamic>[];
+    var page = 1;
+    final visitedPages = <int>{};
+
+    while (visitedPages.add(page)) {
+      final pageResult = await fetchDataPage(
+        endpoint,
+        updatedAfter: updatedAfter,
+        page: page,
+      );
+      items.addAll(pageResult.items);
+      final nextPage = pageResult.nextPage;
+      if (nextPage == null || nextPage <= 0) {
+        break;
+      }
+      page = nextPage;
+    }
+
+    return items;
+  }
+
+  static Future<ApiPageResult> fetchDataPage(
+    String endpoint, {
+    DateTime? updatedAfter,
+    int page = 1,
+  }) async {
     final params = <String, String>{};
     if (currentProjetId != null) {
       params['id_projet'] = currentProjetId.toString();
     }
     if (updatedAfter != null) {
       params['updated_after'] = updatedAfter.toUtc().toIso8601String();
+    }
+    if (page > 1) {
+      params['page'] = page.toString();
     }
 
     final uri = Uri.parse('$baseUrl/api/$endpoint/')
@@ -547,24 +650,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        if (data is Map && data.containsKey('features')) {
-          return data['features'];
-        } else if (data is Map && data.containsKey('results')) {
-          final results = data['results'];
-          if (results is List) {
-            return results;
-          }
-          if (results is Map && results.containsKey('features')) {
-            final features = results['features'];
-            if (features is List) {
-              return features;
-            }
-          }
-          return [];
-        } else if (data is List) {
-          return data;
-        }
-        return [data];
+        return _parsePagedDataResponse(data, currentPage: page);
       } else {
         throw Exception('Erreur GET ($endpoint): ${response.statusCode}');
       }
@@ -575,6 +661,81 @@ class ApiService {
     } catch (e) {
       throw Exception('Erreur GET $endpoint: $e');
     }
+  }
+
+  static ApiPageResult _parsePagedDataResponse(
+    dynamic data, {
+    required int currentPage,
+  }) {
+    if (data is Map) {
+      final count = _asInt(data['count']);
+      final nextPage = _nextPageFromUrl(data['next']?.toString(), currentPage);
+      if (data.containsKey('features')) {
+        final features = data['features'];
+        return ApiPageResult(
+          items: features is List ? features : const [],
+          nextPage: nextPage,
+          count: count,
+        );
+      }
+      if (data.containsKey('results')) {
+        final results = data['results'];
+        if (results is List) {
+          return ApiPageResult(
+            items: results,
+            nextPage: nextPage,
+            count: count,
+          );
+        }
+        if (results is Map && results.containsKey('features')) {
+          final features = results['features'];
+          return ApiPageResult(
+            items: features is List ? features : const [],
+            nextPage: nextPage,
+            count: count,
+          );
+        }
+        return ApiPageResult(
+          items: const [],
+          nextPage: nextPage,
+          count: count,
+        );
+      }
+      return ApiPageResult(items: [data], count: count);
+    }
+
+    if (data is List) {
+      return ApiPageResult(items: data);
+    }
+
+    return ApiPageResult(items: [data]);
+  }
+
+  static int? _nextPageFromUrl(String? nextUrl, int currentPage) {
+    if (nextUrl == null || nextUrl.trim().isEmpty || nextUrl == 'null') {
+      return null;
+    }
+    try {
+      final uri = Uri.parse(nextUrl);
+      final rawPage = uri.queryParameters['page'];
+      if (rawPage == null || rawPage.trim().isEmpty) {
+        return currentPage + 1;
+      }
+      final parsed = int.tryParse(rawPage);
+      if (parsed == null || parsed <= currentPage) {
+        return null;
+      }
+      return parsed;
+    } catch (_) {
+      return currentPage + 1;
+    }
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
   }
 
   static Future<List<Map<String, dynamic>>> fetchMetricsList(
@@ -695,6 +856,7 @@ class ApiService {
   static Future<Map<String, dynamic>> fetchStatistiqueConduiteJour({
     int? idAgent,
     DateTime? jour,
+    String metier = 'ep',
   }) async {
     final effectiveAgentId = idAgent ?? userId;
     if (effectiveAgentId == null) {
@@ -706,6 +868,7 @@ class ApiService {
       queryParameters: {
         'id_agent': effectiveAgentId.toString(),
         'jour': _formatDateParam(effectiveDay),
+        'metier': metier,
       },
     );
 
@@ -742,6 +905,11 @@ class ApiService {
     int? idAgent,
     required DateTime jour,
     required List<Map<String, dynamic>> nodes,
+    String metier = 'ep',
+    String? syncUuid,
+    String? syncSessionUuid,
+    String? syncClientItemUuid,
+    bool acceptFrozenConflict = false,
   }) async {
     final effectiveAgentId = idAgent ?? userId;
     if (effectiveAgentId == null) {
@@ -750,10 +918,23 @@ class ApiService {
 
     final uri = Uri.parse('$baseUrl/api/statistiques-conduite/valider/');
     final payload = <String, dynamic>{
+      'metier': metier,
       'id_agent': effectiveAgentId,
       'jour': _formatDateParam(jour),
       'nodes': nodes,
     };
+    final cleanSyncUuid = syncUuid?.trim() ?? '';
+    if (cleanSyncUuid.isNotEmpty) {
+      payload['sync_uuid'] = cleanSyncUuid;
+    }
+    final cleanSessionUuid = syncSessionUuid?.trim() ?? '';
+    if (cleanSessionUuid.isNotEmpty) {
+      payload['_sync_session_uuid'] = cleanSessionUuid;
+    }
+    final cleanClientItemUuid = syncClientItemUuid?.trim() ?? '';
+    if (cleanClientItemUuid.isNotEmpty) {
+      payload['_sync_client_item_uuid'] = cleanClientItemUuid;
+    }
 
     try {
       final response = await http
@@ -761,7 +942,9 @@ class ApiService {
           .timeout(const Duration(seconds: 30));
       final body = utf8.decode(response.bodyBytes);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200 ||
+          response.statusCode == 201 ||
+          (acceptFrozenConflict && response.statusCode == 409)) {
         final decoded = jsonDecode(body);
         if (decoded is Map<String, dynamic>) {
           return decoded;

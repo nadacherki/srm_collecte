@@ -199,3 +199,13 @@ class CollectionResult {
     };
   }
 }
+
+class CollectionPointEdit {
+  final LatLng point;
+  final double? altitude;
+
+  const CollectionPointEdit({
+    required this.point,
+    this.altitude,
+  });
+}

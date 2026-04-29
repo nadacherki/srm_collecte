@@ -1,18 +1,17 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../../core/config/srm_config.dart';
-import '../../core/constants/basemap_constants.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
-import '../../services/basemap_catalog_service.dart';
-import '../../services/offline_basemap_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 
 class ProfilePage extends StatefulWidget {
-  static const String startConduiteDrawingResult = 'start_conduite_drawing';
+  static const String startConduiteDrawingEpResult = 'start_conduite_drawing_ep';
+  static const String startConduiteDrawingAsstResult =
+      'start_conduite_drawing_asst';
+  static const String startConduiteDrawingResult = startConduiteDrawingEpResult;
 
   final String agentName;
   final VoidCallback onLogout;
@@ -37,42 +36,27 @@ class _ProfilePageState extends State<ProfilePage> {
   String _login = '';
   String _role = '';
 
-  String _projetNom = '';
-  String _projetCode = '';
-  String _projetRegion = '';
-
   int? _activeAgentId;
-  int? _activeProjetId;
 
   int _totalEP = 0;
   int _totalASS = 0;
   int _totalELEC = 0;
   int _totalSynced = 0;
   int _totalUnsynced = 0;
+  int _localPendingNew = 0;
+  int _localPendingUpdates = 0;
+  int _localPendingPhotos = 0;
+  int _localFailedPhotos = 0;
+  int _localPendingHistory = 0;
   int _totalPoints = 0;
   int _totalLignes = 0;
   int _totalPolygones = 0;
-  bool _hasOfflineBasemap = false;
-  String _offlineBasemapStatus = '';
-  String _offlineBasemapLocalPath = '';
-  String _offlineBasemapDownloadedAt = '';
-  String _offlineBasemapServerUpdatedAt = '';
-  String _activeBasemapPackageKey = '';
-  String _activeBasemapZoneId = '';
-  String _activeBasemapStyle = '';
-  String _activeBasemapFormat = '';
-  List<Map<String, dynamic>> _basemapZones = const [];
-  List<Map<String, dynamic>> _basemapPackages = const [];
-  String? _basemapCatalogError;
-  final Set<String> _downloadingBasemapPackageKeys = <String>{};
-  final Set<String> _activatingBasemapPackageKeys = <String>{};
-  bool _isPreparingBasemapPackages = false;
-  Set<String> _assignedBasemapZoneIds = <String>{};
 
   Map<String, dynamic>? _resumeMetrics;
   Map<String, dynamic>? _dayMetrics;
   Map<String, dynamic>? _weekMetrics;
   Map<String, dynamic>? _monthMetrics;
+  DateTime? _metricsFetchedAt;
   String? _metricsError;
 
   bool get _hasServerMetrics =>
@@ -99,28 +83,15 @@ class _ProfilePageState extends State<ProfilePage> {
           ApiService.userId ?? _asIntOrNull(currentUser?['id_user']);
       final currentProjetId =
           ApiService.currentProjetId ?? _asIntOrNull(currentUser?['id_projet_actif']);
-      final currentProjet = currentProjetId != null
-          ? await _db.getProjetLocal(currentProjetId)
-          : null;
       final results = await Future.wait<dynamic>([
-        _refreshBasemapCatalogIfPossible(),
         _loadLocalInventorySnapshot(),
-        _loadOfflineBasemapSnapshot(),
-        _loadOfflineBasemapCatalogSnapshot(),
         _metricsCache.loadSnapshot(
           agentId: activeAgentId,
           projetId: currentProjetId,
         ),
       ]);
-      final basemapCatalogError = results[0] as String?;
-      final inventory = results[1] as _LocalInventorySnapshot;
-      final basemap = results[2] as _OfflineBasemapSnapshot;
-      final basemapCatalog = results[3] as _OfflineBasemapCatalogSnapshot;
-      final cachedMetrics = results[4] as PublicMetricsCacheSnapshot;
-      final assignedZoneIds = basemapCatalog.zones
-          .map((zone) => zone['zone_id']?.toString().trim() ?? '')
-          .where((zoneId) => zoneId.isNotEmpty)
-          .toSet();
+      final inventory = results[0] as _LocalInventorySnapshot;
+      final cachedMetrics = results[1] as PublicMetricsCacheSnapshot;
 
       if (!mounted) return;
 
@@ -133,49 +104,28 @@ class _ProfilePageState extends State<ProfilePage> {
         _login = _coalesceText(ApiService.userLogin, currentUser?['login']);
         _role = _coalesceText(ApiService.userRole, currentUser?['role']);
 
-        _projetNom = _coalesceText(
-          ApiService.currentProjetNom,
-          currentProjet?['nom'],
-        );
-        _projetCode = _coalesceText(
-          ApiService.currentProjetCode,
-          currentProjet?['code_affaire'],
-        );
-        _projetRegion = _coalesceText(
-          ApiService.currentProjetRegion,
-          currentProjet?['region'],
-        );
-
         _activeAgentId = activeAgentId;
-        _activeProjetId = currentProjetId;
 
         _totalEP = inventory.totalEP;
         _totalASS = inventory.totalASS;
         _totalELEC = inventory.totalELEC;
         _totalSynced = inventory.totalSynced;
         _totalUnsynced = inventory.totalUnsynced;
+        _localPendingNew = inventory.pendingNewObjects;
+        _localPendingUpdates = inventory.pendingUpdatedObjects;
+        _localPendingPhotos = inventory.pendingPhotos;
+        _localFailedPhotos = inventory.failedPhotos;
+        _localPendingHistory = inventory.pendingHistoryItems;
         _totalPoints = inventory.totalPoints;
         _totalLignes = inventory.totalLignes;
         _totalPolygones = inventory.totalPolygones;
-        _hasOfflineBasemap = basemap.isReady;
-        _offlineBasemapStatus = basemap.statusLabel;
-        _offlineBasemapLocalPath = basemap.localPath;
-        _offlineBasemapDownloadedAt = basemap.downloadedAt;
-        _offlineBasemapServerUpdatedAt = basemap.serverUpdatedAt;
-        _activeBasemapPackageKey = basemap.packageKey;
-        _activeBasemapZoneId = basemap.zoneId;
-        _activeBasemapStyle = basemap.style;
-        _activeBasemapFormat = basemap.format;
-        _basemapZones = basemapCatalog.zones;
-        _basemapPackages = basemapCatalog.packages;
-        _basemapCatalogError = basemapCatalogError;
-        _assignedBasemapZoneIds = assignedZoneIds;
 
         if (cachedMetrics.hasAnyData) {
           _resumeMetrics = cachedMetrics.resume;
           _dayMetrics = cachedMetrics.day;
           _weekMetrics = cachedMetrics.week;
           _monthMetrics = cachedMetrics.month;
+          _metricsFetchedAt = cachedMetrics.fetchedAt;
         }
         _metricsError = cachedMetrics.error;
 
@@ -216,95 +166,10 @@ class _ProfilePageState extends State<ProfilePage> {
         _dayMetrics = freshMetrics.day;
         _weekMetrics = freshMetrics.week;
         _monthMetrics = freshMetrics.month;
+        _metricsFetchedAt = freshMetrics.fetchedAt;
       }
       _metricsError = freshMetrics.error;
     });
-  }
-
-  Future<_OfflineBasemapSnapshot> _loadOfflineBasemapSnapshot() async {
-    final activePackage = await OfflineBasemapService().getActivePackage();
-    final readyPackages = await OfflineBasemapService().getReadyPackages(
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-    final localPath =
-        activePackage?['local_path']?.toString().trim() ??
-        await OfflineBasemapService().getActiveBasemapPath() ??
-        '';
-    final packageKey =
-        activePackage?['package_key']?.toString().trim() ?? '';
-    final zoneId = activePackage?['zone_id']?.toString().trim() ?? '';
-    final style = activePackage?['style']?.toString().trim() ?? '';
-    final format = activePackage?['format']?.toString().trim() ?? '';
-    final downloadedAt =
-        activePackage?['downloaded_at']?.toString().trim() ?? '';
-    final serverUpdatedAt =
-        activePackage?['generated_at']?.toString().trim() ?? '';
-
-    final isReady = localPath.isNotEmpty;
-    final statusLabel = isReady
-        ? (packageKey.isNotEmpty ? 'Package actif' : 'Téléchargée')
-        : (readyPackages.isNotEmpty
-              ? 'Aucun package actif'
-              : 'Aucun package téléchargé');
-
-    return _OfflineBasemapSnapshot(
-      isReady: isReady,
-      statusLabel: statusLabel,
-      localPath: localPath,
-      downloadedAt: downloadedAt,
-      serverUpdatedAt: serverUpdatedAt,
-      packageKey: packageKey,
-      zoneId: zoneId,
-      style: style,
-      format: format,
-    );
-  }
-
-  Future<String?> _refreshBasemapCatalogIfPossible() async {
-    final isReachable = await _isApiReachableQuickly();
-    if (!isReachable) {
-      return null;
-    }
-
-    try {
-      await BasemapCatalogService(databaseHelper: _db).refreshCatalog(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
-      return null;
-    } catch (e) {
-      return _cleanErrorMessage(e);
-    }
-  }
-
-  Future<bool> _isApiReachableQuickly() async {
-    try {
-      final uri = Uri.parse(ApiService.baseUrl);
-      final host = uri.host;
-      final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: const Duration(milliseconds: 800),
-      );
-      socket.destroy();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<_OfflineBasemapCatalogSnapshot> _loadOfflineBasemapCatalogSnapshot() async {
-    final zones = await _db.getOfflineBasemapZones(
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-    final packages = await _db.getOfflineBasemapPackages(
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-
-    return _OfflineBasemapCatalogSnapshot(
-      zones: zones,
-      packages: packages,
-    );
   }
 
   Future<_LocalInventorySnapshot> _loadLocalInventorySnapshot() async {
@@ -313,6 +178,8 @@ class _ProfilePageState extends State<ProfilePage> {
     var elecCount = 0;
     var synced = 0;
     var unsynced = 0;
+    var pendingNewObjects = 0;
+    var pendingUpdatedObjects = 0;
     var points = 0;
     var lignes = 0;
     var polygones = 0;
@@ -333,11 +200,17 @@ class _ProfilePageState extends State<ProfilePage> {
           if (metier == 'Électricité') elecCount += count;
 
           for (final row in rows) {
-            final isSynced = row['synced']?.toString() == '1';
+            final isSynced = _isLocalFlagEnabled(row['synced']);
+            final isDownloaded = _isLocalFlagEnabled(row['downloaded']);
             if (isSynced) {
               synced++;
             } else {
               unsynced++;
+              if (isDownloaded) {
+                pendingUpdatedObjects++;
+              } else {
+                pendingNewObjects++;
+              }
             }
           }
 
@@ -352,66 +225,36 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     }
 
+    final pendingPhotos = await _db.getPendingPhotoSyncItems(limit: 10000);
+    final failedPhotos = pendingPhotos.where((row) {
+      final error = row['last_error']?.toString().trim() ?? '';
+      return error.isNotEmpty;
+    }).length;
+    final pendingHistoryItems = await _db.countPendingLocalHistoryItems();
+
     return _LocalInventorySnapshot(
       totalEP: epCount,
       totalASS: assCount,
       totalELEC: elecCount,
       totalSynced: synced,
       totalUnsynced: unsynced,
+      pendingNewObjects: pendingNewObjects,
+      pendingUpdatedObjects: pendingUpdatedObjects,
+      pendingPhotos: pendingPhotos.length,
+      failedPhotos: failedPhotos,
+      pendingHistoryItems: pendingHistoryItems,
       totalPoints: points,
       totalLignes: lignes,
       totalPolygones: polygones,
     );
   }
 
-  // ignore: unused_element
-  Future<_MetricsSnapshot> _loadMetricsSnapshot({
-    required int? agentId,
-    required int? projetId,
-  }) async {
-    if (agentId == null || projetId == null) {
-      return const _MetricsSnapshot(
-        error: 'Agent ou projet actif introuvable pour les métriques serveur.',
-      );
-    }
-
-    final now = DateTime.now();
-    final isoWeek = _computeIsoWeek(now);
-
-    try {
-      final responses = await Future.wait<Map<String, dynamic>?>([
-        ApiService.fetchAgentPublicResume(
-          idAgent: agentId,
-          idProjet: projetId,
-        ),
-        ApiService.fetchAgentPublicJour(
-          idAgent: agentId,
-          idProjet: projetId,
-          jour: now,
-        ),
-        ApiService.fetchAgentPublicSemaine(
-          idAgent: agentId,
-          idProjet: projetId,
-          anneeIso: isoWeek.year,
-          semaineIso: isoWeek.week,
-        ),
-        ApiService.fetchAgentPublicMois(
-          idAgent: agentId,
-          idProjet: projetId,
-          annee: now.year,
-          moisNumero: now.month,
-        ),
-      ]);
-
-      return _MetricsSnapshot(
-        resume: responses[0],
-        day: responses[1],
-        week: responses[2],
-        month: responses[3],
-      );
-    } catch (e) {
-      return _MetricsSnapshot(error: _cleanErrorMessage(e));
-    }
+  bool _isLocalFlagEnabled(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' || text == 'true' || text == 't' || text == 'yes';
   }
 
   @override
@@ -447,10 +290,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   _buildProfileCard(),
-                  const SizedBox(height: 16),
-                  _buildProjetCard(),
-                  const SizedBox(height: 16),
-                  _buildOfflineBasemapSection(),
                   const SizedBox(height: 16),
                   if (_hasServerMetrics || _metricsError == null) ...[
                     _buildPublicOverviewSection(),
@@ -570,18 +409,34 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _startConduiteDrawingMode,
-                    icon: const Icon(Icons.alt_route),
-                    label: const Text('Dessiner une conduite'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1B4F72),
-                      side: const BorderSide(color: Color(0xFF1B4F72)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _startConduiteDrawingMode('ep'),
+                        icon: const Icon(Icons.water_drop_outlined),
+                        label: const Text('Conduite EP'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF1B4F72),
+                          side: const BorderSide(color: Color(0xFF1B4F72)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _startConduiteDrawingMode('asst'),
+                        icon: const Icon(Icons.plumbing_outlined),
+                        label: const Text('Conduite ASS'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2E7D32),
+                          side: const BorderSide(color: Color(0xFF2E7D32)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -591,507 +446,22 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildProjetCard() {
-    return _buildSection(
-      title: 'Projet',
-      color: const Color(0xFF1976D2),
-      children: [
-        _buildInfoRow(Icons.work_outline, 'Projet', _projetNom),
-        _buildInfoRow(Icons.tag, 'Code affaire', _projetCode),
-        _buildInfoRow(Icons.map_outlined, 'Région', _projetRegion),
-        _buildInfoRow(
-          Icons.folder_shared_outlined,
-          'Projet actif',
-          _activeProjetId != null ? '#$_activeProjetId' : '—',
-        ),
-      ],
+  void _startConduiteDrawingMode(String metier) {
+    Navigator.of(context).pop(
+      metier == 'asst'
+          ? ProfilePage.startConduiteDrawingAsstResult
+          : ProfilePage.startConduiteDrawingEpResult,
     );
-  }
-
-  Widget _buildOfflineBasemapSection() {
-    final statusColor = _hasOfflineBasemap
-        ? const Color(0xFF27AE60)
-        : const Color(0xFFF39C12);
-    final activeFileName = _offlineBasemapLocalPath.isNotEmpty
-        ? _offlineBasemapLocalPath.split(Platform.pathSeparator).last
-        : 'Aucun package actif';
-    final downloadedPackages = _basemapPackages
-        .where(
-          (row) => (row['status']?.toString().trim().toLowerCase() ?? '') == 'ready',
-        )
-        .length;
-    final basemapNotice = _hasOfflineBasemap
-        ? "Un package de carte offline est actif sur ce mobile."
-        : _basemapPackages.isNotEmpty
-            ? "Le catalogue de zones est disponible, mais aucun package n'est encore actif sur ce mobile."
-            : "Aucune zone de carte offline n'est encore disponible dans le catalogue local.";
-
-    return _buildSection(
-      title: 'Cartes hors ligne',
-      color: const Color(0xFF16A085),
-      children: [
-        _buildNoticeCard(
-          icon: _hasOfflineBasemap
-              ? Icons.map_outlined
-              : Icons.cloud_download_outlined,
-          color: statusColor,
-          text: basemapNotice,
-        ),
-        const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.location_city_outlined,
-            'Ville',
-            BasemapConstants.catalogCityLabel,
-          ),
-        _buildInfoRow(
-          Icons.check_circle_outline,
-          'Statut',
-          _offlineBasemapStatus,
-        ),
-        _buildInfoRow(
-          Icons.map_outlined,
-          'Zone active',
-          _activeBasemapZoneId.isNotEmpty ? _activeBasemapZoneId : 'Aucune',
-        ),
-        _buildInfoRow(
-          Icons.layers_outlined,
-          'Style actif',
-          _activeBasemapStyle.isNotEmpty
-              ? _activeBasemapStyle.toUpperCase()
-              : 'Aucun',
-        ),
-        _buildInfoRow(
-          Icons.dataset_outlined,
-          'Format actif',
-          _activeBasemapFormat.isNotEmpty
-              ? _activeBasemapFormat.toUpperCase()
-              : 'Inconnu',
-        ),
-        _buildInfoRow(
-          Icons.inventory_2_outlined,
-          'Package actif',
-          activeFileName,
-        ),
-        _buildInfoRow(
-          Icons.schedule_outlined,
-          'Téléchargée le',
-          _formatDateLabel(_offlineBasemapDownloadedAt),
-        ),
-        _buildInfoRow(
-          Icons.update_outlined,
-          'Version serveur',
-          _formatDateLabel(_offlineBasemapServerUpdatedAt),
-        ),
-        _buildInfoRow(
-          Icons.grid_view_outlined,
-          'Communes couvertes',
-          '${_basemapZones.length}',
-        ),
-        _buildInfoRow(
-          Icons.person_pin_circle_outlined,
-          'Communes catalogue',
-          '${_assignedBasemapZoneIds.length}',
-        ),
-        _buildInfoRow(
-          Icons.layers_outlined,
-          'Packages catalogue',
-          '${_basemapPackages.length}',
-        ),
-        _buildInfoRow(
-          Icons.download_done_outlined,
-          'Packages téléchargés',
-          '$downloadedPackages',
-        ),
-        if (_offlineBasemapLocalPath.isNotEmpty)
-          _buildInfoRow(
-            Icons.folder_open_outlined,
-            'Chemin local',
-            _offlineBasemapLocalPath,
-          ),
-        if (_basemapCatalogError != null) ...[
-          const SizedBox(height: 8),
-          _buildNoticeCard(
-            icon: Icons.info_outline,
-            color: const Color(0xFFF39C12),
-            text: 'Catalogue des zones : $_basemapCatalogError',
-          ),
-        ],
-        if (_basemapZones.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _downloadingBasemapPackageKeys.isNotEmpty ||
-                      _isPreparingBasemapPackages
-                  ? null
-                  : _downloadAssignedBasemapPackages,
-              icon: _downloadingBasemapPackageKeys.isNotEmpty ||
-                      _isPreparingBasemapPackages
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.cloud_download_outlined),
-              label: Text(
-                _isPreparingBasemapPackages
-                    ? 'Vérification des cartes en cours...'
-                    : _downloadingBasemapPackageKeys.isNotEmpty
-                    ? 'Téléchargement des cartes en cours...'
-                    : 'Télécharger toutes les cartes communales',
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1976D2),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-        ],
-        if (_basemapZones.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          ..._basemapZones.map(_buildBasemapZoneCard),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildBasemapZoneCard(Map<String, dynamic> zone) {
-    final zoneId = zone['zone_id']?.toString() ?? '';
-    final zoneName = _coalesceText(zone['nom'], zoneId);
-    final minZoom = _asIntOrNull(zone['min_zoom']);
-    final maxZoom = _asIntOrNull(zone['max_zoom']);
-    final zonePackages = _basemapPackages
-        .where((row) => row['zone_id']?.toString() == zoneId)
-        .toList();
-    final selectedPackage = _selectAutomaticPackageForZone(zonePackages);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF16A085).withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF16A085).withValues(alpha: 0.18),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.map_outlined,
-                size: 18,
-                color: Color(0xFF16A085),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  zoneName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF154360),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            zoneId,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF666666),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildBadge(
-                label: 'Zoom ${minZoom ?? '?'}-${maxZoom ?? '?'}',
-                color: const Color(0xFF1976D2),
-              ),
-              _buildBadge(
-                label:
-                    '${zonePackages.length} package${zonePackages.length > 1 ? 's' : ''}',
-                color: const Color(0xFF16A085),
-              ),
-              if (_activeBasemapZoneId == zoneId)
-                _buildBadge(
-                  label: 'Zone active',
-                  color: const Color(0xFF27AE60),
-                ),
-              _buildBadge(
-                label: 'Zone communale',
-                color: const Color(0xFF8E44AD),
-              ),
-            ],
-          ),
-          if (zonePackages.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _buildBasemapPackageDownloadRow(selectedPackage!),
-          ],
-        ],
-      ),
-    );
-  }
-
-  void _startConduiteDrawingMode() {
-    Navigator.of(context).pop(ProfilePage.startConduiteDrawingResult);
-  }
-
-  Widget _buildBasemapPackageDownloadRow(Map<String, dynamic> packageRow) {
-    final packageKey = packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
-    final style = packageRow['style']?.toString() ?? 'standard';
-    final format = packageRow['format']?.toString().toUpperCase() ?? 'MBTILES';
-    final version = packageRow['version']?.toString() ?? 'v?';
-    final statusRaw = packageRow['status'];
-    final statusLabel = _basemapPackageStatusLabel(statusRaw);
-    final statusColor = _basemapPackageStatusColor(statusRaw);
-    final sizeLabel = _formatFileSize(_asIntOrNull(packageRow['size_bytes']));
-    final isDownloading = _downloadingBasemapPackageKeys.contains(packageKey);
-    final isActivating = _activatingBasemapPackageKeys.contains(packageKey);
-    final isActivePackage = _activeBasemapPackageKey == packageKey;
-    final isReady =
-        (statusRaw ?? '').toString().trim().toLowerCase() == 'ready';
-    final canActivate = !isActivating && isReady && !isActivePackage;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 16, color: statusColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${style.toUpperCase()} | $format | $version'
-              '${sizeLabel.isNotEmpty ? ' | $sizeLabel' : ''}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF444444),
-              ),
-            ),
-          ),
-          if (isActivePackage) ...[
-            const SizedBox(width: 8),
-            _buildBadge(
-              label: 'Actif',
-              color: const Color(0xFF27AE60),
-            ),
-          ],
-          if (canActivate) ...[
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () => _activateBasemapPackage(packageRow),
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF27AE60).withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle_outline,
-                  size: 18,
-                  color: Color(0xFF27AE60),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(width: 8),
-          Text(
-            isDownloading
-                ? 'Téléchargement...'
-                : (isActivating ? 'Activation...' : statusLabel),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: statusColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _downloadAssignedBasemapPackages() async {
-    if (_downloadingBasemapPackageKeys.isNotEmpty || _isPreparingBasemapPackages) {
-      return;
-    }
-
-    try {
-      setState(() {
-        _isPreparingBasemapPackages = true;
-      });
-
-      final summary =
-          await BasemapCatalogService(databaseHelper: _db).ensureGlobalCoverageDownloaded(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
-
-      if (!mounted) return;
-      await _loadData();
-      if (!mounted) return;
-
-      final parts = <String>[];
-      final selectedCount = _asIntOrNull(summary['mobile_selected_count']) ?? 0;
-      final downloadedCount =
-          _asIntOrNull(summary['mobile_downloaded_count']) ?? 0;
-      final alreadyAvailableCount =
-          _asIntOrNull(summary['mobile_already_available_count']) ?? 0;
-      final failedCount = _asIntOrNull(summary['mobile_failed_count']) ?? 0;
-      final generatedCount = _asIntOrNull(summary['generated_count']) ?? 0;
-      final reusedCount = _asIntOrNull(summary['reused_count']) ?? 0;
-
-      if (generatedCount > 0) {
-        parts.add('$generatedCount préparée(s)');
-      } else if (reusedCount > 0) {
-        parts.add('$reusedCount déjà disponible(s) serveur');
-      }
-      if (downloadedCount > 0) {
-        parts.add('$downloadedCount téléchargée(s)');
-      }
-      if (alreadyAvailableCount > 0) {
-        parts.add('$alreadyAvailableCount déjà présente(s)');
-      }
-      if (failedCount > 0) {
-        parts.add('$failedCount en échec');
-      }
-
-      final backendMessage = (summary['message'] ?? '').toString().trim();
-      final message = selectedCount == 0
-          ? (backendMessage.isNotEmpty
-              ? backendMessage
-              : 'Aucune carte communale disponible.')
-          : (parts.isEmpty
-              ? 'Toutes les cartes communales sont déjà présentes.'
-              : 'Cartes communales : ${parts.join(', ')}.');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanErrorMessage(e))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPreparingBasemapPackages = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _activateBasemapPackage(Map<String, dynamic> packageRow) async {
-    final packageKey = packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
-
-    if (_activatingBasemapPackageKeys.contains(packageKey)) {
-      return;
-    }
-
-    setState(() {
-      _activatingBasemapPackageKeys.add(packageKey);
-    });
-
-    try {
-      await OfflineBasemapService().setActivePackage(packageKey);
-      if (!mounted) return;
-
-      await _loadData();
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Le package de zone est maintenant actif sur ce mobile.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanErrorMessage(e))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _activatingBasemapPackageKeys.remove(packageKey);
-        });
-      }
-    }
-  }
-
-  Map<String, dynamic>? _selectAutomaticPackageForZone(
-    List<Map<String, dynamic>> zonePackages,
-  ) {
-    if (zonePackages.isEmpty) return null;
-    final sorted = List<Map<String, dynamic>>.from(zonePackages)
-      ..sort(_compareAutomaticPackagePriority);
-    return sorted.first;
-  }
-
-  int _compareAutomaticPackagePriority(
-    Map<String, dynamic> a,
-    Map<String, dynamic> b,
-  ) {
-    final styleRankCompare =
-        _automaticStyleRank(a).compareTo(_automaticStyleRank(b));
-    if (styleRankCompare != 0) return styleRankCompare;
-
-    final formatRankCompare =
-        _automaticFormatRank(a).compareTo(_automaticFormatRank(b));
-    if (formatRankCompare != 0) return formatRankCompare;
-
-    final generatedAtA =
-        DateTime.tryParse(a['generated_at']?.toString().trim() ?? '');
-    final generatedAtB =
-        DateTime.tryParse(b['generated_at']?.toString().trim() ?? '');
-    if (generatedAtA != null && generatedAtB != null) {
-      final generatedCompare = generatedAtB.compareTo(generatedAtA);
-      if (generatedCompare != 0) return generatedCompare;
-    } else if (generatedAtA != null) {
-      return -1;
-    } else if (generatedAtB != null) {
-      return 1;
-    }
-
-    final versionA = a['version']?.toString().trim() ?? '';
-    final versionB = b['version']?.toString().trim() ?? '';
-    return versionB.compareTo(versionA);
-  }
-
-  int _automaticStyleRank(Map<String, dynamic> packageRow) {
-    final style = packageRow['style']?.toString().trim().toLowerCase() ?? '';
-    if (style == 'standard') return 0;
-    return 1;
-  }
-
-  int _automaticFormatRank(Map<String, dynamic> packageRow) {
-    final format = packageRow['format']?.toString().trim().toLowerCase() ?? '';
-    if (format == 'pmtiles') return 0;
-    if (format == 'mbtiles') return 1;
-    return 2;
   }
 
   Widget _buildPublicOverviewSection() {
-    final total = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
-    final currentWeek = _metricInt(_resumeMetrics, 'nb_objets_semaine_courante');
+    final serverTotal = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
+    final estimatedTotal = serverTotal + _localPendingNew;
     final recentWeek = _metricInt(_resumeMetrics, 'nb_objets_7j');
     final activeDays = _metricInt(_resumeMetrics, 'nb_jours_actifs');
 
     return _buildSection(
-      title: 'Performance terrain',
+      title: 'Travail terrain',
       color: const Color(0xFF1B4F72),
       headerTrailing: const Icon(
         Icons.cloud_done_outlined,
@@ -1112,31 +482,35 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             _buildStatCard(
               icon: Icons.layers_outlined,
-              label: 'Total collecté',
-              value: '$total',
+              label: 'Total terrain',
+              value: '$estimatedTotal',
               color: const Color(0xFF1B4F72),
-              helper: 'objets tracés',
+              helper: _localPendingNew > 0
+                  ? 'serveur + $_localPendingNew en attente'
+                  : 'cumul serveur',
+            ),
+            _buildStatCard(
+              icon: Icons.cloud_done_outlined,
+              label: 'Reçu serveur',
+              value: '$serverTotal',
+              color: const Color(0xFF1976D2),
+              helper: 'historique agent',
+            ),
+            _buildStatCard(
+              icon: Icons.outbox_outlined,
+              label: 'Attente locale',
+              value: '$_localPendingNew',
+              color: const Color(0xFF27AE60),
+              helper: _localPendingUpdates > 0
+                  ? '+ $_localPendingUpdates modification(s)'
+                  : 'nouveaux objets',
             ),
             _buildStatCard(
               icon: Icons.insights_outlined,
               label: '7 derniers jours',
               value: '$recentWeek',
-              color: const Color(0xFF1976D2),
-              helper: 'rythme récent',
-            ),
-            _buildStatCard(
-              icon: Icons.calendar_view_week_outlined,
-              label: 'Semaine courante',
-              value: '$currentWeek',
-              color: const Color(0xFF27AE60),
-              helper: 'depuis lundi',
-            ),
-            _buildStatCard(
-              icon: Icons.event_available_outlined,
-              label: 'Jours actifs',
-              value: '$activeDays',
               color: const Color(0xFF8E44AD),
-              helper: 'avec activité',
+              helper: 'serveur cumulé',
             ),
           ],
         ),
@@ -1150,6 +524,16 @@ class _ProfilePageState extends State<ProfilePage> {
           Icons.update_outlined,
           'Dernière activité',
           _formatDateLabel(_resumeMetrics?['derniere_activite']),
+        ),
+        _buildInfoRow(
+          Icons.event_available_outlined,
+          'Jours actifs',
+          '$activeDays',
+        ),
+        _buildInfoRow(
+          Icons.sync_outlined,
+          'Métriques mises à jour',
+          _formatDateTimeLabel(_metricsFetchedAt),
         ),
         if (_buildOverviewBadges().isNotEmpty) ...[
           const SizedBox(height: 4),
@@ -1268,7 +652,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final total = _totalEP + _totalASS + _totalELEC;
 
     return _buildSection(
-      title: 'Stock local par métier',
+      title: 'Stock présent sur ce téléphone par métier',
       color: const Color(0xFF1B4F72),
       children: [
         _buildMetierBar(
@@ -1308,7 +692,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Total local : $total objet${total > 1 ? 's' : ''}',
+                'Présents sur ce téléphone : $total objet${total > 1 ? 's' : ''}',
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -1324,7 +708,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildLocalGeometrySection() {
     return _buildSection(
-      title: 'Stock local par géométrie',
+      title: 'Stock présent sur ce téléphone par géométrie',
       color: const Color(0xFF8E44AD),
       children: [
         Row(
@@ -1364,32 +748,73 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildLocalSyncSection() {
     final total = _totalSynced + _totalUnsynced;
     final pct = total > 0 ? _totalSynced / total : 0.0;
+    final pendingTransport =
+        _localPendingNew + _localPendingUpdates + _localPendingPhotos;
 
     return _buildSection(
-      title: 'État de synchronisation locale',
+      title: 'File d’attente locale',
       color: const Color(0xFF2196F3),
       children: [
         Row(
           children: [
             Expanded(
               child: _buildSyncCard(
-                'En attente',
-                _totalUnsynced,
+                'Nouveaux objets',
+                _localPendingNew,
                 const Color(0xFFF39C12),
-                Icons.schedule,
+                Icons.add_location_alt_outlined,
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _buildSyncCard(
-                'Synchronisés',
-                _totalSynced,
-                const Color(0xFF27AE60),
-                Icons.cloud_done_outlined,
+                'Objets modifiés',
+                _localPendingUpdates,
+                const Color(0xFF8E44AD),
+                Icons.edit_location_alt_outlined,
               ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSyncCard(
+                'Photos à envoyer',
+                _localPendingPhotos,
+                const Color(0xFF1976D2),
+                Icons.photo_library_outlined,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSyncCard(
+                'Erreurs photo',
+                _localFailedPhotos,
+                const Color(0xFFE74C3C),
+                Icons.error_outline,
+              ),
+            ),
+          ],
+        ),
+        if (_localPendingHistory > 0) ...[
+          const SizedBox(height: 12),
+          _buildNoticeCard(
+            icon: Icons.history_outlined,
+            color: const Color(0xFF8E44AD),
+            text:
+                'Historique local en attente : $_localPendingHistory événement(s).',
+          ),
+        ],
+        if (pendingTransport == 0 && _localPendingHistory == 0) ...[
+          const SizedBox(height: 12),
+          _buildNoticeCard(
+            icon: Icons.verified_outlined,
+            color: const Color(0xFF27AE60),
+            text: 'Aucune donnée locale en attente sur ce téléphone.',
+          ),
+        ],
         const SizedBox(height: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1398,7 +823,7 @@ class _ProfilePageState extends State<ProfilePage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Progression sync locale',
+                  'Objets locaux déjà reçus serveur',
                   style: TextStyle(fontSize: 13),
                 ),
                 Text(
@@ -2061,6 +1486,15 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
   }
 
+  String _formatDateTimeLabel(DateTime? value) {
+    if (value == null) return '—';
+    final local = value.toLocal();
+    final date = _formatDateLabel(local.toIso8601String());
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$date à $hour:$minute';
+  }
+
   String _weekPeriodLabel() {
     if (_weekMetrics != null) {
       final start = _formatShortDate(_weekMetrics?['semaine_debut']);
@@ -2119,66 +1553,6 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${months[parsed.month - 1]} ${parsed.year}';
   }
 
-  String _basemapPackageStatusLabel(dynamic rawStatus) {
-    switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
-      case 'ready':
-        return 'Téléchargé';
-      case 'downloading':
-        return 'Téléchargement';
-      case 'update_available':
-        return 'Mise à jour dispo';
-      case 'failed':
-        return 'Échec';
-      case 'not_downloaded':
-      default:
-        return 'Non téléchargé';
-    }
-  }
-
-  Color _basemapPackageStatusColor(dynamic rawStatus) {
-    switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
-      case 'ready':
-        return const Color(0xFF27AE60);
-      case 'downloading':
-        return const Color(0xFF1976D2);
-      case 'update_available':
-        return const Color(0xFFF39C12);
-      case 'failed':
-        return const Color(0xFFE74C3C);
-      case 'not_downloaded':
-      default:
-        return const Color(0xFF7F8C8D);
-    }
-  }
-
-  String _formatFileSize(int? sizeBytes) {
-    if (sizeBytes == null || sizeBytes <= 0) return '';
-    if (sizeBytes >= 1024 * 1024) {
-      final value = sizeBytes / (1024 * 1024);
-      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} Mo';
-    }
-    if (sizeBytes >= 1024) {
-      final value = sizeBytes / 1024;
-      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} Ko';
-    }
-    return '$sizeBytes o';
-  }
-
-  // ignore: unused_element
-  _IsoWeek _computeIsoWeek(DateTime date) {
-    final localDate = DateTime(date.year, date.month, date.day);
-    final currentWeekStart =
-        localDate.subtract(Duration(days: localDate.weekday - 1));
-    final thursday = localDate.add(Duration(days: 4 - localDate.weekday));
-    final isoYear = thursday.year;
-    final firstThursday = DateTime(isoYear, 1, 4);
-    final firstWeekStart =
-        firstThursday.subtract(Duration(days: firstThursday.weekday - 1));
-    final week =
-        1 + currentWeekStart.difference(firstWeekStart).inDays ~/ 7;
-
-    return _IsoWeek(year: isoYear, week: week);
-  }
 }
 
 class _LocalInventorySnapshot {
@@ -2187,6 +1561,11 @@ class _LocalInventorySnapshot {
   final int totalELEC;
   final int totalSynced;
   final int totalUnsynced;
+  final int pendingNewObjects;
+  final int pendingUpdatedObjects;
+  final int pendingPhotos;
+  final int failedPhotos;
+  final int pendingHistoryItems;
   final int totalPoints;
   final int totalLignes;
   final int totalPolygones;
@@ -2197,70 +1576,13 @@ class _LocalInventorySnapshot {
     required this.totalELEC,
     required this.totalSynced,
     required this.totalUnsynced,
+    required this.pendingNewObjects,
+    required this.pendingUpdatedObjects,
+    required this.pendingPhotos,
+    required this.failedPhotos,
+    required this.pendingHistoryItems,
     required this.totalPoints,
     required this.totalLignes,
     required this.totalPolygones,
-  });
-}
-
-// ignore: unused_element
-class _MetricsSnapshot {
-  final Map<String, dynamic>? resume;
-  final Map<String, dynamic>? day;
-  final Map<String, dynamic>? week;
-  final Map<String, dynamic>? month;
-  final String? error;
-
-  const _MetricsSnapshot({
-    this.resume,
-    this.day,
-    this.week,
-    this.month,
-    this.error,
-  });
-}
-
-class _OfflineBasemapSnapshot {
-  final bool isReady;
-  final String statusLabel;
-  final String localPath;
-  final String downloadedAt;
-  final String serverUpdatedAt;
-  final String packageKey;
-  final String zoneId;
-  final String style;
-  final String format;
-
-  const _OfflineBasemapSnapshot({
-    required this.isReady,
-    required this.statusLabel,
-    required this.localPath,
-    required this.downloadedAt,
-    required this.serverUpdatedAt,
-    required this.packageKey,
-    required this.zoneId,
-    required this.style,
-    required this.format,
-  });
-}
-
-class _OfflineBasemapCatalogSnapshot {
-  final List<Map<String, dynamic>> zones;
-  final List<Map<String, dynamic>> packages;
-
-  const _OfflineBasemapCatalogSnapshot({
-    required this.zones,
-    required this.packages,
-  });
-}
-
-// ignore: unused_element
-class _IsoWeek {
-  final int year;
-  final int week;
-
-  const _IsoWeek({
-    required this.year,
-    required this.week,
   });
 }

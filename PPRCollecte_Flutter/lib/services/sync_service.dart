@@ -1,9 +1,14 @@
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
+
+import '../core/constants/basemap_constants.dart';
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
+import 'basemap_catalog_service.dart';
 import 'photo_reference_service.dart';
 import 'projection_service.dart';
 
@@ -51,63 +56,160 @@ class SyncService {
   }) async {
     final tables = _collectSrmTables();
     final result = SyncResult();
-    final total = tables.isEmpty ? 1 : tables.length;
+    final total = tables.isEmpty ? 1 : tables.length + 1;
     final nowIso = DateTime.now().toIso8601String();
     final downloadStartedAt = DateTime.now().toUtc();
     final updatedAfter = await dbHelper.getLastDownloadTime();
 
+    await _ensureBasemapCoverageForDownload(
+      result: result,
+      onProgress: onProgress,
+      total: total,
+    );
+
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
-      final current = index + 1;
+      final current = index + 2;
+      final tableStartedAt = DateTime.now().toUtc();
+      final tableStatus = await dbHelper.getDownloadTableStatus(info.table);
+      final statusText =
+          tableStatus?['status']?.toString().trim().toLowerCase() ?? '';
+      final canResumeTable =
+          statusText == 'downloading' || statusText == 'failed';
+      final statusUpdatedAfterRaw =
+          tableStatus?['updated_after']?.toString().trim() ?? '';
+      final statusUpdatedAfter = statusUpdatedAfterRaw.isEmpty
+          ? null
+          : DateTime.tryParse(statusUpdatedAfterRaw);
+      final lastTableDownload =
+          await dbHelper.getLastDownloadTimeForTable(info.table);
+      final tableUpdatedAfter =
+          (canResumeTable ? statusUpdatedAfter : null) ??
+          lastTableDownload ??
+          updatedAfter;
+      final updatedAfterIso =
+          tableUpdatedAfter?.toUtc().toIso8601String() ?? '';
+      var nextPage = canResumeTable
+          ? (_asIntOrNull(tableStatus?['next_page']) ?? 1)
+          : 1;
+      if (nextPage < 1) {
+        nextPage = 1;
+      }
+      var downloadedForTable = canResumeTable
+          ? (_asIntOrNull(tableStatus?['downloaded_count']) ?? 0)
+          : 0;
+      if (canResumeTable && nextPage > 1) {
+        result.warnings.add(
+          'Reprise ${info.table}: page $nextPage.',
+        );
+      }
 
       onProgress?.call(
-        current / total,
-        'Téléchargement ${info.geometryLabel} · ${info.endpoint}',
-        current,
+        (current - 1) / total,
+        'Telechargement ${info.geometryLabel} - ${info.endpoint}',
+        current - 1,
         total,
       );
 
       try {
-        final remoteItems = await ApiService.fetchData(
-          info.endpoint,
-          updatedAfter: updatedAfter,
-        );
-
-        for (final item in remoteItems) {
-          final map = _normalizeRemoteItem(item);
-          if (map == null) {
-            result.skippedCount++;
-            continue;
-          }
-
-          final uuid = map['uuid']?.toString();
-          if (uuid == null || uuid.isEmpty) {
-            result.skippedCount++;
-            continue;
-          }
-
-          map.remove('id');
-          if (ApiService.currentProjetId != null &&
-              (map['id_projet'] == null ||
-                  map['id_projet'].toString().trim().isEmpty)) {
-            map['id_projet'] = ApiService.currentProjetId;
-          }
-          map['downloaded'] = 1;
-          map['synced'] = 1;
-          map['date_sync'] = nowIso;
-
-          await dbHelper.upsertDownloadedEntitySrm(
+        while (true) {
+          await dbHelper.saveDownloadTableStatus(
             info.table,
-            map,
-            recordHistory: true,
+            status: 'downloading',
+            downloadedCount: downloadedForTable,
+            nextPage: nextPage,
+            updatedAfter: updatedAfterIso,
           );
-          result.successCount++;
-          result.entitySuccessCount++;
+
+          onProgress?.call(
+            (current - 1) / total,
+            'Telechargement ${info.geometryLabel} - page $nextPage',
+            current - 1,
+            total,
+          );
+
+          final pageResult = await ApiService.fetchDataPage(
+            info.endpoint,
+            updatedAfter: tableUpdatedAfter,
+            page: nextPage,
+          );
+
+          for (final item in pageResult.items) {
+            final map = _normalizeRemoteItem(item);
+            if (map == null) {
+              result.skippedCount++;
+              continue;
+            }
+
+            final uuid = map['uuid']?.toString();
+            if (uuid == null || uuid.isEmpty) {
+              result.skippedCount++;
+              continue;
+            }
+
+            map.remove('id');
+            if (ApiService.currentProjetId != null &&
+                (map['id_projet'] == null ||
+                    map['id_projet'].toString().trim().isEmpty)) {
+              map['id_projet'] = ApiService.currentProjetId;
+            }
+            map['downloaded'] = 1;
+            map['synced'] = 1;
+            map['date_sync'] = nowIso;
+
+            await dbHelper.upsertDownloadedEntitySrm(
+              info.table,
+              map,
+              recordHistory: true,
+            );
+            downloadedForTable++;
+            result.successCount++;
+            result.entitySuccessCount++;
+          }
+
+          final followingPage = pageResult.nextPage;
+          if (followingPage == null || followingPage <= 0) {
+            break;
+          }
+          nextPage = followingPage;
+          await dbHelper.saveDownloadTableStatus(
+            info.table,
+            status: 'downloading',
+            downloadedCount: downloadedForTable,
+            nextPage: nextPage,
+            totalCount: pageResult.count,
+            updatedAfter: updatedAfterIso,
+          );
         }
+
+        await dbHelper.saveLastDownloadTimeForTable(
+          info.table,
+          tableStartedAt,
+        );
+        await dbHelper.saveDownloadTableStatus(
+          info.table,
+          status: 'completed',
+          downloadedCount: downloadedForTable,
+        );
       } catch (e) {
+        await dbHelper.saveDownloadTableStatus(
+          info.table,
+          status: 'failed',
+          downloadedCount: downloadedForTable,
+          nextPage: nextPage,
+          updatedAfter: updatedAfterIso,
+          error: _short(e),
+        );
         result.failedCount++;
-        result.errors.add('Téléchargement ${info.table}: ${_short(e)}');
+        result.errors.add('Telechargement ${info.table}: ${_short(e)}');
       }
+
+      onProgress?.call(
+        current / total,
+        'Telechargement ${info.geometryLabel} - ${info.endpoint}',
+        current,
+        total,
+      );
     }
 
     await refreshEpRegardMiroirCache(result: result);
@@ -119,6 +221,59 @@ class SyncService {
     return result;
   }
 
+  Future<void> _ensureBasemapCoverageForDownload({
+    required SyncResult result,
+    required Function(double, String, int, int)? onProgress,
+    required int total,
+  }) async {
+    onProgress?.call(
+      0,
+      'Telechargement des cartes offline',
+      0,
+      total,
+    );
+
+    try {
+      final payload = await BasemapCatalogService().ensureGlobalCoverageDownloaded(
+        citySlug: BasemapConstants.catalogCitySlug,
+      );
+      final failed = _asIntOrNull(payload['mobile_failed_count']) ?? 0;
+      final selected = _asIntOrNull(payload['mobile_selected_count']) ?? 0;
+      final downloaded = _asIntOrNull(payload['mobile_downloaded_count']) ?? 0;
+      final available =
+          _asIntOrNull(payload['mobile_already_available_count']) ?? 0;
+      if (failed > 0) {
+        result.warnings.add(
+          'Cartes offline partielles: $failed/$selected package(s) restent a telecharger.',
+        );
+        final errors = payload['mobile_errors'];
+        if (errors is List) {
+          for (final error in errors.take(3)) {
+            final text = error.toString().trim();
+            if (text.isNotEmpty) {
+              result.warnings.add('Carte offline: $text');
+            }
+          }
+        }
+      } else if (selected > 0) {
+        result.warnings.add(
+          'Cartes offline OK: $downloaded telecharge(s), $available deja present(s).',
+        );
+      }
+    } catch (e) {
+      result.warnings.add(
+        'Cartes offline non mises a jour: ${_short(e)}',
+      );
+    }
+
+    onProgress?.call(
+      1 / total,
+      'Cartes offline verifiees',
+      1,
+      total,
+    );
+  }
+
   Future<SyncResult> syncAllDataSequential({
     Function(double, String, int, int)? onProgress,
   }) async {
@@ -126,6 +281,21 @@ class SyncService {
     final result = SyncResult();
     final total = tables.isEmpty ? 1 : tables.length;
     final nowIso = DateTime.now().toIso8601String();
+    String? syncSessionUuid;
+
+    try {
+      onProgress?.call(
+        0,
+        'Preparation du journal de synchronisation',
+        0,
+        total,
+      );
+      syncSessionUuid = await _createSyncManifestForPendingRows(tables);
+    } catch (e) {
+      result.failedCount++;
+      result.errors.add('Journal de synchronisation: ${_short(e)}');
+      return result;
+    }
 
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
@@ -137,6 +307,7 @@ class SyncService {
         nowIso: nowIso,
         result: result,
         onProgress: onProgress,
+        syncSessionUuid: syncSessionUuid,
       )) {
         continue;
       }
@@ -170,12 +341,22 @@ class SyncService {
 
           final payload = Map<String, dynamic>.from(row);
           final localPhotos = _extractLocalPhotos(payload);
+          final uuid = row['uuid']?.toString().trim();
+          if (uuid != null && uuid.isNotEmpty) {
+            await _enqueuePhotosForRow(
+              info,
+              row,
+              localPhotos,
+            );
+          }
           _sanitizePayloadForSync(info, payload);
 
           final response = await ApiService.postData(
             info.endpoint,
             payload,
             throwOnError: true,
+            syncSessionUuid: syncSessionUuid,
+            syncClientItemUuid: _clientItemUuid(info, row),
           );
           if (response == null) {
             throw Exception('réponse vide API');
@@ -205,15 +386,6 @@ class SyncService {
             );
           }
 
-          final uuid = row['uuid']?.toString().trim();
-          if (uuid != null && uuid.isNotEmpty) {
-            await _enqueuePhotosForRow(
-              info,
-              row,
-              localPhotos,
-            );
-          }
-
           result.successCount++;
         }
       } catch (e) {
@@ -229,10 +401,77 @@ class SyncService {
       );
     }
 
-    await _processPendingPhotoQueue(result);
+    await _syncPendingConduiteValidations(
+      result,
+      syncSessionUuid: syncSessionUuid,
+    );
+    await _processPendingPhotoQueue(
+      result,
+      syncSessionUuid: syncSessionUuid,
+    );
     await _syncLocalHistoryJournal(result);
 
     return result;
+  }
+
+  Future<void> _syncPendingConduiteValidations(
+    SyncResult result, {
+    String? syncSessionUuid,
+  }) async {
+    final items = await dbHelper.getPendingConduiteSyncItems(limit: 1000);
+    for (final item in items) {
+      final localId = _asIntOrNull(item['id']);
+      if (localId == null) {
+        continue;
+      }
+      final rawMetier = item['metier']?.toString().trim() ?? '';
+      final metier = rawMetier.isEmpty ? 'ep' : rawMetier;
+      final syncUuid = item['sync_uuid']?.toString().trim() ?? '';
+      final jourText = item['jour']?.toString().trim() ?? '';
+      final nodesText = item['nodes_json']?.toString().trim() ?? '';
+      final jour = DateTime.tryParse(jourText);
+      if (jour == null || nodesText.isEmpty) {
+        await dbHelper.markConduiteSyncItemFailed(
+          localId,
+          'Conduite locale invalide: jour ou noeuds manquants',
+        );
+        result.failedCount++;
+        continue;
+      }
+
+      try {
+        final decoded = jsonDecode(nodesText);
+        if (decoded is! List) {
+          throw Exception('Liste des regards invalide');
+        }
+        final nodes = decoded
+            .whereType<Map>()
+            .map((node) => Map<String, dynamic>.from(node))
+            .toList();
+        if (nodes.length < 2) {
+          throw Exception('Au moins deux regards sont necessaires');
+        }
+
+        await ApiService.validateStatistiqueConduite(
+          metier: metier,
+          idAgent: _asIntOrNull(item['id_agent']),
+          jour: jour,
+          nodes: nodes,
+          syncUuid: syncUuid,
+          syncSessionUuid: syncSessionUuid,
+          syncClientItemUuid: syncUuid,
+          acceptFrozenConflict: true,
+        );
+        await dbHelper.markConduiteSyncItemSynced(localId);
+        result.successCount++;
+        result.entitySuccessCount++;
+      } catch (e) {
+        final message = 'Conduite $metier $jourText: ${_short(e)}';
+        await dbHelper.markConduiteSyncItemFailed(localId, message);
+        result.failedCount++;
+        result.errors.add(message);
+      }
+    }
   }
 
   Future<void> refreshEpRegardMiroirCache({
@@ -285,6 +524,7 @@ class SyncService {
     required String nowIso,
     required SyncResult result,
     required Function(double, String, int, int)? onProgress,
+    String? syncSessionUuid,
   }) async {
     onProgress?.call(
       (current - 1) / total,
@@ -328,12 +568,22 @@ class SyncService {
       try {
         final payload = Map<String, dynamic>.from(row);
         final localPhotos = _extractLocalPhotos(payload);
+        final uuid = row['uuid']?.toString().trim();
+        if (uuid != null && uuid.isNotEmpty) {
+          await _enqueuePhotosForRow(
+            info,
+            row,
+            localPhotos,
+          );
+        }
         _sanitizePayloadForSync(info, payload);
 
         final response = await ApiService.postData(
           info.endpoint,
           payload,
           throwOnError: true,
+          syncSessionUuid: syncSessionUuid,
+          syncClientItemUuid: _clientItemUuid(info, row),
         );
         if (response == null) {
           throw Exception('réponse vide API');
@@ -363,15 +613,6 @@ class SyncService {
           );
         }
 
-        final uuid = row['uuid']?.toString().trim();
-        if (uuid != null && uuid.isNotEmpty) {
-          await _enqueuePhotosForRow(
-            info,
-            row,
-            localPhotos,
-          );
-        }
-
         result.successCount++;
         result.entitySuccessCount++;
       } catch (e) {
@@ -387,6 +628,134 @@ class SyncService {
       total,
     );
     return true;
+  }
+
+  Future<String?> _createSyncManifestForPendingRows(
+    List<_TableInfo> tables,
+  ) async {
+    final items = <Map<String, dynamic>>[];
+    final attachments = <Map<String, dynamic>>[];
+    final attachmentKeys = <String>{};
+
+    for (final info in tables) {
+      final rows = await dbHelper.getUnsyncedSrm(info.table);
+      for (final row in rows) {
+        if (_isDownloadedRow(row)) {
+          continue;
+        }
+
+        final uuid = row['uuid']?.toString().trim() ?? '';
+        if (uuid.isEmpty) {
+          continue;
+        }
+
+        final payload = Map<String, dynamic>.from(row);
+        final localPhotos = _extractLocalPhotos(
+          payload,
+          strictMissing: false,
+        );
+        _sanitizePayloadForSync(info, payload);
+
+        items.add({
+          'client_item_uuid': _clientItemUuid(info, row),
+          'nom_schema': info.schema,
+          'nom_table': info.table,
+          'uuid_objet': uuid,
+          'local_id': _asIntOrNull(row['id']),
+          'operation': 'upsert',
+          'payload_hash': _hashPayload(payload),
+          'payload_summary': {
+            'table': info.table,
+            'local_id': _asIntOrNull(row['id']),
+            'photos_locales': localPhotos.length,
+          },
+        });
+
+        for (final photo in localPhotos.entries) {
+          _addManifestAttachment(
+            attachments: attachments,
+            attachmentKeys: attachmentKeys,
+            schemaName: info.schema,
+            tableName: info.table,
+            uuidObjet: uuid,
+            photoSlot: photo.key,
+            localPath: photo.value,
+          );
+        }
+      }
+    }
+
+    final pendingConduites = await dbHelper.getPendingConduiteSyncItems(
+      limit: 10000,
+    );
+    for (final item in pendingConduites) {
+      final syncUuid = item['sync_uuid']?.toString().trim() ?? '';
+      final metier = item['metier']?.toString().trim() ?? 'ep';
+      if (syncUuid.isEmpty) continue;
+
+      final payload = {
+        'metier': metier,
+        'id_agent': item['id_agent'],
+        'jour': item['jour'],
+        'nodes': item['nodes_json'],
+      };
+      items.add({
+        'client_item_uuid': syncUuid,
+        'nom_schema': 'public',
+        'nom_table': _conduiteStatTableForMetier(metier),
+        'uuid_objet': syncUuid,
+        'local_id': _asIntOrNull(item['id']),
+        'operation': 'validate',
+        'payload_hash': _hashPayload(payload),
+        'payload_summary': {
+          'table': _conduiteStatTableForMetier(metier),
+          'local_id': _asIntOrNull(item['id']),
+          'metier': metier,
+          'jour': item['jour'],
+        },
+      });
+    }
+
+    final pendingPhotos = await dbHelper.getPendingPhotoSyncItems(limit: 10000);
+    for (final item in pendingPhotos) {
+      final schemaName = item['schema_name']?.toString().trim() ?? '';
+      final tableName = item['table_name']?.toString().trim() ?? '';
+      final uuidObjet = item['uuid_objet']?.toString().trim() ?? '';
+      final localPath = item['local_path']?.toString().trim() ?? '';
+      final photoSlot = _asIntOrNull(item['photo_slot']);
+      if (photoSlot == null) {
+        continue;
+      }
+      _addManifestAttachment(
+        attachments: attachments,
+        attachmentKeys: attachmentKeys,
+        schemaName: schemaName,
+        tableName: tableName,
+        uuidObjet: uuidObjet,
+        photoSlot: photoSlot,
+        localPath: localPath,
+      );
+    }
+
+    if (items.isEmpty && attachments.isEmpty) {
+      return null;
+    }
+
+    final syncUuid = Uuid().v4();
+    final response = await ApiService.createSyncManifest(
+      syncUuid: syncUuid,
+      items: items,
+      attachments: attachments,
+      metadata: {
+        'client': 'flutter',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'items_count': items.length,
+        'attachments_count': attachments.length,
+      },
+    );
+
+    final responseUuid = response['sync_uuid']?.toString().trim() ?? '';
+    return responseUuid.isNotEmpty ? responseUuid : syncUuid;
   }
 
   List<_TableInfo> _collectSrmTables() {
@@ -532,6 +901,14 @@ class SyncService {
     return endpointMap['$schema/$table'];
   }
 
+  String _conduiteStatTableForMetier(String metier) {
+    final normalized = metier.trim().toLowerCase();
+    if (normalized == 'asst' || normalized == 'ass') {
+      return 'conduite_statique_asst';
+    }
+    return 'conduite_statistique_ep';
+  }
+
   String _short(Object e) {
     final value = e.toString();
     return value.length > 180 ? value.substring(0, 180) : value;
@@ -610,7 +987,10 @@ class SyncService {
     return value?.toString() == '1';
   }
 
-  Map<int, String> _extractLocalPhotos(Map<String, dynamic> payload) {
+  Map<int, String> _extractLocalPhotos(
+    Map<String, dynamic> payload, {
+    bool strictMissing = true,
+  }) {
     final photos = <int, String>{};
     for (var slot = 1; slot <= 4; slot++) {
       final raw = payload['photo_$slot']?.toString().trim() ?? '';
@@ -620,7 +1000,12 @@ class SyncService {
 
       final localPath = PhotoReferenceService.toLocalFilePath(raw);
       if (!File(localPath).existsSync()) {
-        continue;
+        if (!strictMissing) {
+          print('[PHOTO] Photo locale introuvable ignoree au manifest: '
+              'photo_$slot ($localPath)');
+          continue;
+        }
+        throw Exception('Photo locale introuvable: photo_$slot ($localPath)');
       }
       photos[slot] = localPath;
     }
@@ -655,7 +1040,10 @@ class SyncService {
     }
   }
 
-  Future<void> _processPendingPhotoQueue(SyncResult result) async {
+  Future<void> _processPendingPhotoQueue(
+    SyncResult result, {
+    String? syncSessionUuid,
+  }) async {
     final items = await dbHelper.getPendingPhotoSyncItems();
     print('[PHOTO] Queue pending count=${items.length}');
     for (final item in items) {
@@ -676,6 +1064,10 @@ class SyncService {
       }
 
       try {
+        if (!File(localPath).existsSync()) {
+          throw Exception('Photo locale introuvable: $localPath');
+        }
+
         print('[PHOTO] Upload $tableName uuid=$uuidObjet slot=$photoSlot');
         final response = await ApiService.uploadPhoto(
           schemaName: schemaName,
@@ -686,6 +1078,7 @@ class SyncService {
           idProjet: _asIntOrNull(item['id_projet']),
           idMission: _asIntOrNull(item['id_mission']),
           idAgentCrea: _asIntOrNull(item['id_agent_crea']),
+          syncSessionUuid: syncSessionUuid,
         );
 
         final remotePath = response['relative_path']?.toString().trim() ?? '';
@@ -886,6 +1279,80 @@ class SyncService {
     if (value == null) return null;
     if (value is int) return value;
     return int.tryParse(value.toString());
+  }
+
+  String _clientItemUuid(_TableInfo info, Map<String, dynamic> row) {
+    final uuid = row['uuid']?.toString().trim() ?? '';
+    if (uuid.isNotEmpty) {
+      return '${info.schema}.${info.table}:$uuid';
+    }
+    final localId = row['id']?.toString().trim() ?? 'unknown';
+    return '${info.schema}.${info.table}:local:$localId';
+  }
+
+  String _hashPayload(Map<String, dynamic> payload) {
+    final canonical = jsonEncode(_canonicalizeJson(payload));
+    return sha256.convert(utf8.encode(canonical)).toString();
+  }
+
+  dynamic _canonicalizeJson(dynamic value) {
+    if (value is Map) {
+      final entries = value.entries
+          .map((entry) => MapEntry(entry.key.toString(), entry.value))
+          .toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+      return {
+        for (final entry in entries) entry.key: _canonicalizeJson(entry.value),
+      };
+    }
+    if (value is Iterable) {
+      return value.map(_canonicalizeJson).toList();
+    }
+    return value;
+  }
+
+  void _addManifestAttachment({
+    required List<Map<String, dynamic>> attachments,
+    required Set<String> attachmentKeys,
+    required String schemaName,
+    required String tableName,
+    required String uuidObjet,
+    required int photoSlot,
+    required String localPath,
+  }) {
+    final schema = schemaName.trim();
+    final table = tableName.trim();
+    final uuid = uuidObjet.trim();
+    final path = localPath.trim();
+    if (schema.isEmpty || table.isEmpty || uuid.isEmpty || path.isEmpty) {
+      return;
+    }
+
+    final key = '$schema|$table|$uuid|$photoSlot';
+    if (!attachmentKeys.add(key)) {
+      return;
+    }
+
+    attachments.add({
+      'nom_schema': schema,
+      'nom_table': table,
+      'uuid_objet': uuid,
+      'photo_slot': photoSlot,
+      'local_path': path,
+      'taille_octets': _fileSizeOrNull(path),
+    });
+  }
+
+  int? _fileSizeOrNull(String path) {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) {
+        return null;
+      }
+      return file.lengthSync();
+    } catch (_) {
+      return null;
+    }
   }
 
   String _formatRowSyncError(

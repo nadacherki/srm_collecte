@@ -45,6 +45,14 @@ Future<void> _performDownload() async {
 
     _setStateFromPart(() => lastSyncResult = result);
 
+    await _hydrateOfflineBasemapState();
+    await _refreshAllPoints();
+    await _loadDisplayedLines();
+    await _loadDisplayedSpecialLines();
+    await _loadPointCountsByTable();
+
+    if (!mounted) return;
+
     final downloadedLocalCount = await DatabaseHelper().countDownloadedSrmRows(
       projetId: ApiService.currentProjetId,
     );
@@ -238,6 +246,13 @@ Future<void> _performSync() async {
       }
 
       await syncService.refreshEpRegardMiroirCache(result: result);
+      try {
+        await PublicMetricsCacheService(
+          databaseHelper: DatabaseHelper(),
+        ).prefetchForCurrentSession();
+      } catch (e) {
+        debugPrint('[METRICS] Refresh apres sync ignore: $e');
+      }
     }
 
     if (mounted) {

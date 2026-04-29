@@ -42,8 +42,12 @@ except ImportError:  # pragma: no cover - depends on runtime env
 
 from .models import (
     Utilisateur, Projet, Mission, Commune,
-    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto, FondDePlan, EvaluationAgent,
+    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto,
+    SyncSession, SyncSessionItem, SyncSessionAttachment,
+    FondDePlan, EvaluationAgent,
     StatistiqueConduite, StatistiqueConduiteSegment,
+    ConduiteStatistiqueEp, ConduiteStatistiqueEpSegment,
+    ConduiteStatiqueAsst, ConduiteStatiqueAsstSegment,
     SrmFieldOption,
     BasemapZone, BasemapPackage, AgentBasemapZone,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
@@ -400,6 +404,317 @@ def _statistique_conduite_snapshot(stat_row):
         'segments_count': len(segments_wgs84),
         'segments_wgs84': segments_wgs84,
     }
+
+
+_CONDUITE_METIER_CONFIG = {
+    'legacy': {
+        'label': 'EP',
+        'regard_model': EpRegard,
+        'stat_model': StatistiqueConduite,
+        'segment_model': StatistiqueConduiteSegment,
+        'stat_table': 'statistique_conduite',
+        'segment_table': 'statistique_conduite_segment',
+        'coord_fields': ('ep_coor_x', 'ep_coor_y', 'ep_coor_z'),
+        'sync_schema': 'public',
+        'sync_table': 'statistique_conduite',
+        'ensure_tables': False,
+    },
+    'ep': {
+        'label': 'EP',
+        'regard_model': EpRegard,
+        'stat_model': ConduiteStatistiqueEp,
+        'segment_model': ConduiteStatistiqueEpSegment,
+        'stat_table': 'conduite_statistique_ep',
+        'segment_table': 'conduite_statistique_ep_segment',
+        'coord_fields': ('ep_coor_x', 'ep_coor_y', 'ep_coor_z'),
+        'sync_schema': 'public',
+        'sync_table': 'conduite_statistique_ep',
+        'ensure_tables': True,
+    },
+    'asst': {
+        'label': 'ASS',
+        'regard_model': AssRegard,
+        'stat_model': ConduiteStatiqueAsst,
+        'segment_model': ConduiteStatiqueAsstSegment,
+        'stat_table': 'conduite_statique_asst',
+        'segment_table': 'conduite_statique_asst_segment',
+        'coord_fields': ('ass_coor_x', 'ass_coor_y', 'ass_coor_z'),
+        'sync_schema': 'public',
+        'sync_table': 'conduite_statique_asst',
+        'ensure_tables': True,
+    },
+}
+
+
+def _normalize_conduite_metier(raw_metier, *, default='legacy'):
+    value = str(raw_metier or '').strip().lower()
+    if value in ('ep', 'eau_potable', 'eau potable'):
+        return 'ep'
+    if value in ('asst', 'ass', 'assainissement'):
+        return 'asst'
+    if value in ('legacy', ''):
+        return default
+    raise ValidationError({'metier': [f'Metier conduite non supporte: {raw_metier}.']})
+
+
+def _conduite_config(raw_metier=None, *, default='legacy'):
+    key = _normalize_conduite_metier(raw_metier, default=default)
+    config = _CONDUITE_METIER_CONFIG[key]
+    if config.get('ensure_tables'):
+        _ensure_conduite_stat_tables(config)
+    return key, config
+
+
+def _ensure_conduite_stat_tables(config):
+    stat_table = config['stat_table']
+    segment_table = config['segment_table']
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS public.{stat_table} (
+                id_statistique_conduite BIGSERIAL PRIMARY KEY,
+                id_agent INTEGER NOT NULL,
+                jour DATE NOT NULL,
+                geom geometry(MultiLineStringZ,26191),
+                longueur_conduite_m DOUBLE PRECISION DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT now(),
+                updated_at TIMESTAMPTZ DEFAULT now(),
+                CONSTRAINT {stat_table}_agent_jour_uniq UNIQUE (id_agent, jour)
+            )
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS public.{segment_table} (
+                id_statistique_conduite_segment BIGSERIAL PRIMARY KEY,
+                id_statistique_conduite BIGINT NOT NULL
+                    REFERENCES public.{stat_table}(id_statistique_conduite)
+                    ON DELETE CASCADE,
+                fid_regard_a INTEGER NOT NULL,
+                fid_regard_b INTEGER NOT NULL,
+                fid_regard_min INTEGER GENERATED ALWAYS AS (
+                    LEAST(fid_regard_a, fid_regard_b)
+                ) STORED,
+                fid_regard_max INTEGER GENERATED ALWAYS AS (
+                    GREATEST(fid_regard_a, fid_regard_b)
+                ) STORED,
+                geom geometry(LineStringZ,26191) NOT NULL,
+                longueur_segment_m DOUBLE PRECISION DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT now(),
+                updated_at TIMESTAMPTZ DEFAULT now(),
+                CONSTRAINT {segment_table}_uniq UNIQUE (
+                    id_statistique_conduite,
+                    fid_regard_min,
+                    fid_regard_max
+                )
+            )
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {segment_table}_stat_idx
+                ON public.{segment_table} (id_statistique_conduite)
+            """
+        )
+
+
+def _coerce_conduite_node_point(node_payload, config, label):
+    x_field, y_field, z_field = config['coord_fields']
+    x = node_payload.get('x')
+    y = node_payload.get('y')
+    z = node_payload.get('z')
+    if x is None:
+        x = node_payload.get(x_field)
+    if y is None:
+        y = node_payload.get(y_field)
+    if z is None:
+        z = node_payload.get(z_field)
+
+    if x is None or y is None:
+        raise ValidationError(
+            {'nodes': [f'Regard {label} sans geometrie exploitable.']}
+        )
+
+    return Point(float(x), float(y), float(z if z is not None else 0.0), srid=26191)
+
+
+def _resolve_conduite_regard_node(node_payload, config):
+    fid = node_payload.get('fid')
+    uuid_value = (node_payload.get('uuid') or '').strip()
+    label = (
+        (node_payload.get('label') or '').strip()
+        or (node_payload.get('ep_num') or '').strip()
+        or uuid_value
+        or str(fid or '')
+    )
+    regard_model = config['regard_model']
+    x_field, y_field, z_field = config['coord_fields']
+
+    if fid is not None:
+        try:
+            regard = regard_model.objects.get(fid=fid)
+        except regard_model.DoesNotExist as exc:
+            raise ValidationError(
+                {'nodes': [f'Regard introuvable sur le serveur pour fid={fid}.']}
+            ) from exc
+        if regard.geom is None:
+            x = getattr(regard, x_field, None)
+            y = getattr(regard, y_field, None)
+            z = getattr(regard, z_field, None)
+            if x is not None and y is not None:
+                regard.geom = Point(
+                    float(x),
+                    float(y),
+                    float(z if z is not None else 0.0),
+                    srid=26191,
+                )
+            else:
+                regard.geom = _coerce_conduite_node_point(node_payload, config, fid)
+        return regard
+
+    if uuid_value:
+        qs = regard_model.objects.filter(uuid=uuid_value)
+        count = qs.count()
+        if count == 0:
+            raise ValidationError(
+                {
+                    'nodes': [
+                        f'Regard {label} absent du serveur. Synchronisez les regards du jour avant validation.'
+                    ]
+                }
+            )
+        if count > 1:
+            raise ValidationError(
+                {'nodes': [f'UUID de regard ambigu sur le serveur: {uuid_value}.']}
+            )
+        regard = qs.first()
+        if regard is None:
+            raise ValidationError({'nodes': [f'Regard {label} introuvable.']})
+        if regard.geom is None:
+            x = getattr(regard, x_field, None)
+            y = getattr(regard, y_field, None)
+            z = getattr(regard, z_field, None)
+            if x is not None and y is not None:
+                regard.geom = Point(
+                    float(x),
+                    float(y),
+                    float(z if z is not None else 0.0),
+                    srid=26191,
+                )
+            else:
+                regard.geom = _coerce_conduite_node_point(node_payload, config, label)
+        return regard
+
+    raise ValidationError(
+        {'nodes': ['Chaque regard doit fournir fid ou uuid pour la validation.']}
+    )
+
+
+def _insert_statistique_conduite_segments(
+    config,
+    id_statistique_conduite,
+    unique_segments,
+    now,
+):
+    if not unique_segments:
+        return
+
+    rows = [
+        (
+            id_statistique_conduite,
+            segment['fid_regard_a'],
+            segment['fid_regard_b'],
+            segment['geom'].ewkt,
+            0.0,
+            now,
+            now,
+        )
+        for segment in unique_segments
+    ]
+
+    segment_table = config['segment_table']
+    stat_table = config['stat_table']
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            f"""
+            INSERT INTO public.{segment_table} (
+                id_statistique_conduite,
+                fid_regard_a,
+                fid_regard_b,
+                geom,
+                longueur_segment_m,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                ST_GeomFromEWKT(%s),
+                %s,
+                %s,
+                %s
+            )
+            """,
+            rows,
+        )
+        cursor.execute(
+            f"""
+            UPDATE public.{segment_table}
+               SET longueur_segment_m = ST_Length(geom),
+                   updated_at = %s
+             WHERE id_statistique_conduite = %s
+            """,
+            [now, id_statistique_conduite],
+        )
+        cursor.execute(
+            f"""
+            UPDATE public.{stat_table}
+               SET geom = sub.geom,
+                   longueur_conduite_m = sub.longueur,
+                   updated_at = %s
+              FROM (
+                    SELECT
+                        ST_Multi(ST_Collect(geom))::geometry(MultiLineStringZ,26191) AS geom,
+                        COALESCE(SUM(longueur_segment_m), 0.0) AS longueur
+                      FROM public.{segment_table}
+                     WHERE id_statistique_conduite = %s
+              ) AS sub
+             WHERE id_statistique_conduite = %s
+            """,
+            [now, id_statistique_conduite, id_statistique_conduite],
+        )
+
+
+def _statistique_conduite_snapshot(stat_row, config=None, metier_key='legacy'):
+    config = config or _CONDUITE_METIER_CONFIG['legacy']
+    segment_qs = config['segment_model'].objects.filter(
+        id_statistique_conduite=stat_row.id_statistique_conduite
+    ).order_by('fid_regard_min', 'fid_regard_max')
+
+    segments_wgs84 = [
+        {
+            'fid_regard_a': segment.fid_regard_a,
+            'fid_regard_b': segment.fid_regard_b,
+            'points': _segment_geom_to_wgs84_points(segment.geom),
+            'longueur_segment_m': float(segment.longueur_segment_m or 0.0),
+        }
+        for segment in segment_qs
+    ]
+
+    return {
+        'exists': True,
+        'frozen': True,
+        'metier': metier_key,
+        'id_statistique_conduite': stat_row.id_statistique_conduite,
+        'id_agent': stat_row.id_agent,
+        'jour': stat_row.jour.isoformat(),
+        'longueur_conduite_m': float(stat_row.longueur_conduite_m or 0.0),
+        'segments_count': len(segments_wgs84),
+        'segments_wgs84': segments_wgs84,
+    }
+
+
 def _normalized_db_table(model):
     return str(model._meta.db_table).replace('"', '')
 
@@ -455,6 +770,267 @@ def _parse_positive_int_value(raw_value):
     except (TypeError, ValueError):
         return None
     return value if value > 0 else None
+
+
+_SYNC_META_KEYS = {
+    '_sync_session_uuid',
+    'sync_session_uuid',
+    '_sync_client_item_uuid',
+    'sync_client_item_uuid',
+}
+
+
+def _extract_sync_meta(data):
+    if not isinstance(data, dict):
+        return None, None
+
+    sources = [data]
+    properties = data.get('properties')
+    if isinstance(properties, dict):
+        sources.append(properties)
+
+    session_uuid = None
+    client_item_uuid = None
+    for source in sources:
+        session_uuid = session_uuid or source.get('_sync_session_uuid') or source.get('sync_session_uuid')
+        client_item_uuid = client_item_uuid or source.get('_sync_client_item_uuid') or source.get('sync_client_item_uuid')
+
+    session_uuid = str(session_uuid).strip() if session_uuid not in (None, '') else None
+    client_item_uuid = str(client_item_uuid).strip() if client_item_uuid not in (None, '') else None
+    return session_uuid, client_item_uuid
+
+
+def _strip_sync_meta(data):
+    if not isinstance(data, dict):
+        return data
+
+    cleaned = dict(data)
+    for key in _SYNC_META_KEYS:
+        cleaned.pop(key, None)
+
+    properties = cleaned.get('properties')
+    if isinstance(properties, dict):
+        cleaned_properties = dict(properties)
+        for key in _SYNC_META_KEYS:
+            cleaned_properties.pop(key, None)
+        cleaned['properties'] = cleaned_properties
+
+    return cleaned
+
+
+def _sync_session_payload(session):
+    return {
+        'sync_uuid': session.sync_uuid,
+        'statut': session.statut,
+        'id_agent': session.id_agent,
+        'id_projet': session.id_projet,
+        'id_mission': session.id_mission,
+        'total_items': session.total_items,
+        'total_attachments': session.total_attachments,
+        'received_items': session.received_items,
+        'received_attachments': session.received_attachments,
+        'failed_items': session.failed_items,
+        'started_at': session.started_at.isoformat() if session.started_at else None,
+        'last_activity_at': (
+            session.last_activity_at.isoformat()
+            if session.last_activity_at
+            else None
+        ),
+        'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+        'last_error': session.last_error,
+    }
+
+
+def _refresh_sync_session_counters(session):
+    total_items = SyncSessionItem.objects.filter(sync_session=session).count()
+    total_attachments = SyncSessionAttachment.objects.filter(sync_session=session).count()
+    received_items = SyncSessionItem.objects.filter(
+        sync_session=session,
+        statut__in=('received', 'validated', 'duplicate'),
+    ).count()
+    received_attachments = SyncSessionAttachment.objects.filter(
+        sync_session=session,
+        statut='received',
+    ).count()
+    failed_items = SyncSessionItem.objects.filter(
+        sync_session=session,
+        statut__in=('rejected', 'failed'),
+    ).count()
+
+    now = timezone.now()
+    session.total_items = total_items
+    session.total_attachments = total_attachments
+    session.received_items = received_items
+    session.received_attachments = received_attachments
+    session.failed_items = failed_items
+    session.last_activity_at = now
+    if (
+        total_items == received_items
+        and total_attachments == received_attachments
+        and failed_items == 0
+    ):
+        session.statut = 'completed'
+        session.completed_at = session.completed_at or now
+    elif received_items > 0 or received_attachments > 0 or failed_items > 0:
+        session.statut = 'partial'
+        session.completed_at = None
+    else:
+        session.statut = 'manifest_received'
+        session.completed_at = None
+    session.save(
+        update_fields=[
+            'total_items',
+            'total_attachments',
+            'received_items',
+            'received_attachments',
+            'failed_items',
+            'statut',
+            'last_activity_at',
+            'completed_at',
+        ]
+    )
+    return session
+
+
+def _mark_sync_item_received(*, sync_uuid, model, uuid_objet, instance, client_item_uuid=None):
+    if not sync_uuid or not uuid_objet:
+        return
+
+    normalized = _normalized_db_table(model)
+    if '.' not in normalized:
+        return
+    nom_schema, nom_table = normalized.split('.', 1)
+
+    try:
+        session = SyncSession.objects.get(sync_uuid=sync_uuid)
+    except SyncSession.DoesNotExist:
+        return
+
+    now = timezone.now()
+    pk_value = getattr(instance, instance._meta.pk.attname, None) if instance is not None else None
+    item, _ = SyncSessionItem.objects.get_or_create(
+        sync_session=session,
+        nom_schema=nom_schema,
+        nom_table=nom_table,
+        uuid_objet=str(uuid_objet),
+        defaults={
+            'client_item_uuid': client_item_uuid,
+            'operation': 'upsert',
+            'statut': 'pending',
+            'last_activity_at': now,
+        },
+    )
+    item.client_item_uuid = client_item_uuid or item.client_item_uuid
+    item.statut = 'received'
+    item.attempts = (item.attempts or 0) + 1
+    item.last_error = None
+    item.received_at = item.received_at or now
+    item.last_activity_at = now
+    item.response_pk = str(pk_value) if pk_value is not None else item.response_pk
+    item.response_uuid = str(uuid_objet)
+    item.save(
+        update_fields=[
+            'client_item_uuid',
+            'statut',
+            'attempts',
+            'last_error',
+            'received_at',
+            'last_activity_at',
+            'response_pk',
+            'response_uuid',
+        ]
+    )
+    _refresh_sync_session_counters(session)
+
+
+def _mark_sync_item_received_for_table(
+    *,
+    sync_uuid,
+    nom_schema,
+    nom_table,
+    uuid_objet,
+    response_pk=None,
+    client_item_uuid=None,
+):
+    if not sync_uuid or not uuid_objet:
+        return
+
+    try:
+        session = SyncSession.objects.get(sync_uuid=sync_uuid)
+    except SyncSession.DoesNotExist:
+        return
+
+    now = timezone.now()
+    item, _ = SyncSessionItem.objects.get_or_create(
+        sync_session=session,
+        nom_schema=nom_schema,
+        nom_table=nom_table,
+        uuid_objet=str(uuid_objet),
+        defaults={
+            'client_item_uuid': client_item_uuid,
+            'operation': 'validate',
+            'statut': 'pending',
+            'last_activity_at': now,
+        },
+    )
+    item.client_item_uuid = client_item_uuid or item.client_item_uuid
+    item.statut = 'received'
+    item.attempts = (item.attempts or 0) + 1
+    item.last_error = None
+    item.received_at = item.received_at or now
+    item.last_activity_at = now
+    item.response_pk = str(response_pk) if response_pk is not None else item.response_pk
+    item.response_uuid = str(uuid_objet)
+    item.save(
+        update_fields=[
+            'client_item_uuid',
+            'statut',
+            'attempts',
+            'last_error',
+            'received_at',
+            'last_activity_at',
+            'response_pk',
+            'response_uuid',
+        ]
+    )
+    _refresh_sync_session_counters(session)
+
+
+def _mark_sync_attachment_received(*, sync_uuid, schema_name, table_name, uuid_objet, photo_slot, remote_path):
+    if not sync_uuid or not uuid_objet:
+        return
+
+    try:
+        session = SyncSession.objects.get(sync_uuid=sync_uuid)
+    except SyncSession.DoesNotExist:
+        return
+
+    now = timezone.now()
+    attachment, _ = SyncSessionAttachment.objects.get_or_create(
+        sync_session=session,
+        nom_schema=schema_name,
+        nom_table=table_name,
+        uuid_objet=uuid_objet,
+        photo_slot=photo_slot,
+        defaults={'statut': 'pending', 'last_activity_at': now},
+    )
+    attachment.statut = 'received'
+    attachment.attempts = (attachment.attempts or 0) + 1
+    attachment.last_error = None
+    attachment.received_at = attachment.received_at or now
+    attachment.last_activity_at = now
+    attachment.remote_path = remote_path
+    attachment.save(
+        update_fields=[
+            'statut',
+            'attempts',
+            'last_error',
+            'received_at',
+            'last_activity_at',
+            'remote_path',
+        ]
+    )
+    _refresh_sync_session_counters(session)
 
 
 def _assigned_zone_ids_for_agent(agent_id):
@@ -1013,22 +1589,43 @@ class UpsertByUuidMixin:
             return super().create(request, *args, **kwargs)
 
         uuid_val = None
-        data = request.data
+        sync_session_uuid, sync_client_item_uuid = _extract_sync_meta(request.data)
+        data = _strip_sync_meta(request.data)
         if isinstance(data, dict):
             props = data.get('properties', data)
             uuid_val = props.get('uuid') if isinstance(props, dict) else None
 
         if not uuid_val:
+            if sync_session_uuid:
+                serializer = self.get_serializer(data=data)
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+                headers = self.get_success_headers(serializer.data)
+                return Response(
+                    serializer.data,
+                    status=status.HTTP_201_CREATED,
+                    headers=headers,
+                )
             return super().create(request, *args, **kwargs)
 
         uuid_clean = str(uuid_val).strip()
         if not uuid_clean:
+            if sync_session_uuid:
+                serializer = self.get_serializer(data=data)
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+                headers = self.get_success_headers(serializer.data)
+                return Response(
+                    serializer.data,
+                    status=status.HTTP_201_CREATED,
+                    headers=headers,
+                )
             return super().create(request, *args, **kwargs)
 
         try:
             instance = qs.get(uuid=uuid_clean)
             serializer = self.get_serializer(
-                instance, data=request.data, partial=True
+                instance, data=data, partial=True
             )
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
@@ -1043,6 +1640,13 @@ class UpsertByUuidMixin:
                     },
                     status=status.HTTP_409_CONFLICT,
                 )
+            _mark_sync_item_received(
+                sync_uuid=sync_session_uuid,
+                model=qs.model,
+                uuid_objet=uuid_clean,
+                instance=serializer.instance,
+                client_item_uuid=sync_client_item_uuid,
+            )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except qs.model.DoesNotExist:
             pass
@@ -1056,7 +1660,29 @@ class UpsertByUuidMixin:
                 status=status.HTTP_409_CONFLICT,
             )
 
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        response_uuid = getattr(serializer.instance, 'uuid', None)
+        if response_uuid is not None and str(response_uuid).strip() != uuid_clean:
+            return Response(
+                {
+                    'error': (
+                        'UUID incoherent apres creation '
+                        f'({uuid_clean} != {response_uuid})'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        _mark_sync_item_received(
+            sync_uuid=sync_session_uuid,
+            model=qs.model,
+            uuid_objet=uuid_clean,
+            instance=serializer.instance,
+            client_item_uuid=sync_client_item_uuid,
+        )
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 # =====================================================================
@@ -1517,6 +2143,240 @@ def prepare_agent_basemap_packages_view(request):
 
 
 @api_view(['POST'])
+def sync_manifest_view(request):
+    if not isinstance(request.data, dict):
+        return Response(
+            {'error': 'Payload JSON objet attendu.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    sync_uuid = (
+        request.data.get('sync_uuid')
+        or request.data.get('session_uuid')
+        or request.data.get('sync_session_uuid')
+    )
+    sync_uuid = str(sync_uuid).strip() if sync_uuid not in (None, '') else ''
+    if not sync_uuid:
+        return Response(
+            {'error': 'sync_uuid est obligatoire.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    raw_items = request.data.get('items') or []
+    raw_attachments = request.data.get('attachments') or []
+    if not isinstance(raw_items, list) or not isinstance(raw_attachments, list):
+        return Response(
+            {'error': 'items et attachments doivent etre des listes.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    now = timezone.now()
+    id_agent = _parse_positive_int_value(request.data.get('id_agent'))
+    id_projet = _parse_positive_int_value(request.data.get('id_projet'))
+    id_mission = _parse_positive_int_value(request.data.get('id_mission'))
+
+    with transaction.atomic():
+        session, created = SyncSession.objects.get_or_create(
+            sync_uuid=sync_uuid,
+            defaults={
+                'id_agent': id_agent,
+                'id_projet': id_projet,
+                'id_mission': id_mission,
+                'device_id': str(request.data.get('device_id') or '').strip() or None,
+                'app_version': str(request.data.get('app_version') or '').strip() or None,
+                'statut': 'manifest_received',
+                'started_at': now,
+                'last_activity_at': now,
+                'metadata_json': request.data.get('metadata'),
+                'last_error': None,
+            },
+        )
+        if not created:
+            session.id_agent = id_agent
+            session.id_projet = id_projet
+            session.id_mission = id_mission
+            session.device_id = str(request.data.get('device_id') or '').strip() or None
+            session.app_version = str(request.data.get('app_version') or '').strip() or None
+            session.statut = 'manifest_received'
+            session.last_activity_at = now
+            session.metadata_json = request.data.get('metadata')
+            session.last_error = None
+            session.completed_at = None
+            session.save(
+                update_fields=[
+                    'id_agent',
+                    'id_projet',
+                    'id_mission',
+                    'device_id',
+                    'app_version',
+                    'statut',
+                    'last_activity_at',
+                    'metadata_json',
+                    'last_error',
+                    'completed_at',
+                ]
+            )
+
+        ignored_items = 0
+        for item in raw_items:
+            if not isinstance(item, dict):
+                ignored_items += 1
+                continue
+
+            nom_schema = str(item.get('nom_schema') or item.get('schema_name') or '').strip().lower()
+            nom_table = str(item.get('nom_table') or item.get('table_name') or '').strip().lower()
+            uuid_objet = str(item.get('uuid_objet') or item.get('uuid') or '').strip()
+            if not nom_schema or not nom_table or not uuid_objet:
+                ignored_items += 1
+                continue
+
+            existing = SyncSessionItem.objects.filter(
+                sync_session=session,
+                nom_schema=nom_schema,
+                nom_table=nom_table,
+                uuid_objet=uuid_objet,
+            ).first()
+            defaults = {
+                'client_item_uuid': str(item.get('client_item_uuid') or '').strip() or None,
+                'local_id': _parse_positive_int_value(item.get('local_id')),
+                'operation': str(item.get('operation') or 'upsert').strip()[:30],
+                'payload_hash': str(item.get('payload_hash') or '').strip()[:64] or None,
+                'last_activity_at': now,
+                'payload_summary_json': item.get('payload_summary'),
+            }
+            if existing is None:
+                SyncSessionItem.objects.create(
+                    sync_session=session,
+                    nom_schema=nom_schema,
+                    nom_table=nom_table,
+                    uuid_objet=uuid_objet,
+                    statut='pending',
+                    **defaults,
+                )
+            elif existing.statut not in ('received', 'validated', 'duplicate'):
+                for key, value in defaults.items():
+                    setattr(existing, key, value)
+                existing.statut = 'pending'
+                existing.save(
+                    update_fields=[
+                        'client_item_uuid',
+                        'local_id',
+                        'operation',
+                        'payload_hash',
+                        'last_activity_at',
+                        'payload_summary_json',
+                        'statut',
+                    ]
+                )
+
+        ignored_attachments = 0
+        for attachment in raw_attachments:
+            if not isinstance(attachment, dict):
+                ignored_attachments += 1
+                continue
+
+            nom_schema = str(attachment.get('nom_schema') or attachment.get('schema_name') or '').strip().lower()
+            nom_table = str(attachment.get('nom_table') or attachment.get('table_name') or '').strip().lower()
+            uuid_objet = str(attachment.get('uuid_objet') or attachment.get('uuid') or '').strip()
+            photo_slot = _parse_positive_int_value(attachment.get('photo_slot'))
+            if not nom_schema or not nom_table or not uuid_objet or photo_slot is None:
+                ignored_attachments += 1
+                continue
+
+            existing = SyncSessionAttachment.objects.filter(
+                sync_session=session,
+                nom_schema=nom_schema,
+                nom_table=nom_table,
+                uuid_objet=uuid_objet,
+                photo_slot=photo_slot,
+            ).first()
+            defaults = {
+                'local_path': str(attachment.get('local_path') or '').strip() or None,
+                'sha256': str(attachment.get('sha256') or '').strip()[:64] or None,
+                'taille_octets': _parse_positive_int_value(attachment.get('taille_octets')),
+                'last_activity_at': now,
+            }
+            if existing is None:
+                SyncSessionAttachment.objects.create(
+                    sync_session=session,
+                    nom_schema=nom_schema,
+                    nom_table=nom_table,
+                    uuid_objet=uuid_objet,
+                    photo_slot=photo_slot,
+                    statut='pending',
+                    **defaults,
+                )
+            elif existing.statut != 'received':
+                for key, value in defaults.items():
+                    setattr(existing, key, value)
+                existing.statut = 'pending'
+                existing.save(
+                    update_fields=[
+                        'local_path',
+                        'sha256',
+                        'taille_octets',
+                        'last_activity_at',
+                        'statut',
+                    ]
+                )
+
+        session = _refresh_sync_session_counters(session)
+
+    payload = _sync_session_payload(session)
+    payload.update({
+        'success': True,
+        'created': created,
+        'ignored_items': ignored_items,
+        'ignored_attachments': ignored_attachments,
+    })
+    return Response(payload, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def sync_session_status_view(request, sync_uuid):
+    try:
+        session = SyncSession.objects.get(sync_uuid=sync_uuid)
+    except SyncSession.DoesNotExist:
+        return Response(
+            {'error': 'Session de synchronisation introuvable.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    session = _refresh_sync_session_counters(session)
+    payload = _sync_session_payload(session)
+    payload['items'] = list(
+        SyncSessionItem.objects.filter(sync_session=session)
+        .order_by('id_sync_item')
+        .values(
+            'nom_schema',
+            'nom_table',
+            'uuid_objet',
+            'statut',
+            'attempts',
+            'last_error',
+            'received_at',
+            'response_pk',
+        )
+    )
+    payload['attachments'] = list(
+        SyncSessionAttachment.objects.filter(sync_session=session)
+        .order_by('id_sync_attachment')
+        .values(
+            'nom_schema',
+            'nom_table',
+            'uuid_objet',
+            'photo_slot',
+            'statut',
+            'attempts',
+            'last_error',
+            'received_at',
+            'remote_path',
+        )
+    )
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def photo_upload_view(request):
     _ensure_objet_photo_schema()
@@ -1529,6 +2389,7 @@ def photo_upload_view(request):
     table_name = data['table_name'].strip().lower()
     uuid_objet = data['uuid_objet'].strip()
     photo_slot = data['photo_slot']
+    sync_session_uuid = (data.get('sync_session_uuid') or '').strip()
     uploaded_file = data['file']
 
     model = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, table_name))
@@ -1610,6 +2471,15 @@ def photo_upload_view(request):
             },
         )
 
+    _mark_sync_attachment_received(
+        sync_uuid=sync_session_uuid,
+        schema_name=schema_name,
+        table_name=table_name,
+        uuid_objet=uuid_objet,
+        photo_slot=photo_slot,
+        remote_path=relative_path,
+    )
+
     media_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{relative_path}')
     return Response(
         {
@@ -1632,6 +2502,10 @@ def photo_upload_view(request):
 def statistique_conduite_jour_view(request):
     raw_agent = (request.query_params.get('id_agent') or '').strip()
     raw_jour = (request.query_params.get('jour') or '').strip()
+    metier_key, conduite_config = _conduite_config(
+        request.query_params.get('metier'),
+        default='legacy',
+    )
 
     if not raw_agent:
         return Response(
@@ -1659,7 +2533,7 @@ def statistique_conduite_jour_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    row = StatistiqueConduite.objects.filter(
+    row = conduite_config['stat_model'].objects.filter(
         id_agent=id_agent,
         jour=jour,
     ).first()
@@ -1669,6 +2543,7 @@ def statistique_conduite_jour_view(request):
             {
                 'exists': False,
                 'frozen': False,
+                'metier': metier_key,
                 'id_agent': id_agent,
                 'jour': jour.isoformat(),
                 'longueur_conduite_m': 0.0,
@@ -1677,7 +2552,7 @@ def statistique_conduite_jour_view(request):
             }
         )
 
-    return Response(_statistique_conduite_snapshot(row))
+    return Response(_statistique_conduite_snapshot(row, conduite_config, metier_key))
 
 
 @api_view(['POST'])
@@ -1686,20 +2561,41 @@ def statistique_conduite_validate_view(request):
     serializer.is_valid(raise_exception=True)
 
     validated = serializer.validated_data
+    metier_key, conduite_config = _conduite_config(
+        validated.get('metier'),
+        default='legacy',
+    )
     id_agent = validated['id_agent']
     jour = validated['jour']
     raw_nodes = validated['nodes']
+    sync_session_uuid, sync_client_item_uuid = _extract_sync_meta(request.data)
+    conduite_sync_uuid = (
+        (validated.get('sync_uuid') or '').strip()
+        or sync_client_item_uuid
+        or f'{metier_key}-{id_agent}-{jour.isoformat()}'
+    )
 
-    existing = StatistiqueConduite.objects.filter(
+    existing = conduite_config['stat_model'].objects.filter(
         id_agent=id_agent,
         jour=jour,
     ).first()
     if existing is not None:
-        payload = _statistique_conduite_snapshot(existing)
+        payload = _statistique_conduite_snapshot(existing, conduite_config, metier_key)
         payload['error'] = 'La conduite de ce jour est déjà figée.'
+        _mark_sync_item_received_for_table(
+            sync_uuid=sync_session_uuid,
+            nom_schema=conduite_config['sync_schema'],
+            nom_table=conduite_config['sync_table'],
+            uuid_objet=conduite_sync_uuid,
+            response_pk=existing.id_statistique_conduite,
+            client_item_uuid=sync_client_item_uuid,
+        )
         return Response(payload, status=status.HTTP_409_CONFLICT)
 
-    resolved_nodes = [_resolve_conduite_regard_node(node) for node in raw_nodes]
+    resolved_nodes = [
+        _resolve_conduite_regard_node(node, conduite_config)
+        for node in raw_nodes
+    ]
     unique_segments = _build_unique_conduite_segments(resolved_nodes)
     if not unique_segments:
         raise ValidationError(
@@ -1712,7 +2608,7 @@ def statistique_conduite_validate_view(request):
 
     now = timezone.now()
     with transaction.atomic():
-        conduite = StatistiqueConduite.objects.create(
+        conduite = conduite_config['stat_model'].objects.create(
             id_agent=id_agent,
             jour=jour,
             geom=None,
@@ -1721,14 +2617,23 @@ def statistique_conduite_validate_view(request):
             updated_at=now,
         )
         _insert_statistique_conduite_segments(
+            conduite_config,
             conduite.id_statistique_conduite,
             unique_segments,
             now,
         )
         conduite.refresh_from_db()
+        _mark_sync_item_received_for_table(
+            sync_uuid=sync_session_uuid,
+            nom_schema=conduite_config['sync_schema'],
+            nom_table=conduite_config['sync_table'],
+            uuid_objet=conduite_sync_uuid,
+            response_pk=conduite.id_statistique_conduite,
+            client_item_uuid=sync_client_item_uuid,
+        )
 
     return Response(
-        _statistique_conduite_snapshot(conduite),
+        _statistique_conduite_snapshot(conduite, conduite_config, metier_key),
         status=status.HTTP_201_CREATED,
     )
 

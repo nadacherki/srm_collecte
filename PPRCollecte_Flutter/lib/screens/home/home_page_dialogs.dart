@@ -328,7 +328,9 @@ void _showDownloadResultImpl(
     context: state.context,
     builder: (ctx) {
       final errorsToShow = result.errors.take(10).toList();
+      final warningsToShow = result.warnings.take(5).toList();
       final remaining = result.errors.length - errorsToShow.length;
+      final remainingWarnings = result.warnings.length - warningsToShow.length;
       bool isLikelyNetworkFailure(String error) {
         final lower = error.toLowerCase();
         return lower.contains('erreur reseau') ||
@@ -426,6 +428,27 @@ void _showDownloadResultImpl(
                   "Détails techniques : ${result.failedCount} appel(s) API n'ont pas répondu pendant cette tentative.",
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
+              ],
+              if (warningsToShow.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                const Text('Informations complementaires :'),
+                const SizedBox(height: 5),
+                ...warningsToShow.map(
+                  (warning) => Text(
+                    '- $warning',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                if (remainingWarnings > 0) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    '- ... et $remainingWarnings autres informations.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
               if (errorsToShow.isNotEmpty && !networkOnlyFailure) ...[
                 const SizedBox(height: 10),

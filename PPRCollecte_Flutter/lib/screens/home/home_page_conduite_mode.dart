@@ -1,11 +1,85 @@
 part of 'home_page.dart';
 
-Future<void> _enterConduiteDrawingModeImpl(_HomePageState state) async {
+class _ConduiteMetierConfig {
+  final String code;
+  final String metier;
+  final String entityType;
+  final String tableName;
+  final String title;
+  final String shortLabel;
+  final String xField;
+  final String yField;
+  final String zField;
+
+  const _ConduiteMetierConfig({
+    required this.code,
+    required this.metier,
+    required this.entityType,
+    required this.tableName,
+    required this.title,
+    required this.shortLabel,
+    required this.xField,
+    required this.yField,
+    required this.zField,
+  });
+}
+
+class _ConduiteLocalPendingPreview {
+  final List<Polyline> polylines;
+  final Set<String> segmentKeys;
+  final double lengthMeters;
+
+  const _ConduiteLocalPendingPreview({
+    required this.polylines,
+    required this.segmentKeys,
+    required this.lengthMeters,
+  });
+}
+
+const _conduiteEpConfig = _ConduiteMetierConfig(
+  code: 'ep',
+  metier: 'Eau Potable',
+  entityType: 'Regard',
+  tableName: 'regard',
+  title: 'eau potable',
+  shortLabel: 'EP',
+  xField: 'ep_coor_x',
+  yField: 'ep_coor_y',
+  zField: 'ep_coor_z',
+);
+
+const _conduiteAsstConfig = _ConduiteMetierConfig(
+  code: 'asst',
+  metier: 'Assainissement',
+  entityType: 'Regard ASS',
+  tableName: 'asst_regard',
+  title: 'assainissement',
+  shortLabel: 'ASS',
+  xField: 'ass_coor_x',
+  yField: 'ass_coor_y',
+  zField: 'ass_coor_z',
+);
+
+_ConduiteMetierConfig _conduiteConfigFor(String? metier) {
+  final value = (metier ?? '').trim().toLowerCase();
+  return value == 'asst' || value == 'ass'
+      ? _conduiteAsstConfig
+      : _conduiteEpConfig;
+}
+
+Future<void> _enterConduiteDrawingModeImpl(
+  _HomePageState state, {
+  String metier = 'ep',
+}) async {
+  final config = _conduiteConfigFor(metier);
   final now = DateTime.now();
   final regardNodes = <int, _ConduiteRegardNode>{};
   final markers = await state._pointsService.getDisplayedRegardMarkersForDay(
     day: now,
     onTapRegard: state._handleConduiteRegardTap,
+    metier: config.metier,
+    entityType: config.entityType,
+    tableName: config.tableName,
     onMarkerCreated: (row, marker) {
       final nodeId = _resolveConduiteNodeId(row);
       if (nodeId == null) return;
@@ -35,26 +109,39 @@ Future<void> _enterConduiteDrawingModeImpl(_HomePageState state) async {
       existingSnapshot = await ApiService.fetchStatistiqueConduiteJour(
         idAgent: ApiService.userId,
         jour: now,
+        metier: config.code,
       );
     } catch (e) {
       loadWarning = e.toString();
     }
   }
+  final localPending = ApiService.userId == null
+      ? null
+      : await DatabaseHelper().getConduiteSyncItemForDay(
+          metier: config.code,
+          idAgent: ApiService.userId!,
+          jour: now,
+        );
+  final localPendingPreview = localPending == null
+      ? null
+      : _buildConduiteLocalPendingPreview(localPending);
 
-  final isFrozen =
+  final isServerFrozen =
       existingSnapshot != null &&
       existingSnapshot['exists'] == true &&
       existingSnapshot['frozen'] == true;
-  final frozenPolylines = isFrozen
+  final isFrozen = isServerFrozen || localPendingPreview != null;
+  final frozenPolylines = isServerFrozen
       ? _buildConduitePolylinesFromServerPayload(existingSnapshot!)
-      : <Polyline>[];
-  final frozenSegmentKeys = isFrozen
+      : (localPendingPreview?.polylines ?? <Polyline>[]);
+  final frozenSegmentKeys = isServerFrozen
       ? _segmentKeysFromServerPayload(existingSnapshot!)
-      : <String>{};
+      : (localPendingPreview?.segmentKeys ?? <String>{});
 
   state._setStateFromPart(() {
     state._mapController = null;
     state._isConduiteDrawingMode = true;
+    state._conduiteModeMetier = config.code;
     state._conduiteModeDay = now;
     state._conduiteModeMarkers = markers;
     state._conduiteModePolylines = frozenPolylines;
@@ -65,9 +152,9 @@ Future<void> _enterConduiteDrawingModeImpl(_HomePageState state) async {
     state._conduiteSegmentKeys
       ..clear()
       ..addAll(frozenSegmentKeys);
-    state._conduitePreviewLengthM = isFrozen
+    state._conduitePreviewLengthM = isServerFrozen
         ? _asDoubleConduite(existingSnapshot?['longueur_conduite_m']) ?? 0.0
-        : 0.0;
+        : localPendingPreview?.lengthMeters ?? 0.0;
     state._conduiteCurrentRegardNodeId = null;
     state._conduiteCurrentRegardPoint = null;
     state._conduiteIsFrozenForDay = isFrozen;
@@ -76,7 +163,9 @@ Future<void> _enterConduiteDrawingModeImpl(_HomePageState state) async {
       existingSnapshot?['id_statistique_conduite'],
     );
     state._conduiteModeError = loadWarning;
-    state._conduiteModeStatusText = isFrozen
+    state._conduiteModeStatusText = localPendingPreview != null
+        ? 'Conduite locale en attente de synchronisation.'
+        : isFrozen
         ? 'La conduite du jour est déjà validée et figée.'
         : state._isOnlineDynamic
         ? 'Touchez un regard pour commencer.'
@@ -100,6 +189,7 @@ void _exitConduiteDrawingModeImpl(_HomePageState state) {
   state._setStateFromPart(() {
     state._mapController = null;
     state._isConduiteDrawingMode = false;
+    state._conduiteModeMetier = 'ep';
     state._conduiteModeDay = null;
     state._conduiteModeMarkers = <Marker>[];
     state._conduiteModePolylines = <Polyline>[];
@@ -281,6 +371,7 @@ void _focusConduiteModeBoundsImpl(_HomePageState state) {
 }
 
 Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
+  final config = _conduiteConfigFor(state._conduiteModeMetier);
   final countRegards = state._conduiteModeMarkers.length;
   final countSegments = state._conduiteSegmentKeys.length;
   final day = state._conduiteModeDay ?? DateTime.now();
@@ -291,7 +382,6 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
   final canValidate =
       !state._conduiteIsFrozenForDay &&
       !state._conduiteIsSaving &&
-      state._isOnlineDynamic &&
       state._conduiteSegmentKeys.isNotEmpty;
 
   return Container(
@@ -306,8 +396,8 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Mode dessin de conduite',
+                  Text(
+                    'Mode dessin conduite ${config.shortLabel}',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -527,13 +617,6 @@ Future<void> _handleConduiteValidateImpl(_HomePageState state) async {
   if (state._conduiteIsSaving || state._conduiteIsFrozenForDay) {
     return;
   }
-  if (!state._isOnlineDynamic) {
-    _showConduiteModeSnack(
-      state,
-      'Validation impossible hors ligne. Reconnectez-vous pour figer la conduite.',
-    );
-    return;
-  }
   if (state._conduiteSegmentKeys.isEmpty) {
     _showConduiteModeSnack(
       state,
@@ -567,6 +650,11 @@ Future<void> _handleConduiteValidateImpl(_HomePageState state) async {
     return;
   }
 
+  if (!state._isOnlineDynamic) {
+    await _saveConduiteValidationLocally(state);
+    return;
+  }
+
   state._setStateFromPart(() {
     state._conduiteIsSaving = true;
     state._conduiteModeError = null;
@@ -578,6 +666,7 @@ Future<void> _handleConduiteValidateImpl(_HomePageState state) async {
       idAgent: ApiService.userId,
       jour: state._conduiteModeDay ?? DateTime.now(),
       nodes: _buildConduiteValidationNodes(state),
+      metier: state._conduiteModeMetier,
     );
     _applyConduiteServerSnapshot(
       state,
@@ -593,6 +682,7 @@ Future<void> _handleConduiteValidateImpl(_HomePageState state) async {
       final refreshed = await ApiService.fetchStatistiqueConduiteJour(
         idAgent: ApiService.userId,
         jour: state._conduiteModeDay ?? DateTime.now(),
+        metier: state._conduiteModeMetier,
       );
       if (refreshed['exists'] == true && refreshed['frozen'] == true) {
         _applyConduiteServerSnapshot(
@@ -610,6 +700,11 @@ Future<void> _handleConduiteValidateImpl(_HomePageState state) async {
       // On garde l'erreur initiale.
     }
 
+    if (_shouldQueueConduiteAfterValidationFailure(e)) {
+      await _saveConduiteValidationLocally(state);
+      return;
+    }
+
     state._setStateFromPart(() {
       state._conduiteIsSaving = false;
       state._conduiteModeError = e.toString();
@@ -618,6 +713,48 @@ Future<void> _handleConduiteValidateImpl(_HomePageState state) async {
     });
     _showConduiteModeSnack(state, e.toString());
   }
+}
+
+bool _shouldQueueConduiteAfterValidationFailure(Object error) {
+  final text = error.toString().toLowerCase();
+  return text.contains('absent du serveur') ||
+      text.contains('synchronisez les regards') ||
+      text.contains('erreur reseau') ||
+      text.contains('erreur réseau') ||
+      text.contains('timeout');
+}
+
+Future<void> _saveConduiteValidationLocally(_HomePageState state) async {
+  final idAgent = ApiService.userId;
+  if (idAgent == null) {
+    _showConduiteModeSnack(
+      state,
+      'Utilisateur non connecte pour enregistrer la conduite.',
+    );
+    return;
+  }
+
+  final nodes = _buildConduiteValidationNodes(state);
+  await DatabaseHelper().enqueueConduiteSyncItem(
+    metier: state._conduiteModeMetier,
+    idAgent: idAgent,
+    jour: state._conduiteModeDay ?? DateTime.now(),
+    nodes: nodes,
+  );
+
+  state._setStateFromPart(() {
+    state._conduiteIsSaving = false;
+    state._conduiteIsFrozenForDay = true;
+    state._conduiteCurrentRegardNodeId = null;
+    state._conduiteCurrentRegardPoint = null;
+    state._conduiteModeError = null;
+    state._conduiteModeStatusText =
+        'Conduite enregistree localement. Elle partira au prochain Synchroniser.';
+  });
+  _showConduiteModeSnack(
+    state,
+    'Conduite sauvegardee localement pour synchronisation.',
+  );
 }
 
 void _recomputeConduitePreviewFromHistory(
@@ -646,7 +783,7 @@ void _recomputeConduitePreviewFromHistory(
       continue;
     }
 
-    totalMeters += _conduiteSegmentLengthMeters(leftNode, rightNode);
+    totalMeters += _conduiteSegmentLengthMeters(state, leftNode, rightNode);
     polylines.add(
       Polyline(
         points: [leftNode.point, rightNode.point],
@@ -739,6 +876,79 @@ List<Polyline> _buildConduitePolylinesFromServerPayload(
   return result;
 }
 
+_ConduiteLocalPendingPreview? _buildConduiteLocalPendingPreview(
+  Map<String, dynamic> queueItem,
+) {
+  final raw = queueItem['nodes_json']?.toString().trim() ?? '';
+  if (raw.isEmpty) return null;
+
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(raw);
+  } catch (_) {
+    return null;
+  }
+  if (decoded is! List || decoded.length < 2) return null;
+
+  final nodes = decoded
+      .whereType<Map>()
+      .map((item) => Map<String, dynamic>.from(item))
+      .toList();
+  final polylines = <Polyline>[];
+  final segmentKeys = <String>{};
+  var lengthMeters = 0.0;
+
+  for (var i = 1; i < nodes.length; i++) {
+    final left = nodes[i - 1];
+    final right = nodes[i];
+    final leftId = _resolveConduiteNodeId(left);
+    final rightId = _resolveConduiteNodeId(right);
+    if (leftId == null || rightId == null || leftId == rightId) {
+      continue;
+    }
+
+    final segmentKey = _conduiteSegmentKey(leftId, rightId);
+    if (!segmentKeys.add(segmentKey)) continue;
+
+    final leftPoint = _latLngFromConduiteNode(left);
+    final rightPoint = _latLngFromConduiteNode(right);
+    if (leftPoint == null || rightPoint == null) continue;
+
+    final ax = _asDoubleConduite(left['x']);
+    final ay = _asDoubleConduite(left['y']);
+    final bx = _asDoubleConduite(right['x']);
+    final by = _asDoubleConduite(right['y']);
+    if (ax != null && ay != null && bx != null && by != null) {
+      final dx = bx - ax;
+      final dy = by - ay;
+      lengthMeters += math.sqrt(dx * dx + dy * dy);
+    } else {
+      lengthMeters += _haversineMetersImpl(leftPoint, rightPoint);
+    }
+
+    polylines.add(
+      Polyline(
+        points: [leftPoint, rightPoint],
+        color: const Color(0xFF00897B),
+        strokeWidth: 5.0,
+      ),
+    );
+  }
+
+  return _ConduiteLocalPendingPreview(
+    polylines: polylines,
+    segmentKeys: segmentKeys,
+    lengthMeters: lengthMeters,
+  );
+}
+
+LatLng? _latLngFromConduiteNode(Map<String, dynamic> node) {
+  final lat = _asDoubleConduite(node['lat']);
+  final lng = _asDoubleConduite(node['lng']);
+  if (lat == null || lng == null) return null;
+  return LatLng(lat, lng);
+}
+
 Set<String> _segmentKeysFromServerPayload(Map<String, dynamic> payload) {
   final keys = <String>{};
   final rawSegments = payload['segments_wgs84'];
@@ -757,14 +967,24 @@ Set<String> _segmentKeysFromServerPayload(Map<String, dynamic> payload) {
 }
 
 List<Map<String, dynamic>> _buildConduiteValidationNodes(_HomePageState state) {
+  final config = _conduiteConfigFor(state._conduiteModeMetier);
   return state._conduiteSelectionHistoryNodeIds
       .map((nodeId) => state._conduiteRegardNodesById[nodeId])
       .whereType<_ConduiteRegardNode>()
       .map(
         (node) => <String, dynamic>{
+          'node_id': node.nodeId,
           'fid': node.sourceFid,
           'uuid': node.row['uuid']?.toString(),
+          'label': _labelForConduiteNode(node),
+          'metier': config.code,
+          'table_name': config.tableName,
           'ep_num': node.row['ep_num']?.toString(),
+          'x': _asDoubleConduite(node.row[config.xField]),
+          'y': _asDoubleConduite(node.row[config.yField]),
+          'z': _asDoubleConduite(node.row[config.zField]),
+          'lat': node.point.latitude,
+          'lng': node.point.longitude,
         },
       )
       .toList();
@@ -798,13 +1018,15 @@ int? _asIntConduite(dynamic value) {
 }
 
 double _conduiteSegmentLengthMeters(
+  _HomePageState state,
   _ConduiteRegardNode a,
   _ConduiteRegardNode b,
 ) {
-  final ax = _asDoubleConduite(a.row['ep_coor_x']);
-  final ay = _asDoubleConduite(a.row['ep_coor_y']);
-  final bx = _asDoubleConduite(b.row['ep_coor_x']);
-  final by = _asDoubleConduite(b.row['ep_coor_y']);
+  final config = _conduiteConfigFor(state._conduiteModeMetier);
+  final ax = _asDoubleConduite(a.row[config.xField]);
+  final ay = _asDoubleConduite(a.row[config.yField]);
+  final bx = _asDoubleConduite(b.row[config.xField]);
+  final by = _asDoubleConduite(b.row[config.yField]);
 
   if (ax != null && ay != null && bx != null && by != null) {
     final dx = bx - ax;
@@ -830,9 +1052,11 @@ int? _resolveConduiteNodeId(Map<String, dynamic> row) {
 }
 
 String _labelForConduiteNode(_ConduiteRegardNode node) {
-  final epNum = node.row['ep_num']?.toString().trim();
-  if (epNum != null && epNum.isNotEmpty) {
-    return 'Regard $epNum';
+  for (final key in ['ep_num', 'id_regard', 'objectid', 'uuid']) {
+    final value = node.row[key]?.toString().trim();
+    if (value != null && value.isNotEmpty && value.toLowerCase() != 'null') {
+      return 'Regard $value';
+    }
   }
   if (node.sourceFid != null) {
     return 'Regard #${node.sourceFid}';

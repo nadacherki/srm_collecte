@@ -20,6 +20,7 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/photo_validation_service.dart';
 import '../../services/photo_reference_service.dart';
+import '../../services/photo_storage_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
@@ -391,8 +392,27 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
     // Fin de la vérification anti-doublon.
 
+    late final String durablePath;
+    try {
+      durablePath = await PhotoStorageService.persistPickedPhoto(
+        picked: picked,
+        schemaName: _metierCode.toLowerCase(),
+        tableName: _tableName,
+        photoSlot: index,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Photo non sauvegardee localement: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (!mounted) return;
-    setState(() => _photoPaths[index] = picked.path);
+    setState(() => _photoPaths[index] = durablePath);
   }
 
   void _removePhoto(int index) => setState(() => _photoPaths[index] = null);

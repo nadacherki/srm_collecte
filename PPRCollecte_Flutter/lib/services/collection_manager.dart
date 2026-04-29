@@ -325,6 +325,87 @@ class CollectionManager extends ChangeNotifier {
   // ██ SPRINT 7 : Restauration collecte en pause
   // ══════════════════════════════════════════════════════
 
+  CollectionPointEdit? undoLastManualPoint(CollectionType type) {
+    final collection = _collectionFor(type);
+    if (collection == null || collection.isInactive || collection.points.isEmpty) {
+      return null;
+    }
+
+    final updatedPoints = List<LatLng>.from(collection.points);
+    final removedPoint = updatedPoints.removeLast();
+    final removedAltitude = _collectionService.removeLastRecordedAltitude();
+
+    _replaceCollectionPoints(type, updatedPoints);
+    _savePausedDraftIfNeeded(type);
+
+    return CollectionPointEdit(
+      point: removedPoint,
+      altitude: removedAltitude,
+    );
+  }
+
+  bool redoManualPoint(CollectionType type, CollectionPointEdit edit) {
+    final collection = _collectionFor(type);
+    if (collection == null || collection.isInactive) {
+      return false;
+    }
+
+    if (collection.points.isNotEmpty) {
+      final lastPoint = collection.points.last;
+      final segmentDistance = _collectionService.calculateTotalDistance([
+        lastPoint,
+        edit.point,
+      ]);
+      if (segmentDistance <= _duplicatePointThresholdMeters) {
+        return false;
+      }
+    }
+
+    _collectionService.recordAltitudeForManualPoint(edit.altitude);
+    final updatedPoints = List<LatLng>.from(collection.points)..add(edit.point);
+    _replaceCollectionPoints(type, updatedPoints);
+    _savePausedDraftIfNeeded(type);
+    return true;
+  }
+
+  CollectionBase? _collectionFor(CollectionType type) {
+    if (type == CollectionType.ligne) {
+      return _ligneCollection;
+    }
+    if (type == CollectionType.special) {
+      return _specialCollection;
+    }
+    return null;
+  }
+
+  void _replaceCollectionPoints(CollectionType type, List<LatLng> points) {
+    final totalDistance = _collectionService.calculateTotalDistance(points);
+    final lastPointTime = DateTime.now();
+
+    if (type == CollectionType.ligne && _ligneCollection != null) {
+      _ligneCollection = _ligneCollection!.copyWith(
+        points: points,
+        totalDistance: totalDistance,
+        lastPointTime: lastPointTime,
+      );
+    } else if (type == CollectionType.special && _specialCollection != null) {
+      _specialCollection = _specialCollection!.copyWith(
+        points: points,
+        totalDistance: totalDistance,
+        lastPointTime: lastPointTime,
+      );
+    }
+
+    notifyListeners();
+  }
+
+  void _savePausedDraftIfNeeded(CollectionType type) {
+    final collection = _collectionFor(type);
+    if (collection?.isPaused ?? false) {
+      _savePausedDraft();
+    }
+  }
+
   /// Restaure une collecte de ligne en état paused (depuis brouillon SQLite).
   void restorePausedLigneCollection(LigneCollection paused) {
     _ligneCollection = paused;

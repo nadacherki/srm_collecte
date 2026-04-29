@@ -642,6 +642,22 @@ class HomeController extends ChangeNotifier {
     return 'Aucune collecte active.';
   }
 
+  CollectionPointEdit? undoLastCollectionPoint(CollectionType type) {
+    final edit = _collectionManager.undoLastManualPoint(type);
+    if (edit != null) {
+      notifyListeners();
+    }
+    return edit;
+  }
+
+  bool redoCollectionPoint(CollectionType type, CollectionPointEdit edit) {
+    final restored = _collectionManager.redoManualPoint(type, edit);
+    if (restored) {
+      notifyListeners();
+    }
+    return restored;
+  }
+
   Map<String, dynamic>? finishLigneCollection() {
     final result = _collectionManager.finishLigneCollection();
 

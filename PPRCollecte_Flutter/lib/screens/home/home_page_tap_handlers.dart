@@ -79,8 +79,9 @@ void _showSpecialLineDetailsSheetImpl(
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
                 children: [
                   if (editableItem != null &&
                       FormLockService.isEditable(editableItem))
@@ -90,6 +91,14 @@ void _showSpecialLineDetailsSheetImpl(
                         await state._editMapItem(editableItem);
                       },
                       child: const Text('Éditer'),
+                    ),
+                  if (_supportsGeometryEditImpl(editableItem))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapGeometry(editableItem!);
+                      },
+                      child: const Text('Éditer géométrie'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -212,8 +221,9 @@ void _showLineDetailsSheetImpl(
               const Divider(),
               Align(
                 alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 6,
                   children: [
                     if (editableItem != null &&
                         FormLockService.isEditable(editableItem))
@@ -223,6 +233,14 @@ void _showLineDetailsSheetImpl(
                           await state._editMapItem(editableItem);
                         },
                         child: const Text('Éditer'),
+                      ),
+                    if (_supportsGeometryEditImpl(editableItem))
+                      TextButton(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await state._editMapGeometry(editableItem!);
+                        },
+                        child: const Text('Éditer géométrie'),
                       ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -309,8 +327,9 @@ void _showPointDetailsSheetImpl(
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
                 children: [
                   if (editableItem != null &&
                       FormLockService.isEditable(editableItem))
@@ -320,6 +339,14 @@ void _showPointDetailsSheetImpl(
                         await state._editMapItem(editableItem);
                       },
                       child: const Text('Éditer'),
+                    ),
+                  if (_supportsGeometryEditImpl(editableItem))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapGeometry(editableItem!);
+                      },
+                      child: const Text('Éditer géométrie'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -535,6 +562,14 @@ Map<String, dynamic>? _editableItemFromDynamicImpl(dynamic raw) {
   return null;
 }
 
+bool _supportsGeometryEditImpl(Map<String, dynamic>? item) {
+  if (item == null || !FormLockService.isEditable(item)) {
+    return false;
+  }
+  final geoType = item['geometry_type']?.toString() ?? 'Point';
+  return geoType == 'Point' || geoType == 'LineString';
+}
+
 List<LatLng> _decodeGeometryPointsFromLooseStringImpl(String raw) {
   final matches = RegExp(
     r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
@@ -692,6 +727,215 @@ Future<void> _editMapItemImpl(
   }
 }
 
+Future<void> _editMapGeometryImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (!FormLockService.isEditable(item)) {
+    if (!state.mounted) return;
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      SnackBar(
+        content: Text(FormLockService.lockReason(item)),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final geoType = item['geometry_type']?.toString() ?? 'Point';
+  if (geoType == 'Point') {
+    await _movePointGeometryToCurrentGpsImpl(state, item);
+    return;
+  }
+  if (geoType == 'LineString') {
+    await _startLineGeometryEditImpl(state, item);
+    return;
+  }
+
+  if (!state.mounted) return;
+  ScaffoldMessenger.of(state.context).showSnackBar(
+    const SnackBar(
+      content: Text('Édition géométrique disponible pour les points et lignes.'),
+      backgroundColor: Colors.orange,
+    ),
+  );
+}
+
+Future<void> _movePointGeometryToCurrentGpsImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final tableName = item['source_table']?.toString();
+  final id = _dynamicToIntImpl(item['id']);
+  if (metier == null || entityType == null || tableName == null || id == null) {
+    return;
+  }
+
+  final target = state.userPosition ?? state.homeController.userPosition;
+  final confirm = await showDialog<bool>(
+    context: state.context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Déplacer le point'),
+      content: Text(
+        'La géométrie sera remplacée par la position GPS actuelle :\n'
+        'Lat ${target.latitude.toStringAsFixed(7)} / '
+        'Lon ${target.longitude.toStringAsFixed(7)}',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Appliquer'),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true) return;
+
+  try {
+    final projected = ProjectionService().wgs84ToMerchich(
+      longitude: target.longitude,
+      latitude: target.latitude,
+    );
+    final fields = SrmConfig.getFields(metier, entityType);
+    final xField = fields.firstWhere(
+      (field) => field.endsWith('_coor_x'),
+      orElse: () => '',
+    );
+    final yField = fields.firstWhere(
+      (field) => field.endsWith('_coor_y'),
+      orElse: () => '',
+    );
+    final zField = fields.firstWhere(
+      (field) => field.endsWith('_coor_z'),
+      orElse: () => '',
+    );
+
+    final altitude = state.homeController.collectionManager.currentAltitude;
+    final data = <String, dynamic>{
+      'latitude_gps': target.latitude,
+      'longitude_gps': target.longitude,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+      'mode_localisation': 'gnss',
+    };
+    if (altitude != null) {
+      data['altitude_gps'] = altitude;
+    }
+    if (xField.isNotEmpty) data[xField] = projected.x;
+    if (yField.isNotEmpty) data[yField] = projected.y;
+    if (zField.isNotEmpty && altitude != null) data[zField] = altitude;
+
+    await DatabaseHelper().updateEntitySrm(
+      tableName,
+      id,
+      data,
+      recordHistory: true,
+    );
+
+    if (!state.mounted) return;
+    await state._refreshAfterNavigation();
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Géométrie du point mise à jour.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } catch (e) {
+    if (!state.mounted) return;
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      SnackBar(
+        content: Text('Erreur édition géométrie : $e'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+}
+
+Future<void> _startLineGeometryEditImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (state.homeController.hasActiveCollection ||
+      state.homeController.hasPausedCollection) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Terminez ou annulez le tracé en cours avant de modifier cette ligne.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final tableName = item['source_table']?.toString();
+  final id = _dynamicToIntImpl(item['id']);
+  if (metier == null ||
+      entityType == null ||
+      tableName == null ||
+      id == null) {
+    return;
+  }
+
+  final points = _decodeGeometryPointsImpl(item['points_json']);
+  if (points.length < 2) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Géométrie de ligne invalide.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  state._geometryEditLineItem = Map<String, dynamic>.from(item)
+    ..['source_metier'] = metier
+    ..['source_entity'] = entityType
+    ..['source_table'] = tableName;
+  state._pendingSrmLigneSelection = null;
+  state._ligneRedoPoints.clear();
+
+  final lineCode = (item['line_code'] ??
+          item['code'] ??
+          item['uuid'] ??
+          'geometry_edit_$id')
+      .toString();
+  await state.homeController.restoreFinishedLigneAsPaused(
+    id: id,
+    lineCode: lineCode,
+    points: points,
+    startTime: DateTime.tryParse(item['date_collecte']?.toString() ?? '') ??
+        DateTime.now(),
+    lastPointTime: DateTime.now(),
+    totalDistance: _polylineDistanceKmImpl(points) * 1000,
+    srmMetadata: {
+      'srmMetier': metier,
+      'srmEntityType': entityType,
+      'srmTableName': tableName,
+      'geometryEdit': true,
+    },
+  );
+  state.homeController.toggleLigneCollection();
+
+  if (!state.mounted) return;
+  state._setStateFromPart(() {});
+  ScaffoldMessenger.of(state.context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Mode édition géométrie activé. Ajustez la ligne puis validez.',
+      ),
+      backgroundColor: Color(0xFF1976D2),
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
+
 LatLng? _resolveEditablePointLatLngImpl({
   required Map<String, dynamic> item,
   required String metier,
@@ -716,6 +960,13 @@ LatLng? _resolveEditablePointLatLngImpl({
 
   final projected = ProjectionService().merchichToWgs84(x: x, y: y);
   return LatLng(projected.latitude, projected.longitude);
+}
+
+int? _dynamicToIntImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString().trim());
 }
 
 double? _dynamicToDoubleImpl(dynamic value) {

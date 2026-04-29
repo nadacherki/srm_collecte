@@ -59,7 +59,15 @@ void _restorePausedCollectionImpl(
   switch (type) {
     case 'ligne':
       state.homeController.collectionManager.restoreLigneCollection(draft);
-      if (srmMeta != null && srmMeta['srmMetier'] != null) {
+      if (srmMeta != null && srmMeta['geometryEdit'] == true) {
+        state._geometryEditLineItem = {
+          'id': draft['id'],
+          'source_metier': srmMeta['srmMetier'],
+          'source_entity': srmMeta['srmEntityType'],
+          'source_table': srmMeta['srmTableName'],
+          'geometry_type': 'LineString',
+        };
+      } else if (srmMeta != null && srmMeta['srmMetier'] != null) {
         state._pendingSrmLigneSelection = SrmSelection(
           metier: srmMeta['srmMetier'] as String,
           entityType: srmMeta['srmEntityType'] as String? ?? '',

@@ -29,6 +29,7 @@ extension _HomePageCollectionActions on _HomePageState {
       _setStateFromPart(() {
         _isSpecialCollection = true;
         _specialCollectionType = type;
+        _polygonRedoPoints.clear();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,6 +77,7 @@ extension _HomePageCollectionActions on _HomePageState {
         );
         return;
       }
+      _polygonRedoPoints.clear();
 
       _setStateFromPart(() {
         _pendingPolygonPreviewPoints = List<LatLng>.from(result.points);
@@ -150,6 +152,7 @@ extension _HomePageCollectionActions on _HomePageState {
       );
       return;
     }
+    _polygonRedoPoints.clear();
 
     if (result.points.length >= 2 &&
         result.points.first.latitude == result.points.last.latitude &&
@@ -240,6 +243,7 @@ extension _HomePageCollectionActions on _HomePageState {
     if (!mounted) return;
 
     _setStateFromPart(() {
+      _polygonRedoPoints.clear();
       _isSpecialCollection = false;
       _isPolygonCollection = false;
       _specialCollectionType = null;
@@ -298,6 +302,111 @@ extension _HomePageCollectionActions on _HomePageState {
     _refreshAfterNavigation();
   }
 
+  void _undoLignePointImpl() {
+    _undoTracePoint(
+      type: CollectionType.ligne,
+      redoStack: _ligneRedoPoints,
+      emptyMessage: 'Aucun point de ligne à retirer.',
+      restoredLabel: 'ligne',
+    );
+  }
+
+  void _redoLignePointImpl() {
+    _redoTracePoint(
+      type: CollectionType.ligne,
+      redoStack: _ligneRedoPoints,
+      emptyMessage: 'Aucun point de ligne à rétablir.',
+      restoredLabel: 'ligne',
+    );
+  }
+
+  void _undoPolygonPointImpl() {
+    _undoTracePoint(
+      type: CollectionType.special,
+      redoStack: _polygonRedoPoints,
+      emptyMessage: 'Aucun point de polygone à retirer.',
+      restoredLabel: 'polygone',
+    );
+  }
+
+  void _redoPolygonPointImpl() {
+    _redoTracePoint(
+      type: CollectionType.special,
+      redoStack: _polygonRedoPoints,
+      emptyMessage: 'Aucun point de polygone à rétablir.',
+      restoredLabel: 'polygone',
+    );
+  }
+
+  void _undoTracePoint({
+    required CollectionType type,
+    required List<CollectionPointEdit> redoStack,
+    required String emptyMessage,
+    required String restoredLabel,
+  }) {
+    final edit = homeController.undoLastCollectionPoint(type);
+    if (edit == null) {
+      _showTraceEditSnack(emptyMessage, Colors.orange);
+      return;
+    }
+
+    redoStack.add(edit);
+    final remaining = _collectionPointCount(type);
+    _setStateFromPart(() {});
+    _showTraceEditSnack(
+      'Dernier point retiré du $restoredLabel ($remaining restant)',
+      const Color(0xFF455A64),
+    );
+  }
+
+  void _redoTracePoint({
+    required CollectionType type,
+    required List<CollectionPointEdit> redoStack,
+    required String emptyMessage,
+    required String restoredLabel,
+  }) {
+    if (redoStack.isEmpty) {
+      _showTraceEditSnack(emptyMessage, Colors.orange);
+      return;
+    }
+
+    final edit = redoStack.removeLast();
+    final restored = homeController.redoCollectionPoint(type, edit);
+    if (!restored) {
+      redoStack.add(edit);
+      _showTraceEditSnack(
+        'Impossible de rétablir ce point pour le moment.',
+        Colors.orange,
+      );
+      return;
+    }
+
+    final total = _collectionPointCount(type);
+    _setStateFromPart(() {});
+    _showTraceEditSnack(
+      'Point rétabli dans le $restoredLabel ($total total)',
+      const Color(0xFF455A64),
+    );
+  }
+
+  int _collectionPointCount(CollectionType type) {
+    if (type == CollectionType.ligne) {
+      return homeController.ligneCollection?.points.length ?? 0;
+    }
+    return homeController.specialCollection?.points.length ?? 0;
+  }
+
+  void _showTraceEditSnack(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(milliseconds: 1100),
+      ),
+    );
+  }
+
   void _addCurrentPointToActiveCollection() {
     final error = homeController.addCurrentPointToActiveCollection();
 
@@ -309,6 +418,13 @@ extension _HomePageCollectionActions on _HomePageState {
         ),
       );
       return;
+    }
+
+    if (homeController.ligneCollection?.isActive ?? false) {
+      _ligneRedoPoints.clear();
+    }
+    if (_isPolygonCollection && (homeController.specialCollection?.isActive ?? false)) {
+      _polygonRedoPoints.clear();
     }
 
     final pointCount = homeController.ligneCollection?.points.length ??
@@ -354,6 +470,7 @@ extension _HomePageCollectionActions on _HomePageState {
     try {
       await homeController.startLigneCollection(fakeCode);
       if (!mounted) return;
+      _ligneRedoPoints.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -418,6 +535,7 @@ extension _HomePageCollectionActions on _HomePageState {
         _isPolygonCollection = true;
         _specialCollectionType = e;
         _pendingPolygonPreviewPoints = null;
+        _polygonRedoPoints.clear();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -505,6 +623,20 @@ extension _HomePageCollectionActions on _HomePageState {
     final endTime = result['endTime'] as DateTime?;
     final totalDistance = (result['totalDistance'] as num).toDouble();
 
+    final geometryEditItem = _geometryEditLineItem;
+    if (geometryEditItem != null) {
+      await _saveEditedLineGeometry(
+        geometryEditItem: geometryEditItem,
+        lineId: lineId,
+        lineCode: lineCode,
+        points: points,
+        startTime: startTime,
+        endTime: endTime,
+        totalDistance: totalDistance,
+      );
+      return;
+    }
+
     var sel = _pendingSrmLigneSelection;
     if (sel == null) {
       if (!mounted) return;
@@ -588,6 +720,7 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     homeController.cancelLigneCollection();
+    _ligneRedoPoints.clear();
     _refreshAfterNavigation();
   }
 
@@ -620,6 +753,8 @@ extension _HomePageCollectionActions on _HomePageState {
 
     homeController.cancelLigneCollection();
     _pendingSrmLigneSelection = null;
+    _ligneRedoPoints.clear();
+    _geometryEditLineItem = null;
 
     if (!mounted) return;
     _setStateFromPart(() {
@@ -633,5 +768,102 @@ extension _HomePageCollectionActions on _HomePageState {
         backgroundColor: Color(0xFFE53E3E),
       ),
     );
+  }
+
+  Future<void> _saveEditedLineGeometry({
+    required Map<String, dynamic> geometryEditItem,
+    required int lineId,
+    required String lineCode,
+    required List<LatLng> points,
+    required DateTime startTime,
+    required DateTime? endTime,
+    required double totalDistance,
+  }) async {
+    final tableName = geometryEditItem['source_table']?.toString() ?? '';
+    final id = _dynamicToIntImpl(geometryEditItem['id']) ?? lineId;
+    if (tableName.isEmpty || id <= 0 || points.length < 2) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de ligne invalide.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final projection = ProjectionService();
+    final startProjected = projection.wgs84ToMerchich(
+      longitude: points.first.longitude,
+      latitude: points.first.latitude,
+    );
+    final endProjected = projection.wgs84ToMerchich(
+      longitude: points.last.longitude,
+      latitude: points.last.latitude,
+    );
+
+    final data = <String, dynamic>{
+      'points_json': jsonEncode(
+        points.map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
+      ),
+      'nb_points': points.length,
+      'distance_m': totalDistance,
+      'x_debut': startProjected.x,
+      'y_debut': startProjected.y,
+      'x_fin': endProjected.x,
+      'y_fin': endProjected.y,
+      'lat_debut': points.first.latitude,
+      'lon_debut': points.first.longitude,
+      'lat_fin': points.last.latitude,
+      'lon_fin': points.last.longitude,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+      'mode_localisation': 'gnss',
+    };
+
+    try {
+      await DatabaseHelper().updateEntitySrm(
+        tableName,
+        id,
+        data,
+        recordHistory: true,
+      );
+
+      _geometryEditLineItem = null;
+      _ligneRedoPoints.clear();
+      _pendingSrmLigneSelection = null;
+      await _refreshAfterNavigation();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de ligne mise à jour.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      await homeController.restoreFinishedLigneAsPaused(
+        id: id,
+        lineCode: lineCode,
+        points: points,
+        startTime: startTime,
+        lastPointTime: endTime,
+        totalDistance: totalDistance,
+        srmMetadata: {
+          'srmMetier': geometryEditItem['source_metier'],
+          'srmEntityType': geometryEditItem['source_entity'],
+          'srmTableName': tableName,
+          'geometryEdit': true,
+        },
+      );
+      _geometryEditLineItem = geometryEditItem;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur édition géométrie : $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

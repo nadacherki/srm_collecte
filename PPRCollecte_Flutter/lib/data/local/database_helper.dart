@@ -77,6 +77,7 @@ class DatabaseHelper {
       onOpen: (db) async {
         print('🔌 DB ouverte');
         await _migrateExistingSrmTables(db);
+        await _createConduiteSyncQueueTable(db);
       },
     );
   }
@@ -145,6 +146,7 @@ class DatabaseHelper {
     print('✅ Table app_metadata');
 
     await _createPhotoSyncQueueTable(db);
+    await _createConduiteSyncQueueTable(db);
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createOfflineBasemapZoneTable(db);
@@ -281,6 +283,33 @@ class DatabaseHelper {
         updated_at TEXT,
         UNIQUE(schema_name, table_name, uuid_objet, photo_slot)
       )
+    ''');
+  }
+
+  Future<void> _createConduiteSyncQueueTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS conduite_sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sync_uuid TEXT NOT NULL UNIQUE,
+        metier TEXT NOT NULL,
+        id_agent INTEGER NOT NULL,
+        jour TEXT NOT NULL,
+        nodes_json TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        retry_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        date_sync TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS conduite_sync_queue_day_idx
+      ON conduite_sync_queue (metier, id_agent, jour)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS conduite_sync_queue_synced_idx
+      ON conduite_sync_queue (synced, updated_at)
     ''');
   }
 
@@ -1940,6 +1969,110 @@ class DatabaseHelper {
         where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<int> enqueueConduiteSyncItem({
+    required String metier,
+    required int idAgent,
+    required DateTime jour,
+    required List<Map<String, dynamic>> nodes,
+  }) async {
+    final db = await database;
+    await _createConduiteSyncQueueTable(db);
+    final nowIso = DateTime.now().toIso8601String();
+    final jourKey = jour.toIso8601String().substring(0, 10);
+    final existing = await db.query(
+      'conduite_sync_queue',
+      where: 'metier = ? AND id_agent = ? AND jour = ?',
+      whereArgs: [metier, idAgent, jourKey],
+      limit: 1,
+    );
+    final payload = <String, dynamic>{
+      'metier': metier,
+      'id_agent': idAgent,
+      'jour': jourKey,
+      'nodes_json': jsonEncode(nodes),
+      'synced': 0,
+      'last_error': null,
+      'updated_at': nowIso,
+      'date_sync': null,
+    };
+
+    if (existing.isEmpty) {
+      payload['sync_uuid'] = const Uuid().v4();
+      payload['retry_count'] = 0;
+      payload['created_at'] = nowIso;
+      return db.insert('conduite_sync_queue', payload);
+    }
+
+    final existingId = _toInt(existing.first['id']);
+    await db.update(
+      'conduite_sync_queue',
+      payload,
+      where: 'id = ?',
+      whereArgs: [existingId],
+    );
+    return existingId;
+  }
+
+  Future<Map<String, dynamic>?> getConduiteSyncItemForDay({
+    required String metier,
+    required int idAgent,
+    required DateTime jour,
+  }) async {
+    final db = await database;
+    await _createConduiteSyncQueueTable(db);
+    final jourKey = jour.toIso8601String().substring(0, 10);
+    final rows = await db.query(
+      'conduite_sync_queue',
+      where: 'metier = ? AND id_agent = ? AND jour = ? AND (synced IS NULL OR synced = 0)',
+      whereArgs: [metier, idAgent, jourKey],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingConduiteSyncItems({
+    int limit = 100,
+  }) async {
+    final db = await database;
+    await _createConduiteSyncQueueTable(db);
+    return db.query(
+      'conduite_sync_queue',
+      where: 'synced IS NULL OR synced = 0',
+      orderBy: 'id ASC',
+      limit: limit,
+    );
+  }
+
+  Future<void> markConduiteSyncItemSynced(int id) async {
+    final db = await database;
+    await db.update(
+      'conduite_sync_queue',
+      {
+        'synced': 1,
+        'last_error': null,
+        'date_sync': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markConduiteSyncItemFailed(int id, String errorMessage) async {
+    final db = await database;
+    await db.rawUpdate(
+      '''
+      UPDATE conduite_sync_queue
+      SET synced = 0,
+          retry_count = COALESCE(retry_count, 0) + 1,
+          last_error = ?,
+          updated_at = ?
+      WHERE id = ?
+      ''',
+      [errorMessage, DateTime.now().toIso8601String(), id],
+    );
+  }
+
   Future<int> enqueuePhotoSyncItem({
     required String schemaName,
     required String tableName,
@@ -2022,6 +2155,43 @@ class DatabaseHelper {
       orderBy: 'id ASC',
       limit: limit,
     );
+  }
+
+  Future<int> countPendingLocalHistoryItems() async {
+    final db = await database;
+    final attributes = await _countRowsIfTableExists(
+      db,
+      'historique_local_attribut',
+      where: 'synced IS NULL OR synced = 0',
+    );
+    final events = await _countRowsIfTableExists(
+      db,
+      'historique_local_evenement',
+      where: 'synced IS NULL OR synced = 0',
+    );
+    return attributes + events;
+  }
+
+  Future<int> _countRowsIfTableExists(
+    Database db,
+    String tableName, {
+    String? where,
+  }) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [tableName],
+    );
+    if (tables.isEmpty) return 0;
+
+    final result = await db.query(
+      tableName,
+      columns: ['COUNT(*) AS total'],
+      where: where,
+    );
+    final value = result.isEmpty ? null : result.first['total'];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Future<void> markPhotoSyncItemSynced(
@@ -3212,6 +3382,90 @@ class DatabaseHelper {
       cleLigne: 'last_download_time',
       payload: {'value': dt.toIso8601String()},
     );
+  }
+
+  String _lastDownloadTableTimeKey(String tableName) =>
+      'last_download_time_table_${tableName.trim()}';
+
+  String _downloadTableStatusKey(String tableName) =>
+      'download_status_table_${tableName.trim()}';
+
+  Future<void> saveLastDownloadTimeForTable(
+    String tableName,
+    DateTime dt,
+  ) async {
+    await saveAppMetadataValue(
+      _lastDownloadTableTimeKey(tableName),
+      dt.toIso8601String(),
+      eventType: 'SAVE_LAST_DOWNLOAD_TABLE_TIME',
+      payload: {
+        'table_name': tableName,
+        'value': dt.toIso8601String(),
+      },
+    );
+  }
+
+  Future<DateTime?> getLastDownloadTimeForTable(String tableName) async {
+    final raw = await getAppMetadataValue(_lastDownloadTableTimeKey(tableName));
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveDownloadTableStatus(
+    String tableName, {
+    required String status,
+    int? downloadedCount,
+    int? nextPage,
+    int? totalCount,
+    String? updatedAfter,
+    String? error,
+  }) async {
+    await saveAppMetadataValue(
+      _downloadTableStatusKey(tableName),
+      jsonEncode({
+        'status': status,
+        'table_name': tableName,
+        if (downloadedCount != null) 'downloaded_count': downloadedCount,
+        if (nextPage != null) 'next_page': nextPage,
+        if (totalCount != null) 'total_count': totalCount,
+        if (updatedAfter != null && updatedAfter.trim().isNotEmpty)
+          'updated_after': updatedAfter.trim(),
+        if (error != null && error.trim().isNotEmpty) 'error': error.trim(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }),
+      eventType: 'SAVE_DOWNLOAD_TABLE_STATUS',
+      payload: {
+        'table_name': tableName,
+        'status': status,
+        if (downloadedCount != null) 'downloaded_count': downloadedCount,
+        if (nextPage != null) 'next_page': nextPage,
+        if (totalCount != null) 'total_count': totalCount,
+        if (updatedAfter != null && updatedAfter.trim().isNotEmpty)
+          'updated_after': updatedAfter.trim(),
+        if (error != null && error.trim().isNotEmpty) 'error': error.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>?> getDownloadTableStatus(String tableName) async {
+    final raw = await getAppMetadataValue(_downloadTableStatusKey(tableName));
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   Future<DateTime?> getLastDownloadTime() async {

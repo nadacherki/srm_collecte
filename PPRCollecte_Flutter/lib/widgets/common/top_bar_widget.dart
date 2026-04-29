@@ -8,14 +8,12 @@ import '../../screens/profile/profile_page.dart';
 class TopBarWidget extends StatelessWidget {
   final String agentName;
   final VoidCallback onLogout;
-  final FutureOr<void> Function()? onReturnFromProfile;
-  final FutureOr<void> Function()? onStartConduiteDrawing;
+  final FutureOr<void> Function(String metier)? onStartConduiteDrawing;
 
   const TopBarWidget({
     super.key,
     required this.agentName,
     required this.onLogout,
-    this.onReturnFromProfile,
     this.onStartConduiteDrawing,
   });
 
@@ -46,9 +44,11 @@ class TopBarWidget extends StatelessWidget {
                   ),
                 ),
               );
-              await onReturnFromProfile?.call();
-              if (result == ProfilePage.startConduiteDrawingResult) {
-                await onStartConduiteDrawing?.call();
+              if (result == ProfilePage.startConduiteDrawingEpResult ||
+                  result == ProfilePage.startConduiteDrawingResult) {
+                await onStartConduiteDrawing?.call('ep');
+              } else if (result == ProfilePage.startConduiteDrawingAsstResult) {
+                await onStartConduiteDrawing?.call('asst');
               }
             },
             child: Row(

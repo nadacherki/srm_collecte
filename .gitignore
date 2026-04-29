@@ -41,3 +41,14 @@ API_GeoDjango/pprcollecte/media/
 
 # Local basemap scratch / downloads
 bbbike_extract_page.html
+
+# Local scratch / generated diagnostics
+_tmp/
+tmp/
+*.log
+*_toc.list
+srm_screen*.png
+
+# Local automation staging
+docs/automation_downloads/
+docs/skill_staging/

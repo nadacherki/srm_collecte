@@ -196,13 +196,16 @@ class DisplayedPointsService {
     required DateTime day,
     required void Function(Map<String, dynamic>) onTapRegard,
     void Function(Map<String, dynamic> row, Marker marker)? onMarkerCreated,
+    String metier = 'Eau Potable',
+    String entityType = 'Regard',
+    String tableName = 'regard',
   }) async {
     try {
       final db = await _dbHelper.database;
       final loginId = await _dbHelper.resolveLoginId();
       final rows = await _fetchVisibleRows(
         db: db,
-        tableName: 'regard',
+        tableName: tableName,
         loginId: loginId,
       );
       final markers = <Marker>[];
@@ -212,13 +215,13 @@ class DisplayedPointsService {
           continue;
         }
 
-        final latLng = _extractLatLng(row, 'Eau Potable', tableName: 'regard');
+        final latLng = _extractLatLng(row, metier, tableName: tableName);
         if (latLng == null) continue;
 
         final editableItem = Map<String, dynamic>.from(row);
-        editableItem['source_table'] = 'regard';
-        editableItem['source_metier'] = 'Eau Potable';
-        editableItem['source_entity'] = 'Regard';
+        editableItem['source_table'] = tableName;
+        editableItem['source_metier'] = metier;
+        editableItem['source_entity'] = entityType;
         editableItem['geometry_type'] = 'Point';
 
         final hasAnomalie =
@@ -229,7 +232,7 @@ class DisplayedPointsService {
         final hasIncomplet =
             row['objet_incomplet'] == 1 || row['objet_incomplet'] == true;
         final markerSize = _resolveMarkerSize(
-          'regard',
+          tableName,
           hasAnomalie: hasAnomalie,
           hasIncomplet: hasIncomplet,
         );
@@ -250,9 +253,10 @@ class DisplayedPointsService {
               onTapRegard({
                 'node_id': nodeId,
                 'fid': row['fid'],
-                'name': _resolvePointName(row, 'Regard'),
-                'entity_type': 'Regard',
-                'table_name': 'regard',
+                'name': _resolvePointName(row, entityType),
+                'entity_type': entityType,
+                'table_name': tableName,
+                'metier': metier,
                 'lat': latLng.latitude,
                 'lng': latLng.longitude,
                 'existing_item': editableItem,
@@ -264,16 +268,16 @@ class DisplayedPointsService {
               child: IgnorePointer(
                 child: hasAnomalie
                     ? CustomMarkerIcons.getAnomalieMarkerWidget(
-                        'regard',
+                        tableName,
                         size: markerSize,
                       )
                     : hasIncomplet
                         ? CustomMarkerIcons.getIncompletMarkerWidget(
-                            'regard',
+                            tableName,
                             size: markerSize,
                           )
                         : CustomMarkerIcons.getMarkerWidget(
-                            'regard',
+                            tableName,
                             size: markerSize,
                           ),
               ),
@@ -354,9 +358,13 @@ class DisplayedPointsService {
   }
 
   DateTime? _resolveRegardDay(Map<String, dynamic> row) {
+    final collecte = _parseDate(row['date_collecte']);
+    if (collecte != null) return collecte;
     final insertion = _parseDate(row['ep_date_insertion']);
     if (insertion != null) return insertion;
-    return _parseDate(row['date_creation']);
+    final creation = _parseDate(row['date_creation']);
+    if (creation != null) return creation;
+    return _parseDate(row['date_pose']);
   }
 
   DateTime? _parseDate(dynamic value) {

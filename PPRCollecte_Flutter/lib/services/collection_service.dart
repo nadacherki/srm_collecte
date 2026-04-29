@@ -36,6 +36,17 @@ class CollectionService {
     _altitudesZ.add(_currentLocation?.altitude);
   }
 
+  void recordAltitudeForManualPoint(double? altitude) {
+    _altitudesZ.add(altitude);
+  }
+
+  double? removeLastRecordedAltitude() {
+    if (_altitudesZ.isEmpty) {
+      return null;
+    }
+    return _altitudesZ.removeLast();
+  }
+
   void stopCollection() {
     _locationSubscription?.cancel();
     _locationSubscription = null;

@@ -212,6 +212,99 @@ class ObjetPhoto(models.Model):
         return f"{self.nom_schema}.{self.nom_table} {self.uuid_objet} photo {self.num_photo}"
 
 
+class SyncSession(models.Model):
+    id_sync_session = models.BigAutoField(primary_key=True)
+    sync_uuid = models.CharField(max_length=64, unique=True)
+    id_agent = models.IntegerField(null=True, blank=True)
+    id_projet = models.IntegerField(null=True, blank=True)
+    id_mission = models.IntegerField(null=True, blank=True)
+    device_id = models.CharField(max_length=128, null=True, blank=True)
+    app_version = models.CharField(max_length=64, null=True, blank=True)
+    statut = models.CharField(max_length=30, default='manifest_received')
+    total_items = models.IntegerField(default=0)
+    total_attachments = models.IntegerField(default=0)
+    received_items = models.IntegerField(default=0)
+    received_attachments = models.IntegerField(default=0)
+    failed_items = models.IntegerField(default=0)
+    started_at = models.DateTimeField(null=True, blank=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    metadata_json = models.JSONField(null=True, blank=True)
+    last_error = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'sync_session'
+
+    def __str__(self):
+        return f"Sync {self.sync_uuid} ({self.statut})"
+
+
+class SyncSessionItem(models.Model):
+    id_sync_item = models.BigAutoField(primary_key=True)
+    sync_session = models.ForeignKey(
+        SyncSession,
+        db_column='id_sync_session',
+        related_name='items',
+        on_delete=models.CASCADE,
+    )
+    client_item_uuid = models.CharField(max_length=128, null=True, blank=True)
+    nom_schema = models.CharField(max_length=30)
+    nom_table = models.CharField(max_length=100)
+    uuid_objet = models.CharField(max_length=254)
+    local_id = models.BigIntegerField(null=True, blank=True)
+    operation = models.CharField(max_length=30, default='upsert')
+    payload_hash = models.CharField(max_length=64, null=True, blank=True)
+    statut = models.CharField(max_length=30, default='pending')
+    attempts = models.IntegerField(default=0)
+    last_error = models.TextField(null=True, blank=True)
+    received_at = models.DateTimeField(null=True, blank=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+    response_pk = models.CharField(max_length=128, null=True, blank=True)
+    response_uuid = models.CharField(max_length=254, null=True, blank=True)
+    payload_summary_json = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'sync_session_item'
+
+    def __str__(self):
+        return f"{self.sync_session.sync_uuid} {self.nom_schema}.{self.nom_table} {self.uuid_objet}"
+
+
+class SyncSessionAttachment(models.Model):
+    id_sync_attachment = models.BigAutoField(primary_key=True)
+    sync_session = models.ForeignKey(
+        SyncSession,
+        db_column='id_sync_session',
+        related_name='attachments',
+        on_delete=models.CASCADE,
+    )
+    nom_schema = models.CharField(max_length=30)
+    nom_table = models.CharField(max_length=100)
+    uuid_objet = models.CharField(max_length=254)
+    photo_slot = models.SmallIntegerField()
+    local_path = models.TextField(null=True, blank=True)
+    sha256 = models.CharField(max_length=64, null=True, blank=True)
+    taille_octets = models.BigIntegerField(null=True, blank=True)
+    statut = models.CharField(max_length=30, default='pending')
+    attempts = models.IntegerField(default=0)
+    last_error = models.TextField(null=True, blank=True)
+    received_at = models.DateTimeField(null=True, blank=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+    remote_path = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'sync_session_attachment'
+
+    def __str__(self):
+        return (
+            f"{self.sync_session.sync_uuid} {self.nom_schema}.{self.nom_table} "
+            f"{self.uuid_objet} photo {self.photo_slot}"
+        )
+
+
 class FondDePlan(models.Model):
     id_fdp = models.AutoField(primary_key=True)
     id_projet = models.IntegerField()
@@ -280,6 +373,86 @@ class StatistiqueConduiteSegment(models.Model):
     def __str__(self):
         return (
             f"Segment conduite stat={self.id_statistique_conduite} "
+            f"{self.fid_regard_min}-{self.fid_regard_max}"
+        )
+
+
+class ConduiteStatistiqueEp(models.Model):
+    id_statistique_conduite = models.BigAutoField(primary_key=True)
+    id_agent = models.IntegerField()
+    jour = models.DateField()
+    geom = models.MultiLineStringField(srid=26191, dim=3, null=True, blank=True)
+    longueur_conduite_m = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'conduite_statistique_ep'
+
+    def __str__(self):
+        return f"Conduite stat EP agent={self.id_agent} jour={self.jour}"
+
+
+class ConduiteStatistiqueEpSegment(models.Model):
+    id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
+    id_statistique_conduite = models.BigIntegerField()
+    fid_regard_a = models.IntegerField()
+    fid_regard_b = models.IntegerField()
+    fid_regard_min = models.IntegerField()
+    fid_regard_max = models.IntegerField()
+    geom = models.LineStringField(srid=26191, dim=3)
+    longueur_segment_m = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'conduite_statistique_ep_segment'
+
+    def __str__(self):
+        return (
+            f"Segment conduite EP stat={self.id_statistique_conduite} "
+            f"{self.fid_regard_min}-{self.fid_regard_max}"
+        )
+
+
+class ConduiteStatiqueAsst(models.Model):
+    id_statistique_conduite = models.BigAutoField(primary_key=True)
+    id_agent = models.IntegerField()
+    jour = models.DateField()
+    geom = models.MultiLineStringField(srid=26191, dim=3, null=True, blank=True)
+    longueur_conduite_m = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'conduite_statique_asst'
+
+    def __str__(self):
+        return f"Conduite stat ASS agent={self.id_agent} jour={self.jour}"
+
+
+class ConduiteStatiqueAsstSegment(models.Model):
+    id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
+    id_statistique_conduite = models.BigIntegerField()
+    fid_regard_a = models.IntegerField()
+    fid_regard_b = models.IntegerField()
+    fid_regard_min = models.IntegerField()
+    fid_regard_max = models.IntegerField()
+    geom = models.LineStringField(srid=26191, dim=3)
+    longueur_segment_m = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'conduite_statique_asst_segment'
+
+    def __str__(self):
+        return (
+            f"Segment conduite ASS stat={self.id_statistique_conduite} "
             f"{self.fid_regard_min}-{self.fid_regard_max}"
         )
 

@@ -46,6 +46,7 @@ import '../../data/remote/api_service.dart';
 // ============================================================
 // MODELS
 // ============================================================
+import '../../models/collection_models.dart';
 import '../../models/map_overlay_tap_data.dart';
 
 // ============================================================
@@ -63,6 +64,7 @@ import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
 import '../../services/nmea_bridge_service.dart';
+import '../../services/public_metrics_cache_service.dart';
 
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
@@ -155,6 +157,7 @@ class _HomePageState extends State<HomePage> {
   List<Polyline> collectedPolylines = [];
   List<Polyline> _finishedLines = [];
   List<Marker> formMarkers = [];
+  Map<String, dynamic>? _geometryEditLineItem;
   bool isSyncing = false;
   bool isDownloading = false;
   SyncResult? lastSyncResult;
@@ -171,6 +174,8 @@ class _HomePageState extends State<HomePage> {
   bool _isSpecialCollection = false;
   String? _specialCollectionType;
   bool _isPolygonCollection = false;
+  final List<CollectionPointEdit> _ligneRedoPoints = [];
+  final List<CollectionPointEdit> _polygonRedoPoints = [];
   List<Polygon> _displayedPolygons = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
   Map<String, List<Polygon>> _displayedPolygonAnomalieByTable = {};
@@ -220,6 +225,7 @@ class _HomePageState extends State<HomePage> {
   Timer? _onlineWatchTimer;
   Timer? _nmeaBridgeWatchTimer;
   bool _isConduiteDrawingMode = false;
+  String _conduiteModeMetier = 'ep';
   DateTime? _conduiteModeDay;
   List<Marker> _conduiteModeMarkers = [];
   List<Polyline> _conduiteModePolylines = [];
@@ -492,6 +498,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _editMapItem(Map<String, dynamic> item) =>
       _editMapItemImpl(this, item);
 
+  Future<void> _editMapGeometry(Map<String, dynamic> item) =>
+      _editMapGeometryImpl(this, item);
+
   void _handlePolylineTap(Object? hitValue) =>
       _handlePolylineTapImpl(this, hitValue);
 
@@ -699,7 +708,7 @@ class _HomePageState extends State<HomePage> {
           filtered.addAll(entry.value);
         }
       }
-      return filtered;
+      return _withActiveTraceVertexMarkers(filtered);
     }
 
     // === Mode isolement incomplet ===
@@ -709,7 +718,7 @@ class _HomePageState extends State<HomePage> {
           filtered.addAll(entry.value);
         }
       }
-      return filtered;
+      return _withActiveTraceVertexMarkers(filtered);
     }
 
     // === Mode isolement anomalie + incomplet ===
@@ -721,7 +730,7 @@ class _HomePageState extends State<HomePage> {
       for (final entry in _displayedIncompletByTable.entries) {
         if (_isSrmTableVisible(entry.key)) combined.addAll(entry.value);
       }
-      return combined.toList();
+      return _withActiveTraceVertexMarkers(combined.toList());
     }
 
     for (final entry in _displayedPointsByTable.entries) {
@@ -735,7 +744,100 @@ class _HomePageState extends State<HomePage> {
       filtered.addAll(entry.value);
     }
 
-    return filtered;
+    return _withActiveTraceVertexMarkers(filtered);
+  }
+
+  List<Marker> _withActiveTraceVertexMarkers(List<Marker> markers) {
+    return <Marker>[
+      ...markers,
+      ..._getActiveTraceVertexMarkers(),
+    ];
+  }
+
+  List<Marker> _getActiveTraceVertexMarkers() {
+    final markers = <Marker>[];
+    final ligne = homeController.ligneCollection;
+    if (ligne != null) {
+      markers.addAll(
+        _buildTraceVertexMarkers(
+          points: ligne.points,
+          color: ligne.isPaused ? Colors.orange : Colors.green,
+        ),
+      );
+    }
+
+    final special = homeController.specialCollection;
+    if (special != null) {
+      final specialColor = _isPolygonCollection
+          ? const Color(0xFF1B5E20)
+          : _specialCollectionType == "Bac"
+              ? Colors.purple
+              : Colors.deepPurple;
+      markers.addAll(
+        _buildTraceVertexMarkers(
+          points: special.points,
+          color: special.isPaused ? Colors.orange : specialColor,
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  List<Marker> _buildTraceVertexMarkers({
+    required List<LatLng> points,
+    required Color color,
+  }) {
+    return [
+      for (var i = 0; i < points.length; i++)
+        _buildTraceVertexMarker(
+          point: points[i],
+          color: color,
+          label: '${i + 1}',
+          isLast: i == points.length - 1,
+        ),
+    ];
+  }
+
+  Marker _buildTraceVertexMarker({
+    required LatLng point,
+    required Color color,
+    required String label,
+    required bool isLast,
+  }) {
+    return Marker(
+      point: point,
+      width: 30,
+      height: 30,
+      child: IgnorePointer(
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: color,
+              width: isLast ? 3 : 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: label.length > 2 ? 9 : 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<Polygon> _getFilteredPolygons() {
@@ -871,8 +973,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadPointCountsByTable() =>
       _loadPointCountsByTableImpl(this);
 
-  Future<void> _enterConduiteDrawingMode() =>
-      _enterConduiteDrawingModeImpl(this);
+  Future<void> _enterConduiteDrawingMode([String metier = 'ep']) =>
+      _enterConduiteDrawingModeImpl(this, metier: metier);
 
   void _exitConduiteDrawingMode() =>
       _exitConduiteDrawingModeImpl(this);
@@ -924,6 +1026,18 @@ class _HomePageState extends State<HomePage> {
 
   void toggleLigneCollection() =>
       _toggleLigneCollectionImpl();
+
+  void undoLignePoint() =>
+      _undoLignePointImpl();
+
+  void redoLignePoint() =>
+      _redoLignePointImpl();
+
+  void undoPolygonPoint() =>
+      _undoPolygonPointImpl();
+
+  void redoPolygonPoint() =>
+      _redoPolygonPointImpl();
 
   Future<void> finishLigneCollection() =>
       _finishLigneCollectionImpl();
@@ -1197,8 +1311,8 @@ class _HomePageState extends State<HomePage> {
             TopBarWidget(
                 agentName: widget.agentName,
                 onLogout: _showLogoutConfirmation,
-                onReturnFromProfile: _hydrateOfflineBasemapState,
-                onStartConduiteDrawing: _enterConduiteDrawingMode,
+                onStartConduiteDrawing: (metier) =>
+                    _enterConduiteDrawingMode(metier),
               ),
             Expanded(
               child: Stack(
@@ -1299,6 +1413,12 @@ class _HomePageState extends State<HomePage> {
                         onStartPolygon: startPolygonCollection,
                         onToggleLigne: toggleLigneCollection,
                         onTogglePolygon: toggleSpecialCollection,
+                        onUndoLigne: undoLignePoint,
+                        onRedoLigne: redoLignePoint,
+                        onUndoPolygon: undoPolygonPoint,
+                        onRedoPolygon: redoPolygonPoint,
+                        canRedoLigne: _ligneRedoPoints.isNotEmpty,
+                        canRedoPolygon: _polygonRedoPoints.isNotEmpty,
                         onFinishLigne: finishLigneCollection,
                         onFinishPolygon: finishSpecialCollection,
                         onCancelLigne: cancelLigneCollection,

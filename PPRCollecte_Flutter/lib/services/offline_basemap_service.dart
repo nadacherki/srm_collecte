@@ -271,9 +271,33 @@ class OfflineBasemapService {
           continue;
         }
       }
+      await _deleteCompletedPackagePartialDownloads(
+        validPackagePath: candidate,
+        targetPackagePath: targetFile.path,
+      );
       return candidate;
     }
     return null;
+  }
+
+  Future<void> _deleteCompletedPackagePartialDownloads({
+    required String validPackagePath,
+    required String targetPackagePath,
+  }) async {
+    final candidates = <String>{
+      '$validPackagePath.download',
+      '$targetPackagePath.download',
+    };
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (!await file.exists()) continue;
+      try {
+        await file.delete();
+      } catch (_) {
+        // A stale partial download is only an optimization target; never fail
+        // package selection because cleanup could not delete it.
+      }
+    }
   }
 
   Future<Map<String, dynamic>?> selectReadyPackageForPosition({
@@ -491,25 +515,53 @@ class OfflineBasemapService {
     String? expectedSha256,
   }) async {
     final tempFile = File('${targetFile.path}.download');
+    var existingBytes = 0;
     if (await tempFile.exists()) {
-      await tempFile.delete();
+      existingBytes = await tempFile.length();
+      if (expectedSizeBytes != null &&
+          expectedSizeBytes > 0 &&
+          existingBytes >= expectedSizeBytes) {
+        await tempFile.delete();
+        existingBytes = 0;
+      }
     }
 
     final request = http.Request('GET', Uri.parse(url));
     request.headers.addAll(_headers());
+    if (existingBytes > 0) {
+      request.headers['Range'] = 'bytes=$existingBytes-';
+    }
 
     final streamed = await request.send().timeout(const Duration(minutes: 5));
-    if (streamed.statusCode != 200) {
+    if (streamed.statusCode == 416 && existingBytes > 0) {
+      await tempFile.delete();
+      return _downloadToFile(
+        url,
+        targetFile,
+        expectedSizeBytes: expectedSizeBytes,
+        expectedSha256: expectedSha256,
+      );
+    }
+
+    final canResume = existingBytes > 0 && streamed.statusCode == 206;
+    if (existingBytes > 0 && streamed.statusCode == 200) {
+      await tempFile.delete();
+      existingBytes = 0;
+    }
+
+    if (streamed.statusCode != 200 && streamed.statusCode != 206) {
       throw Exception(
         'Erreur téléchargement basemap: ${streamed.statusCode}',
       );
     }
 
     IOSink? sink;
-    var writtenBytes = 0;
+    var writtenBytes = existingBytes;
 
     try {
-      sink = tempFile.openWrite();
+      sink = tempFile.openWrite(
+        mode: canResume ? FileMode.append : FileMode.write,
+      );
       await for (final chunk in streamed.stream) {
         sink.add(chunk);
         writtenBytes += chunk.length;
