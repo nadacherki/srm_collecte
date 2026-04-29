@@ -139,7 +139,6 @@ class _MapWidgetState extends State<MapWidget> {
   TileProvider? _rasterTileProvider;
   vmt.VectorTileProvider? _vectorTileProvider;
   vtr.Theme? _vectorTheme;
-  vtr.Theme? _vectorIconTheme;
   vmt.SpriteStyle? _vectorSprites;
   String? _loadedBasemapPath;
   String? _loadedBasemapFormat;
@@ -291,7 +290,6 @@ class _MapWidgetState extends State<MapWidget> {
       _rasterTileProvider = null;
       _vectorTileProvider = null;
       _vectorTheme = null;
-      _vectorIconTheme = null;
       _vectorSprites = null;
       _vectorDetailsSummary = null;
       _vectorDetailsWarning = null;
@@ -322,7 +320,6 @@ class _MapWidgetState extends State<MapWidget> {
       TileProvider? rasterProvider;
       vmt.VectorTileProvider? vectorProvider;
       vtr.Theme? vectorTheme;
-      vtr.Theme? vectorIconTheme;
       vmt.SpriteStyle? vectorSprites;
       String? vectorDetailsSummary;
       String? vectorDetailsWarning;
@@ -335,7 +332,6 @@ class _MapWidgetState extends State<MapWidget> {
             final themeBundle = _buildLocalProtomapsLightThemeBundle();
             final spriteResult = await _loadLocalProtomapsLightSprites();
             vectorTheme = themeBundle.theme;
-            vectorIconTheme = themeBundle.iconTheme;
             vectorSprites = spriteResult.style;
             _vectorSpriteNames = spriteResult.spriteNames;
             vectorDetailsSummary =
@@ -389,7 +385,6 @@ class _MapWidgetState extends State<MapWidget> {
         _rasterTileProvider = rasterProvider;
         _vectorTileProvider = vectorProvider;
         _vectorTheme = vectorTheme;
-        _vectorIconTheme = vectorIconTheme;
         _vectorSprites = vectorSprites;
         _vectorDetailsSummary = vectorDetailsSummary;
         _vectorDetailsWarning = vectorDetailsWarning;
@@ -467,14 +462,10 @@ class _MapWidgetState extends State<MapWidget> {
     final textAndBaseLayers = localizedLayers
         .where((layer) => !(layer['id']?.toString().endsWith('_icons') ?? false))
         .toList(growable: false);
-    final iconOnlyLayers = localizedLayers
-        .where((layer) => layer['id']?.toString().endsWith('_icons') ?? false)
-        .toList(growable: false);
 
     final protomaps = ProtomapsThemes(sprites: null);
     return _LocalProtomapsThemeBundle(
       theme: protomaps.build(textAndBaseLayers),
-      iconTheme: iconOnlyLayers.isEmpty ? null : protomaps.build(iconOnlyLayers),
       check: _inspectThemeLayers(rawLayers),
     );
   }
@@ -1771,12 +1762,10 @@ class _MapWidgetState extends State<MapWidget> {
 
 class _LocalProtomapsThemeBundle {
   final vtr.Theme theme;
-  final vtr.Theme? iconTheme;
   final _VectorDetailsCheck check;
 
   const _LocalProtomapsThemeBundle({
     required this.theme,
-    required this.iconTheme,
     required this.check,
   });
 }
@@ -1815,15 +1804,15 @@ class _OfflinePoiMarkerSpec {
 
   const _OfflinePoiMarkerSpec.asset({
     required this.assetPath,
-    this.size = 18,
   })  : icon = null,
-        color = null;
+        color = null,
+        size = 18;
 
   const _OfflinePoiMarkerSpec.material({
     required this.icon,
     required this.color,
-    this.size = 16,
-  }) : assetPath = null;
+  })  : assetPath = null,
+        size = 16;
 }
 
 class MapTypeToggle extends StatelessWidget {
