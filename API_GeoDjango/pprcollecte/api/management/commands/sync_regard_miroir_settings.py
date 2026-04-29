@@ -5,7 +5,7 @@ from django.db import connection
 
 class Command(BaseCommand):
     help = (
-        "Synchronise la taille du carre ep.regard_miroir depuis "
+        "Synchronise la taille du carré ep.regard_miroir depuis "
         "REGARD_MIROIR_SQUARE_SIZE_METERS et recalcule les miroirs existants."
     )
 
@@ -15,12 +15,12 @@ class Command(BaseCommand):
             size_m = float(raw_size)
         except (TypeError, ValueError) as exc:
             raise CommandError(
-                'REGARD_MIROIR_SQUARE_SIZE_METERS doit etre numerique.'
+                'REGARD_MIROIR_SQUARE_SIZE_METERS doit être numérique.'
             ) from exc
 
         if size_m <= 0:
             raise CommandError(
-                'REGARD_MIROIR_SQUARE_SIZE_METERS doit etre strictement positif.'
+                'REGARD_MIROIR_SQUARE_SIZE_METERS doit être strictement positif.'
             )
 
         size_literal = f'{size_m:.6f}'
@@ -93,6 +93,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Taille regard_miroir synchronisee: {size_literal} m'
+                f'Taille regard_miroir synchronisée: {size_literal} m'
             )
         )

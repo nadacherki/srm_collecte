@@ -45,7 +45,7 @@ class LineStorageHelper {
         await _createDisplayedLinesTable(db);
         await _createIndexes(db);
 
-        debugPrint('[LINE-STORAGE] Tables creees avec succes');
+        debugPrint('[LINE-STORAGE] Tables créées avec succès');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -490,7 +490,7 @@ class LineStorageHelper {
       final db = await database;
       final rows = await db.query(_linesTable);
 
-      debugPrint('[LINE-STORAGE] liste complete des lignes');
+      debugPrint('[LINE-STORAGE] liste complète des lignes');
       debugPrint('[LINE-STORAGE] nombre total de lignes: ${rows.length}');
 
       for (var i = 0; i < rows.length; i++) {
@@ -561,10 +561,10 @@ class LineStorageHelper {
         whereArgs: [0, 0, loginId],
       );
 
-      debugPrint('[LINE-STORAGE] lignes non synchronisees trouvees: ${maps.length}');
+      debugPrint('[LINE-STORAGE] lignes non synchronisées trouvées: ${maps.length}');
       return maps;
     } catch (e) {
-      debugPrint('[LINE-STORAGE] erreur lecture lignes non synchronisees: $e');
+      debugPrint('[LINE-STORAGE] erreur lecture lignes non synchronisées: $e');
       return [];
     }
   }
@@ -582,9 +582,9 @@ class LineStorageHelper {
         },
         recordHistory: true,
       );
-      debugPrint('[LINE-STORAGE] ligne $lineId marquee comme synchronisee');
+      debugPrint('[LINE-STORAGE] ligne $lineId marquée comme synchronisée');
     } catch (e) {
-      debugPrint('[LINE-STORAGE] erreur marquage ligne synchronisee: $e');
+      debugPrint('[LINE-STORAGE] erreur marquage ligne synchronisée: $e');
     }
   }
 
@@ -707,7 +707,7 @@ class LineStorageHelper {
         } catch (_) {}
       }
 
-      debugPrint('[LINE-STORAGE] ligne $lineId synchronisee et mise a jour');
+      debugPrint('[LINE-STORAGE] ligne $lineId synchronisée et mise à jour');
     } catch (e) {
       debugPrint('[LINE-STORAGE] erreur markLineAsSyncedAndUpdated: $e');
     }
@@ -754,9 +754,9 @@ class LineStorageHelper {
         recordHistory: true,
       );
 
-      debugPrint('[LINE-STORAGE] ligne ${lineData['id']} mise a jour avec succes');
+      debugPrint('[LINE-STORAGE] ligne ${lineData['id']} mise à jour avec succès');
     } catch (e) {
-      debugPrint('[LINE-STORAGE] erreur mise a jour ligne: $e');
+      debugPrint('[LINE-STORAGE] erreur mise à jour ligne: $e');
       rethrow;
     }
   }

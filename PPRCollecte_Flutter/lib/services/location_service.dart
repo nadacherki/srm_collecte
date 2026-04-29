@@ -95,6 +95,10 @@ class LocationService {
     if (_mockLocationEnabled && _lastMockLocation != null) {
       return _lastMockLocation!;
     }
+    return getCurrentDevice();
+  }
+
+  Future<LocationData> getCurrentDevice() async {
     try {
       return await _location.getLocation();
     } on PlatformException {
@@ -104,6 +108,11 @@ class LocationService {
 
   Future<EnrichedLocation> getCurrentEnriched() async {
     final loc = await getCurrent();
+    return _enrichLocation(loc);
+  }
+
+  Future<EnrichedLocation> getCurrentDeviceEnriched() async {
+    final loc = await getCurrentDevice();
     return _enrichLocation(loc);
   }
 

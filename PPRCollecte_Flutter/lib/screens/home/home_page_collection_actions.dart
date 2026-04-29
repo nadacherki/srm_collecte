@@ -524,7 +524,7 @@ extension _HomePageCollectionActions on _HomePageState {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Trace remis en pause. Une selection SRM est requise pour finaliser la ligne.',
+              'Trace remise en pause. Une sélection SRM est requise pour finaliser la ligne.',
             ),
             backgroundColor: Colors.orange,
           ),

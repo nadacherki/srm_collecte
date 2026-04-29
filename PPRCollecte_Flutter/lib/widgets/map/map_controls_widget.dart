@@ -70,31 +70,63 @@ class MapControlsWidget extends StatelessWidget {
           left: 0,
           right: 50,
           child: SafeArea(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: hasLigneContext
-                  ? [
-                      if (showAddPointForLigne) _buildPointControls(),
-                      if (showAddPointForLigne) const SizedBox(width: 12),
-                      _buildLigneControls(),
-                    ]
-                  : hasPolygonContext
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final gap = constraints.maxWidth < 330 ? 8.0 : 12.0;
+                final rawButtonWidth = (constraints.maxWidth - (gap * 2)) / 3;
+                final buttonWidth =
+                    rawButtonWidth > 110 ? 110.0 : rawButtonWidth;
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: hasLigneContext
                       ? [
-                          if (showAddPointForPolygon) _buildPointControls(),
-                          if (showAddPointForPolygon) const SizedBox(width: 12),
-                          _buildPolygonControls(),
+                          if (showAddPointForLigne) _buildPointControls(),
+                          if (showAddPointForLigne) SizedBox(width: gap),
+                          _buildLigneControls(),
                         ]
-                      : [
-                          SizedBox(width: 110, child: _buildPointControls()),
-                          const SizedBox(width: 12),
-                          SizedBox(width: 110, child: _buildLigneControls()),
-                          const SizedBox(width: 12),
-                          SizedBox(width: 110, child: _buildPolygonControls()),
-                        ],
+                      : hasPolygonContext
+                          ? [
+                              if (showAddPointForPolygon)
+                                _buildPointControls(),
+                              if (showAddPointForPolygon) SizedBox(width: gap),
+                              _buildPolygonControls(),
+                            ]
+                          : [
+                              _buildDefaultControlButton(
+                                width: buttonWidth,
+                                child: _buildPointControls(),
+                              ),
+                              SizedBox(width: gap),
+                              _buildDefaultControlButton(
+                                width: buttonWidth,
+                                child: _buildLigneControls(),
+                              ),
+                              SizedBox(width: gap),
+                              _buildDefaultControlButton(
+                                width: buttonWidth,
+                                child: _buildPolygonControls(),
+                              ),
+                            ],
+                );
+              },
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDefaultControlButton({
+    required double width,
+    required Widget child,
+  }) {
+    return SizedBox(
+      width: width <= 0 ? 1 : width,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(width: 110, child: child),
+      ),
     );
   }
 

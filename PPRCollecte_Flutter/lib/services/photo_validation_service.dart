@@ -60,7 +60,7 @@ class PhotoValidationService {
     final mimeType = _detectMimeType(header);
     if (mimeType == null || !allowedMimeTypes.contains(mimeType)) {
       throw const PhotoValidationException(
-        'Le fichier selectionne n’est pas une image valide',
+        'Le fichier sélectionné n’est pas une image valide',
       );
     }
 

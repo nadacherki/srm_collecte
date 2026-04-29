@@ -718,7 +718,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Veuillez sÃ©lectionner une raison pour l\'objet incomplet.',
+              'Veuillez sélectionner une raison pour l\'objet incomplet.',
             ),
             backgroundColor: Colors.orange,
           ),
@@ -2046,7 +2046,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Les champs du formulaire sont neutralisÃ©s.\nSeule la gÃ©omÃ©trie et la raison sont conservÃ©es.',
+                    'Les champs du formulaire sont neutralisés.\nSeule la géométrie et la raison sont conservées.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -2055,7 +2055,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           ),
         SwitchListTile(
           title: const Text(
-            'Anomalie dÃ©tectÃ©e',
+            'Anomalie détectée',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           value: _hasAnomalie,
@@ -2074,7 +2074,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             child: DropdownButtonFormField<String>(
               initialValue: _typeAnomalie,
               decoration: _statusDecoration('Type d\'anomalie'),
-              hint: const Text('SÃ©lectionner'),
+              hint: const Text('Sélectionner'),
               items: const [
                 DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
                 DropdownMenuItem(
@@ -2103,7 +2103,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: const Text(
-              'Active si l\'objet est inaccessible ou impossible Ã  collecter',
+              'Active si l\'objet est inaccessible ou impossible à collecter',
               style: TextStyle(fontSize: 12),
             ),
             value: _isObjetIncomplet,
@@ -2126,24 +2126,24 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             DropdownButtonFormField<String>(
               initialValue: _raisonIncomplet,
               decoration: _statusDecoration('Raison'),
-              hint: const Text('SÃ©lectionner une raison'),
+              hint: const Text('Sélectionner une raison'),
               isExpanded: true,
               items: const [
                 DropdownMenuItem(
                   value: 'ACCES_BLOQUE',
-                  child: Text('AccÃ¨s bloquÃ©'),
+                  child: Text('Accès bloqué'),
                 ),
                 DropdownMenuItem(
                   value: 'VEHICULE_STATIONNE',
-                  child: Text('VÃ©hicule stationnÃ© sur la voie'),
+                  child: Text('Véhicule stationné sur la voie'),
                 ),
                 DropdownMenuItem(
                   value: 'TAMPON_INACCESSIBLE',
-                  child: Text('Tampon inaccessible / scellÃ©'),
+                  child: Text('Tampon inaccessible / scellé'),
                 ),
                 DropdownMenuItem(
                   value: 'CONDITIONS_METEO',
-                  child: Text('Conditions mÃ©tÃ©o dÃ©favorables'),
+                  child: Text('Conditions météo défavorables'),
                 ),
                 DropdownMenuItem(
                   value: 'DANGER',
@@ -2160,7 +2160,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             TextFormField(
               controller: _detailRaisonController,
               decoration:
-                  _statusDecoration('DÃ©tail / commentaire (facultatif)'),
+                  _statusDecoration('Détail / commentaire (facultatif)'),
               maxLines: 2,
             ),
           ],

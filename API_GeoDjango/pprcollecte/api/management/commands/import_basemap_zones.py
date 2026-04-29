@@ -11,7 +11,7 @@ from api.models import BasemapZone
 
 
 class Command(BaseCommand):
-    help = "Importe ou met a jour les zones basemap a partir d'un GeoJSON."
+    help = "Importe ou met à jour les zones basemap à partir d'un GeoJSON."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -22,7 +22,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--city-slug",
             default="oujda",
-            help="Slug ville applique si absent dans les properties.",
+            help="Slug ville appliqué si absent dans les properties.",
         )
         parser.add_argument(
             "--clear-city",
@@ -42,7 +42,7 @@ class Command(BaseCommand):
 
         features = payload.get("features")
         if payload.get("type") != "FeatureCollection" or not isinstance(features, list):
-            raise CommandError("Le fichier doit etre un GeoJSON FeatureCollection.")
+            raise CommandError("Le fichier doit être un GeoJSON FeatureCollection.")
 
         default_city_slug = (options["city_slug"] or "oujda").strip()
         clear_city = bool(options["clear_city"])
@@ -60,19 +60,19 @@ class Command(BaseCommand):
                 if deleted_count:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"{deleted_count} zone(s) supprimee(s) pour {default_city_slug}."
+                            f"{deleted_count} zone(s) supprimée(s) pour {default_city_slug}."
                         )
                     )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"{len(imported_zone_ids)} zone(s) importee(s) depuis {geojson_path.name}."
+                f"{len(imported_zone_ids)} zone(s) importée(s) depuis {geojson_path.name}."
             )
         )
 
     def _upsert_feature(self, feature: dict, default_city_slug: str) -> BasemapZone:
         if feature.get("type") != "Feature":
-            raise CommandError("Chaque entree du GeoJSON doit etre une Feature.")
+            raise CommandError("Chaque entrée du GeoJSON doit être une Feature.")
 
         properties = feature.get("properties") or {}
         geometry = feature.get("geometry")
@@ -83,14 +83,14 @@ class Command(BaseCommand):
         if isinstance(geom, Polygon):
             geom = MultiPolygon(geom)
         elif not isinstance(geom, MultiPolygon):
-            raise CommandError("La geometrie de zone doit etre Polygon ou MultiPolygon.")
+            raise CommandError("La géométrie de zone doit être Polygon ou MultiPolygon.")
 
         zone_id = (
             str(properties.get("zone_id") or properties.get("id") or "").strip()
             or slugify(str(properties.get("nom") or properties.get("name") or "zone"))
         )
         if not zone_id:
-            raise CommandError("Impossible de determiner zone_id.")
+            raise CommandError("Impossible de déterminer zone_id.")
 
         nom = (
             str(properties.get("nom") or properties.get("name") or zone_id).strip()

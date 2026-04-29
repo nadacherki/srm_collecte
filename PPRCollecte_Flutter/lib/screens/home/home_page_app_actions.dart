@@ -13,7 +13,7 @@ Future<void> _performDownload() async {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Telechargement impossible en mode hors ligne.'),
+        content: Text('Téléchargement impossible en mode hors ligne.'),
         backgroundColor: Colors.red,
         duration: Duration(seconds: 4),
       ),
@@ -262,8 +262,10 @@ Future<void> _performSync() async {
   }
 }
 
-Future<void> _showMockLocationDialogSafe() =>
-    _showMockLocationDialogSafeImpl(this);
+Future<void> _showMockLocationDialogSafe() {
+  if (!_canUseAdminGpsTools) return Future.value();
+  return _showMockLocationDialogSafeImpl(this);
+}
 
 Widget _buildStepIndicator() {
   final lowerOperation = _currentSyncOperation.toLowerCase();

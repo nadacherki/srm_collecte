@@ -37,11 +37,11 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _refreshBasemapCatalogSilently() async {
     try {
-      await BasemapCatalogService().refreshCatalog(
+      await BasemapCatalogService().ensureGlobalCoverageDownloaded(
         citySlug: BasemapConstants.catalogCitySlug,
       );
     } catch (e) {
-      print('[BASEMAP-CATALOG] Sync ignoree au login: $e');
+      print('[BASEMAP-CATALOG] Couverture offline ignoree au login: $e');
     }
   }
 
@@ -156,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
         offlineBasemapPath: offlineBasemapPath,
         offlineBasemapFormat: offlineBasemapFormat,
         basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
-            ? "Aucune carte offline active n'a encore ete telechargee."
+            ? "Aucune carte offline active n'a encore été téléchargée."
             : null,
       );
     } else {
@@ -246,7 +246,7 @@ class _LoginPageState extends State<LoginPage> {
         offlineBasemapPath: offlineBasemapPath,
         offlineBasemapFormat: offlineBasemapFormat,
         basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
-            ? "Aucune carte offline active n'a encore ete telechargee."
+            ? "Aucune carte offline active n'a encore été téléchargée."
             : null,
       );
     } on TimeoutException catch (_) {

@@ -33,7 +33,12 @@ _load_local_env(BASE_DIR / ".env")
 # ============================================================
 SECRET_KEY = 'django-insecure-srm-collecte-change-this-in-production'
 DEBUG = True
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '10.0.2.2']
+_allowed_hosts_env = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
+ALLOWED_HOSTS = (
+    [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()]
+    if _allowed_hosts_env
+    else ['*']
+)
 
 # ============================================================
 # APPLICATIONS

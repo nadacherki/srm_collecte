@@ -17,6 +17,8 @@ class HomeController extends ChangeNotifier {
   // États exposés
   bool gpsEnabled = false;
   int? gpsAccuracy;
+  String gpsSourceLabel = 'téléphone';
+  String? gpsDetailsLine;
   String? lastSync;
   bool isOnline = true;
   LatLng userPosition = const LatLng(34.683100, -1.909800); // Oujda
@@ -76,6 +78,14 @@ class HomeController extends ChangeNotifier {
     userPosition = LatLng(latitude, longitude);
     gpsEnabled = true;
     gpsAccuracy = accuracy.round();
+    gpsSourceLabel = 'mock interne';
+    gpsDetailsLine = _buildPositionDetailsLine(
+      latitude: latitude,
+      longitude: longitude,
+      altitude: 0,
+      accuracy: accuracy,
+      source: 'mock interne',
+    );
     lastSync = _formatTimeNow();
     notifyListeners();
   }
@@ -89,12 +99,218 @@ class HomeController extends ChangeNotifier {
         userPosition = LatLng(loc.latitude!, loc.longitude!);
       }
       gpsAccuracy = loc.accuracy?.round() ?? gpsAccuracy;
+      gpsSourceLabel = 'téléphone';
+      if (loc.latitude != null && loc.longitude != null) {
+        gpsDetailsLine = _buildPositionDetailsLine(
+          latitude: loc.latitude!,
+          longitude: loc.longitude!,
+          altitude: loc.altitude,
+          accuracy: loc.accuracy,
+          speed: loc.speed,
+          source: 'téléphone',
+          timestampMs: loc.time?.round(),
+        );
+      }
     } catch (_) {
       // On conserve la dernière position connue si le GPS réel n'est pas encore disponible.
     }
 
     lastSync = _formatTimeNow();
     notifyListeners();
+  }
+
+  Future<EnrichedLocation?> refreshFromDeviceGps({
+    bool disableInternalMock = true,
+  }) async {
+    if (disableInternalMock) {
+      await _locationService.clearMockLocation();
+    }
+
+    final ok = await _locationService.requestPermissionAndService();
+    if (!ok) {
+      gpsEnabled = false;
+      notifyListeners();
+      return null;
+    }
+
+    final enriched = await _locationService.getCurrentDeviceEnriched();
+    final lat = enriched.raw.latitude;
+    final lon = enriched.raw.longitude;
+    if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+      gpsEnabled = false;
+      notifyListeners();
+      return null;
+    }
+
+    userPosition = LatLng(lat, lon);
+    gpsEnabled = true;
+    gpsAccuracy = enriched.raw.accuracy?.round() ?? gpsAccuracy;
+    gpsSourceLabel = 'téléphone';
+    gpsDetailsLine = _buildPositionDetailsLine(
+      latitude: lat,
+      longitude: lon,
+      altitude: enriched.raw.altitude,
+      accuracy: enriched.raw.accuracy,
+      speed: enriched.raw.speed,
+      source: 'téléphone',
+      timestampMs: enriched.raw.time?.round(),
+    );
+    lastSync = _formatTimeNow();
+    notifyListeners();
+    return enriched;
+  }
+
+  void applyNmeaBridgeLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    double? altitude,
+    double? speed,
+    double? bearing,
+    int? fixQuality,
+    int? satellites,
+    double? hdop,
+    String? nmea,
+    String? bluetoothName,
+    String? bluetoothAddress,
+    int? timestampMs,
+    int? mockInjectedAtMs,
+  }) {
+    if (latitude.abs() > 90 || longitude.abs() > 180) {
+      throw Exception('Coordonnées GNSS externe invalides');
+    }
+
+    userPosition = LatLng(latitude, longitude);
+    gpsEnabled = true;
+    gpsAccuracy = accuracy?.round() ?? gpsAccuracy;
+    gpsSourceLabel = 'GNSS externe';
+    gpsDetailsLine = _buildPositionDetailsLine(
+      latitude: latitude,
+      longitude: longitude,
+      altitude: altitude,
+      accuracy: accuracy,
+      speed: speed,
+      bearing: bearing,
+      fixQuality: fixQuality,
+      satellites: satellites,
+      hdop: hdop,
+      source: 'nmea_bridge',
+      nmea: nmea,
+      bluetoothName: bluetoothName,
+      bluetoothAddress: bluetoothAddress,
+      timestampMs: timestampMs,
+      mockInjectedAtMs: mockInjectedAtMs,
+    );
+    lastSync = _formatTimeNow();
+
+    final device = (bluetoothName?.trim().isNotEmpty == true)
+        ? bluetoothName!.trim()
+        : (bluetoothAddress?.trim().isNotEmpty == true
+            ? bluetoothAddress!.trim()
+            : 'inconnu');
+    final timestampLabel = timestampMs?.toString() ?? 'unknown';
+    debugPrint(
+      '[NMEA] fix source=nmea_bridge device=$device '
+      'lat=$latitude lon=$longitude accuracy=$accuracy altitude=$altitude '
+      'satellites=$satellites hdop=$hdop timestamp=$timestampLabel',
+    );
+    notifyListeners();
+  }
+
+  void markNmeaBridgePending({
+    String? deviceLabel,
+    String? bridgeStatus,
+    String? lastNmea,
+  }) {
+    gpsEnabled = true;
+    gpsSourceLabel = 'GNSS externe: attente fix';
+    lastSync = _formatTimeNow();
+    final device = deviceLabel?.trim().isNotEmpty == true
+        ? deviceLabel!.trim()
+        : 'unknown';
+    final nmeaType = _extractNmeaType(lastNmea);
+    final pendingParts = <String>[
+      'GNSS externe en attente de fix',
+      if (bridgeStatus?.trim().isNotEmpty == true)
+        'État=${bridgeStatus!.trim()}',
+      'BT=$device',
+      if (nmeaType != null) 'NMEA=$nmeaType',
+    ];
+    gpsDetailsLine = pendingParts.join(' | ');
+    debugPrint(
+      '[NMEA] source=nmea_bridge pending device=$device',
+    );
+    notifyListeners();
+  }
+
+  String _buildPositionDetailsLine({
+    required double latitude,
+    required double longitude,
+    double? altitude,
+    double? accuracy,
+    double? speed,
+    double? bearing,
+    int? fixQuality,
+    int? satellites,
+    double? hdop,
+    String? source,
+    String? nmea,
+    String? bluetoothName,
+    String? bluetoothAddress,
+    int? timestampMs,
+    int? mockInjectedAtMs,
+  }) {
+    final projected = _locationService.projection.wgs84ToMerchich(
+      longitude: longitude,
+      latitude: latitude,
+    );
+    final device = (bluetoothName?.trim().isNotEmpty == true)
+        ? bluetoothName!.trim()
+        : (bluetoothAddress?.trim().isNotEmpty == true
+            ? bluetoothAddress!.trim()
+            : null);
+    final nmeaType = _extractNmeaType(nmea);
+    final parts = <String>[
+      'X=${projected.x.toStringAsFixed(2)}',
+      'Y=${projected.y.toStringAsFixed(2)}',
+      'Z=${_formatOptionalDouble(altitude, decimals: 2)} m',
+      'Précision=${_formatOptionalDouble(accuracy, decimals: 2)} m',
+      if (satellites != null) 'Sat=$satellites',
+      if (fixQuality != null) 'Fix=$fixQuality',
+      if (hdop != null) 'HDOP=${hdop.toStringAsFixed(2)}',
+      if (speed != null) 'V=${speed.toStringAsFixed(2)} m/s',
+      if (bearing != null) 'Cap=${bearing.toStringAsFixed(1)}°',
+      if (source?.trim().isNotEmpty == true) 'Source=${source!.trim()}',
+      if (device != null) 'BT=$device',
+      if (timestampMs != null) 'T=${_formatTimestamp(timestampMs)}',
+      if (mockInjectedAtMs != null && mockInjectedAtMs != timestampMs)
+        'Injecté=${_formatTimestamp(mockInjectedAtMs)}',
+      if (nmeaType != null) 'NMEA=$nmeaType',
+    ];
+    return parts.join(' | ');
+  }
+
+  String _formatOptionalDouble(double? value, {required int decimals}) {
+    if (value == null || value.isNaN || value.isInfinite) return '--';
+    return value.toStringAsFixed(decimals);
+  }
+
+  String _formatTimestamp(int timestampMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final s = dt.second.toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
+
+  String? _extractNmeaType(String? nmea) {
+    final trimmed = nmea?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    final withoutPrefix = trimmed.startsWith(r'$')
+        ? trimmed.substring(1)
+        : trimmed;
+    final type = withoutPrefix.split(',').first.trim();
+    return type.isEmpty ? null : type;
   }
 
   Future<void> startSpecialCollection(String specialType) async {
@@ -326,6 +542,18 @@ class HomeController extends ChangeNotifier {
 
         userPosition = LatLng(lat, lon);
         gpsAccuracy = loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
+        if (!gpsSourceLabel.startsWith('GNSS externe')) {
+          gpsSourceLabel = 'téléphone';
+          gpsDetailsLine = _buildPositionDetailsLine(
+            latitude: lat,
+            longitude: lon,
+            altitude: loc.altitude,
+            accuracy: loc.accuracy,
+            speed: loc.speed,
+            source: 'téléphone',
+            timestampMs: loc.time?.round(),
+          );
+        }
         lastSync = _formatTimeNow();
         notifyListeners();
       },

@@ -56,19 +56,19 @@ void _showSpecialLineDetailsSheetImpl(
             const SizedBox(height: 12),
             state._detailRow('Statut', safe(statut)),
             state._detailRow(
-              'Enqueteur',
+              'Enquêteur',
               state.enqueteurDisplayByStatut(
                 enqueteurValue: enqueteur,
                 statut: statut,
               ),
             ),
             if (!statut.toLowerCase().contains('localement')) ...[
-              state._detailRow('Region', safe(region)),
-              state._detailRow('Prefecture', safe(prefecture)),
+              state._detailRow('Région', safe(region)),
+              state._detailRow('Préfecture', safe(prefecture)),
               state._detailRow('Commune', safe(commune)),
             ],
             state._detailRow(
-              'Debut',
+              'Début',
               'X=${startLng.toStringAsFixed(6)} / Y=${startLat.toStringAsFixed(6)}',
             ),
             state._detailRow(
@@ -89,7 +89,7 @@ void _showSpecialLineDetailsSheetImpl(
                         Navigator.pop(ctx);
                         await state._editMapItem(editableItem);
                       },
-                      child: const Text('Editer'),
+                      child: const Text('Éditer'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -175,20 +175,20 @@ void _showLineDetailsSheetImpl(
                     children: [
                       state._detailRow('Statut', safe(statut)),
                       state._detailRow(
-                        'Enqueteur',
+                        'Enquêteur',
                         state.enqueteurDisplayByStatut(
                           enqueteurValue: enqueteur,
                           statut: statut,
                         ),
                       ),
                       if (!statut.toLowerCase().contains('localement')) ...[
-                        state._detailRow('Region', safe(region)),
-                        state._detailRow('Prefecture', safe(prefecture)),
+                        state._detailRow('Région', safe(region)),
+                        state._detailRow('Préfecture', safe(prefecture)),
                         state._detailRow('Commune', safe(commune)),
                       ],
                       state._detailRow('Nb points', nbPoints.toString()),
                       state._detailRow(
-                        'Debut',
+                        'Début',
                         'X=${startLng.toStringAsFixed(6)} / Y=${startLat.toStringAsFixed(6)}',
                       ),
                       state._detailRow(
@@ -199,8 +199,8 @@ void _showLineDetailsSheetImpl(
                       const Divider(),
                       state._detailRow('Plateforme', safe(plateforme)),
                       state._detailRow('Relief', safe(relief)),
-                      state._detailRow('Vegetation', safe(vegetation)),
-                      state._detailRow('Debut travaux', safe(debutTravaux)),
+                      state._detailRow('Végétation', safe(vegetation)),
+                      state._detailRow('Début travaux', safe(debutTravaux)),
                       state._detailRow('Fin travaux', safe(finTravaux)),
                       state._detailRow('Financement', safe(financement)),
                       state._detailRow('Projet', safe(projet)),
@@ -222,7 +222,7 @@ void _showLineDetailsSheetImpl(
                           Navigator.pop(ctx);
                           await state._editMapItem(editableItem);
                         },
-                        child: const Text('Editer'),
+                        child: const Text('Éditer'),
                       ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -290,12 +290,12 @@ void _showPointDetailsSheetImpl(
             const SizedBox(height: 12),
             state._detailRow('Statut', safe(statut)),
             if (!statut.toLowerCase().contains('localement')) ...[
-              state._detailRow('Region', safe(region)),
-              state._detailRow('Prefecture', safe(prefecture)),
+              state._detailRow('Région', safe(region)),
+              state._detailRow('Préfecture', safe(prefecture)),
               state._detailRow('Commune', safe(commune)),
             ],
             state._detailRow(
-              'Enqueteur',
+              'Enquêteur',
               state.enqueteurDisplayByStatut(
                 enqueteurValue: enqueteur,
                 statut: statut,
@@ -303,7 +303,7 @@ void _showPointDetailsSheetImpl(
             ),
             state._detailRow('Code ligne', safe(lineCode)),
             state._detailRow(
-              'Coordonnees',
+              'Coordonnées',
               'X=${lng.toStringAsFixed(6)} / Y=${lat.toStringAsFixed(6)}',
             ),
             const SizedBox(height: 10),
@@ -319,7 +319,7 @@ void _showPointDetailsSheetImpl(
                         Navigator.pop(ctx);
                         await state._editMapItem(editableItem);
                       },
-                      child: const Text('Editer'),
+                      child: const Text('Éditer'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -353,9 +353,9 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         lineCode: (data['line_code'] ?? '----').toString(),
         statut: type == 'line_local'
             ? ((data['synced'].toString() == '1')
-                ? 'Synchronisee'
-                : 'Enregistree localement')
-            : 'Sauvegardee (downloaded)',
+                ? 'Synchronisée'
+                : 'Enregistrée localement')
+            : 'Sauvegardée (téléchargée)',
         region: type == 'line_downloaded'
             ? (data['region_name'] ?? '----').toString()
             : (data['region_name'] ?? '').toString().isNotEmpty
@@ -397,9 +397,9 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         specialType: (data['special_type'] ?? '----').toString(),
         statut: type == 'special_local'
             ? ((data['synced'].toString() == '1')
-                ? 'Synchronisee'
-                : 'Enregistree localement')
-            : 'Sauvegardee (downloaded)',
+                ? 'Synchronisée'
+                : 'Enregistrée localement')
+            : 'Sauvegardée (téléchargée)',
         region: type == 'special_downloaded'
             ? (data['region_name'] ?? '----').toString()
             : (data['region_name'] ?? '').toString().isNotEmpty
@@ -468,11 +468,11 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             const SizedBox(height: 12),
             state._detailRow('Statut', data.statut),
             if (data.metier.trim().isNotEmpty)
-              state._detailRow('Metier', data.metier),
+              state._detailRow('Métier', data.metier),
             state._detailRow('Code', data.code),
             if (data.downloaded || data.synced) ...[
-              state._detailRow('Region', data.regionName.isEmpty ? '----' : data.regionName),
-              state._detailRow('Prefecture', data.prefectureName.isEmpty ? '----' : data.prefectureName),
+              state._detailRow('Région', data.regionName.isEmpty ? '----' : data.regionName),
+              state._detailRow('Préfecture', data.prefectureName.isEmpty ? '----' : data.prefectureName),
               state._detailRow('Commune', data.communeName.isEmpty ? '----' : data.communeName),
             ],
             if (data.hasAnomalie)
@@ -487,14 +487,14 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             state._detailRow('Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
             state._detailRow('Sommets', '${data.nbSommets} points'),
             state._detailRow(
-              'Enqueteur',
+              'Enquêteur',
               state.enqueteurDisplayByStatut(
                 enqueteurValue: data.enqueteur,
                 statut: data.statut,
               ),
             ),
             state._detailRow(
-              'Date creation',
+              'Date création',
               data.dateCreation.length > 10
                   ? data.dateCreation.substring(0, 10)
                   : data.dateCreation,
@@ -512,7 +512,7 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
                         Navigator.pop(ctx);
                         await state._editMapItem(data.editableItem!);
                       },
-                      child: const Text('Editer'),
+                      child: const Text('Éditer'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),

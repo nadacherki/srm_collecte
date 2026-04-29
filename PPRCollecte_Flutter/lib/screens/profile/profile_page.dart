@@ -242,10 +242,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final isReady = localPath.isNotEmpty;
     final statusLabel = isReady
-        ? (packageKey.isNotEmpty ? 'Package actif' : 'Telechargee')
+        ? (packageKey.isNotEmpty ? 'Package actif' : 'Téléchargée')
         : (readyPackages.isNotEmpty
               ? 'Aucun package actif'
-              : 'Aucun package telecharge');
+              : 'Aucun package téléchargé');
 
     return _OfflineBasemapSnapshot(
       isReady: isReady,
@@ -674,7 +674,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         _buildInfoRow(
           Icons.schedule_outlined,
-          'Telechargee le',
+          'Téléchargée le',
           _formatDateLabel(_offlineBasemapDownloadedAt),
         ),
         _buildInfoRow(
@@ -684,12 +684,12 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         _buildInfoRow(
           Icons.grid_view_outlined,
-          'Zones de l agent',
+          'Communes couvertes',
           '${_basemapZones.length}',
         ),
         _buildInfoRow(
           Icons.person_pin_circle_outlined,
-          'Zones visibles',
+          'Communes catalogue',
           '${_assignedBasemapZoneIds.length}',
         ),
         _buildInfoRow(
@@ -699,7 +699,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         _buildInfoRow(
           Icons.download_done_outlined,
-          'Packages telecharges',
+          'Packages téléchargés',
           '$downloadedPackages',
         ),
         if (_offlineBasemapLocalPath.isNotEmpty)
@@ -713,10 +713,10 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildNoticeCard(
             icon: Icons.info_outline,
             color: const Color(0xFFF39C12),
-            text: 'Catalogue zones: $_basemapCatalogError',
+            text: 'Catalogue des zones : $_basemapCatalogError',
           ),
         ],
-        if (_assignedBasemapZoneIds.isNotEmpty) ...[
+        if (_basemapZones.isNotEmpty) ...[
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -738,10 +738,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   : const Icon(Icons.cloud_download_outlined),
               label: Text(
                 _isPreparingBasemapPackages
-                    ? 'Preparation des cartes en cours...'
+                    ? 'Vérification des cartes en cours...'
                     : _downloadingBasemapPackageKeys.isNotEmpty
-                    ? 'Telechargement des cartes en cours...'
-                    : 'Telecharger la carte de mes zones',
+                    ? 'Téléchargement des cartes en cours...'
+                    : 'Télécharger toutes les cartes communales',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1976D2),
@@ -830,7 +830,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: const Color(0xFF27AE60),
                 ),
               _buildBadge(
-                label: 'Zone de l agent',
+                label: 'Zone communale',
                 color: const Color(0xFF8E44AD),
               ),
             ],
@@ -911,7 +911,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(width: 8),
           Text(
             isDownloading
-                ? 'Telechargement...'
+                ? 'Téléchargement...'
                 : (isActivating ? 'Activation...' : statusLabel),
             style: TextStyle(
               fontSize: 12,
@@ -928,114 +928,57 @@ class _ProfilePageState extends State<ProfilePage> {
     if (_downloadingBasemapPackageKeys.isNotEmpty || _isPreparingBasemapPackages) {
       return;
     }
-    final packageKeys = <String>{};
 
     try {
       setState(() {
         _isPreparingBasemapPackages = true;
       });
 
-      final prepareSummary =
-          await BasemapCatalogService(databaseHelper: _db).prepareAssignedCatalog(
+      final summary =
+          await BasemapCatalogService(databaseHelper: _db).ensureGlobalCoverageDownloaded(
         citySlug: BasemapConstants.catalogCitySlug,
       );
 
       if (!mounted) return;
-
       await _loadData();
       if (!mounted) return;
 
-      final selectedPackages = _selectedAutomaticPackagesForAssignedZones();
-      if (selectedPackages.isEmpty) {
-        final backendMessage =
-            (prepareSummary['message'] ?? '').toString().trim();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              backendMessage.isNotEmpty
-                  ? backendMessage
-                  : 'Aucune carte disponible pour les zones de cet agent.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      final packagesToDownload = selectedPackages.where((packageRow) {
-        final status =
-            (packageRow['status'] ?? '').toString().trim().toLowerCase();
-        return status != 'ready';
-      }).toList();
-
-      if (packagesToDownload.isEmpty) {
-        final generatedCount = _asIntOrNull(prepareSummary['generated_count']) ?? 0;
-        final reusedCount = _asIntOrNull(prepareSummary['reused_count']) ?? 0;
-        final backendMessage =
-            (prepareSummary['message'] ?? '').toString().trim();
-        final message = generatedCount > 0 || reusedCount > 0
-            ? backendMessage
-            : 'Toutes les cartes des zones de cet agent sont deja telechargees.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-        return;
-      }
-
-      packageKeys.addAll(
-        packagesToDownload.map(_basemapPackageKey),
-      );
-
-      setState(() {
-        _isPreparingBasemapPackages = false;
-        _downloadingBasemapPackageKeys.addAll(packageKeys);
-      });
-
-      var successCount = 0;
-      var failedCount = 0;
-
-      for (final packageRow in packagesToDownload) {
-        final result = await OfflineBasemapService().downloadCatalogPackage(
-          packageRow,
-        );
-        if (result.success) {
-          successCount++;
-        } else {
-          failedCount++;
-        }
-      }
-
-      if (!mounted) return;
-      await _loadData();
-      if (!mounted) return;
-
-      final alreadyReadyCount =
-          selectedPackages.length - packagesToDownload.length;
       final parts = <String>[];
-      final generatedCount = _asIntOrNull(prepareSummary['generated_count']) ?? 0;
-      final reusedCount = _asIntOrNull(prepareSummary['reused_count']) ?? 0;
+      final selectedCount = _asIntOrNull(summary['mobile_selected_count']) ?? 0;
+      final downloadedCount =
+          _asIntOrNull(summary['mobile_downloaded_count']) ?? 0;
+      final alreadyAvailableCount =
+          _asIntOrNull(summary['mobile_already_available_count']) ?? 0;
+      final failedCount = _asIntOrNull(summary['mobile_failed_count']) ?? 0;
+      final generatedCount = _asIntOrNull(summary['generated_count']) ?? 0;
+      final reusedCount = _asIntOrNull(summary['reused_count']) ?? 0;
+
       if (generatedCount > 0) {
-        parts.add('$generatedCount preparee(s) sur le serveur');
+        parts.add('$generatedCount préparée(s)');
       } else if (reusedCount > 0) {
-        parts.add('$reusedCount deja disponible(s) sur le serveur');
+        parts.add('$reusedCount déjà disponible(s) serveur');
       }
-      if (successCount > 0) {
-        parts.add('$successCount zone(s) telechargee(s)');
+      if (downloadedCount > 0) {
+        parts.add('$downloadedCount téléchargée(s)');
       }
-      if (alreadyReadyCount > 0) {
-        parts.add('$alreadyReadyCount deja a jour');
+      if (alreadyAvailableCount > 0) {
+        parts.add('$alreadyAvailableCount déjà présente(s)');
       }
       if (failedCount > 0) {
-        parts.add('$failedCount en echec');
+        parts.add('$failedCount en échec');
       }
 
+      final backendMessage = (summary['message'] ?? '').toString().trim();
+      final message = selectedCount == 0
+          ? (backendMessage.isNotEmpty
+              ? backendMessage
+              : 'Aucune carte communale disponible.')
+          : (parts.isEmpty
+              ? 'Toutes les cartes communales sont déjà présentes.'
+              : 'Cartes communales : ${parts.join(', ')}.');
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            parts.isEmpty
-                ? 'Aucun telechargement necessaire.'
-                : 'Cartes agent : ${parts.join(', ')}.',
-          ),
-        ),
+        SnackBar(content: Text(message)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -1046,11 +989,6 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         setState(() {
           _isPreparingBasemapPackages = false;
-        });
-      }
-      if (mounted && _downloadingBasemapPackageKeys.isNotEmpty) {
-        setState(() {
-          _downloadingBasemapPackageKeys.removeAll(packageKeys);
         });
       }
     }
@@ -1092,20 +1030,6 @@ class _ProfilePageState extends State<ProfilePage> {
         });
       }
     }
-  }
-
-  List<Map<String, dynamic>> _selectedAutomaticPackagesForAssignedZones() {
-    final selected = <Map<String, dynamic>>[];
-    for (final zoneId in _assignedBasemapZoneIds) {
-      final zonePackages = _basemapPackages
-          .where((row) => row['zone_id']?.toString() == zoneId)
-          .toList();
-      final selectedPackage = _selectAutomaticPackageForZone(zonePackages);
-      if (selectedPackage != null) {
-        selected.add(selectedPackage);
-      }
-    }
-    return selected;
   }
 
   Map<String, dynamic>? _selectAutomaticPackageForZone(
@@ -1158,11 +1082,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (format == 'pmtiles') return 0;
     if (format == 'mbtiles') return 1;
     return 2;
-  }
-
-  String _basemapPackageKey(Map<String, dynamic> packageRow) {
-    return packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
   }
 
   Widget _buildPublicOverviewSection() {
@@ -2203,16 +2122,16 @@ class _ProfilePageState extends State<ProfilePage> {
   String _basemapPackageStatusLabel(dynamic rawStatus) {
     switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
       case 'ready':
-        return 'Telecharge';
+        return 'Téléchargé';
       case 'downloading':
-        return 'Telechargement';
+        return 'Téléchargement';
       case 'update_available':
-        return 'Maj dispo';
+        return 'Mise à jour dispo';
       case 'failed':
-        return 'Echec';
+        return 'Échec';
       case 'not_downloaded':
       default:
-        return 'Non telecharge';
+        return 'Non téléchargé';
     }
   }
 

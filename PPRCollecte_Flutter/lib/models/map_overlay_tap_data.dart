@@ -48,8 +48,8 @@ class PolygonTapData {
   });
 
   String get statut {
-    if (downloaded) return 'Sauvegardee (downloaded)';
-    if (synced) return 'Synchronisee';
-    return 'Enregistree localement';
+    if (downloaded) return 'Sauvegardée (téléchargée)';
+    if (synced) return 'Synchronisée';
+    return 'Enregistrée localement';
   }
 }

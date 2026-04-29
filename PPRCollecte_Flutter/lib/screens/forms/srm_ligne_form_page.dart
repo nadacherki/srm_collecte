@@ -461,7 +461,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       if (tableName.isEmpty) throw Exception('Table non trouvée');
       final effectiveLinePoints = _effectiveLinePoints;
       if (effectiveLinePoints.length < 2) {
-        throw Exception('Geometrie de ligne invalide');
+        throw Exception('Géométrie de ligne invalide');
       }
 
       final data = <String, dynamic>{};

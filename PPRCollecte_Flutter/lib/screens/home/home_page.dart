@@ -9,9 +9,10 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // ============================================================
 // WIDGETS
@@ -61,6 +62,7 @@ import '../../services/downloaded_lines_service.dart';
 import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
+import '../../services/nmea_bridge_service.dart';
 
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
@@ -141,6 +143,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   LatLng? userPosition;
   bool gpsEnabled = true;
+  String gpsSourceLabel = 'téléphone';
+  String? gpsDetailsLine;
   String _regionNom = '----';
   String _prefectureNom = '----';
   String _communeNom = '----';
@@ -199,17 +203,22 @@ class _HomePageState extends State<HomePage> {
   List<Polyline> _downloadedLinesPolylines = [];
   bool _showDownloadedLines = true; // comme pour les points
   bool get _autoCenterSuspended => _autoCenterDisabledByUser || (_suspendAutoCenterUntil != null && DateTime.now().isBefore(_suspendAutoCenterUntil!));
+  bool get _canUseAdminGpsTools =>
+      (ApiService.userRole ?? '').trim().toLowerCase() == 'admin';
   String? _lastSyncTimeText;
   String? _offlineBasemapPath;
   String? _offlineBasemapFormat;
+  String? _offlineBasemapPackageKey;
   String? _basemapUnavailableMessage;
   LatLng? _offlineBasemapCenter;
   LatLngBounds? _offlineBasemapBounds;
   double? _offlineBasemapDefaultZoom;
   double? _offlineBasemapMinZoom;
   double? _offlineBasemapMaxZoom;
+  bool _isSelectingOfflineBasemapForCamera = false;
   late bool _isOnlineDynamic;
   Timer? _onlineWatchTimer;
+  Timer? _nmeaBridgeWatchTimer;
   bool _isConduiteDrawingMode = false;
   DateTime? _conduiteModeDay;
   List<Marker> _conduiteModeMarkers = [];
@@ -291,6 +300,7 @@ class _HomePageState extends State<HomePage> {
     _hydrateOfflineBasemapState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showInitialBasemapNoticeIfNeeded();
+      _autoStartNmeaBridgeIfConfiguredImpl(this);
     });
 
     homeController.addListener(
@@ -299,6 +309,8 @@ class _HomePageState extends State<HomePage> {
           () {
             userPosition = homeController.userPosition;
             gpsEnabled = homeController.gpsEnabled;
+            gpsSourceLabel = homeController.gpsSourceLabel;
+            gpsDetailsLine = homeController.gpsDetailsLine;
             formMarkers = homeController.formMarkers;
           },
         );
@@ -353,6 +365,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _hydrateOfflineBasemapState() =>
       _hydrateOfflineBasemapStateImpl(this);
+
+  Future<void> _selectOfflineBasemapForCamera(
+    LatLng center,
+    double zoom,
+  ) =>
+      _selectOfflineBasemapForCameraImpl(this, center, zoom);
 
   void _showInitialBasemapNoticeIfNeeded() =>
       _showInitialBasemapNoticeIfNeededImpl(this);
@@ -978,6 +996,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     homeController.dispose();
     _onlineWatchTimer?.cancel();
+    _nmeaBridgeWatchTimer?.cancel();
     super.dispose();
   }
 
@@ -1045,6 +1064,7 @@ class _HomePageState extends State<HomePage> {
                       isSatellite: _isSatellite,
                       onPolylineTap: null,
                       onMapTap: _handleConduiteMapTap,
+                      onCameraIdle: _selectOfflineBasemapForCamera,
                       offlineBasemapPath: _offlineBasemapPath,
                       offlineBasemapFormat: _offlineBasemapFormat,
                       basemapUnavailableMessage: _basemapUnavailableMessage,
@@ -1195,6 +1215,7 @@ class _HomePageState extends State<HomePage> {
                     formMarkers: formMarkers,
                     isSatellite: _isSatellite,
                     onPolylineTap: _handlePolylineTap,
+                    onCameraIdle: _selectOfflineBasemapForCamera,
                     offlineBasemapPath: _offlineBasemapPath,
                     offlineBasemapFormat: _offlineBasemapFormat,
                     basemapUnavailableMessage: _basemapUnavailableMessage,
@@ -1251,7 +1272,9 @@ class _HomePageState extends State<HomePage> {
                     bottom: 280,
                     right: 16,
                     child: Visibility(
-                      visible: kDebugMode && !_isLegendExpanded && !_isConduiteDrawingMode,
+                      visible: _canUseAdminGpsTools &&
+                          !_isLegendExpanded &&
+                          !_isConduiteDrawingMode,
                       child: FloatingActionButton(
                         onPressed: _showMockLocationDialogSafe,
                         backgroundColor: homeController.isMockLocationEnabled
@@ -1357,6 +1380,8 @@ class _HomePageState extends State<HomePage> {
             ),
             BottomStatusBarWidget(
               gpsEnabled: gpsEnabled,
+              gpsSourceLabel: gpsSourceLabel,
+              gpsDetailsLine: gpsDetailsLine,
               isOnline: _isOnlineDynamic,
               lastSyncTime: _lastSyncTimeText,
             ),

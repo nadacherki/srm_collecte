@@ -38,6 +38,7 @@ class MapWidget extends StatefulWidget {
   final VoidCallback? onUserInteraction;
   final VoidCallback? onGpsButtonPressed;
   final void Function(TapPosition, LatLng)? onMapTap;
+  final void Function(LatLng center, double zoom)? onCameraIdle;
   final String? offlineBasemapPath;
   final String? offlineBasemapFormat;
   final String? basemapUnavailableMessage;
@@ -64,6 +65,7 @@ class MapWidget extends StatefulWidget {
     this.onUserInteraction,
     this.onGpsButtonPressed,
     this.onMapTap,
+    this.onCameraIdle,
     this.offlineBasemapPath,
     this.offlineBasemapFormat,
     this.basemapUnavailableMessage,
@@ -1556,6 +1558,10 @@ class _MapWidgetState extends State<MapWidget> {
               if (event is MapEventMoveStart) {
                 widget.onUserInteraction?.call();
               } else if (event is MapEventMoveEnd) {
+                widget.onCameraIdle?.call(
+                  _mapController.camera.center,
+                  _mapController.camera.zoom,
+                );
                 _queueOfflinePoiMarkerRefresh();
               }
             },
@@ -1930,7 +1936,7 @@ class DownloadedLinesToggle extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Lignes telechargees',
+                    'Lignes téléchargées',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

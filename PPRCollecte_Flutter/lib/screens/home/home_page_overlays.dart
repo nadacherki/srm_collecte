@@ -13,7 +13,7 @@ Future<void> _loadDownloadedSpecialLinesImpl(_HomePageState state) async {
 }
 
 Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
-  debugPrint('[LINE-DOWNLOAD] chargement des polylignes telechargees');
+  debugPrint('[LINE-DOWNLOAD] chargement des polylignes téléchargées');
   try {
     final polylines = await state._downloadedLinesService
         .getDownloadedLinesPolylines(
@@ -21,7 +21,7 @@ Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
         state._showLineDetailsSheet(
           context: state.context,
           lineCode: (data['line_code'] ?? '----').toString(),
-          statut: 'Sauvegardee (downloaded)',
+          statut: 'Sauvegardée (téléchargée)',
           region: state._regionNom,
           prefecture: state._prefectureNom,
           commune: state._communeNom,
@@ -100,7 +100,7 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
         state._showSpecialLineDetailsSheet(
           context: state.context,
           specialType: (data['special_type'] ?? '----').toString(),
-          statut: 'Sauvegardee (downloaded)',
+          statut: 'Sauvegardée (téléchargée)',
           region: (data['region_name'] ?? '').toString().isNotEmpty
               ? (data['region_name']).toString()
               : state._regionNom,
@@ -648,8 +648,8 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
           lat: (data['lat'] as num).toDouble(),
           lng: (data['lng'] as num).toDouble(),
           statut: (data['synced'].toString() == '1')
-              ? 'Synchronisee'
-              : 'Enregistree localement',
+            ? 'Synchronisée'
+              : 'Enregistrée localement',
           editableItem: _editableItemFromDynamicImpl(data['existing_item']),
         );
       },

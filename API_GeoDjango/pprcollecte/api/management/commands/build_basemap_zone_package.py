@@ -48,14 +48,14 @@ class Command(BaseCommand):
             "--output",
             default="",
             help=(
-                "Chemin MBTiles final. Par defaut: "
+                "Chemin MBTiles final. Par défaut: "
                 "MEDIA_ROOT/basemaps/<city>/<zone>/<style>/<version>/package.mbtiles"
             ),
         )
         parser.add_argument(
             "--scratch-dir",
             default="",
-            help="Dossier de travail temporaire. Par defaut: API_GeoDjango/basemaps/build/",
+            help="Dossier de travail temporaire. Par défaut: API_GeoDjango/basemaps/build/",
         )
         parser.add_argument(
             "--tile-format",
@@ -65,8 +65,8 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--attribution",
-            default="Source cartographique autorisee par l'equipe SIG.",
-            help="Attribution a inscrire dans les metadonnees MBTiles.",
+            default="Source cartographique autorisée par l'équipe SIG.",
+            help="Attribution à inscrire dans les métadonnées MBTiles.",
         )
         parser.add_argument(
             "--source-name",
@@ -76,12 +76,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--skip-zoom-validation",
             action="store_true",
-            help="N'echoue pas si les zooms de la zone ne sont pas tous presents.",
+            help="N'échoue pas si les zooms de la zone ne sont pas tous présents.",
         )
         parser.add_argument(
             "--keep-workdir",
             action="store_true",
-            help="Conserve le dossier de travail intermediaire apres execution.",
+            help="Conserve le dossier de travail intermédiaire après exécution.",
         )
         parser.add_argument(
             "--inactive",
@@ -95,14 +95,14 @@ class Command(BaseCommand):
         if zone is None:
             raise CommandError(f"Zone inconnue: {zone_id}")
         if zone.geom is None or zone.geom.empty:
-            raise CommandError(f"La zone {zone_id} ne contient pas de geometrie exploitable.")
+            raise CommandError(f"La zone {zone_id} ne contient pas de géométrie exploitable.")
 
         source_path = Path(options["source"]).expanduser().resolve()
         if not source_path.exists():
             raise CommandError(f"Source introuvable: {source_path}")
         if source_path.suffix.lower() not in {".tif", ".tiff", ".vrt", ".mbtiles"}:
             raise CommandError(
-                "Source non supportee. Utiliser .tif, .tiff, .vrt ou .mbtiles."
+                "Source non supportée. Utiliser .tif, .tiff, .vrt ou .mbtiles."
             )
 
         package_version = str(options["package_version"]).strip()
@@ -199,7 +199,7 @@ class Command(BaseCommand):
                 inactive=bool(options["inactive"]),
             )
 
-            self.stdout.write(self.style.SUCCESS("Package de zone genere et enregistre."))
+            self.stdout.write(self.style.SUCCESS("Package de zone généré et enregistré."))
             self.stdout.write(f"Tiles: {final_stats['tile_count']}")
             self.stdout.write(
                 f"Zooms: {final_stats['min_zoom']} -> {final_stats['max_zoom']}"
@@ -209,7 +209,7 @@ class Command(BaseCommand):
         finally:
             if keep_workdir:
                 self.stdout.write(
-                    self.style.WARNING(f"Dossier de travail conserve: {work_dir}")
+                    self.style.WARNING(f"Dossier de travail conservé: {work_dir}")
                 )
             else:
                 shutil.rmtree(work_dir, ignore_errors=True)
@@ -366,22 +366,22 @@ class Command(BaseCommand):
     ) -> None:
         tile_count = tile_stats.get("tile_count") or 0
         if tile_count <= 0:
-            raise CommandError("Le MBTiles genere ne contient aucune tuile.")
+            raise CommandError("Le MBTiles généré ne contient aucune tuile.")
 
         min_zoom = tile_stats.get("min_zoom")
         max_zoom = tile_stats.get("max_zoom")
         if min_zoom is None or max_zoom is None:
             raise CommandError(
-                "Impossible de lire les niveaux de zoom du MBTiles genere."
+                "Impossible de lire les niveaux de zoom du MBTiles généré."
             )
 
         if not skip_zoom_validation and (
             min_zoom > zone.min_zoom or max_zoom < zone.max_zoom
         ):
             raise CommandError(
-                "Le MBTiles genere ne couvre pas les zooms attendus "
+                "Le MBTiles généré ne couvre pas les zooms attendus "
                 f"{zone.min_zoom}-{zone.max_zoom}. "
-                f"Zooms trouves: {min_zoom}-{max_zoom}."
+                f"Zooms trouvés: {min_zoom}-{max_zoom}."
             )
 
     def _register_package(
@@ -403,7 +403,7 @@ class Command(BaseCommand):
             relative_path = output_path.relative_to(media_root)
         except ValueError as exc:
             raise CommandError(
-                "Le package genere doit etre situe sous MEDIA_ROOT pour etre distribue."
+                "Le package généré doit être situé sous MEDIA_ROOT pour être distribué."
             ) from exc
 
         now = django_timezone.now()
@@ -478,8 +478,8 @@ class Command(BaseCommand):
         if result.returncode != 0:
             stderr = (result.stderr or "").strip()
             stdout = (result.stdout or "").strip()
-            debug_output = stderr or stdout or "aucun detail fourni"
-            raise CommandError(f"Echec {executable_name}: {debug_output}")
+            debug_output = stderr or stdout or "aucun détail fourni"
+            raise CommandError(f"Échec {executable_name}: {debug_output}")
 
     def _resolve_executable(self, executable_name: str) -> Path:
         direct_match = shutil.which(executable_name)
@@ -497,8 +497,8 @@ class Command(BaseCommand):
                 return candidate
 
         raise CommandError(
-            f"Executable GDAL introuvable: {executable_name}. "
-            "Verifier l'installation QGIS/GDAL."
+            f"Exécutable GDAL introuvable: {executable_name}. "
+            "Vérifier l'installation QGIS/GDAL."
         )
 
     def _candidate_bin_dirs(self) -> list[Path]:
@@ -593,6 +593,6 @@ class Command(BaseCommand):
             time.sleep(delay_seconds)
 
         raise CommandError(
-            "Impossible de finaliser le package MBTiles genere. "
+            "Impossible de finaliser le package MBTiles généré. "
             f"Windows conserve encore un verrou sur le fichier source: {last_error}"
         )

@@ -168,6 +168,41 @@ def _extract_photo_taken_at(photo_path):
     return None
 
 
+_OBJET_PHOTO_SCHEMA_READY = False
+
+
+def _ensure_objet_photo_schema():
+    """Keep legacy dev databases compatible with the current photo model."""
+    global _OBJET_PHOTO_SCHEMA_READY
+    if _OBJET_PHOTO_SCHEMA_READY:
+        return
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            ALTER TABLE public.objet_photo
+                ADD COLUMN IF NOT EXISTS date_prise_reelle timestamptz,
+                ADD COLUMN IF NOT EXISTS date_upload timestamptz
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS objet_photo_date_prise_reelle_idx
+                ON public.objet_photo (date_prise_reelle DESC)
+                WHERE date_prise_reelle IS NOT NULL
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS objet_photo_date_upload_idx
+                ON public.objet_photo (date_upload DESC)
+                WHERE date_upload IS NOT NULL
+            """
+        )
+
+    _OBJET_PHOTO_SCHEMA_READY = True
+
+
 def _resolve_conduite_regard_node(node_payload):
     fid = node_payload.get('fid')
     uuid_value = (node_payload.get('uuid') or '').strip()
@@ -197,7 +232,7 @@ def _resolve_conduite_regard_node(node_payload):
                 )
             else:
                 raise ValidationError(
-                    {'nodes': [f'Regard fid={fid} sans geometrie exploitable.']}
+                    {'nodes': [f'Regard fid={fid} sans géométrie exploitable.']}
                 )
         return regard
 
@@ -245,7 +280,7 @@ def _resolve_conduite_regard_node(node_payload):
                 raise ValidationError(
                     {
                         'nodes': [
-                            f'Regard {ep_num or uuid_value} sans geometrie exploitable.'
+                            f'Regard {ep_num or uuid_value} sans géométrie exploitable.'
                         ]
                     }
                 )
@@ -547,7 +582,7 @@ def _resolve_basemap_build_source_path():
         )
     if len(candidates) > 1:
         raise CommandError(
-            'Plusieurs sources basemap detectees. '
+            'Plusieurs sources basemap détectées. '
             'Configurer BASEMAP_BUILD_SOURCE_PATH pour choisir explicitement la source.'
         )
     return candidates[0]
@@ -574,7 +609,7 @@ def _resolve_osm_extract_source_path():
     if not source_dir.exists():
         raise CommandError(
             f'Dossier source OSM introuvable: {source_dir}. '
-            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH ou deposer un extract .osm.'
+            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH ou déposer un extract .osm.'
         )
 
     candidates = sorted(
@@ -588,7 +623,7 @@ def _resolve_osm_extract_source_path():
         )
     if len(candidates) > 1:
         raise CommandError(
-            'Plusieurs extracts OSM detectes. '
+            'Plusieurs extracts OSM détectés. '
             'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH pour choisir explicitement le bon fichier.'
         )
     return candidates[0]
@@ -600,7 +635,7 @@ def _resolve_pmtiles_source_spec():
         parsed = urlparse(explicit_url)
         if parsed.scheme not in {'http', 'https'}:
             raise CommandError(
-                'BASEMAP_BUILD_PMTILES_SOURCE_URL doit etre une URL http(s) valide.'
+                'BASEMAP_BUILD_PMTILES_SOURCE_URL doit être une URL http(s) valide.'
             )
         source_name = (
             getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or Path(parsed.path).name
@@ -643,7 +678,7 @@ def _resolve_pmtiles_source_spec():
         )
     if len(candidates) > 1:
         raise CommandError(
-            'Plusieurs sources PMTiles detectees. '
+            'Plusieurs sources PMTiles détectées. '
             'Configurer BASEMAP_BUILD_PMTILES_SOURCE_PATH pour choisir explicitement la source.'
         )
 
@@ -708,8 +743,8 @@ def _resolve_basemap_script_python():
 
     checked_display = ', '.join(checked_candidates) or 'aucun candidat'
     raise CommandError(
-        'Aucun interpreteur Python basemap compatible trouve '
-        f'(osgeo + PIL). Candidats testes: {checked_display}'
+        'Aucun interpréteur Python basemap compatible trouvé '
+        f'(osgeo + PIL). Candidats testés: {checked_display}'
     )
 
 
@@ -724,8 +759,8 @@ def _run_python_script(script_path, arguments):
         env=env,
     )
     if result.returncode != 0:
-        details = (result.stderr or result.stdout or '').strip() or 'aucun detail fourni'
-        raise CommandError(f'Echec script {script_path.name}: {details}')
+        details = (result.stderr or result.stdout or '').strip() or 'aucun détail fourni'
+        raise CommandError(f'Échec script {script_path.name}: {details}')
 
 
 def _candidate_pmtiles_cli_paths():
@@ -751,8 +786,8 @@ def _resolve_pmtiles_cli_path():
     checked_display = ', '.join(checked_candidates) or 'aucun candidat'
     raise CommandError(
         'CLI pmtiles introuvable. Configurer BASEMAP_PMTILES_CLI_PATH '
-        'ou deposer pmtiles.exe dans API_GeoDjango/basemaps/tools/. '
-        f'Candidats testes: {checked_display}'
+        'ou déposer pmtiles.exe dans API_GeoDjango/basemaps/tools/. '
+        f'Candidats testés: {checked_display}'
     )
 
 
@@ -777,8 +812,8 @@ def _run_pmtiles_command(arguments):
         env=env,
     )
     if result.returncode != 0:
-        details = (result.stderr or result.stdout or '').strip() or 'aucun detail fourni'
-        raise CommandError(f'Echec pmtiles: {details}')
+        details = (result.stderr or result.stdout or '').strip() or 'aucun détail fourni'
+        raise CommandError(f'Échec pmtiles: {details}')
     return result.stdout or ''
 
 
@@ -788,7 +823,7 @@ def _read_pmtiles_header(pmtiles_path):
         header_data = json.loads(header_text)
     except json.JSONDecodeError as exc:
         raise CommandError(
-            f'Reponse header PMTiles invalide pour {pmtiles_path}: {exc}'
+            f'Réponse header PMTiles invalide pour {pmtiles_path}: {exc}'
         ) from exc
     if not isinstance(header_data, dict):
         raise CommandError(f'Header PMTiles invalide pour {pmtiles_path}')
@@ -801,7 +836,7 @@ def _read_pmtiles_metadata(pmtiles_path):
         metadata_data = json.loads(metadata_text)
     except json.JSONDecodeError as exc:
         raise CommandError(
-            f'Reponse metadata PMTiles invalide pour {pmtiles_path}: {exc}'
+            f'Réponse metadata PMTiles invalide pour {pmtiles_path}: {exc}'
         ) from exc
     if not isinstance(metadata_data, dict):
         raise CommandError(f'Metadata PMTiles invalide pour {pmtiles_path}')
@@ -1015,7 +1050,7 @@ class UpsertByUuidMixin:
             return Response(
                 {
                     'error': (
-                        f'UUID ambigu detecte pour {qs.model.__name__}: {uuid_clean}'
+                        f'UUID ambigu détecté pour {qs.model.__name__}: {uuid_clean}'
                     )
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -1269,13 +1304,12 @@ def basemap_catalog_view(request):
     city_slug = (request.query_params.get('city_slug') or '').strip()
     style = (request.query_params.get('style') or '').strip()
     active_only = request.query_params.get('active_only', 'true').lower() != 'false'
-    agent_id = _requested_basemap_agent_id(request)
     payload = _basemap_catalog_payload(
         request,
         city_slug=city_slug,
         style=style,
         active_only=active_only,
-        agent_id=agent_id,
+        agent_id=None,
     )
     return Response(payload, status=status.HTTP_200_OK)
 
@@ -1287,7 +1321,7 @@ def prepare_agent_basemap_packages_view(request):
     )
     if agent_id is None:
         return Response(
-            {'success': False, 'message': "id_user est obligatoire pour preparer les cartes de l'agent."},
+            {'success': False, 'message': "id_user est obligatoire pour préparer les cartes offline."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -1302,7 +1336,7 @@ def prepare_agent_basemap_packages_view(request):
         city_slug=city_slug,
         style='',
         active_only=active_only,
-        agent_id=agent_id,
+        agent_id=None,
     )
     zones = list(zones_qs)
     if not zones:
@@ -1311,11 +1345,11 @@ def prepare_agent_basemap_packages_view(request):
             city_slug=city_slug,
             style=style,
             active_only=active_only,
-            agent_id=agent_id,
+            agent_id=None,
         )
         payload.update({
             'success': True,
-            'message': "Aucune zone n'est affectee a cet agent.",
+            'message': "Aucune zone basemap active n'est disponible.",
             'generated_count': 0,
             'reused_count': 0,
             'failed_count': 0,
@@ -1366,10 +1400,10 @@ def prepare_agent_basemap_packages_view(request):
             city_slug=city_slug,
             style=style,
             active_only=active_only,
-            agent_id=agent_id,
+            agent_id=None,
         )
         resolution_message = resolution_errors[0] if resolution_errors else (
-            "Aucune source basemap serveur n'est configuree."
+            "Aucune source basemap serveur n'est configurée."
         )
         payload.update({
             'success': False,
@@ -1440,29 +1474,29 @@ def prepare_agent_basemap_packages_view(request):
         city_slug=city_slug,
         style=style,
         active_only=active_only,
-        agent_id=agent_id,
+        agent_id=None,
     )
     success = failed_count == 0 and (generated_count > 0 or reused_count > 0)
     if generated_count > 0 and failed_count == 0:
         message = (
-            f'{generated_count} zone(s) preparee(s) et {reused_count} deja disponible(s).'
+            f'{generated_count} zone(s) préparée(s) et {reused_count} déjà disponible(s).'
             if reused_count > 0
-            else f'{generated_count} zone(s) preparee(s) avec succes.'
+            else f'{generated_count} zone(s) préparée(s) avec succès.'
         )
     elif reused_count > 0 and failed_count == 0:
         message = (
-            'Les cartes des zones de cet agent sont deja disponibles.'
+            'Les cartes de toutes les communes sont déjà disponibles.'
             if reused_count == len(zones)
-            else f'{reused_count} zone(s) deja disponible(s).'
+            else f'{reused_count} zone(s) déjà disponible(s).'
         )
     elif generated_count > 0 or reused_count > 0:
         message = (
-            f'{generated_count} zone(s) preparee(s), '
-            f'{reused_count} deja disponible(s), '
-            f'{failed_count} en echec.'
+            f'{generated_count} zone(s) préparée(s), '
+            f'{reused_count} déjà disponible(s), '
+            f'{failed_count} en échec.'
         )
     else:
-        message = "Aucune carte n'a pu etre preparee pour les zones de cet agent."
+        message = "Aucune carte n'a pu être préparée pour les communes actives."
     if pipeline_mode == 'pmtiles':
         message = f'{message} Source: PMTiles serveur.'
     elif pipeline_mode == 'osm':
@@ -1485,6 +1519,8 @@ def prepare_agent_basemap_packages_view(request):
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def photo_upload_view(request):
+    _ensure_objet_photo_schema()
+
     serializer = PhotoUploadSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
@@ -1599,12 +1635,12 @@ def statistique_conduite_jour_view(request):
 
     if not raw_agent:
         return Response(
-            {'error': 'Parametre id_agent requis.'},
+            {'error': 'Paramètre id_agent requis.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
     if not raw_jour:
         return Response(
-            {'error': 'Parametre jour requis.'},
+            {'error': 'Paramètre jour requis.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -1612,14 +1648,14 @@ def statistique_conduite_jour_view(request):
         id_agent = int(raw_agent)
     except ValueError:
         return Response(
-            {'error': 'Parametre id_agent invalide.'},
+            {'error': 'Paramètre id_agent invalide.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     jour = parse_date(raw_jour)
     if jour is None:
         return Response(
-            {'error': 'Parametre jour invalide (YYYY-MM-DD attendu).'},
+            {'error': 'Paramètre jour invalide (YYYY-MM-DD attendu).'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -1660,7 +1696,7 @@ def statistique_conduite_validate_view(request):
     ).first()
     if existing is not None:
         payload = _statistique_conduite_snapshot(existing)
-        payload['error'] = 'La conduite de ce jour est deja figee.'
+        payload['error'] = 'La conduite de ce jour est déjà figée.'
         return Response(payload, status=status.HTTP_409_CONFLICT)
 
     resolved_nodes = [_resolve_conduite_regard_node(node) for node in raw_nodes]
@@ -1669,7 +1705,7 @@ def statistique_conduite_validate_view(request):
         raise ValidationError(
             {
                 'nodes': [
-                    'Aucun segment unique exploitable a enregistrer pour cette conduite.'
+                    'Aucun segment unique exploitable à enregistrer pour cette conduite.'
                 ]
             }
         )
@@ -1937,9 +1973,6 @@ class BasemapZoneViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
-        agent_id = _requested_basemap_agent_id(self.request)
-        if agent_id is not None:
-            qs = qs.filter(zone_id__in=_assigned_zone_ids_for_agent(agent_id))
 
         city_slug = (self.request.query_params.get('city_slug') or '').strip()
         if city_slug:
@@ -1968,9 +2001,6 @@ class BasemapPackageViewSet(viewsets.ReadOnlyModelViewSet):
             'style',
             'version',
         )
-        agent_id = _requested_basemap_agent_id(self.request)
-        if agent_id is not None:
-            qs = qs.filter(zone_id__in=_assigned_zone_ids_for_agent(agent_id))
 
         city_slug = (self.request.query_params.get('city_slug') or '').strip()
         zone_id = (self.request.query_params.get('zone_id') or '').strip()

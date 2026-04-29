@@ -45,7 +45,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--relative-path",
             default="",
-            help="Chemin relatif media a utiliser si le fichier est deja sous MEDIA_ROOT.",
+            help="Chemin relatif media à utiliser si le fichier est déjà sous MEDIA_ROOT.",
         )
         parser.add_argument("--source-name", default="", help="Nom de la source carto.")
         parser.add_argument("--attribution", default="", help="Attribution licence/source.")
@@ -128,10 +128,10 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Package enregistre: {zone.city_slug}/{zone.zone_id}/{defaults['style']}/{defaults['version']}"
+                f"Package enregistré: {zone.city_slug}/{zone.zone_id}/{defaults['style']}/{defaults['version']}"
             )
         )
-        self.stdout.write(f"Chemin media: {relative_path.as_posix()}")
+        self.stdout.write(f"Chemin média: {relative_path.as_posix()}")
         self.stdout.write(f"SHA256: {sha256}")
 
     def _resolve_target_path(
@@ -173,7 +173,7 @@ class Command(BaseCommand):
             relative_path = file_path.relative_to(media_root)
         except ValueError as exc:
             raise CommandError(
-                "Le fichier doit etre sous MEDIA_ROOT, ou utiliser --copy-to-media "
+                "Le fichier doit être sous MEDIA_ROOT, ou utiliser --copy-to-media "
                 "ou --relative-path."
             ) from exc
 

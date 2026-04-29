@@ -11,7 +11,10 @@ import 'dart:io';
 class ApiService {
   // ── URL de base du serveur Django SRM ──
   // Émulateur Android : 10.0.2.2 = localhost de la machine hôte
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8000',
+  );
 
   // ── Authentification ──
   static String? authToken;
@@ -212,7 +215,7 @@ class ApiService {
 
     final data = jsonDecode(utf8.decode(response.bodyBytes));
     if (data is! Map<String, dynamic>) {
-      throw Exception('Reponse basemap catalog invalide');
+      throw Exception('Réponse basemap catalog invalide');
     }
     return data;
   }
@@ -224,7 +227,7 @@ class ApiService {
     bool force = false,
   }) async {
     if (userId == null) {
-      throw Exception('Utilisateur non connecte pour preparer les cartes offline');
+      throw Exception('Utilisateur non connecté pour préparer les cartes offline');
     }
 
     final url = Uri.parse('$baseUrl/api/basemaps/prepare-agent/');
@@ -250,16 +253,16 @@ class ApiService {
         throw Exception(
           decoded['message'] ??
               decoded['error'] ??
-              'Erreur preparation basemap ${response.statusCode}',
+              'Erreur préparation basemap ${response.statusCode}',
         );
       } catch (_) {
-        throw Exception('Erreur preparation basemap ${response.statusCode}');
+        throw Exception('Erreur préparation basemap ${response.statusCode}');
       }
     }
 
     final data = jsonDecode(utf8.decode(response.bodyBytes));
     if (data is! Map<String, dynamic>) {
-      throw Exception('Reponse preparation basemap invalide');
+      throw Exception('Réponse préparation basemap invalide');
     }
     return data;
   }
@@ -448,7 +451,7 @@ class ApiService {
     } on SocketException catch (e) {
       print('📡 Erreur réseau $endpoint: $e');
       if (throwOnError) {
-        throw Exception('Erreur reseau POST $endpoint');
+        throw Exception('Erreur réseau POST $endpoint');
       }
       return null;
     } catch (e) {
@@ -501,7 +504,7 @@ class ApiService {
         if (decoded is Map<String, dynamic>) {
           return decoded;
         }
-        throw Exception('Reponse upload photo invalide');
+        throw Exception('Réponse upload photo invalide');
       }
 
       try {
@@ -513,7 +516,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout upload photo');
     } on SocketException {
-      throw Exception('Erreur reseau upload photo');
+      throw Exception('Erreur réseau upload photo');
     }
   }
 
@@ -609,7 +612,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout GET $endpoint');
     } on SocketException {
-      throw Exception('Erreur reseau GET $endpoint');
+      throw Exception('Erreur réseau GET $endpoint');
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Erreur GET $endpoint: $e');
@@ -695,7 +698,7 @@ class ApiService {
   }) async {
     final effectiveAgentId = idAgent ?? userId;
     if (effectiveAgentId == null) {
-      throw Exception('Utilisateur non connecte pour lire la conduite du jour');
+      throw Exception('Utilisateur non connecté pour lire la conduite du jour');
     }
 
     final effectiveDay = jour ?? DateTime.now();
@@ -717,7 +720,7 @@ class ApiService {
         if (decoded is Map<String, dynamic>) {
           return decoded;
         }
-        throw Exception('Reponse conduite du jour invalide');
+        throw Exception('Réponse conduite du jour invalide');
       }
 
       throw Exception(
@@ -729,9 +732,9 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout lecture conduite du jour');
     } on SocketException {
-      throw Exception('Erreur reseau lecture conduite du jour');
+      throw Exception('Erreur réseau lecture conduite du jour');
     } on FormatException {
-      throw Exception('Reponse conduite du jour invalide');
+      throw Exception('Réponse conduite du jour invalide');
     }
   }
 
@@ -742,7 +745,7 @@ class ApiService {
   }) async {
     final effectiveAgentId = idAgent ?? userId;
     if (effectiveAgentId == null) {
-      throw Exception('Utilisateur non connecte pour valider la conduite');
+      throw Exception('Utilisateur non connecté pour valider la conduite');
     }
 
     final uri = Uri.parse('$baseUrl/api/statistiques-conduite/valider/');
@@ -763,7 +766,7 @@ class ApiService {
         if (decoded is Map<String, dynamic>) {
           return decoded;
         }
-        throw Exception('Reponse validation conduite invalide');
+        throw Exception('Réponse validation conduite invalide');
       }
 
       throw Exception(
@@ -775,9 +778,9 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout validation conduite');
     } on SocketException {
-      throw Exception('Erreur reseau validation conduite');
+      throw Exception('Erreur réseau validation conduite');
     } on FormatException {
-      throw Exception('Reponse validation conduite invalide');
+      throw Exception('Réponse validation conduite invalide');
     }
   }
 
@@ -863,7 +866,7 @@ class ApiService {
         if (decoded is Map<String, dynamic>) {
           return decoded;
         }
-        throw Exception('Reponse historique mobile invalide');
+        throw Exception('Réponse historique mobile invalide');
       }
 
       try {
@@ -879,7 +882,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout upload historique');
     } on SocketException {
-      throw Exception('Erreur reseau upload historique');
+      throw Exception('Erreur réseau upload historique');
     }
   }
 

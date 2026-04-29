@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
@@ -11,12 +12,14 @@ import '../data/remote/api_service.dart';
 
 class OfflineBasemapPackageDownloadResult {
   final bool success;
+  final bool alreadyAvailable;
   final String? localPath;
   final String? userMessage;
   final String? errorMessage;
 
   const OfflineBasemapPackageDownloadResult({
     required this.success,
+    this.alreadyAvailable = false,
     this.localPath,
     this.userMessage,
     this.errorMessage,
@@ -68,6 +71,11 @@ class OfflineBasemapService {
         fileName?.isNotEmpty == true ? fileName! : 'package.mbtiles',
       ),
     );
+  }
+
+  String packageKeyFor(Map<String, dynamic> packageRow) {
+    return packageRow['package_key']?.toString().trim() ??
+        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
   }
 
   String _normalizedStyle(String? style) {
@@ -175,7 +183,7 @@ class OfflineBasemapService {
     final style = _normalizedStyle(package['style']?.toString());
     final localPath = package['local_path']?.toString().trim();
     if (localPath == null || localPath.isEmpty || !await File(localPath).exists()) {
-      throw Exception('Package non telecharge localement: $packageKey');
+      throw Exception('Package non téléchargé localement: $packageKey');
     }
 
     await db.setActiveOfflineBasemapPackageKey(
@@ -222,12 +230,124 @@ class OfflineBasemapService {
     await setActivePackage(packageKey, recordEvent: true);
   }
 
+  Future<String?> _readyLocalPathForPackage(
+    Map<String, dynamic> packageRow,
+  ) async {
+    final packageKey = packageKeyFor(packageRow);
+    final db = DatabaseHelper();
+    final stored = await db.getOfflineBasemapPackageByKey(packageKey);
+    final targetFile = await _packageTargetFile(packageRow);
+    final candidates = <String>[
+      (packageRow['local_path'] ?? '').toString().trim(),
+      (stored?['local_path'] ?? '').toString().trim(),
+      targetFile.path,
+    ].where((value) => value.isNotEmpty).toSet();
+
+    final expectedSize = packageRow['size_bytes'] is int
+        ? packageRow['size_bytes'] as int
+        : int.tryParse(packageRow['size_bytes']?.toString() ?? '');
+    final expectedSha256 = packageRow['sha256']?.toString().trim();
+    final status =
+        (packageRow['status'] ?? stored?['status'] ?? '').toString().trim();
+    final shouldVerifyChecksum = status.toLowerCase() != 'ready';
+
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (!await file.exists()) continue;
+      final actualSize = await file.length();
+      if (expectedSize != null &&
+          expectedSize > 0 &&
+          actualSize != expectedSize) {
+        continue;
+      }
+      if (shouldVerifyChecksum &&
+          expectedSha256 != null &&
+          expectedSha256.isNotEmpty) {
+        final actualSha256 =
+            (await crypto.sha256.bind(file.openRead()).first)
+                .toString()
+                .toLowerCase();
+        if (actualSha256 != expectedSha256.toLowerCase()) {
+          continue;
+        }
+      }
+      return candidate;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> selectReadyPackageForPosition({
+    required LatLng position,
+    double? zoom,
+    String? citySlug,
+    String style = _defaultBasemapStyle,
+  }) async {
+    final db = DatabaseHelper();
+    final packages = await db.getReadyOfflineBasemapPackages(
+      citySlug: citySlug,
+      style: _normalizedStyle(style),
+    );
+    final candidates = <Map<String, dynamic>>[];
+
+    for (final packageRow in packages) {
+      final localPath = await _readyLocalPathForPackage(packageRow);
+      if (localPath == null) continue;
+
+      final zoneId = packageRow['zone_id']?.toString().trim();
+      if (zoneId == null || zoneId.isEmpty) continue;
+      final zone = await db.getOfflineBasemapZoneById(zoneId);
+      if (zone == null) continue;
+
+      final west = _asDouble(zone['bbox_west']);
+      final south = _asDouble(zone['bbox_south']);
+      final east = _asDouble(zone['bbox_east']);
+      final north = _asDouble(zone['bbox_north']);
+      if (west == null || south == null || east == null || north == null) {
+        continue;
+      }
+
+      final containsPosition = position.longitude >= west &&
+          position.longitude <= east &&
+          position.latitude >= south &&
+          position.latitude <= north;
+      if (!containsPosition) continue;
+
+      final minZoom = _asDouble(packageRow['min_zoom'] ?? zone['min_zoom']);
+      final maxZoom = _asDouble(packageRow['max_zoom'] ?? zone['max_zoom']);
+      final containsZoom = zoom == null ||
+          ((minZoom == null || zoom >= minZoom) &&
+              (maxZoom == null || zoom <= maxZoom));
+      if (!containsZoom) continue;
+
+      candidates.add({
+        ...packageRow,
+        'local_path': localPath,
+        'zone': zone,
+      });
+    }
+
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) {
+      final generatedAtA =
+          DateTime.tryParse(a['generated_at']?.toString().trim() ?? '');
+      final generatedAtB =
+          DateTime.tryParse(b['generated_at']?.toString().trim() ?? '');
+      if (generatedAtA != null && generatedAtB != null) {
+        return generatedAtB.compareTo(generatedAtA);
+      }
+      if (generatedAtA != null) return -1;
+      if (generatedAtB != null) return 1;
+      return (b['version']?.toString() ?? '')
+          .compareTo(a['version']?.toString() ?? '');
+    });
+    return candidates.first;
+  }
+
   Future<OfflineBasemapPackageDownloadResult> downloadCatalogPackage(
     Map<String, dynamic> packageRow,
   ) async {
     final db = DatabaseHelper();
-    final packageKey = packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
+    final packageKey = packageKeyFor(packageRow);
     final downloadUrl = packageRow['download_url']?.toString().trim();
     final sizeBytes = packageRow['size_bytes'] is int
         ? packageRow['size_bytes'] as int
@@ -238,11 +358,41 @@ class OfflineBasemapService {
       await db.updateOfflineBasemapPackageDownloadState(
         packageKey: packageKey,
         status: 'failed',
-        lastError: 'URL de telechargement absente',
+        lastError: 'URL de téléchargement absente',
       );
       return const OfflineBasemapPackageDownloadResult(
         success: false,
-        errorMessage: 'URL de telechargement absente',
+        errorMessage: 'URL de téléchargement absente',
+      );
+    }
+
+    final readyLocalPath = await _readyLocalPathForPackage(packageRow);
+    if (readyLocalPath != null) {
+      final downloadedAt =
+          (packageRow['downloaded_at'] ?? '').toString().trim().isNotEmpty
+              ? packageRow['downloaded_at'].toString()
+              : DateTime.now().toUtc().toIso8601String();
+      await db.updateOfflineBasemapPackageDownloadState(
+        packageKey: packageKey,
+        status: 'ready',
+        localPath: readyLocalPath,
+        downloadedAt: downloadedAt,
+        lastError: null,
+      );
+      await _maybeActivateDownloadedPackage(
+        {
+          ...packageRow,
+          'package_key': packageKey,
+          'local_path': readyLocalPath,
+          'downloaded_at': downloadedAt,
+        },
+        packageKey,
+      );
+      return OfflineBasemapPackageDownloadResult(
+        success: true,
+        alreadyAvailable: true,
+        localPath: readyLocalPath,
+        userMessage: 'Package ${packageRow['zone_id']} déjà présent.',
       );
     }
 
@@ -307,7 +457,7 @@ class OfflineBasemapService {
         success: true,
         localPath: targetFile.path,
         userMessage:
-            'Package ${packageRow['zone_id']} ${packageRow['style']} telecharge.',
+            'Package ${packageRow['zone_id']} ${packageRow['style']} téléchargé.',
       );
     } catch (e) {
       await db.updateOfflineBasemapPackageDownloadState(
@@ -329,7 +479,7 @@ class OfflineBasemapService {
       return OfflineBasemapPackageDownloadResult(
         success: false,
         errorMessage: e.toString(),
-        userMessage: 'Impossible de telecharger ce package de zone.',
+        userMessage: 'Impossible de télécharger ce package de zone.',
       );
     }
   }
@@ -351,7 +501,7 @@ class OfflineBasemapService {
     final streamed = await request.send().timeout(const Duration(minutes: 5));
     if (streamed.statusCode != 200) {
       throw Exception(
-        'Erreur telechargement basemap: ${streamed.statusCode}',
+        'Erreur téléchargement basemap: ${streamed.statusCode}',
       );
     }
 
@@ -402,4 +552,10 @@ class OfflineBasemapService {
         if (ApiService.authToken != null)
           'Authorization': 'Bearer ${ApiService.authToken}',
       };
+
+  double? _asDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
 }

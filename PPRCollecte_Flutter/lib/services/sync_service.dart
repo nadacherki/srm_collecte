@@ -9,6 +9,7 @@ import 'projection_service.dart';
 
 class SyncResult {
   int successCount = 0;
+  int entitySuccessCount = 0;
   int photoSuccessCount = 0;
   int failedCount = 0;
   int skippedCount = 0;
@@ -16,12 +17,12 @@ class SyncResult {
   final List<String> warnings = [];
 
   int get warningCount => warnings.length;
-  int get displaySuccessCount => successCount - photoSuccessCount;
+  int get displaySuccessCount => entitySuccessCount;
 
   @override
   String toString() =>
-      'Synchronisation: $displaySuccessCount succes, $failedCount echecs, '
-      '$skippedCount ignores, $warningCount avertissements';
+      'Synchronisation: $displaySuccessCount succès, $failedCount échecs, '
+      '$skippedCount ignorés, $warningCount avertissements';
 }
 
 class _TableInfo {
@@ -101,10 +102,11 @@ class SyncService {
             recordHistory: true,
           );
           result.successCount++;
+          result.entitySuccessCount++;
         }
       } catch (e) {
         result.failedCount++;
-        result.errors.add('Telechargement ${info.table}: ${_short(e)}');
+        result.errors.add('Téléchargement ${info.table}: ${_short(e)}');
       }
     }
 
@@ -176,7 +178,7 @@ class SyncService {
             throwOnError: true,
           );
           if (response == null) {
-            throw Exception('reponse vide API');
+            throw Exception('réponse vide API');
           }
           _assertResponseUuidMatches(
             tableName: info.table,
@@ -267,11 +269,11 @@ class SyncService {
       );
       print(
         '[REGARD-MIROIR] cache maj depuis serveur: ${rows.length}/${remoteItems.length}'
-        ' (geometrie ignoree: $skippedWithoutGeometry)',
+        ' (géométrie ignorée: $skippedWithoutGeometry)',
       );
     } catch (e) {
       result?.warnings.add(
-        'Miroir Regard non mis a jour: ${_short(e)}',
+        'Miroir Regard non mis à jour: ${_short(e)}',
       );
     }
   }
@@ -334,7 +336,7 @@ class SyncService {
           throwOnError: true,
         );
         if (response == null) {
-          throw Exception('reponse vide API');
+          throw Exception('réponse vide API');
         }
         _assertResponseUuidMatches(
           tableName: info.table,
@@ -371,7 +373,7 @@ class SyncService {
         }
 
         result.successCount++;
-        result.photoSuccessCount++;
+        result.entitySuccessCount++;
       } catch (e) {
         result.failedCount++;
         result.errors.add(_formatRowSyncError(info, row, e));
@@ -463,19 +465,19 @@ class SyncService {
 
     final normalizedResponse = _normalizeSyncResponseItem(response);
     if (normalizedResponse == null) {
-      throw Exception('reponse API invalide pour $tableName');
+      throw Exception('réponse API invalide pour $tableName');
     }
 
     final responseUuid = normalizedResponse['uuid']?.toString().trim() ?? '';
     if (responseUuid.isEmpty) {
       throw Exception(
-        'uuid absent dans la reponse serveur pour $tableName',
+        'uuid absent dans la réponse serveur pour $tableName',
       );
     }
 
     if (responseUuid != cleanExpected) {
       throw Exception(
-        'uuid incoherent pour $tableName (local=$cleanExpected, serveur=$responseUuid)',
+        'uuid incohérent pour $tableName (local=$cleanExpected, serveur=$responseUuid)',
       );
     }
   }
@@ -623,7 +625,7 @@ class SyncService {
       photos[slot] = localPath;
     }
     if (photos.isNotEmpty) {
-      print('[PHOTO] Photos locales detectees: ${photos.keys.join(',')}');
+      print('[PHOTO] Photos locales détectées: ${photos.keys.join(',')}');
     }
     return photos;
   }
@@ -708,6 +710,7 @@ class SyncService {
           recordHistory: true,
         );
         result.successCount++;
+        result.photoSuccessCount++;
       } catch (e) {
         await dbHelper.markPhotoSyncItemFailed(id, _short(e));
         result.failedCount++;
@@ -751,7 +754,7 @@ class SyncService {
 
     await _syncLocalHistoryChunks(
       rows: rows,
-      syncLabel: 'historique evenementiel local',
+      syncLabel: 'historique événementiel local',
       buildPayload: (row) => _buildEventHistoryPayload(row),
       sendBatch: (chunk) => ApiService.uploadLocalHistory(
         attributes: const [],
@@ -876,7 +879,7 @@ class SyncService {
       if ((uuid == null || uuid.isEmpty) && localId != null && localId.isNotEmpty)
         'id=$localId',
     ];
-    return parts.isEmpty ? 'entree locale' : parts.join(' | ');
+    return parts.isEmpty ? 'entrée locale' : parts.join(' | ');
   }
 
   int? _asIntOrNull(dynamic value) {

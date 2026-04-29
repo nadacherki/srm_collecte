@@ -103,14 +103,73 @@ void _restorePausedCollectionImpl(
 }
 
 Future<void> _hydrateOfflineBasemapStateImpl(_HomePageState state) async {
+  final offlineService = OfflineBasemapService();
+  final position = state.userPosition ?? state.homeController.userPosition;
+  final selectedPackage = await offlineService.selectReadyPackageForPosition(
+    position: position,
+    zoom: state._offlineBasemapDefaultZoom,
+    citySlug: BasemapConstants.catalogCitySlug,
+  );
+  final activePackage =
+      selectedPackage ?? await offlineService.getActivePackage();
+
+  await _applyOfflineBasemapPackageStateImpl(state, activePackage);
+}
+
+Future<void> _selectOfflineBasemapForCameraImpl(
+  _HomePageState state,
+  LatLng center,
+  double zoom,
+) async {
+  if (state._isSelectingOfflineBasemapForCamera) return;
+
+  state._isSelectingOfflineBasemapForCamera = true;
+  try {
+    final package = await OfflineBasemapService().selectReadyPackageForPosition(
+      position: center,
+      zoom: zoom,
+      citySlug: BasemapConstants.catalogCitySlug,
+    );
+    if (package == null) return;
+
+    final packageKey = package['package_key']?.toString().trim();
+    final localPath = package['local_path']?.toString().trim();
+    if (localPath == null || localPath.isEmpty) return;
+
+    if (packageKey != null &&
+        packageKey.isNotEmpty &&
+        packageKey == state._offlineBasemapPackageKey) {
+      return;
+    }
+    if ((packageKey == null || packageKey.isEmpty) &&
+        localPath == state._offlineBasemapPath) {
+      return;
+    }
+
+    await _applyOfflineBasemapPackageStateImpl(state, package);
+    if (packageKey != null && packageKey.isNotEmpty) {
+      debugPrint('[BASEMAP] Offline package switched by camera: $packageKey');
+    }
+  } finally {
+    state._isSelectingOfflineBasemapForCamera = false;
+  }
+}
+
+Future<void> _applyOfflineBasemapPackageStateImpl(
+  _HomePageState state,
+  Map<String, dynamic>? package,
+) async {
   final db = DatabaseHelper();
-  final activePackage = await OfflineBasemapService().getActivePackage();
-  final packagePath = activePackage?['local_path']?.toString().trim();
-  final packageFormat = activePackage?['format']?.toString().trim();
-  final activeZoneId = activePackage?['zone_id']?.toString().trim();
-  final activeZone = activeZoneId == null || activeZoneId.isEmpty
-      ? null
-      : await db.getOfflineBasemapZoneById(activeZoneId);
+  final packagePath = package?['local_path']?.toString().trim();
+  final packageFormat = package?['format']?.toString().trim();
+  final packageKey = package?['package_key']?.toString().trim();
+  final activeZoneId = package?['zone_id']?.toString().trim();
+  final embeddedZone = package?['zone'];
+  final activeZone = embeddedZone is Map
+      ? Map<String, dynamic>.from(embeddedZone)
+      : activeZoneId == null || activeZoneId.isEmpty
+          ? null
+          : await db.getOfflineBasemapZoneById(activeZoneId);
   final localPath =
       (packagePath != null && packagePath.isNotEmpty) ? packagePath : null;
 
@@ -120,7 +179,12 @@ Future<void> _hydrateOfflineBasemapStateImpl(_HomePageState state) async {
     if (localPath != null && localPath.isNotEmpty) {
       state._offlineBasemapPath = localPath;
       state._offlineBasemapFormat = packageFormat;
+      state._offlineBasemapPackageKey = packageKey;
       state._basemapUnavailableMessage = null;
+    } else if (state._offlineBasemapPath == null ||
+        state._offlineBasemapPath!.isEmpty) {
+      state._offlineBasemapPackageKey = null;
+      state._basemapUnavailableMessage = BasemapConstants.unavailableMessage;
     }
 
     if (activeZone != null) {
@@ -282,6 +346,208 @@ Future<void> _restoreApiServiceFromLocalImpl(_HomePageState state) async {
   } catch (_) {
     // Échec silencieux : on retentera au prochain retour en ligne.
   }
+}
+
+Future<void> _autoStartNmeaBridgeIfConfiguredImpl(_HomePageState state) async {
+  if (!Platform.isAndroid) return;
+  if (!state.mounted) return;
+
+  try {
+    final bridge = NmeaBridgeService();
+    final status = await bridge.getStatus();
+    if (!status.mockLocationSelected) {
+      print('[NMEA] Auto-connect ignore: SRM Collecte non selectionnee en position fictive');
+      return;
+    }
+
+    if (!_isNmeaBridgeDisconnectedStatus(status.status)) {
+      print('[NMEA] Auto-connect ignore: pont deja actif (${status.status})');
+      state.homeController.markNmeaBridgePending(
+        deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+        bridgeStatus: status.status,
+        lastNmea: status.lastNmea,
+      );
+      _applyNmeaBridgeFixToMapImpl(
+        state,
+        status,
+        recenter: state._lastCameraPosition == null,
+      );
+      _startNmeaBridgeWatchImpl(state);
+      return;
+    }
+
+    final permissionsOk = await _ensureNmeaBluetoothPermissionsImpl();
+    if (!permissionsOk) {
+      print('[NMEA] Auto-connect ignore: permissions Bluetooth non accordees');
+      return;
+    }
+
+    final device = await bridge.resolveAutoConnectDevice();
+    if (device == null) {
+      print('[NMEA] Auto-connect ignore: aucun GNSS appaire reconnu');
+      return;
+    }
+
+    await bridge.connectBluetooth(device.address);
+    print('[NMEA] Auto-connect lance vers ${device.label}');
+    state.homeController.markNmeaBridgePending(deviceLabel: device.label);
+    _startNmeaBridgeWatchImpl(state);
+    unawaited(_centerOnNmeaFirstFixImpl(state, bridge));
+  } catch (e) {
+    print('[NMEA] Auto-connect echec: $e');
+  }
+}
+
+void _startNmeaBridgeWatchImpl(_HomePageState state) {
+  state._nmeaBridgeWatchTimer?.cancel();
+  final bridge = NmeaBridgeService();
+
+  state._nmeaBridgeWatchTimer = Timer.periodic(
+    const Duration(seconds: 1),
+    (timer) async {
+      if (!state.mounted) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        final status = await bridge.getStatus();
+        if (_isNmeaBridgeDisconnectedStatus(status.status)) {
+          timer.cancel();
+          return;
+        }
+        final applied = _applyNmeaBridgeFixToMapImpl(
+          state,
+          status,
+          recenter: false,
+        );
+        if (!applied &&
+            state.homeController.gpsSourceLabel.startsWith('GNSS externe')) {
+          state.homeController.markNmeaBridgePending(
+            deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+            bridgeStatus: status.status,
+            lastNmea: status.lastNmea,
+          );
+        }
+      } catch (e) {
+        print('[NMEA] Suivi pont GNSS ignore: $e');
+      }
+    },
+  );
+}
+
+Future<void> _centerOnNmeaFirstFixImpl(
+  _HomePageState state,
+  NmeaBridgeService bridge,
+) async {
+  const maxAttempts = 20;
+  const retryDelay = Duration(milliseconds: 700);
+
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    if (!state.mounted) return;
+
+    try {
+      final status = await bridge.getStatus();
+      final applied = _applyNmeaBridgeFixToMapImpl(state, status);
+      if (applied) {
+        return;
+      }
+    } catch (e) {
+      print('[NMEA] Attente premier fix GNSS: $e');
+    }
+
+    await Future.delayed(retryDelay);
+  }
+
+  print('[NMEA] Aucun fix GNSS exploitable recu pour recentrage automatique');
+}
+
+bool _applyNmeaBridgeFixToMapImpl(
+  _HomePageState state,
+  NmeaBridgeStatus status, {
+  bool recenter = true,
+}) {
+  final nativeLocation = status.lastLocation;
+  final source = nativeLocation?['source']?.toString();
+  if (source != 'nmea_bridge') {
+    return false;
+  }
+
+  final nativeLat = _asDoubleOrNullImpl(nativeLocation?['latitude']);
+  final nativeLon = _asDoubleOrNullImpl(nativeLocation?['longitude']);
+  if (nativeLat == null ||
+      nativeLon == null ||
+      nativeLat.abs() > 90 ||
+      nativeLon.abs() > 180) {
+    return false;
+  }
+
+  final accuracy = _asDoubleOrNullImpl(nativeLocation?['accuracy']);
+  final altitude = _asDoubleOrNullImpl(nativeLocation?['altitude']);
+  final speed = _asDoubleOrNullImpl(nativeLocation?['speed']);
+  final bearing = _asDoubleOrNullImpl(nativeLocation?['bearing']);
+  final hdop = _asDoubleOrNullImpl(nativeLocation?['hdop']);
+  final fixQuality = _asIntOrNullImpl(nativeLocation?['fixQuality']);
+  final satellites = _asIntOrNullImpl(nativeLocation?['satellites']);
+  final timestamp = _asIntOrNullImpl(
+    nativeLocation?['nmeaReceivedAt'] ?? nativeLocation?['time'],
+  );
+  final mockInjectedAt = _asIntOrNullImpl(nativeLocation?['mockInjectedAt']);
+  final nmea = nativeLocation?['nmea']?.toString() ?? status.lastNmea;
+  final bluetoothName =
+      nativeLocation?['bluetoothName']?.toString() ?? status.bluetoothName;
+  final bluetoothAddress =
+      nativeLocation?['bluetoothAddress']?.toString() ?? status.bluetoothAddress;
+  final target = LatLng(nativeLat, nativeLon);
+
+  state.homeController.applyNmeaBridgeLocation(
+    latitude: nativeLat,
+    longitude: nativeLon,
+    accuracy: accuracy,
+    altitude: altitude,
+    speed: speed,
+    bearing: bearing,
+    fixQuality: fixQuality,
+    satellites: satellites,
+    hdop: hdop,
+    nmea: nmea,
+    bluetoothName: bluetoothName,
+    bluetoothAddress: bluetoothAddress,
+    timestampMs: timestamp,
+    mockInjectedAtMs: mockInjectedAt,
+  );
+
+  if (recenter) {
+    state._autoCenterDisabledByUser = false;
+    if (state._mapController != null) {
+      state._mapController!.move(target, 17);
+      state._lastCameraPosition = target;
+    }
+    print('[NMEA] Carte recentree sur fix GNSS externe source=nmea_bridge');
+  }
+  return true;
+}
+
+bool _isNmeaBridgeDisconnectedStatus(String status) {
+  final normalized = status.trim().toLowerCase();
+  return normalized.isEmpty ||
+      normalized == 'idle' ||
+      normalized == 'erreur' ||
+      normalized == 'bluetooth_disconnected' ||
+      normalized.startsWith('bluetooth_error');
+}
+
+Future<bool> _ensureNmeaBluetoothPermissionsImpl() async {
+  final connectStatus = await Permission.bluetoothConnect.request();
+  final scanStatus = await Permission.bluetoothScan.request();
+  return connectStatus.isGranted && scanStatus.isGranted;
+}
+
+int? _asIntOrNullImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString());
 }
 
 Future<bool> _isApiReachableForStatusImpl() async {

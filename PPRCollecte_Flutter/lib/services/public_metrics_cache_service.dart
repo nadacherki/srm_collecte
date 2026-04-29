@@ -48,7 +48,7 @@ class PublicMetricsCacheService {
   }) async {
     if (agentId == null || projetId == null) {
       return const PublicMetricsCacheSnapshot(
-        error: 'Agent ou projet actif introuvable pour les metriques serveur.',
+        error: 'Agent ou projet actif introuvable pour les métriques serveur.',
       );
     }
 

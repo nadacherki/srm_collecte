@@ -1,9 +1,9 @@
 ﻿"""
-Serializers GeoJSON pour SRM Collecte â€” COMPLET (55 modÃ¨les).
+Serializers GeoJSON pour SRM Collecte — COMPLET (55 modèles).
 
-Utilise GeoFeatureModelSerializer de DRF-GIS pour les tables avec gÃ©omÃ©trie.
-Utilise ModelSerializer standard pour les tables sans gÃ©omÃ©trie.
-Les donnÃ©es spatiales sont sÃ©rialisÃ©es en GeoJSON (RFC 7946) avec SRID 26191.
+Utilise GeoFeatureModelSerializer de DRF-GIS pour les tables avec géométrie.
+Utilise ModelSerializer standard pour les tables sans géométrie.
+Les données spatiales sont sérialisées en GeoJSON (RFC 7946) avec SRID 26191.
 """
 
 import datetime
@@ -34,7 +34,7 @@ from .models import (
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
     EpRegard, EpRegardMiroir, EpRegardEp, EpAutreObjet,
-    # EP linÃ©aires + surfacique
+    # EP linéaires + surfacique
     EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
     # ASS
     AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
@@ -82,7 +82,7 @@ class StrictSerializerMixin:
             if isinstance(value, str):
                 stripped = value.strip()
                 if any(ord(char) < 32 and char not in '\t\n\r' for char in stripped):
-                    errors[key] = 'Caracteres de controle non autorises'
+                    errors[key] = 'Caractères de contrôle non autorisés'
                     continue
                 cleaned[key] = stripped
             else:
@@ -106,7 +106,7 @@ class StrictSerializerMixin:
                 self.default_text_max_length,
             )
             if max_length and len(value) > max_length:
-                errors[field_name] = f'Maximum {max_length} caracteres'
+                errors[field_name] = f'Maximum {max_length} caractères'
 
         if errors:
             raise serializers.ValidationError(errors)
@@ -142,7 +142,7 @@ class StrictSerializerMixin:
             if value is None:
                 continue
             if not self._is_finite_number(value):
-                errors[field_name] = 'Coordonnee numerique invalide'
+                errors[field_name] = 'Coordonnée numérique invalide'
 
         url_value = attrs.get('url_service')
         if url_value:
@@ -163,16 +163,16 @@ class StrictSerializerMixin:
 
         geom = attrs.get('geom') or attrs.get('geom_zone')
         if geom is not None and getattr(geom, 'empty', False):
-            errors['geom'] = 'Geometrie vide non autorisee'
+            errors['geom'] = 'Géométrie vide non autorisée'
 
         lat_start = attrs.get('lat_debut')
         lon_start = attrs.get('lon_debut')
         lat_end = attrs.get('lat_fin')
         lon_end = attrs.get('lon_fin')
         if ((lat_start is None) != (lon_start is None)):
-            errors['lat_debut'] = 'lat_debut et lon_debut doivent etre fournis ensemble'
+            errors['lat_debut'] = 'lat_debut et lon_debut doivent être fournis ensemble'
         if ((lat_end is None) != (lon_end is None)):
-            errors['lat_fin'] = 'lat_fin et lon_fin doivent etre fournis ensemble'
+            errors['lat_fin'] = 'lat_fin et lon_fin doivent être fournis ensemble'
 
         if errors:
             raise serializers.ValidationError(errors)
@@ -189,22 +189,22 @@ class StrictSerializerMixin:
         normalized = value.strip()
         lowered = normalized.lower()
         if lowered.startswith(('javascript:', 'data:')):
-            return 'Format de photo non autorise'
+            return 'Format de photo non autorisé'
 
         if '\x00' in normalized:
-            return 'Reference photo invalide'
+            return 'Référence photo invalide'
 
         parsed = urlparse(normalized)
         if parsed.scheme and parsed.scheme not in ('http', 'https', 'file', 'content'):
-            return 'Scheme photo non autorise'
+            return 'Schéma photo non autorisé'
 
         candidate_path = parsed.path or normalized
         if '/../' in candidate_path or '\\..\\' in candidate_path:
-            return 'Reference photo invalide'
+            return 'Référence photo invalide'
 
         if not self._has_allowed_photo_extension(candidate_path):
             return (
-                'Extension photo non autorisee '
+                'Extension photo non autorisée '
                 '(jpg, jpeg, png, webp, heic, heif)'
             )
 
@@ -275,7 +275,7 @@ class PhotoUploadSerializer(serializers.Serializer):
         lowered = file_name.lower()
         if not any(lowered.endswith(ext) for ext in self.allowed_photo_extensions):
             raise serializers.ValidationError(
-                'Extension photo non autorisee (jpg, jpeg, png, webp, heic, heif)'
+                'Extension photo non autorisée (jpg, jpeg, png, webp, heic, heif)'
             )
 
         if getattr(value, 'size', 0) <= 0:
@@ -341,7 +341,7 @@ class StatistiqueConduiteSerializer(StrictGeoFeatureModelSerializer):
         fields = '__all__'
 
 # =====================================================================
-#  SCHÃ‰MA PUBLIC
+#  SCHÉMA PUBLIC
 # =====================================================================
 
 class UtilisateurSerializer(StrictModelSerializer):
@@ -420,7 +420,7 @@ class MobileHistoryUploadSerializer(serializers.Serializer):
     def validate(self, attrs):
         if not attrs.get('attributes') and not attrs.get('events'):
             raise serializers.ValidationError(
-                'Le journal local doit contenir au moins une entree.'
+                'Le journal local doit contenir au moins une entrée.'
             )
         return attrs
 
@@ -621,7 +621,7 @@ class MetricProjetResumeSerializer(StrictModelSerializer):
 
 
 # =====================================================================
-#  SCHÃ‰MA EP â€” Eau Potable (27 tables)
+#  SCHÉMA EP — Eau Potable (27 tables)
 # =====================================================================
 
 # ---------- Ponctuels ----------
@@ -823,7 +823,7 @@ class EpAutreObjetSerializer(StrictGeoFeatureModelSerializer):
         fields = '__all__'
 
 
-# ---------- LinÃ©aires ----------
+# ---------- Linéaires ----------
 
 class EpConduiteTerrainSerializer(StrictGeoFeatureModelSerializer):
     class Meta:
@@ -863,7 +863,7 @@ class EpPlancheSerializer(StrictGeoFeatureModelSerializer):
 
 
 # =====================================================================
-#  SCHÃ‰MA ASS â€” Assainissement (9 tables)
+#  SCHÉMA ASS — Assainissement (9 tables)
 # =====================================================================
 
 class AssRegardSerializer(StrictGeoFeatureModelSerializer):
@@ -930,10 +930,10 @@ class AssStationSerializer(StrictGeoFeatureModelSerializer):
 
 
 # =====================================================================
-#  SCHÃ‰MA ELEC â€” Ã‰lectricitÃ© (11 tables)
+#  SCHÉMA ELEC — Électricité (11 tables)
 # =====================================================================
 
-# ---------- Ponctuels (avec gÃ©omÃ©trie) ----------
+# ---------- Ponctuels (avec géométrie) ----------
 
 class ElecSupportSerializer(StrictGeoFeatureModelSerializer):
     class Meta:
@@ -970,7 +970,7 @@ class ElecPointDesserteSerializer(StrictGeoFeatureModelSerializer):
         fields = '__all__'
 
 
-# ---------- Attributs (sans gÃ©omÃ©trie) ----------
+# ---------- Attributs (sans géométrie) ----------
 
 class ElecTransformateurSerializer(StrictModelSerializer):
     class Meta:
@@ -996,7 +996,7 @@ class ElecDepartHtaSerializer(StrictModelSerializer):
         fields = '__all__'
 
 
-# ---------- LinÃ©aires ----------
+# ---------- Linéaires ----------
 
 class ElecTronconBtSerializer(StrictGeoFeatureModelSerializer):
     class Meta:

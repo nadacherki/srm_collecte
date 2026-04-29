@@ -25,7 +25,7 @@ void _showSyncConfirmationDialogImpl(_HomePageState state) async {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Etes-vous sur de vouloir synchroniser vos donnees locales vers le serveur ?',
+            'Êtes-vous sûr de vouloir synchroniser vos données locales vers le serveur ?',
           ),
         ],
       ),
@@ -82,11 +82,11 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
       if (result.failedCount == 0 &&
           result.warningCount == 0 &&
           result.successCount > 0) {
-        title = 'Synchronisation reussie';
+        title = 'Synchronisation réussie';
         titleIcon = Icons.check_circle;
         titleColor = Colors.green;
       } else if (result.failedCount == 0 && result.warningCount > 0) {
-        title = 'Synchronisation terminee avec avertissements';
+        title = 'Synchronisation terminée avec avertissements';
         titleIcon = Icons.info_outline;
         titleColor = Colors.orange;
       } else if (result.successCount > 0 && result.failedCount > 0) {
@@ -100,11 +100,11 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
         titleIcon = Icons.cloud_off;
         titleColor = Colors.red;
       } else if (result.successCount == 0 && result.failedCount > 0) {
-        title = 'Synchronisation echouee';
+        title = 'Synchronisation échouée';
         titleIcon = Icons.error;
         titleColor = Colors.red;
       } else {
-        title = 'Aucune donnee a synchroniser';
+        title = 'Aucune donnée à synchroniser';
         titleIcon = Icons.info;
         titleColor = Colors.blue;
       }
@@ -128,7 +128,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '$displaySuccessCount donnee(s) synchronisee(s)',
+                    '$displaySuccessCount donnée(s) synchronisée(s)',
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,
@@ -139,7 +139,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${result.failedCount} donnee(s) non synchronisee(s)',
+                    '${result.failedCount} donnée(s) non synchronisée(s)',
                     style: const TextStyle(
                       color: Colors.red,
                       fontWeight: FontWeight.w600,
@@ -167,7 +167,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                     border: Border.all(color: Colors.orange.shade300),
                   ),
                   child: const Text(
-                    'La connexion a ete interrompue pendant la synchronisation. Les donnees deja envoyees ont ete sauvegardees. Relancez la synchronisation pour envoyer le reste.',
+                    'La connexion a été interrompue pendant la synchronisation. Les données déjà envoyées ont été sauvegardées. Relancez la synchronisation pour envoyer le reste.',
                     style: TextStyle(fontSize: 13),
                   ),
                 ),
@@ -181,29 +181,29 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                     border: Border.all(color: Colors.red.shade200),
                   ),
                   child: const Text(
-                    'La synchronisation n a pas pu joindre le serveur SRM. Cela peut venir d une connexion Internet absente, d un reseau instable, ou d un backend Django arrete ou inaccessible.',
+                    "La synchronisation n'a pas pu joindre le serveur SRM. Cela peut venir d'une connexion Internet absente, d'un réseau instable, ou d'un backend Django arrêté ou inaccessible.",
                     style: TextStyle(fontSize: 13),
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Verifiez le reseau de l appareil, puis assurez-vous que le serveur Django est demarre et joignable avant de reessayer.',
+                  "Vérifiez le réseau de l'appareil, puis assurez-vous que le serveur Django est démarré et joignable avant de réessayer.",
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Details techniques : ${result.failedCount} donnee(s) n ont pas pu etre envoyee(s).',
+                  "Détails techniques : ${result.failedCount} donnée(s) n'ont pas pu être envoyée(s).",
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ] else if (result.failedCount > 0) ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'Verifiez votre connexion internet et reessayez.',
+                  'Vérifiez votre connexion internet et réessayez.',
                 ),
               ],
               if (errorsToShow.isNotEmpty && !hasConnectionErrors) ...[
                 const SizedBox(height: 10),
                 const Text(
-                  'Details des erreurs :',
+                  'Détails des erreurs :',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 5),
@@ -276,7 +276,7 @@ void _showSaveConfirmationDialogImpl(_HomePageState state) async {
     ScaffoldMessenger.of(state.context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Telechargement impossible en mode hors ligne.',
+          'Téléchargement impossible en mode hors ligne.',
         ),
         backgroundColor: Colors.red,
       ),
@@ -287,13 +287,13 @@ void _showSaveConfirmationDialogImpl(_HomePageState state) async {
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Confirmation de telechargement'),
+      title: const Text('Confirmation de téléchargement'),
       content: const Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Etes-vous sur de vouloir telecharger les donnees SRM depuis le serveur ?',
+            'Êtes-vous sûr de vouloir télécharger les données SRM depuis le serveur ?',
           ),
         ],
       ),
@@ -352,16 +352,16 @@ void _showDownloadResultImpl(
       return AlertDialog(
         title: Text(
           alreadyDownloaded
-              ? 'Aucune nouvelle donnee a telecharger'
+              ? 'Aucune nouvelle donnée à télécharger'
               : nothingAvailable
-                  ? 'Aucune donnee disponible'
+                  ? 'Aucune donnée disponible'
                   : fullFailure
                       ? networkOnlyFailure
                           ? 'Connexion au serveur indisponible'
-                          : 'Telechargement impossible'
+                          : 'Téléchargement impossible'
                       : partialFailure
-                          ? 'Telechargement partiel'
-                          : 'Telechargement termine',
+                          ? 'Téléchargement partiel'
+                          : 'Téléchargement terminé',
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -370,32 +370,32 @@ void _showDownloadResultImpl(
             children: [
               if (alreadyDownloaded) ...[
                 const Text(
-                  'Les donnees du serveur pour ce projet et cette mission sont deja telechargees ou deja a jour sur cet appareil.',
+                  'Les données du serveur pour ce projet et cette mission sont déjà téléchargées ou déjà à jour sur cet appareil.',
                 ),
                 const SizedBox(height: 8),
-                const Text('Toutes les donnees etaient deja a jour.'),
+                const Text('Toutes les données étaient déjà à jour.'),
               ],
               if (nothingAvailable) ...[
                 const Text(
-                  'Aucune donnee n a ete trouvee sur le serveur pour votre compte.',
+                  "Aucune donnée n'a été trouvée sur le serveur pour votre compte.",
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Causes possibles :\n- Aucune donnee n est encore associee a votre zone\n- Vos permissions ne sont pas encore configurees\n- Les donnees n ont pas encore ete collectees dans votre zone',
+                  "Causes possibles :\n- Aucune donnée n'est encore associée à votre zone\n- Vos permissions ne sont pas encore configurées\n- Les données n'ont pas encore été collectées dans votre zone",
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ],
               if (fullFailure) ...[
                 Text(
                   networkOnlyFailure
-                      ? 'Aucune donnee n a pu etre telechargee pour le moment.'
-                      : 'Aucune donnee n a pu etre telechargee sur cet appareil.',
+                      ? "Aucune donnée n'a pu être téléchargée pour le moment."
+                      : "Aucune donnée n'a pu être téléchargée sur cet appareil.",
                 ),
                 const SizedBox(height: 8),
                 Text(
                   networkOnlyFailure
-                      ? 'L application ne parvient pas a joindre le serveur SRM. Cela peut venir d une connexion Internet absente, d un reseau instable, ou d un backend Django arrete ou inaccessible.'
-                      : 'Le telechargement a echoue avant de pouvoir mettre a jour les donnees.',
+                      ? "L'application ne parvient pas à joindre le serveur SRM. Cela peut venir d'une connexion Internet absente, d'un réseau instable, ou d'un backend Django arrêté ou inaccessible."
+                      : 'Le téléchargement a échoué avant de pouvoir mettre à jour les données.',
                 ),
                 const SizedBox(height: 8),
               ],
@@ -403,33 +403,33 @@ void _showDownloadResultImpl(
                   !alreadyDownloaded &&
                   !fullFailure &&
                   result.successCount > 0)
-                Text('${result.successCount} nouvelles donnees telechargees'),
+                Text('${result.successCount} nouvelles données téléchargées'),
               if (!nothingAvailable && result.skippedCount > 0)
-                Text('${result.skippedCount} donnees deja a jour'),
+                Text('${result.skippedCount} données déjà à jour'),
               if (result.failedCount > 0)
                 Text(
                   networkOnlyFailure
-                      ? '${result.failedCount} types de donnees restent en attente.'
-                      : '${result.failedCount} types de donnees n ont pas pu etre mis a jour',
+                      ? '${result.failedCount} types de données restent en attente.'
+                      : "${result.failedCount} types de données n'ont pas pu être mis à jour",
                 ),
               if (result.failedCount > 0) ...[
                 const SizedBox(height: 8),
                 Text(
                   networkOnlyFailure
-                      ? 'Verifiez le reseau de l appareil, puis assurez-vous que le serveur Django est demarre et joignable avant de reessayer.'
-                      : 'Corrigez les erreurs ci-dessous puis relancez le telechargement.',
+                      ? "Vérifiez le réseau de l'appareil, puis assurez-vous que le serveur Django est démarré et joignable avant de réessayer."
+                      : 'Corrigez les erreurs ci-dessous puis relancez le téléchargement.',
                 ),
               ],
               if (networkOnlyFailure && result.failedCount > 0) ...[
                 const SizedBox(height: 10),
                 Text(
-                  'Details techniques : ${result.failedCount} appel(s) API n ont pas repondu pendant cette tentative.',
+                  "Détails techniques : ${result.failedCount} appel(s) API n'ont pas répondu pendant cette tentative.",
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
               if (errorsToShow.isNotEmpty && !networkOnlyFailure) ...[
                 const SizedBox(height: 10),
-                const Text('Details des erreurs :'),
+                const Text('Détails des erreurs :'),
                 const SizedBox(height: 5),
                 ...errorsToShow.map(
                   (error) => Text(
@@ -440,7 +440,7 @@ void _showDownloadResultImpl(
                 if (remaining > 0) ...[
                   const SizedBox(height: 5),
                   Text(
-                    '- ... et $remaining autres problemes.',
+                    '- ... et $remaining autres problèmes.',
                     style: const TextStyle(
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
@@ -471,9 +471,9 @@ void _showLogoutConfirmationImpl(_HomePageState state) {
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Confirmation de deconnexion'),
+      title: const Text('Confirmation de déconnexion'),
       content: const Text(
-        'Etes-vous sur de vouloir vous deconnecter ?',
+        'Êtes-vous sûr de vouloir vous déconnecter ?',
       ),
       actions: [
         TextButton(
@@ -543,12 +543,26 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
             ],
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop({
+                'action': 'read_gnss',
+              }),
+              icon: const Icon(Icons.gps_fixed),
+              label: const Text('Lire GPS/GNSS'),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop({
+                'action': 'nmea_bridge',
+              }),
+              icon: const Icon(Icons.settings_input_antenna),
+              label: const Text('Pont NMEA'),
+            ),
             if (state.homeController.isMockLocationEnabled)
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop({
                   'action': 'clear',
                 }),
-                child: const Text('Revenir au GPS reel'),
+                child: const Text('Revenir au GPS réel'),
               ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -580,6 +594,93 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
 
     final action = (result['action'] ?? '').toString();
 
+    if (action == 'nmea_bridge') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!state.mounted) return;
+        unawaited(_showNmeaBridgeDialog(state, messenger));
+      });
+      return;
+    }
+
+    if (action == 'read_gnss') {
+      try {
+        final bridge = NmeaBridgeService();
+        final bridgeStatus = await bridge.getStatus();
+        final appliedExternal = _applyNmeaBridgeFixToMapImpl(
+          state,
+          bridgeStatus,
+        );
+        if (appliedExternal) {
+          final position = state.homeController.userPosition;
+          messenger?.showSnackBar(
+            SnackBar(
+              content: Text(
+                'GNSS externe lu: ${position.latitude.toStringAsFixed(6)}, '
+                '${position.longitude.toStringAsFixed(6)}',
+              ),
+              backgroundColor: Colors.teal,
+            ),
+          );
+          return;
+        }
+
+        final expectingExternal =
+            state.homeController.gpsSourceLabel.startsWith('GNSS externe') ||
+                bridgeStatus.status.toLowerCase().contains('bluetooth') ||
+                bridgeStatus.status.toLowerCase().contains('nmea');
+        if (expectingExternal) {
+          messenger?.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Pont NMEA actif mais aucun fix GNSS externe reçu. '
+                'Aucune position téléphone utilisée.',
+              ),
+              backgroundColor: Colors.orange.shade800,
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        // Si aucun pont NMEA n'est actif, on conserve la lecture téléphone.
+      }
+
+      final enriched = await state.homeController.refreshFromDeviceGps();
+      if (!state.mounted) return;
+
+      final lat = enriched?.raw.latitude;
+      final lon = enriched?.raw.longitude;
+      if (enriched == null || lat == null || lon == null) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('Position GPS/GNSS indisponible.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final gnssPosition = LatLng(lat, lon);
+      if (state._mapController != null) {
+        state._mapController!.move(gnssPosition, 17);
+        state._lastCameraPosition = gnssPosition;
+      }
+
+      final altitude = enriched.raw.altitude;
+      final zText = altitude == null
+          ? 'Z non disponible'
+          : 'Z=${altitude.toStringAsFixed(2)} m';
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'GNSS lu: X=${enriched.merchichX.toStringAsFixed(2)}, '
+            'Y=${enriched.merchichY.toStringAsFixed(2)}, $zText',
+          ),
+          backgroundColor: Colors.teal,
+        ),
+      );
+      return;
+    }
+
     if (action == 'clear') {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!state.mounted) return;
@@ -593,7 +694,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         }
         messenger?.showSnackBar(
           const SnackBar(
-            content: Text('Mock GPS desactive'),
+            content: Text('Mock GPS désactivé'),
             backgroundColor: Colors.blueGrey,
           ),
         );
@@ -649,4 +750,460 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     latitudeController.dispose();
     longitudeController.dispose();
   }
+}
+
+Future<void> _showNmeaBridgeDialog(
+  _HomePageState state,
+  ScaffoldMessengerState? messenger,
+) async {
+  final bridge = NmeaBridgeService();
+  final nmeaController = TextEditingController(
+    text:
+        r'$GPGGA,120000.00,3441.0000,N,00154.0000,W,4,12,0.8,500.0,M,0.0,M,,*00',
+  );
+
+  var status = const NmeaBridgeStatus(
+    status: 'chargement',
+    mockLocationSelected: false,
+  );
+  var devices = <NmeaBridgeDevice>[];
+  String? loadError;
+  var isLoadingDevices = false;
+  var didScheduleInitialLoad = false;
+
+  try {
+    status = await bridge.getStatus();
+    final preferred = await bridge.getPreferredBluetoothDevice();
+    if (preferred != null) {
+      devices = [preferred];
+    }
+  } catch (e) {
+    loadError = _friendlyNmeaBridgeError(e);
+  }
+
+  try {
+    if (!state.mounted) return;
+    await showDialog<void>(
+      context: state.context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> loadBluetoothDevices() async {
+              setDialogState(() {
+                isLoadingDevices = true;
+                loadError = null;
+              });
+              try {
+                if (Platform.isAndroid) {
+                  await Permission.bluetoothConnect.request();
+                  await Permission.bluetoothScan.request();
+                }
+                final loadedStatus = await bridge.getStatus();
+                final loadedDevices = await bridge.listBondedBluetoothDevices();
+                if (!dialogContext.mounted) return;
+                setDialogState(() {
+                  status = loadedStatus;
+                  devices = loadedDevices;
+                  isLoadingDevices = false;
+                });
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+                setDialogState(() {
+                  loadError = _friendlyNmeaBridgeError(e);
+                  isLoadingDevices = false;
+                });
+              }
+            }
+
+            if (!didScheduleInitialLoad) {
+              didScheduleInitialLoad = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!dialogContext.mounted) return;
+                unawaited(loadBluetoothDevices());
+              });
+            }
+
+            return AlertDialog(
+              title: const Text('Pont NMEA Oscar'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        status.mockLocationSelected
+                            ? 'SRM Collecte est selectionnee comme app de position fictive.'
+                            : 'Selectionnez SRM Collecte comme app de position fictive Android.',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: status.mockLocationSelected
+                              ? Colors.green.shade700
+                              : Colors.orange.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Etat du pont : ${status.status}'),
+                      if (isLoadingDevices) ...[
+                        const SizedBox(height: 8),
+                        const LinearProgressIndicator(),
+                      ],
+                      if (loadError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          loadError!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Appareils Bluetooth appaires',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      if (devices.isEmpty)
+                        const Text(
+                          'Chargement automatique des appareils appaires en cours.',
+                        )
+                      else
+                        ...devices.map(
+                          (device) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.bluetooth),
+                            title: Text(device.name?.trim().isNotEmpty == true
+                                ? device.name!
+                                : device.address),
+                            subtitle: Text(device.address),
+                            onTap: () async {
+                              try {
+                                await bridge.savePreferredBluetoothDevice(device);
+                                await bridge.connectBluetooth(device.address);
+                                state.homeController.markNmeaBridgePending(
+                                  deviceLabel: device.label,
+                                );
+                                _startNmeaBridgeWatchImpl(state);
+                                unawaited(
+                                  _centerOnNmeaFirstFixImpl(state, bridge),
+                                );
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
+                                messenger?.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Connexion pont NMEA lancee vers ${device.label}',
+                                    ),
+                                    backgroundColor: Colors.teal,
+                                  ),
+                                );
+                              } catch (e) {
+                                messenger?.showSnackBar(
+                                  SnackBar(
+                                    content: Text(_friendlyNmeaBridgeError(e)),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: nmeaController,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Test manuel NMEA GGA/RMC',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => bridge.openMockLocationSettings(),
+                  child: const Text('Options mock'),
+                ),
+                TextButton(
+                  onPressed: () => bridge.openBluetoothSettings(),
+                  child: const Text('Bluetooth'),
+                ),
+                TextButton(
+                  onPressed: isLoadingDevices
+                      ? null
+                      : () => unawaited(loadBluetoothDevices()),
+                  child: const Text('Verifier'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await bridge.disconnectBluetooth();
+                      messenger?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Pont NMEA deconnecte.'),
+                          backgroundColor: Colors.blueGrey,
+                        ),
+                      );
+                    } catch (_) {
+                      // Ignore disconnect errors.
+                    }
+                  },
+                  child: const Text('Deconnecter'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Fermer'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      final pushed = await bridge.pushNmea(nmeaController.text);
+                      final currentStatus = await bridge.getStatus();
+                      _applyNmeaBridgeFixToMapImpl(state, currentStatus);
+                      final lat = pushed['latitude'];
+                      final lon = pushed['longitude'];
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                      messenger?.showSnackBar(
+                        SnackBar(
+                          content: Text('NMEA injecte: $lat, $lon'),
+                          backgroundColor: Colors.teal,
+                        ),
+                      );
+                    } catch (e) {
+                      messenger?.showSnackBar(
+                        SnackBar(
+                          content: Text(_friendlyNmeaBridgeError(e)),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Injecter'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    nmeaController.dispose();
+  }
+}
+
+Future<void> _showNmeaBridgeDialogLegacy(
+  _HomePageState state,
+  ScaffoldMessengerState? messenger,
+) async {
+  final bridge = NmeaBridgeService();
+  final nmeaController = TextEditingController(
+    text:
+        r'$GPGGA,120000.00,3441.0000,N,00154.0000,W,4,12,0.8,500.0,M,0.0,M,,*00',
+  );
+
+  NmeaBridgeStatus status;
+  List<NmeaBridgeDevice> devices = const [];
+  String? loadError;
+
+  try {
+    if (Platform.isAndroid) {
+      await Permission.bluetoothConnect.request();
+      await Permission.bluetoothScan.request();
+    }
+    status = await bridge.getStatus();
+    devices = await bridge.listBondedBluetoothDevices();
+  } catch (e) {
+    status = const NmeaBridgeStatus(
+      status: 'erreur',
+      mockLocationSelected: false,
+    );
+    loadError = _friendlyNmeaBridgeError(e);
+  }
+
+  try {
+    if (!state.mounted) return;
+    await showDialog<void>(
+      context: state.context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Pont NMEA Oscar'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    status.mockLocationSelected
+                        ? 'SRM Collecte est sélectionnée comme app de position fictive.'
+                        : 'Sélectionnez SRM Collecte comme app de position fictive Android.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: status.mockLocationSelected
+                          ? Colors.green.shade700
+                          : Colors.orange.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('État du pont : ${status.status}'),
+                  if (loadError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      loadError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Appareils Bluetooth déjà appairés',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  if (devices.isEmpty)
+                    const Text(
+                      'Aucun appareil appairé trouvé. Appairez Oscar dans les paramètres Bluetooth Android, puis revenez ici.',
+                    )
+                  else
+                    ...devices.map(
+                      (device) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.bluetooth),
+                        title: Text(device.name?.trim().isNotEmpty == true
+                            ? device.name!
+                            : device.address),
+                        subtitle: Text(device.address),
+                        onTap: () async {
+                          try {
+                            await bridge.savePreferredBluetoothDevice(device);
+                            await bridge.connectBluetooth(device.address);
+                            state.homeController.markNmeaBridgePending(
+                              deviceLabel: device.label,
+                            );
+                            _startNmeaBridgeWatchImpl(state);
+                            unawaited(
+                              _centerOnNmeaFirstFixImpl(state, bridge),
+                            );
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                            messenger?.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Connexion pont NMEA lancée vers ${device.label}',
+                                ),
+                                backgroundColor: Colors.teal,
+                              ),
+                            );
+                          } catch (e) {
+                            messenger?.showSnackBar(
+                              SnackBar(
+                                content: Text(_friendlyNmeaBridgeError(e)),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nmeaController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Test manuel NMEA GGA/RMC',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => bridge.openMockLocationSettings(),
+              child: const Text('Options mock'),
+            ),
+            TextButton(
+              onPressed: () => bridge.openBluetoothSettings(),
+              child: const Text('Bluetooth'),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await bridge.disconnectBluetooth();
+                  messenger?.showSnackBar(
+                    const SnackBar(
+                      content: Text('Pont NMEA déconnecté.'),
+                      backgroundColor: Colors.blueGrey,
+                    ),
+                  );
+                } catch (_) {
+                  // Ignore disconnect errors.
+                }
+              },
+              child: const Text('Déconnecter'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Fermer'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final pushed = await bridge.pushNmea(nmeaController.text);
+                  final status = await bridge.getStatus();
+                  _applyNmeaBridgeFixToMapImpl(state, status);
+                  final lat = pushed['latitude'];
+                  final lon = pushed['longitude'];
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                  messenger?.showSnackBar(
+                    SnackBar(
+                      content: Text('NMEA injecté: $lat, $lon'),
+                      backgroundColor: Colors.teal,
+                    ),
+                  );
+                } catch (e) {
+                  messenger?.showSnackBar(
+                    SnackBar(
+                      content: Text(_friendlyNmeaBridgeError(e)),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Injecter'),
+            ),
+          ],
+        );
+      },
+    );
+  } finally {
+    nmeaController.dispose();
+  }
+}
+
+String _friendlyNmeaBridgeError(Object error) {
+  final message = error is PlatformException
+      ? (error.message ?? error.code)
+      : error.toString();
+  if (message.contains('position fictive') ||
+      message.contains('MOCK') ||
+      message.contains('mock')) {
+    return 'Sélectionnez SRM Collecte dans Options développeur > Application de position fictive.';
+  }
+  if (message.contains('BLUETOOTH') || message.contains('Bluetooth')) {
+    return 'Autorisez Bluetooth et appairez Oscar dans les paramètres Android.';
+  }
+  return message;
 }
