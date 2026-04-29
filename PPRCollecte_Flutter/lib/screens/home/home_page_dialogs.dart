@@ -875,7 +875,7 @@ Future<void> _showNmeaBridgeDialog(
                       if (loadError != null) ...[
                         const SizedBox(height: 8),
                         Text(
-                          loadError!,
+                          loadError ?? '',
                           style: const TextStyle(color: Colors.red),
                         ),
                       ],
@@ -895,9 +895,7 @@ Future<void> _showNmeaBridgeDialog(
                             dense: true,
                             contentPadding: EdgeInsets.zero,
                             leading: const Icon(Icons.bluetooth),
-                            title: Text(device.name?.trim().isNotEmpty == true
-                                ? device.name!
-                                : device.address),
+                            title: Text(_nmeaDeviceTitle(device)),
                             subtitle: Text(device.address),
                             onTap: () async {
                               try {
@@ -1020,200 +1018,9 @@ Future<void> _showNmeaBridgeDialog(
   }
 }
 
-Future<void> _showNmeaBridgeDialogLegacy(
-  _HomePageState state,
-  ScaffoldMessengerState? messenger,
-) async {
-  final bridge = NmeaBridgeService();
-  final nmeaController = TextEditingController(
-    text:
-        r'$GPGGA,120000.00,3441.0000,N,00154.0000,W,4,12,0.8,500.0,M,0.0,M,,*00',
-  );
-
-  NmeaBridgeStatus status;
-  List<NmeaBridgeDevice> devices = const [];
-  String? loadError;
-
-  try {
-    if (Platform.isAndroid) {
-      await Permission.bluetoothConnect.request();
-      await Permission.bluetoothScan.request();
-    }
-    status = await bridge.getStatus();
-    devices = await bridge.listBondedBluetoothDevices();
-  } catch (e) {
-    status = const NmeaBridgeStatus(
-      status: 'erreur',
-      mockLocationSelected: false,
-    );
-    loadError = _friendlyNmeaBridgeError(e);
-  }
-
-  try {
-    if (!state.mounted) return;
-    await showDialog<void>(
-      context: state.context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Pont NMEA Oscar'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    status.mockLocationSelected
-                        ? 'SRM Collecte est sélectionnée comme app de position fictive.'
-                        : 'Sélectionnez SRM Collecte comme app de position fictive Android.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: status.mockLocationSelected
-                          ? Colors.green.shade700
-                          : Colors.orange.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('État du pont : ${status.status}'),
-                  if (loadError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      loadError!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Appareils Bluetooth déjà appairés',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 6),
-                  if (devices.isEmpty)
-                    const Text(
-                      'Aucun appareil appairé trouvé. Appairez Oscar dans les paramètres Bluetooth Android, puis revenez ici.',
-                    )
-                  else
-                    ...devices.map(
-                      (device) => ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.bluetooth),
-                        title: Text(device.name?.trim().isNotEmpty == true
-                            ? device.name!
-                            : device.address),
-                        subtitle: Text(device.address),
-                        onTap: () async {
-                          try {
-                            await bridge.savePreferredBluetoothDevice(device);
-                            await bridge.connectBluetooth(device.address);
-                            state.homeController.markNmeaBridgePending(
-                              deviceLabel: device.label,
-                            );
-                            _startNmeaBridgeWatchImpl(state);
-                            unawaited(
-                              _centerOnNmeaFirstFixImpl(state, bridge),
-                            );
-                            if (dialogContext.mounted) {
-                              Navigator.of(dialogContext).pop();
-                            }
-                            messenger?.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Connexion pont NMEA lancée vers ${device.label}',
-                                ),
-                                backgroundColor: Colors.teal,
-                              ),
-                            );
-                          } catch (e) {
-                            messenger?.showSnackBar(
-                              SnackBar(
-                                content: Text(_friendlyNmeaBridgeError(e)),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: nmeaController,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Test manuel NMEA GGA/RMC',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => bridge.openMockLocationSettings(),
-              child: const Text('Options mock'),
-            ),
-            TextButton(
-              onPressed: () => bridge.openBluetoothSettings(),
-              child: const Text('Bluetooth'),
-            ),
-            TextButton(
-              onPressed: () async {
-                try {
-                  await bridge.disconnectBluetooth();
-                  messenger?.showSnackBar(
-                    const SnackBar(
-                      content: Text('Pont NMEA déconnecté.'),
-                      backgroundColor: Colors.blueGrey,
-                    ),
-                  );
-                } catch (_) {
-                  // Ignore disconnect errors.
-                }
-              },
-              child: const Text('Déconnecter'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Fermer'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  final pushed = await bridge.pushNmea(nmeaController.text);
-                  final status = await bridge.getStatus();
-                  _applyNmeaBridgeFixToMapImpl(state, status);
-                  final lat = pushed['latitude'];
-                  final lon = pushed['longitude'];
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                  messenger?.showSnackBar(
-                    SnackBar(
-                      content: Text('NMEA injecté: $lat, $lon'),
-                      backgroundColor: Colors.teal,
-                    ),
-                  );
-                } catch (e) {
-                  messenger?.showSnackBar(
-                    SnackBar(
-                      content: Text(_friendlyNmeaBridgeError(e)),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: const Text('Injecter'),
-            ),
-          ],
-        );
-      },
-    );
-  } finally {
-    nmeaController.dispose();
-  }
+String _nmeaDeviceTitle(NmeaBridgeDevice device) {
+  final name = device.name?.trim();
+  return name != null && name.isNotEmpty ? name : device.address;
 }
 
 String _friendlyNmeaBridgeError(Object error) {

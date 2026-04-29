@@ -104,10 +104,11 @@ Future<void> _enterConduiteDrawingModeImpl(
 
   Map<String, dynamic>? existingSnapshot;
   String? loadWarning;
+  final agentId = ApiService.userId;
   if (state._isOnlineDynamic) {
     try {
       existingSnapshot = await ApiService.fetchStatistiqueConduiteJour(
-        idAgent: ApiService.userId,
+        idAgent: agentId,
         jour: now,
         metier: config.code,
       );
@@ -115,11 +116,11 @@ Future<void> _enterConduiteDrawingModeImpl(
       loadWarning = e.toString();
     }
   }
-  final localPending = ApiService.userId == null
+  final localPending = agentId == null
       ? null
       : await DatabaseHelper().getConduiteSyncItemForDay(
           metier: config.code,
-          idAgent: ApiService.userId!,
+          idAgent: agentId,
           jour: now,
         );
   final localPendingPreview = localPending == null
@@ -130,12 +131,13 @@ Future<void> _enterConduiteDrawingModeImpl(
       existingSnapshot != null &&
       existingSnapshot['exists'] == true &&
       existingSnapshot['frozen'] == true;
+  final serverFrozenSnapshot = isServerFrozen ? existingSnapshot : null;
   final isFrozen = isServerFrozen || localPendingPreview != null;
-  final frozenPolylines = isServerFrozen
-      ? _buildConduitePolylinesFromServerPayload(existingSnapshot!)
+  final frozenPolylines = serverFrozenSnapshot != null
+      ? _buildConduitePolylinesFromServerPayload(serverFrozenSnapshot)
       : (localPendingPreview?.polylines ?? <Polyline>[]);
-  final frozenSegmentKeys = isServerFrozen
-      ? _segmentKeysFromServerPayload(existingSnapshot!)
+  final frozenSegmentKeys = serverFrozenSnapshot != null
+      ? _segmentKeysFromServerPayload(serverFrozenSnapshot)
       : (localPendingPreview?.segmentKeys ?? <String>{});
 
   state._setStateFromPart(() {
@@ -155,13 +157,9 @@ Future<void> _enterConduiteDrawingModeImpl(
     state._conduitePreviewLengthM = isServerFrozen
         ? _asDoubleConduite(existingSnapshot?['longueur_conduite_m']) ?? 0.0
         : localPendingPreview?.lengthMeters ?? 0.0;
-    state._conduiteCurrentRegardNodeId = null;
     state._conduiteCurrentRegardPoint = null;
     state._conduiteIsFrozenForDay = isFrozen;
     state._conduiteIsSaving = false;
-    state._conduiteSavedStatId = _asIntConduite(
-      existingSnapshot?['id_statistique_conduite'],
-    );
     state._conduiteModeError = loadWarning;
     state._conduiteModeStatusText = localPendingPreview != null
         ? 'Conduite locale en attente de synchronisation.'
@@ -197,11 +195,9 @@ void _exitConduiteDrawingModeImpl(_HomePageState state) {
     state._conduiteSelectionHistoryNodeIds.clear();
     state._conduiteSegmentKeys.clear();
     state._conduitePreviewLengthM = 0.0;
-    state._conduiteCurrentRegardNodeId = null;
     state._conduiteCurrentRegardPoint = null;
     state._conduiteIsFrozenForDay = false;
     state._conduiteIsSaving = false;
-    state._conduiteSavedStatId = null;
     state._conduiteModeError = null;
     state._conduiteModeStatusText = 'Touchez un regard pour commencer.';
     state._autoCenterDisabledByUser = false;
@@ -237,7 +233,6 @@ void _handleConduiteRegardTapImpl(
 
   if (previousNodeId == nodeId) {
     state._setStateFromPart(() {
-      state._conduiteCurrentRegardNodeId = nodeId;
       state._conduiteCurrentRegardPoint = node.point;
       state._conduiteModeError = null;
       state._conduiteModeStatusText = '$currentLabel déjà actif.';
@@ -271,9 +266,10 @@ void _handleConduiteMapTapImpl(
   TapPosition tapPosition,
   LatLng latLng,
 ) {
+  final mapController = state._mapController;
   if (!state._isConduiteDrawingMode ||
       state._conduiteRegardNodesById.isEmpty ||
-      state._mapController == null) {
+      mapController == null) {
     return;
   }
 
@@ -288,15 +284,16 @@ void _handleConduiteMapTapImpl(
 
   _ConduiteRegardNode? nearest;
   double? nearestDistance;
-  final tapPoint = tapPosition.relative != null
+  final relativeTapPoint = tapPosition.relative;
+  final tapPoint = relativeTapPoint != null
       ? Point<double>(
-          tapPosition.relative!.dx,
-          tapPosition.relative!.dy,
+          relativeTapPoint.dx,
+          relativeTapPoint.dy,
         )
-      : state._mapController!.camera.latLngToScreenPoint(latLng);
+      : mapController.camera.latLngToScreenPoint(latLng);
 
   for (final node in state._conduiteRegardNodesById.values) {
-    final markerPoint = state._mapController!.camera.latLngToScreenPoint(
+    final markerPoint = mapController.camera.latLngToScreenPoint(
       node.point,
     );
     final dx = markerPoint.x - tapPoint.x;
@@ -312,7 +309,7 @@ void _handleConduiteMapTapImpl(
     return;
   }
 
-  final zoom = state._mapController!.camera.zoom;
+  final zoom = mapController.camera.zoom;
   final maxTapSnapDistancePx = zoom >= 18
       ? 72.0
       : zoom >= 16
@@ -345,14 +342,15 @@ void _handleConduiteMapTapImpl(
 }
 
 void _focusConduiteModeBoundsImpl(_HomePageState state) {
-  if (state._mapController == null || state._conduiteModeMarkers.isEmpty) {
+  final mapController = state._mapController;
+  if (mapController == null || state._conduiteModeMarkers.isEmpty) {
     return;
   }
 
   try {
     if (state._conduiteModeMarkers.length == 1) {
       final point = state._conduiteModeMarkers.first.point;
-      state._mapController!.move(point, 18);
+      mapController.move(point, 18);
       state._lastCameraPosition = point;
       return;
     }
@@ -360,7 +358,7 @@ void _focusConduiteModeBoundsImpl(_HomePageState state) {
     final bounds = LatLngBounds.fromPoints(
       state._conduiteModeMarkers.map((marker) => marker.point).toList(),
     );
-    state._mapController!.fitCamera(
+    mapController.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(56)),
     );
     state._lastCameraPosition = bounds.center;
@@ -745,7 +743,6 @@ Future<void> _saveConduiteValidationLocally(_HomePageState state) async {
   state._setStateFromPart(() {
     state._conduiteIsSaving = false;
     state._conduiteIsFrozenForDay = true;
-    state._conduiteCurrentRegardNodeId = null;
     state._conduiteCurrentRegardPoint = null;
     state._conduiteModeError = null;
     state._conduiteModeStatusText =
@@ -806,7 +803,6 @@ void _recomputeConduitePreviewFromHistory(
       ..addAll(segmentKeys);
     state._conduiteModePolylines = polylines;
     state._conduitePreviewLengthM = totalMeters;
-    state._conduiteCurrentRegardNodeId = currentNodeId;
     state._conduiteCurrentRegardPoint = currentPoint;
     state._conduiteModeError = null;
     state._conduiteModeStatusText = statusText;
@@ -822,9 +818,6 @@ void _applyConduiteServerSnapshot(
   state._setStateFromPart(() {
     state._conduiteIsSaving = false;
     state._conduiteIsFrozenForDay = payload['frozen'] == true;
-    state._conduiteSavedStatId = _asIntConduite(
-      payload['id_statistique_conduite'],
-    );
     state._conduiteSelectionHistoryNodeIds.clear();
     state._conduiteSegmentKeys
       ..clear()
@@ -833,7 +826,6 @@ void _applyConduiteServerSnapshot(
         _buildConduitePolylinesFromServerPayload(payload);
     state._conduitePreviewLengthM =
         _asDoubleConduite(payload['longueur_conduite_m']) ?? 0.0;
-    state._conduiteCurrentRegardNodeId = null;
     state._conduiteCurrentRegardPoint = null;
     state._conduiteModeError = null;
     state._conduiteModeStatusText = statusText;

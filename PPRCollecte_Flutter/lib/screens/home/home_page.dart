@@ -233,11 +233,9 @@ class _HomePageState extends State<HomePage> {
   final List<int> _conduiteSelectionHistoryNodeIds = <int>[];
   final Set<String> _conduiteSegmentKeys = <String>{};
   double _conduitePreviewLengthM = 0.0;
-  int? _conduiteCurrentRegardNodeId;
   LatLng? _conduiteCurrentRegardPoint;
   bool _conduiteIsFrozenForDay = false;
   bool _conduiteIsSaving = false;
-  int? _conduiteSavedStatId;
   String? _conduiteModeError;
   String _conduiteModeStatusText = 'Touchez un regard pour commencer.';
 // Dans _HomePageState
@@ -975,9 +973,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _enterConduiteDrawingMode([String metier = 'ep']) =>
       _enterConduiteDrawingModeImpl(this, metier: metier);
-
-  void _exitConduiteDrawingMode() =>
-      _exitConduiteDrawingModeImpl(this);
 
   Widget _buildConduiteModeHeader() =>
       _buildConduiteModeHeaderImpl(this);
