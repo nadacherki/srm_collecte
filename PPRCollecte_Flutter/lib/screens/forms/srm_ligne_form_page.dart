@@ -96,12 +96,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         if (rawPoints is String) {
           return RegExp(
             r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
-          ).allMatches(rawPoints).map((match) {
-            final lat = double.tryParse(match.group(1) ?? '');
-            final lon = double.tryParse(match.group(2) ?? '');
-            if (lat == null || lon == null) return null;
-            return LatLng(lat, lon);
-          }).whereType<LatLng>().toList();
+          )
+              .allMatches(rawPoints)
+              .map((match) {
+                final lat = double.tryParse(match.group(1) ?? '');
+                final lon = double.tryParse(match.group(2) ?? '');
+                if (lat == null || lon == null) return null;
+                return LatLng(lat, lon);
+              })
+              .whereType<LatLng>()
+              .toList();
         }
         return const [];
       }
@@ -127,12 +131,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       if (rawPoints is! String) return const [];
       return RegExp(
         r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
-      ).allMatches(rawPoints).map((match) {
-        final lat = double.tryParse(match.group(1) ?? '');
-        final lon = double.tryParse(match.group(2) ?? '');
-        if (lat == null || lon == null) return null;
-        return LatLng(lat, lon);
-      }).whereType<LatLng>().toList();
+      )
+          .allMatches(rawPoints)
+          .map((match) {
+            final lat = double.tryParse(match.group(1) ?? '');
+            final lon = double.tryParse(match.group(2) ?? '');
+            if (lat == null || lon == null) return null;
+            return LatLng(lat, lon);
+          })
+          .whereType<LatLng>()
+          .toList();
     }
   }
 
@@ -187,7 +195,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
           _isTruthyFlag(widget.existingData!['ep_anomalie']);
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
-      _isObjetIncomplet = _isTruthyFlag(widget.existingData!['objet_incomplet']);
+      _isObjetIncomplet =
+          _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
@@ -489,12 +498,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       final data = <String, dynamic>{};
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
 
-      if (!_isObjetIncomplet) {
-        for (final field in _fields) {
-          final val = _controllers[field]?.text.trim();
-          if (val != null && val.isNotEmpty) {
-            data[field] = _normalizeFieldValue(field, val);
-          }
+      for (final field in _fields) {
+        final val = _controllers[field]?.text.trim();
+        if (val != null && val.isNotEmpty) {
+          data[field] = _normalizeFieldValue(field, val);
         }
       }
 
@@ -506,10 +513,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
       if (widget.averageAltitude != null) {
         data['altitude_z_moy'] = widget.averageAltitude;
-        final schema =
-            SrmConfig.getEntityConfig(widget.metier, widget.entityType)?[
-                    'schema'] ??
-                '';
+        final schema = SrmConfig.getEntityConfig(
+                widget.metier, widget.entityType)?['schema'] ??
+            '';
         data['${schema}_coor_z'] = widget.averageAltitude;
       }
 
@@ -535,7 +541,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         data['photo_$i'] = _photoPaths[i];
       }
 
-      data['id_projet'] = ApiService.currentProjetId;
       data['id_agent_crea'] = ApiService.userId;
       data['mode_localisation'] = 'gnss';
       data['synced'] = 0;
@@ -591,8 +596,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(label),
-            backgroundColor:
-                _isObjetIncomplet ? Colors.orange : Colors.green,
+            backgroundColor: _isObjetIncomplet ? Colors.orange : Colors.green,
           ),
         );
         Navigator.pop(context, true);
@@ -625,7 +629,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         field == 'ep_long_c' ||
         field == 'ep_long_r' ||
         field == 'long_troncon';
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     final label = _fieldLabel(field);
     final controller = _controllers[field]!;
     final isDisabled = _isLocked || _isObjetIncomplet;
@@ -751,7 +756,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
     if (normalized.isEmpty) {
       return rule.required ? 'Champ requis' : null;
@@ -797,7 +803,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   dynamic _normalizeFieldValue(String field, String value) {
     final normalized = value.trim();
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
     switch (rule.kind) {
       case SrmFieldKind.integer:
@@ -1032,9 +1039,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                   ),
                   DropdownMenuItem(value: 'Autre', child: Text('Autre')),
                 ],
-                onChanged: _isLocked
-                    ? null
-                    : (v) => setState(() => _typeAnomalie = v),
+                onChanged:
+                    _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
               ),
             ),
         ],

@@ -135,11 +135,11 @@ void _showLineDetailsSheetImpl(
   String? debutTravaux,
   String? finTravaux,
   String? financement,
-  String? projet,
   String? entreprise,
   Map<String, dynamic>? editableItem,
 }) {
-  String safe(String? value) => (value ?? '').trim().isEmpty ? '----' : value!.trim();
+  String safe(String? value) =>
+      (value ?? '').trim().isEmpty ? '----' : value!.trim();
 
   showModalBottomSheet(
     context: context,
@@ -173,7 +173,8 @@ void _showLineDetailsSheetImpl(
               const SizedBox(height: 12),
               Text(
                 'Ligne - ${safe(lineCode)}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
@@ -204,7 +205,8 @@ void _showLineDetailsSheetImpl(
                         'Fin',
                         'X=${endLng.toStringAsFixed(6)} / Y=${endLat.toStringAsFixed(6)}',
                       ),
-                      state._detailRow('Distance', '${distanceKm.toStringAsFixed(2)} km'),
+                      state._detailRow(
+                          'Distance', '${distanceKm.toStringAsFixed(2)} km'),
                       const Divider(),
                       state._detailRow('Plateforme', safe(plateforme)),
                       state._detailRow('Relief', safe(relief)),
@@ -212,7 +214,6 @@ void _showLineDetailsSheetImpl(
                       state._detailRow('Début travaux', safe(debutTravaux)),
                       state._detailRow('Fin travaux', safe(finTravaux)),
                       state._detailRow('Financement', safe(financement)),
-                      state._detailRow('Projet', safe(projet)),
                       state._detailRow('Entreprise', safe(entreprise)),
                     ],
                   ),
@@ -411,7 +412,6 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         debutTravaux: (data['work_start'] ?? '----').toString(),
         finTravaux: (data['work_end'] ?? '----').toString(),
         financement: (data['funding'] ?? '----').toString(),
-        projet: (data['project'] ?? '----').toString(),
         entreprise: (data['company'] ?? '----').toString(),
         editableItem: editableItem,
       );
@@ -457,9 +457,8 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
 void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
   if (hitValue == null || hitValue is! PolygonTapData) return;
   final data = hitValue;
-  final titlePrefix = data.entityType.trim().isEmpty
-      ? 'Polygone'
-      : data.entityType.trim();
+  final titlePrefix =
+      data.entityType.trim().isEmpty ? 'Polygone' : data.entityType.trim();
 
   showModalBottomSheet(
     context: state.context,
@@ -498,9 +497,12 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
               state._detailRow('Métier', data.metier),
             state._detailRow('Code', data.code),
             if (data.downloaded || data.synced) ...[
-              state._detailRow('Région', data.regionName.isEmpty ? '----' : data.regionName),
-              state._detailRow('Préfecture', data.prefectureName.isEmpty ? '----' : data.prefectureName),
-              state._detailRow('Commune', data.communeName.isEmpty ? '----' : data.communeName),
+              state._detailRow(
+                  'Région', data.regionName.isEmpty ? '----' : data.regionName),
+              state._detailRow('Préfecture',
+                  data.prefectureName.isEmpty ? '----' : data.prefectureName),
+              state._detailRow('Commune',
+                  data.communeName.isEmpty ? '----' : data.communeName),
             ],
             if (data.hasAnomalie)
               state._detailRow(
@@ -509,9 +511,9 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
                     ? data.typeAnomalie!
                     : 'Oui',
               ),
-            if (data.hasIncomplet)
-              state._detailRow('Objet incomplet', 'Oui'),
-            state._detailRow('Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
+            if (data.hasIncomplet) state._detailRow('Objet incomplet', 'Oui'),
+            state._detailRow(
+                'Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
             state._detailRow('Sommets', '${data.nbSommets} points'),
             state._detailRow(
               'Enquêteur',
@@ -755,7 +757,8 @@ Future<void> _editMapGeometryImpl(
   if (!state.mounted) return;
   ScaffoldMessenger.of(state.context).showSnackBar(
     const SnackBar(
-      content: Text('Édition géométrique disponible pour les points et lignes.'),
+      content:
+          Text('Édition géométrique disponible pour les points et lignes.'),
       backgroundColor: Colors.orange,
     ),
   );
@@ -827,9 +830,15 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
     if (altitude != null) {
       data['altitude_gps'] = altitude;
     }
-    if (xField.isNotEmpty) data[xField] = projected.x;
-    if (yField.isNotEmpty) data[yField] = projected.y;
-    if (zField.isNotEmpty && altitude != null) data[zField] = altitude;
+    if (xField.isNotEmpty) {
+      data[xField] = projected.x;
+    }
+    if (yField.isNotEmpty) {
+      data[yField] = projected.y;
+    }
+    if (zField.isNotEmpty && altitude != null) {
+      data[zField] = altitude;
+    }
 
     await DatabaseHelper().updateEntitySrm(
       tableName,
@@ -840,6 +849,7 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
 
     if (!state.mounted) return;
     await state._refreshAfterNavigation();
+    if (!state.mounted) return;
     ScaffoldMessenger.of(state.context).showSnackBar(
       const SnackBar(
         content: Text('Géométrie du point mise à jour.'),
@@ -865,7 +875,8 @@ Future<void> _startLineGeometryEditImpl(
       state.homeController.hasPausedCollection) {
     ScaffoldMessenger.of(state.context).showSnackBar(
       const SnackBar(
-        content: Text('Terminez ou annulez le tracé en cours avant de modifier cette ligne.'),
+        content: Text(
+            'Terminez ou annulez le tracé en cours avant de modifier cette ligne.'),
         backgroundColor: Colors.orange,
       ),
     );
@@ -876,10 +887,7 @@ Future<void> _startLineGeometryEditImpl(
   final entityType = item['source_entity']?.toString();
   final tableName = item['source_table']?.toString();
   final id = _dynamicToIntImpl(item['id']);
-  if (metier == null ||
-      entityType == null ||
-      tableName == null ||
-      id == null) {
+  if (metier == null || entityType == null || tableName == null || id == null) {
     return;
   }
 
@@ -901,11 +909,9 @@ Future<void> _startLineGeometryEditImpl(
   state._pendingSrmLigneSelection = null;
   state._ligneRedoPoints.clear();
 
-  final lineCode = (item['line_code'] ??
-          item['code'] ??
-          item['uuid'] ??
-          'geometry_edit_$id')
-      .toString();
+  final lineCode =
+      (item['line_code'] ?? item['code'] ?? item['uuid'] ?? 'geometry_edit_$id')
+          .toString();
   await state.homeController.restoreFinishedLigneAsPaused(
     id: id,
     lineCode: lineCode,

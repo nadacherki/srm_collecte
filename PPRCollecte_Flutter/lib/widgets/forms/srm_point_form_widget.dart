@@ -1,7 +1,8 @@
 // lib/widgets/forms/srm_point_form_widget.dart
 // ── SPRINT 5 : Formulaire dynamique SRM — entités ponctuelles ──
 // Fonctionne pour EP / ASS / ELEC selon srm_config.dart
-// Les photos photo_1..photo_4 sont portées directement par l'objet
+// Les photos photo_1..photo_4 restent locales avant upload; le serveur
+// centralise les references dans public.objet_photo.
 //
 // SPRINT 6 : Modifications
 //  1. uuid retiré du formulaire (généré automatiquement par Uuid().v4() dans _save)
@@ -26,8 +27,8 @@ import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
 
 class SrmPointFormWidget extends StatefulWidget {
-  final String metier;      // "Eau Potable" | "Assainissement" | "Électricité"
-  final String entityType;  // ex: "Vanne", "Regard ASS", "Support"
+  final String metier; // "Eau Potable" | "Assainissement" | "Électricité"
+  final String entityType; // ex: "Vanne", "Regard ASS", "Support"
   final double latitude;
   final double longitude;
   final double? altitude;
@@ -104,12 +105,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   @override
   void initState() {
     super.initState();
-    _entityConfig  = SrmConfig.getEntityConfig(widget.metier, widget.entityType);
-    _fields        = SrmConfig.getFields(widget.metier, widget.entityType);
-    _requiredFields = SrmConfig.getRequiredFields(widget.metier, widget.entityType); // NOUVEAU
-    _typeOptions   = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
-    _typeField     = _entityConfig?['typeField'] as String?;
-    _maxPhotos     = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
+    _entityConfig = SrmConfig.getEntityConfig(widget.metier, widget.entityType);
+    _fields = SrmConfig.getFields(widget.metier, widget.entityType);
+    _requiredFields = SrmConfig.getRequiredFields(
+        widget.metier, widget.entityType); // NOUVEAU
+    _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
+    _typeField = _entityConfig?['typeField'] as String?;
+    _maxPhotos = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
 
     final m = ProjectionService().wgs84ToMerchich(
       longitude: widget.longitude,
@@ -133,7 +135,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           widget.existingData!['anomalie_tamp']?.toString();
 
       // Restaurer état objet incomplet en mode édition
-      _isObjetIncomplet = _isTruthyFlag(widget.existingData!['objet_incomplet']);
+      _isObjetIncomplet =
+          _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
@@ -159,17 +162,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   void _prefillCoordinates() {
     final coordFields = {
-      'ep_coor_x':   _merchichX.toStringAsFixed(3),
-      'ep_coor_y':   _merchichY.toStringAsFixed(3),
-      'ass_coor_x':  _merchichX.toStringAsFixed(3),
-      'ass_coor_y':  _merchichY.toStringAsFixed(3),
+      'ep_coor_x': _merchichX.toStringAsFixed(3),
+      'ep_coor_y': _merchichY.toStringAsFixed(3),
+      'ass_coor_x': _merchichX.toStringAsFixed(3),
+      'ass_coor_y': _merchichY.toStringAsFixed(3),
       'elec_coor_x': _merchichX.toStringAsFixed(3),
       'elec_coor_y': _merchichY.toStringAsFixed(3),
     };
     if (widget.altitude != null) {
       final zStr = widget.altitude!.toStringAsFixed(3);
-      coordFields['ep_coor_z']   = zStr;
-      coordFields['ass_coor_z']  = zStr;
+      coordFields['ep_coor_z'] = zStr;
+      coordFields['ass_coor_z'] = zStr;
       coordFields['elec_coor_z'] = zStr;
     }
     for (final entry in coordFields.entries) {
@@ -385,7 +388,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
       return;
@@ -442,7 +446,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     if (!_isObjetIncomplet && !_formKey.currentState!.validate()) return;
     if (_isObjetIncomplet && _raisonIncomplet == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('⚠️ Veuillez sélectionner une raison pour l\'objet incomplet'),
+        content:
+            Text('⚠️ Veuillez sélectionner une raison pour l\'objet incomplet'),
         backgroundColor: Colors.orange,
       ));
       return;
@@ -459,27 +464,25 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       // UUID : toujours automatique, jamais saisi.
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
 
-      // ── Champs métier (ignorés si objet incomplet) ──
-      if (!_isObjetIncomplet) {
-        for (final field in _fields) {
-          final val = _controllers[field]?.text.trim();
-          if (val != null && val.isNotEmpty) {
-            data[field] = _normalizeFieldValue(field, val);
-          }
+      // Champs deja renseignes conserves meme si l'objet est incomplet.
+      for (final field in _fields) {
+        final val = _controllers[field]?.text.trim();
+        if (val != null && val.isNotEmpty) {
+          data[field] = _normalizeFieldValue(field, val);
         }
       }
 
       // ── Coordonnées GPS brutes (toujours sauvegardées) ──
-      data['latitude_gps']  = widget.latitude;
+      data['latitude_gps'] = widget.latitude;
       data['longitude_gps'] = widget.longitude;
       if (widget.altitude != null) data['altitude_gps'] = widget.altitude;
 
       // ── Coordonnées Merchich (toujours sauvegardées) ──
       // même si objet incomplet, on garde la position approximative
-      final xField = _fields.firstWhere(
-        (f) => f.endsWith('_coor_x'), orElse: () => '');
-      final yField = _fields.firstWhere(
-        (f) => f.endsWith('_coor_y'), orElse: () => '');
+      final xField =
+          _fields.firstWhere((f) => f.endsWith('_coor_x'), orElse: () => '');
+      final yField =
+          _fields.firstWhere((f) => f.endsWith('_coor_y'), orElse: () => '');
       if (xField.isNotEmpty) data[xField] = _merchichX.toStringAsFixed(3);
       if (yField.isNotEmpty) data[yField] = _merchichY.toStringAsFixed(3);
 
@@ -524,7 +527,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       }
 
       // ── Clés étrangères (injectées automatiquement) ──
-      data['id_projet'] = ApiService.currentProjetId;
       data['id_agent_crea'] = ApiService.userId;
       if (!_isEpRegardPoint) {
         data['mode_localisation'] = 'gnss';
@@ -587,8 +589,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             : '✅ ${widget.entityType} enregistré';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(label),
-          backgroundColor:
-              _isObjetIncomplet ? Colors.orange : Colors.green,
+          backgroundColor: _isObjetIncomplet ? Colors.orange : Colors.green,
         ));
         widget.onSaved();
       }
@@ -615,12 +616,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       return const SizedBox.shrink();
     }
 
-    final isCoord    = _isCoordField(field);
+    final isCoord = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     final isRequired =
         !isCoord && (_requiredFields.contains(field) || rule.required);
-    final label      = _fieldLabel(field);
+    final label = _fieldLabel(field);
     final controller = _controllers[field]!;
 
     // ── NOUVEAU : grisage si objet incomplet activé ──
@@ -670,7 +672,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(
           controller: controller,
-          decoration: _deco(label, required: isRequired && !_isLocked && !_isObjetIncomplet).copyWith(
+          decoration: _deco(label,
+                  required: isRequired && !_isLocked && !_isObjetIncomplet)
+              .copyWith(
             filled: fieldIsReadOnly,
             fillColor: fieldIsReadOnly ? Colors.grey.shade50 : null,
           ),
@@ -679,8 +683,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           maxLength: rule.maxLength,
           inputFormatters: _inputFormatters(rule),
           readOnly: fieldIsReadOnly,
-          validator: (value) =>
-              (_isObjetIncomplet || _isLocked) ? null : _validateField(field, value),
+          validator: (value) => (_isObjetIncomplet || _isLocked)
+              ? null
+              : _validateField(field, value),
         ),
       );
     }
@@ -756,7 +761,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
     if (normalized.isEmpty) {
       return rule.required || _requiredFields.contains(field)
@@ -804,7 +810,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   dynamic _normalizeFieldValue(String field, String value) {
     final normalized = value.trim();
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
     switch (rule.kind) {
       case SrmFieldKind.integer:
@@ -914,8 +921,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       children: [
         const Divider(height: 24),
         Text('Photos (max $_maxPhotos)',
-            style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 8),
         Text(
           'Formats autorisés: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
@@ -966,8 +972,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                           onTap: () => _removePhoto(idx),
                           child: Container(
                             decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle),
+                                color: Colors.red, shape: BoxShape.circle),
                             child: const Icon(Icons.close,
                                 color: Colors.white, size: 14),
                           ),
@@ -1013,15 +1018,22 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 decoration: _deco('Type d\'anomalie'),
                 hint: const Text('Sélectionner'),
                 items: const [
-                  DropdownMenuItem(value: 'Fuite',           child: Text('Fuite')),
-                  DropdownMenuItem(value: 'Corrosion',       child: Text('Corrosion')),
-                  DropdownMenuItem(value: 'Obstruction',     child: Text('Obstruction')),
-                  DropdownMenuItem(value: 'Dommage physique',child: Text('Dommage physique')),
-                  DropdownMenuItem(value: 'Dysfonctionnement',child: Text('Dysfonctionnement')),
-                  DropdownMenuItem(value: 'Absent',          child: Text('Absent')),
-                  DropdownMenuItem(value: 'Autre',           child: Text('Autre')),
+                  DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
+                  DropdownMenuItem(
+                      value: 'Corrosion', child: Text('Corrosion')),
+                  DropdownMenuItem(
+                      value: 'Obstruction', child: Text('Obstruction')),
+                  DropdownMenuItem(
+                      value: 'Dommage physique',
+                      child: Text('Dommage physique')),
+                  DropdownMenuItem(
+                      value: 'Dysfonctionnement',
+                      child: Text('Dysfonctionnement')),
+                  DropdownMenuItem(value: 'Absent', child: Text('Absent')),
+                  DropdownMenuItem(value: 'Autre', child: Text('Autre')),
                 ],
-                onChanged: _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
+                onChanged:
+                    _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
               ),
             ),
         ],
@@ -1100,8 +1112,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             isExpanded: true,
             items: const [
               DropdownMenuItem(
-                  value: 'ACCES_BLOQUE',
-                  child: Text('Accès bloqué')),
+                  value: 'ACCES_BLOQUE', child: Text('Accès bloqué')),
               DropdownMenuItem(
                   value: 'VEHICULE_STATIONNE',
                   child: Text('Véhicule stationné sur la voie')),
@@ -1111,16 +1122,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
               DropdownMenuItem(
                   value: 'CONDITIONS_METEO',
                   child: Text('Conditions météo défavorables')),
-              DropdownMenuItem(
-                  value: 'DANGER',
-                  child: Text('Danger sur site')),
-              DropdownMenuItem(
-                  value: 'AUTRE',
-                  child: Text('Autre raison')),
+              DropdownMenuItem(value: 'DANGER', child: Text('Danger sur site')),
+              DropdownMenuItem(value: 'AUTRE', child: Text('Autre raison')),
             ],
             onChanged: (v) => setState(() => _raisonIncomplet = v),
-            validator: (v) =>
-                (v == null) ? 'Raison obligatoire *' : null,
+            validator: (v) => (v == null) ? 'Raison obligatoire *' : null,
           ),
 
           const SizedBox(height: 10),
@@ -1155,225 +1161,230 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         if (widget.existingData == null) await saveDraftBeforeExit();
       },
       child: Scaffold(
-      appBar: AppBar(
-        backgroundColor: _isLocked
-            ? Colors.grey.shade700
-            : (_isObjetIncomplet ? Colors.orange : _metierColor),
-        foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(widget.entityType,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-                if (_isLocked) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(4),
+        appBar: AppBar(
+          backgroundColor: _isLocked
+              ? Colors.grey.shade700
+              : (_isObjetIncomplet ? Colors.orange : _metierColor),
+          foregroundColor: Colors.white,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(widget.entityType,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  if (_isLocked) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline,
+                              size: 10, color: Colors.white),
+                          SizedBox(width: 3),
+                          Text('VERROUILLÉ',
+                              style: TextStyle(
+                                  fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.lock_outline, size: 10, color: Colors.white),
-                        SizedBox(width: 3),
-                        Text('VERROUILLÉ',
-                            style: TextStyle(
-                                fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
+                  ],
+                  if (_isObjetIncomplet && !_isLocked) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('INCOMPLET',
+                          style: TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
-                  ),
+                  ],
                 ],
-                if (_isObjetIncomplet && !_isLocked) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text('INCOMPLET',
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ],
-            ),
-            Text(widget.metier,
-                style:
-                    const TextStyle(fontSize: 12, color: Colors.white70)),
+              ),
+              Text(widget.metier,
+                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ],
+          ),
+          actions: [
+            if (_isSaving)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2)),
+              )
+            else if (!_isLocked)
+              IconButton(
+                  icon: const Icon(Icons.check),
+                  tooltip: 'Enregistrer',
+                  onPressed: _save)
+            else
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Icon(Icons.lock_outline, color: Colors.white70),
+              ),
           ],
         ),
-        actions: [
-          if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2)),
-            )
-          else if (!_isLocked)
-            IconButton(
-                icon: const Icon(Icons.check),
-                tooltip: 'Enregistrer',
-                onPressed: _save)
-          else
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Icon(Icons.lock_outline, color: Colors.white70),
-            ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (_isLocked)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade400),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.lock_outline, color: Colors.grey.shade600, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        FormLockService.lockReason(widget.existingData!),
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                          fontStyle: FontStyle.italic,
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (_isLocked)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade400),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_outline,
+                          color: Colors.grey.shade600, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          FormLockService.lockReason(widget.existingData!),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            // Bandeau GPS
-            Container(
-              padding: const EdgeInsets.all(10),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: _metierColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _metierColor.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Icon(Icons.gps_fixed, size: 14, color: _metierColor),
-                    const SizedBox(width: 6),
-                    Text('Position collectée',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _metierColor,
-                            fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Lat: ${widget.latitude.toStringAsFixed(7)}  '
-                    'Lon: ${widget.longitude.toStringAsFixed(7)}',
-                    style: const TextStyle(
-                        fontSize: 11, fontFamily: 'monospace'),
-                  ),
-                  Text(
-                    'X: ${_merchichX.toStringAsFixed(3)} m  '
-                    'Y: ${_merchichY.toStringAsFixed(3)} m'
-                    '${widget.altitude != null ? "  Z: ${widget.altitude!.toStringAsFixed(3)} m" : ""}',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: _metierColor,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Légende champs obligatoires ──
-            if (_requiredFields.isNotEmpty && !_isObjetIncomplet && !_isLocked)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: Row(
+              // Bandeau GPS
+              Container(
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: _metierColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: _metierColor.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(' * ', style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13)),
-                    Text('Champ obligatoire',
-                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    Row(children: [
+                      Icon(Icons.gps_fixed, size: 14, color: _metierColor),
+                      const SizedBox(width: 6),
+                      Text('Position collectée',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _metierColor,
+                              fontSize: 13)),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Lat: ${widget.latitude.toStringAsFixed(7)}  '
+                      'Lon: ${widget.longitude.toStringAsFixed(7)}',
+                      style: const TextStyle(
+                          fontSize: 11, fontFamily: 'monospace'),
+                    ),
+                    Text(
+                      'X: ${_merchichX.toStringAsFixed(3)} m  '
+                      'Y: ${_merchichY.toStringAsFixed(3)} m'
+                      '${widget.altitude != null ? "  Z: ${widget.altitude!.toStringAsFixed(3)} m" : ""}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: _metierColor,
+                          fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
               ),
 
-            // Champs dynamiques
-            ..._fields.map(_buildField),
-
-            // Sections anomalie + incomplet
-            _buildAnomalieSection(),
-            if (!_isLocked) _buildObjetIncompletSection(),
-            _buildPhotoSection(),
-
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: widget.onCancel,
-                    child: const Text('Fermer'),
+              // ── Légende champs obligatoires ──
+              if (_requiredFields.isNotEmpty &&
+                  !_isObjetIncomplet &&
+                  !_isLocked)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Text(' * ',
+                          style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
+                      Text('Champ obligatoire',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
                   ),
                 ),
-                if (!_isLocked) ...[
-                  const SizedBox(width: 12),
+
+              // Champs dynamiques
+              ..._fields.map(_buildField),
+
+              // Sections anomalie + incomplet
+              _buildAnomalieSection(),
+              if (!_isLocked) _buildObjetIncompletSection(),
+              _buildPhotoSection(),
+
+              const SizedBox(height: 24),
+
+              Row(
+                children: [
                   Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            _isObjetIncomplet ? Colors.orange : _metierColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      icon: _isSaving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : Icon(_isObjetIncomplet
-                              ? Icons.warning_amber_rounded
-                              : Icons.save),
-                      label: Text(_isSaving
-                          ? 'Enregistrement...'
-                          : _isObjetIncomplet
-                              ? 'Signaler incomplet'
-                              : 'Enregistrer'),
+                    child: OutlinedButton(
+                      onPressed: widget.onCancel,
+                      child: const Text('Fermer'),
                     ),
                   ),
+                  if (!_isLocked) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _isObjetIncomplet ? Colors.orange : _metierColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : Icon(_isObjetIncomplet
+                                ? Icons.warning_amber_rounded
+                                : Icons.save),
+                        label: Text(_isSaving
+                            ? 'Enregistrement...'
+                            : _isObjetIncomplet
+                                ? 'Signaler incomplet'
+                                : 'Enregistrer'),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-            const SizedBox(height: 32),
-          ],
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

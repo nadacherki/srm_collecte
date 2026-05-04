@@ -1,0 +1,14 @@
+{
+  "SRM": [
+    {
+      "schema": "public",
+      "table": "historique_attribut",
+      "column": "ancienne_valeur",
+      "count": 1,
+      "samples": [
+        ".?"
+      ]
+    }
+  ],
+  "SRM_bureau": []
+}

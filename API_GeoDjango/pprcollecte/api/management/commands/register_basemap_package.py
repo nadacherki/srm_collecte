@@ -11,7 +11,7 @@ from api.basemap_utils import (
     read_mbtiles_metadata,
     read_mbtiles_tile_stats,
 )
-from api.models import BasemapPackage, BasemapZone
+from api.models import BasemapPackage, Zone
 
 
 class Command(BaseCommand):
@@ -57,7 +57,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         zone_id = str(options["zone_id"]).strip()
-        zone = BasemapZone.objects.filter(zone_id=zone_id).first()
+        zone = self._resolve_zone(zone_id)
         if zone is None:
             raise CommandError(f"Zone inconnue: {zone_id}")
 
@@ -116,7 +116,7 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             basemap_package, created = BasemapPackage.objects.update_or_create(
-                zone_id=zone.zone_id,
+                id_zone=zone.id_zone,
                 style=defaults["style"],
                 version=defaults["version"],
                 defaults=defaults,
@@ -134,10 +134,20 @@ class Command(BaseCommand):
         self.stdout.write(f"Chemin média: {relative_path.as_posix()}")
         self.stdout.write(f"SHA256: {sha256}")
 
+    def _resolve_zone(self, zone_id: str) -> Zone | None:
+        raw = zone_id.strip()
+        if raw.startswith("zone_"):
+            raw = raw[5:]
+        try:
+            id_zone = int(raw)
+        except ValueError:
+            return None
+        return Zone.objects.filter(id_zone=id_zone).first()
+
     def _resolve_target_path(
         self,
         *,
-        zone: BasemapZone,
+        zone: Zone,
         file_path: Path,
         style: str,
         version: str,

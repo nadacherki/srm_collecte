@@ -1,11 +1,10 @@
-﻿// lib/screens/data/srm_data_status_page.dart
+// lib/screens/data/srm_data_status_page.dart
 // Sprint 6 : Liste donnees SRM + filtration avancee
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
-import '../../data/remote/api_service.dart';
 import '../../services/projection_service.dart';
 import '../../widgets/lists/data_list_view.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
@@ -46,12 +45,16 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
         if (rawPoints is String) {
           return RegExp(
             r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
-          ).allMatches(rawPoints).map((match) {
-            final lat = double.tryParse(match.group(1) ?? '');
-            final lon = double.tryParse(match.group(2) ?? '');
-            if (lat == null || lon == null) return null;
-            return LatLng(lat, lon);
-          }).whereType<LatLng>().toList();
+          )
+              .allMatches(rawPoints)
+              .map((match) {
+                final lat = double.tryParse(match.group(1) ?? '');
+                final lon = double.tryParse(match.group(2) ?? '');
+                if (lat == null || lon == null) return null;
+                return LatLng(lat, lon);
+              })
+              .whereType<LatLng>()
+              .toList();
         }
         return const [];
       }
@@ -77,12 +80,16 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       if (rawPoints is! String) return const [];
       return RegExp(
         r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
-      ).allMatches(rawPoints).map((match) {
-        final lat = double.tryParse(match.group(1) ?? '');
-        final lon = double.tryParse(match.group(2) ?? '');
-        if (lat == null || lon == null) return null;
-        return LatLng(lat, lon);
-      }).whereType<LatLng>().toList();
+      )
+          .allMatches(rawPoints)
+          .map((match) {
+            final lat = double.tryParse(match.group(1) ?? '');
+            final lon = double.tryParse(match.group(2) ?? '');
+            if (lat == null || lon == null) return null;
+            return LatLng(lat, lon);
+          })
+          .whereType<LatLng>()
+          .toList();
     }
   }
 
@@ -243,9 +250,9 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   }
 
   // Filtres actifs
-  String? _filterMetier;       // null = tous
-  String? _filterGeometrie;    // 'Point' | 'LineString' | 'Polygon' | null
-  String? _filterEntite;       // nom entite, null = tous
+  String? _filterMetier; // null = tous
+  String? _filterGeometrie; // 'Point' | 'LineString' | 'Polygon' | null
+  String? _filterEntite; // nom entite, null = tous
   DateTimeRange? _filterDateRange;
   bool _filtersVisible = false;
 
@@ -286,9 +293,6 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   }
 
   bool _matchesCurrentContext(Map<String, dynamic> item) {
-    final currentProjetId = ApiService.currentProjetId;
-    final rowProjetId = _toInt(item['id_projet']);
-    if (currentProjetId != null && rowProjetId != currentProjetId) return false;
     return true;
   }
 
@@ -301,7 +305,9 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
     switch (widget.dataFilter) {
       case 'unsynced':
-        return !synced && !downloaded && (loginId == null || creatorId == loginId);
+        return !synced &&
+            !downloaded &&
+            (loginId == null || creatorId == loginId);
       case 'synced':
         if (loginId == null) {
           return synced && !downloaded;
@@ -319,9 +325,18 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
   String _buildDisplayTitle(String entity, Map<String, dynamic> row) {
     const preferredKeys = [
-      'nom', 'code', 'ep_num', 'reference', 'type',
-      'type_objet', 'type_regard', 'type_conduite', 'type_station',
-      'type_poste', 'type_support', 'type_bassin',
+      'nom',
+      'code',
+      'ep_num',
+      'reference',
+      'type',
+      'type_objet',
+      'type_regard',
+      'type_conduite',
+      'type_station',
+      'type_poste',
+      'type_support',
+      'type_bassin',
     ];
     for (final key in preferredKeys) {
       final raw = row[key]?.toString().trim();
@@ -426,10 +441,9 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       result = result.where((item) {
         final d = _sortDateFor(item);
         if (d == null) return false;
-        return d.isAfter(_filterDateRange!.start
-                .subtract(const Duration(seconds: 1))) &&
-            d.isBefore(
-                _filterDateRange!.end.add(const Duration(days: 1)));
+        return d.isAfter(
+                _filterDateRange!.start.subtract(const Duration(seconds: 1))) &&
+            d.isBefore(_filterDateRange!.end.add(const Duration(days: 1)));
       }).toList();
     }
 
@@ -442,8 +456,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       _entitesDisponibles = [];
       _filterEntite = null;
     } else {
-      _entitesDisponibles =
-          SrmConfig.getEntitiesForMetier(_filterMetier!);
+      _entitesDisponibles = SrmConfig.getEntitiesForMetier(_filterMetier!);
       if (!_entitesDisponibles.contains(_filterEntite)) {
         _filterEntite = null;
       }
@@ -595,7 +608,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     final isFiltered = _activeFiltersCount > 0;
 
     return Container(
-      color: const Color(0xFF1976D2).withOpacity(0.08),
+      color: const Color(0xFF1976D2).withValues(alpha: 0.08),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
@@ -620,8 +633,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             TextButton.icon(
               onPressed: _resetFilters,
               icon: const Icon(Icons.clear, size: 14),
-              label: const Text('Réinitialiser',
-                  style: TextStyle(fontSize: 12)),
+              label:
+                  const Text('Réinitialiser', style: TextStyle(fontSize: 12)),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.red,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -640,7 +653,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -727,7 +740,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             borderRadius: BorderRadius.circular(8),
             color: _filterMetier != null
                 ? Color(SrmConfig.getMetierColor(_filterMetier!))
-                    .withOpacity(0.06)
+                    .withValues(alpha: 0.06)
                 : Colors.white,
           ),
           child: DropdownButtonHideUnderline(
@@ -740,8 +753,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('Tous les métiers',
-                      style: TextStyle(fontSize: 13)),
+                  child:
+                      Text('Tous les métiers', style: TextStyle(fontSize: 13)),
                 ),
                 ..._metiers.map((m) => DropdownMenuItem<String>(
                       value: m,
@@ -756,8 +769,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(m,
-                              style: const TextStyle(fontSize: 13)),
+                          Text(m, style: const TextStyle(fontSize: 13)),
                         ],
                       ),
                     )),
@@ -801,7 +813,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             ),
             borderRadius: BorderRadius.circular(8),
             color: _filterGeometrie != null
-                ? const Color(0xFF8E44AD).withOpacity(0.06)
+                ? const Color(0xFF8E44AD).withValues(alpha: 0.06)
                 : Colors.white,
           ),
           child: DropdownButtonHideUnderline(
@@ -814,14 +826,14 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('Tous les types',
-                      style: TextStyle(fontSize: 13)),
+                  child: Text('Tous les types', style: TextStyle(fontSize: 13)),
                 ),
                 ...geoOptions.entries.map((e) => DropdownMenuItem<String>(
                       value: e.key,
                       child: Row(
                         children: [
-                          Icon(e.value, size: 16, color: const Color(0xFF8E44AD)),
+                          Icon(e.value,
+                              size: 16, color: const Color(0xFF8E44AD)),
                           const SizedBox(width: 6),
                           Text(
                             e.key == 'LineString' ? 'Ligne' : e.key,
@@ -863,7 +875,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             ),
             borderRadius: BorderRadius.circular(8),
             color: _filterEntite != null
-                ? const Color(0xFF1976D2).withOpacity(0.06)
+                ? const Color(0xFF1976D2).withValues(alpha: 0.06)
                 : Colors.white,
           ),
           child: DropdownButtonHideUnderline(
@@ -876,8 +888,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('Tous les types',
-                      style: TextStyle(fontSize: 13)),
+                  child: Text('Tous les types', style: TextStyle(fontSize: 13)),
                 ),
                 ..._entitesDisponibles.map((e) => DropdownMenuItem<String>(
                       value: e,
@@ -911,7 +922,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
           ),
           borderRadius: BorderRadius.circular(8),
           color: hasDate
-              ? const Color(0xFFE74C3C).withOpacity(0.06)
+              ? const Color(0xFFE74C3C).withValues(alpha: 0.06)
               : Colors.white,
         ),
         child: Row(
@@ -919,9 +930,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             Icon(
               Icons.date_range,
               size: 18,
-              color: hasDate
-                  ? const Color(0xFFE74C3C)
-                  : const Color(0xFF666666),
+              color:
+                  hasDate ? const Color(0xFFE74C3C) : const Color(0xFF666666),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -931,12 +941,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                     : 'Filtrer par date de collecte',
                 style: TextStyle(
                   fontSize: 13,
-                  color: hasDate
-                      ? const Color(0xFFE74C3C)
-                      : Colors.grey,
-                  fontWeight: hasDate
-                      ? FontWeight.w600
-                      : FontWeight.normal,
+                  color: hasDate ? const Color(0xFFE74C3C) : Colors.grey,
+                  fontWeight: hasDate ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
@@ -948,8 +954,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                     _applyFilters();
                   });
                 },
-                child: const Icon(Icons.clear,
-                    size: 16, color: Color(0xFFE74C3C)),
+                child:
+                    const Icon(Icons.clear, size: 16, color: Color(0xFFE74C3C)),
               ),
           ],
         ),
@@ -960,4 +966,3 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
-

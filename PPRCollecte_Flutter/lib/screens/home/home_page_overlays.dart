@@ -15,8 +15,8 @@ Future<void> _loadDownloadedSpecialLinesImpl(_HomePageState state) async {
 Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
   debugPrint('[LINE-DOWNLOAD] chargement des polylignes téléchargées');
   try {
-    final polylines = await state._downloadedLinesService
-        .getDownloadedLinesPolylines(
+    final polylines =
+        await state._downloadedLinesService.getDownloadedLinesPolylines(
       onTapDetails: (data) {
         state._showLineDetailsSheet(
           context: state.context,
@@ -64,8 +64,8 @@ double _haversineMetersImpl(LatLng a, LatLng b) {
   final sinDLat = math.sin(dLat / 2);
   final sinDLng = math.sin(dLng / 2);
 
-  final h = sinDLat * sinDLat +
-      math.cos(lat1) * math.cos(lat2) * sinDLng * sinDLng;
+  final h =
+      sinDLat * sinDLat + math.cos(lat1) * math.cos(lat2) * sinDLng * sinDLng;
   final c = 2 * math.asin(math.min(1.0, math.sqrt(h)));
   return earthRadiusMeters * c;
 }
@@ -119,20 +119,24 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
         );
       },
       onPolylineCreated: (tableName, metier, polyline) {
-        srmLinesByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+        srmLinesByTable
+            .putIfAbsent(tableName, () => <Polyline>[])
+            .add(polyline);
         final hitValue = polyline.hitValue;
         if (hitValue is PolylineTapData) {
           final data = hitValue.data;
-          final hasAnomalie =
-              data['anomalie'] == true || data['anomalie'] == 1;
+          final hasAnomalie = data['anomalie'] == true || data['anomalie'] == 1;
           final hasIncomplet =
-              data['objet_incomplet'] == true ||
-              data['objet_incomplet'] == 1;
+              data['objet_incomplet'] == true || data['objet_incomplet'] == 1;
           if (hasAnomalie) {
-            anomalieByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+            anomalieByTable
+                .putIfAbsent(tableName, () => <Polyline>[])
+                .add(polyline);
           }
           if (hasIncomplet) {
-            incompletByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+            incompletByTable
+                .putIfAbsent(tableName, () => <Polyline>[])
+                .add(polyline);
           }
         }
       },
@@ -175,7 +179,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       return isTruthy(row['objet_incomplet']);
     }
 
-    Polygon _buildPolygon({
+    Polygon buildPolygon({
       required List<LatLng> points,
       required Color baseColor,
       required PolygonTapData hitValue,
@@ -215,7 +219,8 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     if (polygonTables.isNotEmpty) {
       final genericPolygons = await db.query(
         'enquete_polygone',
-        where: loginId == null ? null : '(login_id = ? OR saved_by_user_id = ?)',
+        where:
+            loginId == null ? null : '(login_id = ? OR saved_by_user_id = ?)',
         whereArgs: loginId == null ? null : [loginId, loginId],
       );
 
@@ -226,7 +231,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
         final hasIncomplet = hasRowIncomplet(poly);
 
         mapPolygons.add(
-          _buildPolygon(
+          buildPolygon(
             points: points,
             baseColor: const Color(0xFF2E7D32),
             hasAnomalie: hasAnomalie,
@@ -236,8 +241,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
               code: poly['code']?.toString() ??
                   poly['line_code']?.toString() ??
                   '----',
-              entityType:
-                  poly['entity_type']?.toString() ?? 'Zone de Plaine',
+              entityType: poly['entity_type']?.toString() ?? 'Zone de Plaine',
               metier: poly['metier']?.toString() ?? '',
               superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
                   (poly['superficie_en_ha'] as num?)?.toDouble() ??
@@ -282,11 +286,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             'id_user_creat',
           ];
 
-          if (ApiService.currentProjetId != null &&
-              availableColumns.contains('id_projet')) {
-            filters.add('id_projet = ?');
-            args.add(ApiService.currentProjetId);
-          } else if (loginId != null) {
+          if (loginId != null) {
             for (final column in userFilterColumns) {
               if (availableColumns.contains(column)) {
                 filters.add('$column = ?');
@@ -312,7 +312,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             editableItem['source_entity'] = entity;
             editableItem['geometry_type'] = 'Polygon';
 
-            final polygon = _buildPolygon(
+            final polygon = buildPolygon(
               points: points,
               baseColor: Color(SrmConfig.getMetierColor(metier)),
               hasAnomalie: hasAnomalie,
@@ -332,9 +332,8 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
                     (poly['superficie_en_ha'] as num?)?.toDouble() ??
                     0.0,
                 nbSommets: points.length,
-                enqueteur: poly['enqueteur']?.toString() ??
-                    ApiService.nomPrenom ??
-                    '',
+                enqueteur:
+                    poly['enqueteur']?.toString() ?? ApiService.nomPrenom ?? '',
                 dateCreation: poly['date_collecte']?.toString() ??
                     poly['date_creation']?.toString() ??
                     '----',
@@ -365,9 +364,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     }
 
     final dbHelper = DatabaseHelper();
-    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache(
-      projetId: ApiService.currentProjetId,
-    );
+    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache();
     final regardMiroirRows = <Map<String, dynamic>>[
       ...cachedRegardMiroirRows,
     ];
@@ -407,7 +404,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
 
         final hasAnomalie = hasRowAnomalie(poly);
         final hasIncomplet = hasRowIncomplet(poly);
-        final polygon = _buildPolygon(
+        final polygon = buildPolygon(
           points: points,
           baseColor: const Color(0xFF2E7D32),
           hasAnomalie: hasAnomalie,
@@ -431,9 +428,8 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
                 (poly['superficie_en_ha'] as num?)?.toDouble() ??
                 0.0,
             nbSommets: points.length,
-            enqueteur: poly['enqueteur']?.toString() ??
-                ApiService.nomPrenom ??
-                '',
+            enqueteur:
+                poly['enqueteur']?.toString() ?? ApiService.nomPrenom ?? '',
             dateCreation: poly['date_collecte']?.toString() ??
                 poly['date_creation']?.toString() ??
                 '----',
@@ -484,7 +480,8 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
           state._pendingPolygonPreviewPoints = null;
         }
       });
-      debugPrint('[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
+      debugPrint(
+          '[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
     }
   } catch (e) {
     debugPrint('[POLYGONE] Error loading polygons: $e');
@@ -506,9 +503,7 @@ Map<String, dynamic>? _buildLocalRegardMiroirRowImpl(
   return {
     ...regard,
     'points_json': jsonEncode(
-      points
-          .map((point) => <double>[point.longitude, point.latitude])
-          .toList(),
+      points.map((point) => <double>[point.longitude, point.latitude]).toList(),
     ),
     'fid_regard_source': regard['fid'] ?? regard['id'],
     'downloaded': regard['downloaded'] ?? 0,
@@ -561,7 +556,8 @@ List<LatLng> _extractPolygonPointsImpl(dynamic rawPoints) {
   if (rawPoints == null) return [];
 
   try {
-    final dynamic decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
+    final dynamic decoded =
+        rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
     if (decoded is! List) return [];
 
     final points = <LatLng>[];
@@ -648,7 +644,7 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
           lat: (data['lat'] as num).toDouble(),
           lng: (data['lng'] as num).toDouble(),
           statut: (data['synced'].toString() == '1')
-            ? 'Synchronisée'
+              ? 'Synchronisée'
               : 'Enregistrée localement',
           editableItem: _editableItemFromDynamicImpl(data['existing_item']),
         );
@@ -789,11 +785,7 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
         final filters = <String>[];
         final args = <dynamic>[];
 
-        if (ApiService.currentProjetId != null &&
-            availableColumns.contains('id_projet')) {
-          filters.add('id_projet = ?');
-          args.add(ApiService.currentProjetId);
-        } else if (loginId != null) {
+        if (loginId != null) {
           for (final column in [
             'id_agent_crea',
             'saved_by_user_id',
@@ -836,9 +828,7 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
     }
 
     final dbHelper = DatabaseHelper();
-    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache(
-      projetId: ApiService.currentProjetId,
-    );
+    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache();
     final regardMiroirRows = <Map<String, dynamic>>[
       ...cachedRegardMiroirRows,
     ];
@@ -930,7 +920,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
       String piDebutTravaux = '';
       String piFinTravaux = '';
       String piFinancement = '';
-      String piProjet = '';
       String piEntreprise = '';
       try {
         final lineDb = await LineStorageHelper().database;
@@ -947,7 +936,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
             'work_start',
             'work_end',
             'funding',
-            'project',
             'company',
             'user_login',
           ],
@@ -967,7 +955,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
           piDebutTravaux = (lineRows.first['work_start'] ?? '').toString();
           piFinTravaux = (lineRows.first['work_end'] ?? '').toString();
           piFinancement = (lineRows.first['funding'] ?? '').toString();
-          piProjet = (lineRows.first['project'] ?? '').toString();
           piEntreprise = (lineRows.first['company'] ?? '').toString();
         }
       } catch (_) {}
@@ -994,7 +981,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
               'work_start': piDebutTravaux,
               'work_end': piFinTravaux,
               'funding': piFinancement,
-              'project': piProjet,
               'company': piEntreprise,
               'synced': piSynced,
               'region_name': piRegion,

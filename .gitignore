@@ -9,6 +9,11 @@ Thumbs.db
 # Python global
 *.pyc
 __pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Env files (SECRETS — NE JAMAIS COMMITER)
 .env
@@ -28,11 +33,16 @@ key.properties
 # Virtual env
 **/env/
 **/venv/
+**/.venv/
 srmenv/
 
 # Database dumps (trop lourds pour Git)
 *.dump
 *.backup
+*.bak
+*.sqlite
+*.sqlite3
+*.db
 *.sql
 !API_GeoDjango/sql/*.sql
 
@@ -41,6 +51,17 @@ API_GeoDjango/pprcollecte/media/
 
 # Local basemap scratch / downloads
 bbbike_extract_page.html
+backups/
+*.osm
+*.pbf
+*.mbtiles
+*.pmtiles
+
+# Mobile build artifacts
+*.apk
+*.aab
+*.ipa
+*.app
 
 # Local scratch / generated diagnostics
 _tmp/

@@ -1,8 +1,6 @@
-﻿// lib/screens/auth/login_page.dart
+// lib/screens/auth/login_page.dart
 // Login SRM : navigation directe vers HomePage apres connexion
-// Plus de ProjectSelectionPage : le projet actif est charge depuis
-// utilisateur.id_projet_actif au login. La date de collecte est
-// automatiquement enregistree a chaque objet cree (DateTime.now()).
+// La date de collecte est automatiquement enregistree a chaque objet cree.
 
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -41,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
         citySlug: BasemapConstants.catalogCitySlug,
       );
     } catch (e) {
-      print('[BASEMAP-CATALOG] Couverture offline ignoree au login: $e');
+      debugPrint('[BASEMAP-CATALOG] Couverture offline ignoree au login: $e');
     }
   }
 
@@ -49,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await SrmFieldOptionService().refreshOptions();
     } catch (e) {
-      print('[SRM-FIELD-OPTIONS] Sync ignoree au login: $e');
+      debugPrint('[SRM-FIELD-OPTIONS] Sync ignoree au login: $e');
     }
   }
 
@@ -57,7 +55,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await CommuneSyncService().refreshCommunes();
     } catch (e) {
-      print('[COMMUNES] Sync ignoree au login: $e');
+      debugPrint('[COMMUNES] Sync ignoree au login: $e');
     }
   }
 
@@ -120,24 +118,13 @@ class _LoginPageState extends State<LoginPage> {
             ? rawUserId
             : int.tryParse(rawUserId?.toString() ?? '');
         ApiService.userLogin = user['login'] as String?;
-        ApiService.nomPrenom = user['nom_prenom'] as String?;
-        ApiService.userRole  = user['role'] as String?;
+        ApiService.userNom = user['nom']?.toString();
+        ApiService.userPrenom = user['prenom']?.toString();
+        ApiService.nomPrenom = DatabaseHelper.fullNameFromUserRow(user);
+        ApiService.userRole = user['role'] as String?;
 
-        final projetId = user['id_projet_actif'];
-        if (projetId != null) {
-          ApiService.currentProjetId = projetId is int
-              ? projetId
-              : int.tryParse(projetId.toString());
-          final projet = await DatabaseHelper()
-              .getProjetLocal(ApiService.currentProjetId!);
-          if (projet != null) {
-            ApiService.currentProjetNom    = projet['nom'] as String?;
-            ApiService.currentProjetStatut = projet['statut'] as String?;
-            ApiService.currentProjetMetier = projet['metier'] as String?;
-          }
-        }
-        print(
-          '[LOGIN] ApiService restore (offline): userId=${ApiService.userId} projet=${ApiService.currentProjetId}',
+        debugPrint(
+          '[LOGIN] ApiService restore (offline): userId=${ApiService.userId}',
         );
       }
 
@@ -163,7 +150,8 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Mode hors-ligne : identifiants introuvables localement.'),
+          content:
+              Text('Mode hors-ligne : identifiants introuvables localement.'),
         ),
       );
     }
@@ -172,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final login    = loginController.text.trim();
+    final login = loginController.text.trim();
     final password = passwordController.text;
 
     setState(() => _isLoading = true);
@@ -193,25 +181,13 @@ class _LoginPageState extends State<LoginPage> {
       final passwordHash = await PasswordHashService.hashPassword(password);
 
       await dbHelper.upsertUserSrm(
-        login:         login,
+        login: login,
         motDePasseHash: passwordHash,
-        nomPrenom:     userData['nom_prenom'],
-        role:          userData['role'],
-        apiId:         userData['id_user'],
-        idProjetActif: userData['id_projet_actif'],
+        nom: userData['nom'],
+        prenom: userData['prenom'],
+        role: userData['role'],
+        apiId: userData['id_user'],
       );
-
-      if (userData['projet_id'] != null) {
-        await dbHelper.upsertProjetLocal(
-          idProjet:    userData['projet_id'],
-          nom:         userData['projet_nom'],
-          codeAffaire: userData['projet_code'],
-          srm:         userData['projet_srm'],
-          region:      userData['projet_region'],
-          metier:      userData['projet_metier'],
-          statut:      userData['projet_statut'],
-        );
-      }
 
       await dbHelper.recordLocalEvent(
         eventType: 'LOGIN_SUCCESS_ONLINE',
@@ -220,7 +196,6 @@ class _LoginPageState extends State<LoginPage> {
         payload: {
           'login': login,
           'id_user': userData['id_user'],
-          'id_projet_actif': userData['id_projet_actif'],
         },
       );
 
@@ -228,10 +203,12 @@ class _LoginPageState extends State<LoginPage> {
       await _refreshSrmFieldOptionsSilently();
       await _refreshCommunesSilently();
       unawaited(
-        PublicMetricsCacheService().prefetchForCurrentSession().catchError((_) {}),
+        PublicMetricsCacheService()
+            .prefetchForCurrentSession()
+            .catchError((_) {}),
       );
 
-      final fullName = userData['nom_prenom'] ?? 'Agent SRM';
+      final fullName = userData['nom_complet'] ?? 'Agent SRM';
       if (!mounted) return;
       final activeBasemapPackage =
           await OfflineBasemapService().getActivePackage();
@@ -276,7 +253,7 @@ class _LoginPageState extends State<LoginPage> {
       MaterialPageRoute(
         builder: (_) => HomePage(
           agentName: agentName,
-          isOnline:  isOnline,
+          isOnline: isOnline,
           initialOfflineBasemapPath: offlineBasemapPath,
           initialOfflineBasemapFormat: offlineBasemapFormat,
           initialBasemapNotice: basemapNotice,
@@ -380,7 +357,9 @@ class _LoginPageState extends State<LoginPage> {
           children: [
             // Fond haut bleu
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               height: MediaQuery.of(context).size.height * 0.42,
               child: Container(
                 decoration: const BoxDecoration(
@@ -390,29 +369,33 @@ class _LoginPageState extends State<LoginPage> {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.only(
-                    bottomLeft:  Radius.circular(40),
+                    bottomLeft: Radius.circular(40),
                     bottomRight: Radius.circular(40),
                   ),
                 ),
                 child: Stack(
                   children: [
                     Positioned(
-                      top: -40, right: -40,
+                      top: -40,
+                      right: -40,
                       child: Container(
-                        width: 160, height: 160,
+                        width: 160,
+                        height: 160,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.07),
+                          color: Colors.white.withValues(alpha: 0.07),
                         ),
                       ),
                     ),
                     Positioned(
-                      bottom: -20, left: -30,
+                      bottom: -20,
+                      left: -30,
                       child: Container(
-                        width: 120, height: 120,
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.06),
+                          color: Colors.white.withValues(alpha: 0.06),
                         ),
                       ),
                     ),
@@ -431,7 +414,8 @@ class _LoginPageState extends State<LoginPage> {
                       bottom: MediaQuery.of(context).viewInsets.bottom + 24,
                     ),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -439,13 +423,14 @@ class _LoginPageState extends State<LoginPage> {
 
                           // Logo
                           Container(
-                            width: 110, height: 110,
+                            width: 110,
+                            height: 110,
                             decoration: BoxDecoration(
                               color: Colors.white,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.15),
+                                  color: Colors.black.withValues(alpha: 0.15),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -489,21 +474,24 @@ class _LoginPageState extends State<LoginPage> {
                                 borderRadius: BorderRadius.circular(28),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF1976D2).withOpacity(0.10),
+                                    color: const Color(0xFF1976D2)
+                                        .withValues(alpha: 0.10),
                                     blurRadius: 32,
                                     offset: const Offset(0, 12),
                                   ),
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
+                              padding:
+                                  const EdgeInsets.fromLTRB(24, 30, 24, 28),
                               child: Form(
                                 key: _formKey,
-                                autovalidateMode: AutovalidateMode.onUserInteraction,
+                                autovalidateMode:
+                                    AutovalidateMode.onUserInteraction,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -524,13 +512,17 @@ class _LoginPageState extends State<LoginPage> {
                                     TextFormField(
                                       controller: loginController,
                                       keyboardType: TextInputType.text,
-                                      style: const TextStyle(color: Color(0xFF1A2340), fontSize: 14),
+                                      style: const TextStyle(
+                                          color: Color(0xFF1A2340),
+                                          fontSize: 14),
                                       decoration: _inputDeco(
                                         hint: 'Identifiant SRM',
                                         icon: Icons.person_outline_rounded,
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.trim().isEmpty) return 'Entrez votre login';
+                                        if (v == null || v.trim().isEmpty) {
+                                          return 'Entrez votre login';
+                                        }
                                         return null;
                                       },
                                     ),
@@ -541,7 +533,9 @@ class _LoginPageState extends State<LoginPage> {
                                     TextFormField(
                                       controller: passwordController,
                                       obscureText: _obscurePwd,
-                                      style: const TextStyle(color: Color(0xFF1A2340), fontSize: 14),
+                                      style: const TextStyle(
+                                          color: Color(0xFF1A2340),
+                                          fontSize: 14),
                                       decoration: _inputDeco(
                                         hint: 'Mot de passe',
                                         icon: Icons.lock_outline_rounded,
@@ -553,13 +547,17 @@ class _LoginPageState extends State<LoginPage> {
                                             color: const Color(0xFF90A4AE),
                                             size: 20,
                                           ),
-                                          onPressed: () =>
-                                              setState(() => _obscurePwd = !_obscurePwd),
+                                          onPressed: () => setState(
+                                              () => _obscurePwd = !_obscurePwd),
                                         ),
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.isEmpty) return 'Entrez votre mot de passe';
-                                        if (v.length < 4) return 'Mot de passe trop court';
+                                        if (v == null || v.isEmpty) {
+                                          return 'Entrez votre mot de passe';
+                                        }
+                                        if (v.length < 4) {
+                                          return 'Mot de passe trop court';
+                                        }
                                         return null;
                                       },
                                     ),
@@ -570,14 +568,18 @@ class _LoginPageState extends State<LoginPage> {
                                     Row(
                                       children: [
                                         SizedBox(
-                                          height: 22, width: 22,
+                                          height: 22,
+                                          width: 22,
                                           child: Checkbox(
                                             value: rememberMe,
-                                            activeColor: const Color(0xFF2196F3),
+                                            activeColor:
+                                                const Color(0xFF2196F3),
                                             shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(5)),
+                                                borderRadius:
+                                                    BorderRadius.circular(5)),
                                             side: const BorderSide(
-                                                color: Color(0xFFB0BEC5), width: 1.5),
+                                                color: Color(0xFFB0BEC5),
+                                                width: 1.5),
                                             onChanged: (val) {
                                               setState(() {
                                                 rememberMe = val ?? false;
@@ -592,7 +594,8 @@ class _LoginPageState extends State<LoginPage> {
                                         const SizedBox(width: 8),
                                         const Text('Se souvenir',
                                             style: TextStyle(
-                                                color: Color(0xFF607D8B), fontSize: 13)),
+                                                color: Color(0xFF607D8B),
+                                                fontSize: 13)),
                                         const Spacer(),
                                         GestureDetector(
                                           onTap: _showForgotPasswordDialog,
@@ -615,19 +618,25 @@ class _LoginPageState extends State<LoginPage> {
                                       width: double.infinity,
                                       height: 52,
                                       child: ElevatedButton(
-                                        onPressed: _isLoading ? null : _handleLogin,
+                                        onPressed:
+                                            _isLoading ? null : _handleLogin,
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF1976D2),
+                                          backgroundColor:
+                                              const Color(0xFF1976D2),
                                           foregroundColor: Colors.white,
                                           elevation: 4,
-                                          shadowColor: const Color(0xFF1976D2).withOpacity(0.4),
+                                          shadowColor: const Color(0xFF1976D2)
+                                              .withValues(alpha: 0.4),
                                           shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(14)),
+                                              borderRadius:
+                                                  BorderRadius.circular(14)),
                                         ),
                                         child: _isLoading
                                             ? const SizedBox(
-                                                height: 22, width: 22,
-                                                child: CircularProgressIndicator(
+                                                height: 22,
+                                                width: 22,
+                                                child:
+                                                    CircularProgressIndicator(
                                                   strokeWidth: 2.5,
                                                   color: Colors.white,
                                                 ),
@@ -652,7 +661,8 @@ class _LoginPageState extends State<LoginPage> {
 
                           const Text(
                             'Collecter. Organiser. Exploiter vos données en toute simplicité.',
-                            style: TextStyle(color: Color(0xFF90A4AE), fontSize: 11),
+                            style: TextStyle(
+                                color: Color(0xFF90A4AE), fontSize: 11),
                           ),
                           const SizedBox(height: 4),
                           const Text(

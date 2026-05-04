@@ -1,0 +1,2666 @@
+{
+  "common_count": 9,
+  "only_srm_count": 61,
+  "only_srm_bureau_count": 67,
+  "structure_mismatch_count": 5,
+  "content_mismatch_count": 5,
+  "common_tables": [
+    {
+      "schema": "ep",
+      "table": "borne_onep"
+    },
+    {
+      "schema": "ep",
+      "table": "centre_tampon"
+    },
+    {
+      "schema": "public",
+      "table": "commune"
+    },
+    {
+      "schema": "public",
+      "table": "objet_incomplet"
+    },
+    {
+      "schema": "public",
+      "table": "objet_incomplet_backup_before_common_structure_20260501"
+    },
+    {
+      "schema": "public",
+      "table": "spatial_ref_sys"
+    },
+    {
+      "schema": "public",
+      "table": "utilisateur"
+    },
+    {
+      "schema": "public",
+      "table": "zone"
+    },
+    {
+      "schema": "public",
+      "table": "zone_utilisateur"
+    }
+  ],
+  "only_srm": [
+    {
+      "schema": "ass",
+      "table": "asst_bassin"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_branchement"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_canalisation"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_canalisation_reutilisation"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_equipement"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_ouvrage"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_regard"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_regard_branchement"
+    },
+    {
+      "schema": "ass",
+      "table": "asst_station"
+    },
+    {
+      "schema": "ep",
+      "table": "autre_objet"
+    },
+    {
+      "schema": "ep",
+      "table": "borne_fontaine"
+    },
+    {
+      "schema": "ep",
+      "table": "bouche_cles"
+    },
+    {
+      "schema": "ep",
+      "table": "bouche_darrosage"
+    },
+    {
+      "schema": "ep",
+      "table": "branchement"
+    },
+    {
+      "schema": "ep",
+      "table": "compteur_abonne"
+    },
+    {
+      "schema": "ep",
+      "table": "compteur_reseau"
+    },
+    {
+      "schema": "ep",
+      "table": "cone_de_reduction"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_conduite_bureau"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_conduite_terrain"
+    },
+    {
+      "schema": "ep",
+      "table": "forage"
+    },
+    {
+      "schema": "ep",
+      "table": "hydrant"
+    },
+    {
+      "schema": "ep",
+      "table": "noeud"
+    },
+    {
+      "schema": "ep",
+      "table": "obturateur"
+    },
+    {
+      "schema": "ep",
+      "table": "planche"
+    },
+    {
+      "schema": "ep",
+      "table": "pompe"
+    },
+    {
+      "schema": "ep",
+      "table": "puit"
+    },
+    {
+      "schema": "ep",
+      "table": "reducteur_de_pression"
+    },
+    {
+      "schema": "ep",
+      "table": "regard"
+    },
+    {
+      "schema": "ep",
+      "table": "regard_ep"
+    },
+    {
+      "schema": "ep",
+      "table": "regard_miroir"
+    },
+    {
+      "schema": "ep",
+      "table": "reservoir"
+    },
+    {
+      "schema": "ep",
+      "table": "station_de_pompage"
+    },
+    {
+      "schema": "ep",
+      "table": "traverse"
+    },
+    {
+      "schema": "ep",
+      "table": "vanne"
+    },
+    {
+      "schema": "ep",
+      "table": "vanne_de_vidange"
+    },
+    {
+      "schema": "ep",
+      "table": "ventouse"
+    },
+    {
+      "schema": "public",
+      "table": "api_login"
+    },
+    {
+      "schema": "public",
+      "table": "auth_group"
+    },
+    {
+      "schema": "public",
+      "table": "auth_group_permissions"
+    },
+    {
+      "schema": "public",
+      "table": "auth_permission"
+    },
+    {
+      "schema": "public",
+      "table": "auth_user"
+    },
+    {
+      "schema": "public",
+      "table": "auth_user_groups"
+    },
+    {
+      "schema": "public",
+      "table": "auth_user_user_permissions"
+    },
+    {
+      "schema": "public",
+      "table": "basemap_package"
+    },
+    {
+      "schema": "public",
+      "table": "commune_backup_before_srm_bureau_structure_20260501"
+    },
+    {
+      "schema": "public",
+      "table": "django_admin_log"
+    },
+    {
+      "schema": "public",
+      "table": "django_content_type"
+    },
+    {
+      "schema": "public",
+      "table": "django_migrations"
+    },
+    {
+      "schema": "public",
+      "table": "django_session"
+    },
+    {
+      "schema": "public",
+      "table": "historique_attribut"
+    },
+    {
+      "schema": "public",
+      "table": "historique_mobile"
+    },
+    {
+      "schema": "public",
+      "table": "mission"
+    },
+    {
+      "schema": "public",
+      "table": "objet_photo"
+    },
+    {
+      "schema": "public",
+      "table": "projet"
+    },
+    {
+      "schema": "public",
+      "table": "srm_field_option"
+    },
+    {
+      "schema": "public",
+      "table": "statistique_conduite"
+    },
+    {
+      "schema": "public",
+      "table": "statistique_conduite_segment"
+    },
+    {
+      "schema": "public",
+      "table": "sync_session"
+    },
+    {
+      "schema": "public",
+      "table": "sync_session_attachment"
+    },
+    {
+      "schema": "public",
+      "table": "sync_session_item"
+    },
+    {
+      "schema": "public",
+      "table": "utilisateur_backup_before_srm_bureau_structure_20260501"
+    }
+  ],
+  "only_srm_bureau": [
+    {
+      "schema": "asst",
+      "table": "ASS_BASSIN_RET"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_BASSIN_RET_L"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_BASSIN_VERSANT"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_BORGNE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_BOUCHE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_BRANCHEMENT"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_CANIVEAU"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_CANIV_BRANCHE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_COLLECTEUR"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_COL_BOUCHE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_DEVERSOIR"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_ECOULEMENT"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_FOSSE_SEPT"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_OUED"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_OUV_TRAVERSEE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_POINTS-NOIRS"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_POMPE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_REFOULEMENTR"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_REGARD"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_REGARD_FACADE"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_SECTEUR_ASS"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_STA_EPUR"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_STA_EPUR_L"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_STA_POMP"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS_STA_POMP_S"
+    },
+    {
+      "schema": "asst",
+      "table": "ASS__EXUTOIRE"
+    },
+    {
+      "schema": "ep",
+      "table": "anomalie_conduite"
+    },
+    {
+      "schema": "ep",
+      "table": "bouche_a_cles"
+    },
+    {
+      "schema": "ep",
+      "table": "conduite_terrain"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_bache"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_bf"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_bouche_arro"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_branchement"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_brc_pt"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_compteur_i"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_conduite"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_cone_reduc"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_forage"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_hydrant"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_noeud"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_obturateur"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_pompe"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_puit"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_reduc_pres"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_regard"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_reservoir"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_st_demineralisation"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_station_pompage"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_traversee"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_vanne"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_ventouse"
+    },
+    {
+      "schema": "ep",
+      "table": "ep_vidange"
+    },
+    {
+      "schema": "ep",
+      "table": "onep_db"
+    },
+    {
+      "schema": "ep",
+      "table": "tn"
+    },
+    {
+      "schema": "ep",
+      "table": "voie"
+    },
+    {
+      "schema": "public",
+      "table": "attribut_config"
+    },
+    {
+      "schema": "public",
+      "table": "attribut_config_mobile"
+    },
+    {
+      "schema": "public",
+      "table": "fond_plan"
+    },
+    {
+      "schema": "public",
+      "table": "historique_action"
+    },
+    {
+      "schema": "public",
+      "table": "intervention_anomalie"
+    },
+    {
+      "schema": "public",
+      "table": "intervention_log"
+    },
+    {
+      "schema": "public",
+      "table": "liste_choix"
+    },
+    {
+      "schema": "public",
+      "table": "permission"
+    },
+    {
+      "schema": "public",
+      "table": "planche"
+    },
+    {
+      "schema": "public",
+      "table": "province"
+    },
+    {
+      "schema": "public",
+      "table": "utilisateur_backup_before_union_20260501"
+    },
+    {
+      "schema": "public",
+      "table": "utilisateur_permission"
+    }
+  ],
+  "results": [
+    {
+      "schema": "ep",
+      "table": "borne_onep",
+      "structure_equal": false,
+      "content_equal": false,
+      "srm_content": {
+        "row_count": 2,
+        "content_hash": "3bb4a23ecf891235769181e10c713e1b"
+      },
+      "srm_bureau_content": {
+        "row_count": 0,
+        "content_hash": "EMPTY"
+      },
+      "structure_diff_hint": {
+        "srm": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "fid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "geom",
+              "data_type": "USER-DEFINED",
+              "udt_name": "geometry",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "ep_coor_x",
+              "data_type": "numeric",
+              "udt_name": "numeric",
+              "character_maximum_length": null,
+              "numeric_precision": 12,
+              "numeric_scale": 3,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "ep_coor_y",
+              "data_type": "numeric",
+              "udt_name": "numeric",
+              "character_maximum_length": null,
+              "numeric_precision": 12,
+              "numeric_scale": 3,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "ep_coor_z",
+              "data_type": "numeric",
+              "udt_name": "numeric",
+              "character_maximum_length": null,
+              "numeric_precision": 10,
+              "numeric_scale": 3,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "observation",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "date_leve",
+              "data_type": "date",
+              "udt_name": "date",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "uuid",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "id_projet",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "id_mission",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "id_planche",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 12,
+              "column_name": "id_commune",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 13,
+              "column_name": "id_agent_crea",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 14,
+              "column_name": "mode_localisation",
+              "data_type": "USER-DEFINED",
+              "udt_name": "mode_localisation_enum",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "'gnss'::mode_localisation_enum"
+            },
+            {
+              "ordinal_position": 15,
+              "column_name": "anomalie",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            },
+            {
+              "ordinal_position": 16,
+              "column_name": "type_anomalie",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 17,
+              "column_name": "conformite_plan",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 18,
+              "column_name": "updated_at",
+              "data_type": "timestamp with time zone",
+              "udt_name": "timestamptz",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "NO",
+              "column_default": "now()"
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "borne_onep_id_agent_crea_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_agent_crea) REFERENCES utilisateur(id_user) ON DELETE SET NULL"
+            },
+            {
+              "conname": "borne_onep_id_commune_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_commune) REFERENCES commune(fid) ON DELETE SET NULL"
+            },
+            {
+              "conname": "borne_onep_id_mission_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_mission) REFERENCES mission(id_mission) ON DELETE SET NULL"
+            },
+            {
+              "conname": "borne_onep_id_projet_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_projet) REFERENCES projet(id_projet) ON DELETE SET NULL"
+            },
+            {
+              "conname": "borne_onep_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (fid)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "borne_onep_pkey",
+              "indexdef": "CREATE UNIQUE INDEX borne_onep_pkey ON ep.borne_onep USING btree (fid)"
+            },
+            {
+              "indexname": "ep_borne_onep_proj_mission_idx",
+              "indexdef": "CREATE INDEX ep_borne_onep_proj_mission_idx ON ep.borne_onep USING btree (id_projet, id_mission)"
+            },
+            {
+              "indexname": "ep_borne_onep_proj_mission_updated_idx",
+              "indexdef": "CREATE INDEX ep_borne_onep_proj_mission_updated_idx ON ep.borne_onep USING btree (id_projet, id_mission, updated_at DESC)"
+            },
+            {
+              "indexname": "ep_borne_onep_uuid_uq",
+              "indexdef": "CREATE UNIQUE INDEX ep_borne_onep_uuid_uq ON ep.borne_onep USING btree (uuid) WHERE (uuid IS NOT NULL)"
+            },
+            {
+              "indexname": "idx_borne_onep_geom",
+              "indexdef": "CREATE INDEX idx_borne_onep_geom ON ep.borne_onep USING gist (geom)"
+            }
+          ]
+        },
+        "srm_bureau": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "fid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "uuid",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "ep_coor_x",
+              "data_type": "double precision",
+              "udt_name": "float8",
+              "character_maximum_length": null,
+              "numeric_precision": 53,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "ep_coor_y",
+              "data_type": "double precision",
+              "udt_name": "float8",
+              "character_maximum_length": null,
+              "numeric_precision": 53,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "ep_coor_z",
+              "data_type": "double precision",
+              "udt_name": "float8",
+              "character_maximum_length": null,
+              "numeric_precision": 53,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "geom",
+              "data_type": "USER-DEFINED",
+              "udt_name": "geometry",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "id_commune",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "id_province",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "id_zone",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "id_user_creat",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "id_user_modif",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 12,
+              "column_name": "date_creation",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 13,
+              "column_name": "date_modif",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 14,
+              "column_name": "is_deleted",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            },
+            {
+              "ordinal_position": 15,
+              "column_name": "is_validated",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            },
+            {
+              "ordinal_position": 16,
+              "column_name": "id_user_valid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 17,
+              "column_name": "date_validation",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 18,
+              "column_name": "source",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "borne_onep_source_check",
+              "contype": "c",
+              "definition": "CHECK (source = ANY (ARRAY['web'::text, 'mobile'::text]))"
+            },
+            {
+              "conname": "borne_onep_id_commune_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_commune) REFERENCES commune(fid)"
+            },
+            {
+              "conname": "borne_onep_id_province_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_province) REFERENCES province(fid)"
+            },
+            {
+              "conname": "borne_onep_id_user_creat_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_user_creat) REFERENCES utilisateur(id_user)"
+            },
+            {
+              "conname": "borne_onep_id_user_modif_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_user_modif) REFERENCES utilisateur(id_user)"
+            },
+            {
+              "conname": "borne_onep_id_user_valid_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_user_valid) REFERENCES utilisateur(id_user)"
+            },
+            {
+              "conname": "borne_onep_id_zone_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_zone) REFERENCES zone(id_zone)"
+            },
+            {
+              "conname": "borne_onep_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (fid)"
+            },
+            {
+              "conname": "borne_onep_uuid_key",
+              "contype": "u",
+              "definition": "UNIQUE (uuid)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "borne_onep_pkey",
+              "indexdef": "CREATE UNIQUE INDEX borne_onep_pkey ON ep.borne_onep USING btree (fid)"
+            },
+            {
+              "indexname": "borne_onep_uuid_key",
+              "indexdef": "CREATE UNIQUE INDEX borne_onep_uuid_key ON ep.borne_onep USING btree (uuid)"
+            },
+            {
+              "indexname": "idx_borne_onep_geom",
+              "indexdef": "CREATE INDEX idx_borne_onep_geom ON ep.borne_onep USING gist (geom)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schema": "ep",
+      "table": "centre_tampon",
+      "structure_equal": false,
+      "content_equal": false,
+      "srm_content": {
+        "row_count": 946,
+        "content_hash": "998d75b040a8d660a648a569cda535fe"
+      },
+      "srm_bureau_content": {
+        "row_count": 0,
+        "content_hash": "EMPTY"
+      },
+      "structure_diff_hint": {
+        "srm": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "fid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "date_leve",
+              "data_type": "timestamp with time zone",
+              "udt_name": "timestamptz",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "uuid",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 100,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "geom",
+              "data_type": "USER-DEFINED",
+              "udt_name": "geometry",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "id_projet",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "id_agent_crea",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "id_mission",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "id_planche",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "id_commune",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "mode_localisation",
+              "data_type": "USER-DEFINED",
+              "udt_name": "mode_localisation_enum",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "'gnss'::mode_localisation_enum"
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "anomalie",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            },
+            {
+              "ordinal_position": 12,
+              "column_name": "type_anomalie",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 13,
+              "column_name": "ep_coor_z",
+              "data_type": "numeric",
+              "udt_name": "numeric",
+              "character_maximum_length": null,
+              "numeric_precision": 10,
+              "numeric_scale": 3,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 14,
+              "column_name": "ep_coor_x",
+              "data_type": "numeric",
+              "udt_name": "numeric",
+              "character_maximum_length": null,
+              "numeric_precision": 12,
+              "numeric_scale": 3,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 15,
+              "column_name": "ep_coor_y",
+              "data_type": "numeric",
+              "udt_name": "numeric",
+              "character_maximum_length": null,
+              "numeric_precision": 12,
+              "numeric_scale": 3,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 16,
+              "column_name": "conformite_plan",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 17,
+              "column_name": "updated_at",
+              "data_type": "timestamp with time zone",
+              "udt_name": "timestamptz",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "NO",
+              "column_default": "now()"
+            },
+            {
+              "ordinal_position": 18,
+              "column_name": "ep_num",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 19,
+              "column_name": "ep_type",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 20,
+              "column_name": "ep_etat",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 21,
+              "column_name": "emplacement",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 22,
+              "column_name": "ref_rue",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 23,
+              "column_name": "ep_statut",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 24,
+              "column_name": "observation",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 25,
+              "column_name": "photo_1",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 26,
+              "column_name": "photo_2",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 27,
+              "column_name": "photo_3",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 28,
+              "column_name": "photo_4",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "centre_tampon_id_commune_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_commune) REFERENCES commune(fid) ON DELETE SET NULL"
+            },
+            {
+              "conname": "fk_centre_tampon_agent",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_agent_crea) REFERENCES utilisateur(id_user) ON DELETE SET NULL"
+            },
+            {
+              "conname": "fk_centre_tampon_mission",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_mission) REFERENCES mission(id_mission) ON DELETE SET NULL"
+            },
+            {
+              "conname": "fk_centre_tampon_projet",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_projet) REFERENCES projet(id_projet) ON DELETE SET NULL"
+            },
+            {
+              "conname": "centre_tampon_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (fid)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "centre_tampon_geom_geom_idx",
+              "indexdef": "CREATE INDEX centre_tampon_geom_geom_idx ON ep.centre_tampon USING gist (geom)"
+            },
+            {
+              "indexname": "centre_tampon_pkey",
+              "indexdef": "CREATE UNIQUE INDEX centre_tampon_pkey ON ep.centre_tampon USING btree (fid)"
+            },
+            {
+              "indexname": "ep_centre_tampon_proj_mission_idx",
+              "indexdef": "CREATE INDEX ep_centre_tampon_proj_mission_idx ON ep.centre_tampon USING btree (id_projet, id_mission)"
+            },
+            {
+              "indexname": "ep_centre_tampon_proj_mission_updated_idx",
+              "indexdef": "CREATE INDEX ep_centre_tampon_proj_mission_updated_idx ON ep.centre_tampon USING btree (id_projet, id_mission, updated_at DESC)"
+            },
+            {
+              "indexname": "ep_centre_tampon_uuid_uq",
+              "indexdef": "CREATE UNIQUE INDEX ep_centre_tampon_uuid_uq ON ep.centre_tampon USING btree (uuid) WHERE (uuid IS NOT NULL)"
+            }
+          ]
+        },
+        "srm_bureau": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "fid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "uuid",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 254,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "ep_coor_x",
+              "data_type": "double precision",
+              "udt_name": "float8",
+              "character_maximum_length": null,
+              "numeric_precision": 53,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "ep_coor_y",
+              "data_type": "double precision",
+              "udt_name": "float8",
+              "character_maximum_length": null,
+              "numeric_precision": 53,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "ep_coor_z",
+              "data_type": "double precision",
+              "udt_name": "float8",
+              "character_maximum_length": null,
+              "numeric_precision": 53,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "geom",
+              "data_type": "USER-DEFINED",
+              "udt_name": "geometry",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "id_commune",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "id_province",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "id_user_creat",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "id_user_modif",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "date_creation",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 12,
+              "column_name": "date_modif",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 13,
+              "column_name": "is_deleted",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            },
+            {
+              "ordinal_position": 14,
+              "column_name": "is_validated",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            },
+            {
+              "ordinal_position": 15,
+              "column_name": "id_user_valid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 16,
+              "column_name": "date_validation",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 17,
+              "column_name": "id_zone",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 18,
+              "column_name": "photo_1",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 400,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 19,
+              "column_name": "photo_2",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 400,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 20,
+              "column_name": "photo_3",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 400,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 21,
+              "column_name": "photo_4",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 400,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 22,
+              "column_name": "source",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "centre_tampon_source_check",
+              "contype": "c",
+              "definition": "CHECK (source = ANY (ARRAY['web'::text, 'mobile'::text]))"
+            },
+            {
+              "conname": "centre_tampon_id_commune_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_commune) REFERENCES commune(fid)"
+            },
+            {
+              "conname": "centre_tampon_id_province_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_province) REFERENCES province(fid)"
+            },
+            {
+              "conname": "centre_tampon_id_user_creat_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_user_creat) REFERENCES utilisateur(id_user)"
+            },
+            {
+              "conname": "centre_tampon_id_user_modif_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_user_modif) REFERENCES utilisateur(id_user)"
+            },
+            {
+              "conname": "centre_tampon_id_user_valid_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_user_valid) REFERENCES utilisateur(id_user)"
+            },
+            {
+              "conname": "centre_tampon_id_zone_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_zone) REFERENCES zone(id_zone)"
+            },
+            {
+              "conname": "centre_tampon_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (fid)"
+            },
+            {
+              "conname": "centre_tampon_uuid_key",
+              "contype": "u",
+              "definition": "UNIQUE (uuid)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "centre_tampon_pkey",
+              "indexdef": "CREATE UNIQUE INDEX centre_tampon_pkey ON ep.centre_tampon USING btree (fid)"
+            },
+            {
+              "indexname": "centre_tampon_uuid_key",
+              "indexdef": "CREATE UNIQUE INDEX centre_tampon_uuid_key ON ep.centre_tampon USING btree (uuid)"
+            },
+            {
+              "indexname": "idx_centre_tampon_geom",
+              "indexdef": "CREATE INDEX idx_centre_tampon_geom ON ep.centre_tampon USING gist (geom)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schema": "public",
+      "table": "commune",
+      "structure_equal": false,
+      "content_equal": false,
+      "srm_content": {
+        "row_count": 11,
+        "content_hash": "5eeb1f4f371a81c438f7a5692326f380"
+      },
+      "srm_bureau_content": {
+        "row_count": 1505,
+        "content_hash": "2bdb40cc3b4922a1acc3c1370d5ca3b2"
+      },
+      "structure_diff_hint": {
+        "srm": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "fid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "geom",
+              "data_type": "USER-DEFINED",
+              "udt_name": "geometry",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "code_provi",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "code_regio",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "nom",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "nom_arabe",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "id_province",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "commune_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (fid)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "commune_geom_gix",
+              "indexdef": "CREATE INDEX commune_geom_gix ON public.commune USING gist (geom)"
+            },
+            {
+              "indexname": "commune_pkey",
+              "indexdef": "CREATE UNIQUE INDEX commune_pkey ON public.commune USING btree (fid)"
+            }
+          ]
+        },
+        "srm_bureau": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "fid",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "geom",
+              "data_type": "USER-DEFINED",
+              "udt_name": "geometry",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "code_provi",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "code_regio",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "nom",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "nom_arabe",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "id_province",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "commune_id_province_fkey",
+              "contype": "f",
+              "definition": "FOREIGN KEY (id_province) REFERENCES province(fid)"
+            },
+            {
+              "conname": "communes_maroc_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (fid)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "communes_maroc_geom_geom_idx",
+              "indexdef": "CREATE INDEX communes_maroc_geom_geom_idx ON public.commune USING gist (geom)"
+            },
+            {
+              "indexname": "communes_maroc_pkey",
+              "indexdef": "CREATE UNIQUE INDEX communes_maroc_pkey ON public.commune USING btree (fid)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schema": "public",
+      "table": "objet_incomplet",
+      "structure_equal": true,
+      "content_equal": true,
+      "srm_content": {
+        "row_count": 0,
+        "content_hash": "EMPTY"
+      },
+      "srm_bureau_content": {
+        "row_count": 0,
+        "content_hash": "EMPTY"
+      },
+      "structure_diff_hint": null
+    },
+    {
+      "schema": "public",
+      "table": "objet_incomplet_backup_before_common_structure_20260501",
+      "structure_equal": false,
+      "content_equal": true,
+      "srm_content": {
+        "row_count": 0,
+        "content_hash": "EMPTY"
+      },
+      "srm_bureau_content": {
+        "row_count": 0,
+        "content_hash": "EMPTY"
+      },
+      "structure_diff_hint": {
+        "srm": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "id_incomplet",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "id_objet",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "nom_classe",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 100,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "metier",
+              "data_type": "USER-DEFINED",
+              "udt_name": "metier_enum",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "raison",
+              "data_type": "USER-DEFINED",
+              "udt_name": "raison_incomplet_enum",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "detail_raison",
+              "data_type": "text",
+              "udt_name": "text",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "date_signalement",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "id_agent_signal",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "statut",
+              "data_type": "USER-DEFINED",
+              "udt_name": "statut_incomplet_enum",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "date_planification",
+              "data_type": "date",
+              "udt_name": "date",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "id_agent_retour",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 12,
+              "column_name": "date_completion",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 13,
+              "column_name": "id_mission",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 14,
+              "column_name": "id_projet",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [],
+          "indexes": []
+        },
+        "srm_bureau": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "id",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "nom_table",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 100,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "id_objet",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "id_user",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "date_signalement",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "raison",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 255,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "commentaire",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 500,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "statut",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 50,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "type",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 20,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "date_cloture",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            }
+          ],
+          "constraints": [],
+          "indexes": []
+        }
+      }
+    },
+    {
+      "schema": "public",
+      "table": "spatial_ref_sys",
+      "structure_equal": true,
+      "content_equal": true,
+      "srm_content": {
+        "row_count": 8500,
+        "content_hash": "7c38fdce04bf2f037682a661ee5fa2fb"
+      },
+      "srm_bureau_content": {
+        "row_count": 8500,
+        "content_hash": "7c38fdce04bf2f037682a661ee5fa2fb"
+      },
+      "structure_diff_hint": null
+    },
+    {
+      "schema": "public",
+      "table": "utilisateur",
+      "structure_equal": false,
+      "content_equal": false,
+      "srm_content": {
+        "row_count": 11,
+        "content_hash": "8187b9f54b4b6d694b3171f1a211df95"
+      },
+      "srm_bureau_content": {
+        "row_count": 11,
+        "content_hash": "22005d2c2003595fc1f598d5dc071b12"
+      },
+      "structure_diff_hint": {
+        "srm": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "id_user",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "login",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 100,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "NO",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "mot_de_passe_hash",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 255,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "nom_prenom",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 200,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "actif",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "true"
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "date_creation",
+              "data_type": "date",
+              "udt_name": "date",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "dernier_login",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "nb_objets_collectes_total",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": "0"
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "id_projet_actif",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "role",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 20,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "'viewer_mobile'::character varying"
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "is_deleted",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "utilisateur_role_check",
+              "contype": "c",
+              "definition": "CHECK (role IS NULL OR (role::text = ANY (ARRAY['admin'::character varying, 'project_manager'::character varying, 'editeur_terrain'::character varying, 'editeur_bureau'::character varying, 'viewer_mobile'::character varying, 'viewer'::character varying, 'superadmin'::character varying, 'exploitant_srm'::character varying]::text[])))"
+            },
+            {
+              "conname": "utilisateur_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (id_user)"
+            },
+            {
+              "conname": "utilisateur_login_key",
+              "contype": "u",
+              "definition": "UNIQUE (login)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "utilisateur_login_key",
+              "indexdef": "CREATE UNIQUE INDEX utilisateur_login_key ON public.utilisateur USING btree (login)"
+            },
+            {
+              "indexname": "utilisateur_pkey",
+              "indexdef": "CREATE UNIQUE INDEX utilisateur_pkey ON public.utilisateur USING btree (id_user)"
+            }
+          ]
+        },
+        "srm_bureau": {
+          "columns": [
+            {
+              "ordinal_position": 1,
+              "column_name": "id_user",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "NO",
+              "column_default": "nextval(...)"
+            },
+            {
+              "ordinal_position": 2,
+              "column_name": "login",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 100,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "NO",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 3,
+              "column_name": "mot_de_passe_hash",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 255,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 4,
+              "column_name": "nom_prenom",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 200,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 5,
+              "column_name": "actif",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "true"
+            },
+            {
+              "ordinal_position": 6,
+              "column_name": "date_creation",
+              "data_type": "date",
+              "udt_name": "date",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 7,
+              "column_name": "dernier_login",
+              "data_type": "timestamp without time zone",
+              "udt_name": "timestamp",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 8,
+              "column_name": "nb_objets_collectes_total",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": "0"
+            },
+            {
+              "ordinal_position": 9,
+              "column_name": "id_projet_actif",
+              "data_type": "integer",
+              "udt_name": "int4",
+              "character_maximum_length": null,
+              "numeric_precision": 32,
+              "numeric_scale": 0,
+              "is_nullable": "YES",
+              "column_default": null
+            },
+            {
+              "ordinal_position": 10,
+              "column_name": "role",
+              "data_type": "character varying",
+              "udt_name": "varchar",
+              "character_maximum_length": 20,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "'viewer_mobile'::character varying"
+            },
+            {
+              "ordinal_position": 11,
+              "column_name": "is_deleted",
+              "data_type": "boolean",
+              "udt_name": "bool",
+              "character_maximum_length": null,
+              "numeric_precision": null,
+              "numeric_scale": null,
+              "is_nullable": "YES",
+              "column_default": "false"
+            }
+          ],
+          "constraints": [
+            {
+              "conname": "utilisateur_role_check",
+              "contype": "c",
+              "definition": "CHECK (role::text = ANY (ARRAY['admin'::text, 'editeur_terrain'::text, 'editeur_bureau'::text, 'viewer_mobile'::text, 'viewer'::text, 'superadmin'::text, 'exploitant_srm'::text]))"
+            },
+            {
+              "conname": "utilisateur_pkey",
+              "contype": "p",
+              "definition": "PRIMARY KEY (id_user)"
+            },
+            {
+              "conname": "utilisateur_login_key",
+              "contype": "u",
+              "definition": "UNIQUE (login)"
+            }
+          ],
+          "indexes": [
+            {
+              "indexname": "utilisateur_login_key",
+              "indexdef": "CREATE UNIQUE INDEX utilisateur_login_key ON public.utilisateur USING btree (login)"
+            },
+            {
+              "indexname": "utilisateur_pkey",
+              "indexdef": "CREATE UNIQUE INDEX utilisateur_pkey ON public.utilisateur USING btree (id_user)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schema": "public",
+      "table": "zone",
+      "structure_equal": true,
+      "content_equal": true,
+      "srm_content": {
+        "row_count": 21,
+        "content_hash": "05443ca0412d00ac60e11b944627823d"
+      },
+      "srm_bureau_content": {
+        "row_count": 21,
+        "content_hash": "05443ca0412d00ac60e11b944627823d"
+      },
+      "structure_diff_hint": null
+    },
+    {
+      "schema": "public",
+      "table": "zone_utilisateur",
+      "structure_equal": true,
+      "content_equal": false,
+      "srm_content": {
+        "row_count": 23,
+        "content_hash": "c3052b938bad0807ae58a946e79e03ab"
+      },
+      "srm_bureau_content": {
+        "row_count": 23,
+        "content_hash": "365d696e9dbf28d22f0ae5751a776cd2"
+      },
+      "structure_diff_hint": null
+    }
+  ]
+}

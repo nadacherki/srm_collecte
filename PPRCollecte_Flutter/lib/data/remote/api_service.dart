@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class ApiPageResult {
   final List<dynamic> items;
@@ -30,20 +31,12 @@ class ApiService {
 
   // ── Authentification ──
   static String? authToken;
-  static int? userId;       // = id_user (table public.utilisateur)
+  static int? userId; // = id_user (table public.utilisateur)
   static String? userLogin; // = login SRM (pas email)
-  static String? userRole;  // admin, project_manager, editeur_terrain…
-  static String? nomPrenom; // "NADA CHERKI"
-
-  // ── Projet actif (renvoyé par /api/login/) ──
-  static int? currentProjetId;       // id_projet
-  static String? currentProjetNom;
-  static String? currentProjetCode;  // code_affaire
-  static String? currentProjetStatut;
-  static String? currentProjetMetier; // EP, ASS, ELEC, ALL
-  static String? currentProjetRegion;
-  static String? currentProjetSrm;
-  static int? currentMissionId;
+  static String? userRole; // admin, project_manager, editeur_terrain…
+  static String? userNom;
+  static String? userPrenom;
+  static String? nomPrenom; // nom complet affiche dans l'app
 
   static String _extractApiErrorMessage(String body, String fallback) {
     try {
@@ -53,7 +46,8 @@ class ApiService {
         if (nodesError is List && nodesError.isNotEmpty) {
           return nodesError.first.toString();
         }
-        final message = decoded['error'] ?? decoded['detail'] ?? decoded['message'];
+        final message =
+            decoded['error'] ?? decoded['detail'] ?? decoded['message'];
         if (message != null && message.toString().trim().isNotEmpty) {
           return message.toString().trim();
         }
@@ -75,9 +69,6 @@ class ApiService {
     return fallback;
   }
 
-  // ── Mission (choisi/créé après login) ──
-  // SUPPRIMÉ : plus de gestion de mission — chaque objet porte sa date_collecte
-
   // ══════════════════════════════════════════════════════
   // ██ LOGIN SRM
   // ══════════════════════════════════════════════════════
@@ -87,15 +78,9 @@ class ApiService {
   /// {
   ///   "success": true,
   ///   "user": {
-  ///     "id_user": 2, "login": "nada", "nom_prenom": "NADA CHERKI",
-  ///     "role": "admin", "id_projet_actif": 1,
+  ///     "id_user": 2, "login": "nada", "prenom": "NADA", "nom": "CHERKI",
+  ///     "role": "admin",
   ///     "nb_objets_collectes_total": 0
-  ///   },
-  ///   "projet_actif": {
-  ///     "id_projet": 1, "code_affaire": "AO-10001842",
-  ///     "nom": "SRM-Oriental — Reconnaissance Terrain Réseaux",
-  ///     "srm": "SRM-Oriental", "region": "Oriental",
-  ///     "metier": "ALL", "statut": "EN_COURS"
   ///   }
   /// }
   static Future<Map<String, dynamic>> login(
@@ -123,46 +108,27 @@ class ApiService {
       final Map<String, dynamic> userMap =
           Map<String, dynamic>.from(data['user']);
 
-      userId    = userMap['id_user'];
+      userId = userMap['id_user'];
       userLogin = userMap['login'];
-      nomPrenom = userMap['nom_prenom'];
-      userRole  = userMap['role'];
-
-      // ── Parser "projet_actif" ──
-      if (data['projet_actif'] != null) {
-        final Map<String, dynamic> pj =
-            Map<String, dynamic>.from(data['projet_actif']);
-        currentProjetId     = pj['id_projet'];
-        currentProjetCode   = pj['code_affaire'];
-        currentProjetNom    = pj['nom'];
-        currentProjetSrm    = pj['srm'];
-        currentProjetRegion = pj['region'];
-        currentProjetMetier = pj['metier'];
-        currentProjetStatut = pj['statut'];
-      }
+      userNom = userMap['nom']?.toString();
+      userPrenom = userMap['prenom']?.toString();
+      nomPrenom = _buildFullName(userPrenom, userNom, userMap['nom_complet']);
+      userRole = userMap['role'];
 
       // ── Token (si l'API en renvoie un à l'avenir) ──
       authToken = data['token'] ?? data['access'];
 
-      print('🔐 SRM Login OK: user=$login (id_user=$userId) '
-          'role=$userRole projet=$currentProjetId');
+      debugPrint('SRM Login OK: user=$login (id_user=$userId) role=$userRole');
 
       // ── Résultat à plat pour LoginPage / DatabaseHelper ──
       return {
         'id_user': userId,
         'login': userLogin,
-        'nom_prenom': nomPrenom,
+        'nom': userNom,
+        'prenom': userPrenom,
+        'nom_complet': nomPrenom,
         'role': userRole,
-        'id_projet_actif': currentProjetId,
         'nb_objets_collectes_total': userMap['nb_objets_collectes_total'] ?? 0,
-        // Projet actif
-        'projet_id': currentProjetId,
-        'projet_code': currentProjetCode,
-        'projet_nom': currentProjetNom,
-        'projet_srm': currentProjetSrm,
-        'projet_region': currentProjetRegion,
-        'projet_metier': currentProjetMetier,
-        'projet_statut': currentProjetStatut,
       };
     } else {
       try {
@@ -178,23 +144,6 @@ class ApiService {
   // ══════════════════════════════════════════════════════
   // ██ PROJETS
   // ══════════════════════════════════════════════════════
-
-  /// GET /api/projets/
-  static Future<List<Map<String, dynamic>>> fetchProjets() async {
-    final url = Uri.parse('$baseUrl/api/projets/');
-    final response =
-        await http.get(url, headers: _headers())
-            .timeout(const Duration(seconds: 30));
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      final List items =
-          data is List ? data : (data['results'] ?? data['features'] ?? []);
-      return items.map((e) => Map<String, dynamic>.from(e)).toList();
-    } else {
-      throw Exception('Erreur GET projets: ${response.statusCode}');
-    }
-  }
 
   static Future<Map<String, dynamic>> fetchBasemapCatalog({
     String? citySlug,
@@ -217,9 +166,9 @@ class ApiService {
     final url = Uri.parse('$baseUrl/api/basemaps/catalog/').replace(
       queryParameters: queryParameters,
     );
-    final response =
-        await http.get(url, headers: _headers())
-            .timeout(const Duration(seconds: 30));
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
       throw Exception('Erreur GET basemap catalog: ${response.statusCode}');
@@ -239,7 +188,8 @@ class ApiService {
     bool force = false,
   }) async {
     if (userId == null) {
-      throw Exception('Utilisateur non connecté pour préparer les cartes offline');
+      throw Exception(
+          'Utilisateur non connecté pour préparer les cartes offline');
     }
 
     final url = Uri.parse('$baseUrl/api/basemaps/prepare-agent/');
@@ -301,9 +251,9 @@ class ApiService {
     final url = Uri.parse('$baseUrl/api/srm-field-options/').replace(
       queryParameters: queryParameters,
     );
-    final response =
-        await http.get(url, headers: _headers())
-            .timeout(const Duration(seconds: 30));
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
       throw Exception('Erreur GET srm-field-options: ${response.statusCode}');
@@ -321,9 +271,9 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> fetchCommunes() async {
     final url = Uri.parse('$baseUrl/api/communes/');
-    final response =
-        await http.get(url, headers: _headers())
-            .timeout(const Duration(seconds: 30));
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
       throw Exception('Erreur GET communes: ${response.statusCode}');
@@ -337,7 +287,8 @@ class ApiService {
       final results = data['results'];
       if (results is List) {
         itemsRaw = results;
-      } else if (results is Map<String, dynamic> && results['features'] is List) {
+      } else if (results is Map<String, dynamic> &&
+          results['features'] is List) {
         itemsRaw = results['features'];
       } else if (data['features'] is List) {
         itemsRaw = data['features'];
@@ -366,40 +317,167 @@ class ApiService {
     }).toList();
   }
 
-  // ══════════════════════════════════════════════════════
-  // ██ MISSIONS
-  // ══════════════════════════════════════════════════════
+  static Future<List<Map<String, dynamic>>> fetchZones() async {
+    final url = Uri.parse('$baseUrl/api/zones/');
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
 
-  /// GET /api/missions/?id_projet=X
-  static Future<List<Map<String, dynamic>>> fetchMissions(
-      int projetId) async {
-    final url =
-        Uri.parse('$baseUrl/api/missions/?id_projet=$projetId');
-    final response =
-        await http.get(url, headers: _headers())
-            .timeout(const Duration(seconds: 30));
+    if (response.statusCode != 200) {
+      throw Exception('Erreur GET zones: ${response.statusCode}');
+    }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      final List items =
-          data is List ? data : (data['results'] ?? data['features'] ?? []);
-      return items.map((e) => Map<String, dynamic>.from(e)).toList();
-    } else {
-      throw Exception('Erreur GET missions: ${response.statusCode}');
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    return _extractFeatureOrResultItems(data).map((item) {
+      final feature = Map<String, dynamic>.from(item);
+      final properties = feature['properties'] is Map
+          ? Map<String, dynamic>.from(feature['properties'] as Map)
+          : Map<String, dynamic>.from(feature);
+
+      if (properties['id_zone'] == null && feature['id'] != null) {
+        properties['id_zone'] = feature['id'];
+      }
+      if (feature['geometry'] != null) {
+        properties['geometry_geojson'] = jsonEncode(feature['geometry']);
+      } else if (properties['geometry_geojson'] is Map) {
+        properties['geometry_geojson'] =
+            jsonEncode(properties['geometry_geojson']);
+      }
+      return properties;
+    }).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchZoneUtilisateurs({
+    int? idUser,
+    bool activeOnly = true,
+  }) async {
+    final queryParameters = <String, String>{
+      'active_only': activeOnly ? 'true' : 'false',
+    };
+    final targetUserId = idUser ?? userId;
+    if (targetUserId != null) {
+      queryParameters['id_user'] = targetUserId.toString();
+    }
+
+    final url = Uri.parse('$baseUrl/api/zone-utilisateurs/').replace(
+      queryParameters: queryParameters,
+    );
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Erreur GET zone-utilisateurs: ${response.statusCode}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    return _extractFeatureOrResultItems(data)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchTerrainInterventions({
+    DateTime? updatedAfter,
+  }) async {
+    final items = await fetchData(
+      'interventions-anomalies-terrain',
+      updatedAfter: updatedAfter,
+    );
+
+    return items.whereType<Map>().map((item) {
+      final raw = Map<String, dynamic>.from(item);
+      if (raw['properties'] is Map) {
+        final properties = Map<String, dynamic>.from(raw['properties'] as Map);
+        properties['id'] ??= raw['id'];
+        return properties;
+      }
+      return raw;
+    }).toList();
+  }
+
+  static Future<Map<String, dynamic>> updateTerrainIntervention({
+    required int idIntervention,
+    required String etatTerrain,
+    String? commentaireTerrain,
+    int? idUserTerrain,
+    String? syncSessionUuid,
+    String? syncClientItemUuid,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/interventions-anomalies-terrain/$idIntervention/',
+    );
+    final payload = <String, dynamic>{
+      'etat_terrain': etatTerrain,
+      if (commentaireTerrain != null) 'commentaire_terrain': commentaireTerrain,
+      'id_user_terrain': idUserTerrain ?? userId,
+    };
+    final cleanSyncUuid = syncSessionUuid?.trim() ?? '';
+    if (cleanSyncUuid.isNotEmpty) {
+      payload['_sync_session_uuid'] = cleanSyncUuid;
+    }
+    final cleanClientItemUuid = syncClientItemUuid?.trim() ?? '';
+    if (cleanClientItemUuid.isNotEmpty) {
+      payload['_sync_client_item_uuid'] = cleanClientItemUuid;
+    }
+
+    try {
+      final response = await http
+          .patch(uri, headers: _headers(), body: jsonEncode(payload))
+          .timeout(const Duration(seconds: 30));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse intervention terrain invalide');
+      }
+
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur intervention terrain ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout intervention terrain');
+    } on SocketException {
+      throw Exception('Erreur reseau intervention terrain');
+    } on FormatException {
+      throw Exception('Reponse intervention terrain invalide');
     }
   }
 
-  /// POST /api/missions/ → créer une nouvelle mission
-  static Future<Map<String, dynamic>?> createMission(int projetId) async {
-    final result = await postData('missions', {
-      'id_projet': projetId,
-      'id_agent': userId,
-      'etat_mission': 'EN_COURS',
-      'date_debut': DateTime.now().toIso8601String().substring(0, 10),
-    });
-    if (result is Map<String, dynamic>) return result;
-    return null;
+  static List<Map<String, dynamic>> _extractFeatureOrResultItems(dynamic data) {
+    dynamic itemsRaw;
+    if (data is List) {
+      itemsRaw = data;
+    } else if (data is Map<String, dynamic>) {
+      final results = data['results'];
+      if (results is List) {
+        itemsRaw = results;
+      } else if (results is Map<String, dynamic> &&
+          results['features'] is List) {
+        itemsRaw = results['features'];
+      } else if (data['features'] is List) {
+        itemsRaw = data['features'];
+      } else {
+        itemsRaw = const [];
+      }
+    } else {
+      itemsRaw = const [];
+    }
+
+    final List items = itemsRaw is List ? itemsRaw : const [];
+    return items
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
+
+  // ══════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════
 
   // ══════════════════════════════════════════════════════
   // ██ POST GÉNÉRIQUE
@@ -416,11 +494,11 @@ class ApiService {
       final url = Uri.parse('$baseUrl/api/$endpoint/');
       final payload = Map<String, dynamic>.from(data);
 
-      // Injecter automatiquement le contexte SRM dans chaque requête
-      if (currentProjetId != null && !payload.containsKey('id_projet')) {
-        payload['id_projet'] = currentProjetId;
-      }
-      if (userId != null && !payload.containsKey('id_agent_crea')) {
+      payload.remove('id_projet');
+      payload.remove('id_mission');
+      if (userId != null &&
+          endpoint != 'objets-incomplets' &&
+          !payload.containsKey('id_agent_crea')) {
         payload['id_agent_crea'] = userId;
       }
       final cleanSyncUuid = syncSessionUuid?.trim() ?? '';
@@ -443,16 +521,15 @@ class ApiService {
           return true;
         }
       } else {
-        print('❌ Erreur API POST ($endpoint): '
+        debugPrint('❌ Erreur API POST ($endpoint): '
             '${response.statusCode} - ${response.body}');
         if (throwOnError) {
           var message = 'Erreur POST $endpoint: ${response.statusCode}';
           try {
             final decoded = jsonDecode(utf8.decode(response.bodyBytes));
             if (decoded is Map<String, dynamic>) {
-              final serverMessage = decoded['error'] ??
-                  decoded['detail'] ??
-                  decoded['message'];
+              final serverMessage =
+                  decoded['error'] ?? decoded['detail'] ?? decoded['message'];
               final serverText = serverMessage?.toString().trim() ?? '';
               if (serverText.isNotEmpty) {
                 message = serverText;
@@ -466,19 +543,19 @@ class ApiService {
         return null;
       }
     } on TimeoutException catch (e) {
-      print('⏰ Timeout $endpoint: $e');
+      debugPrint('⏰ Timeout $endpoint: $e');
       if (throwOnError) {
         throw Exception('Timeout POST $endpoint');
       }
       return null;
     } on SocketException catch (e) {
-      print('📡 Erreur réseau $endpoint: $e');
+      debugPrint('Erreur reseau $endpoint: $e');
       if (throwOnError) {
-        throw Exception('Erreur réseau POST $endpoint');
+        throw Exception('Erreur reseau POST $endpoint');
       }
       return null;
     } catch (e) {
-      print('❌ Exception $endpoint: $e');
+      debugPrint('❌ Exception $endpoint: $e');
       if (throwOnError) rethrow;
       return null;
     }
@@ -494,8 +571,6 @@ class ApiService {
     final payload = <String, dynamic>{
       'sync_uuid': syncUuid,
       'id_agent': userId,
-      'id_projet': currentProjetId,
-      'id_mission': currentMissionId,
       'items': items,
       'attachments': attachments,
       if (metadata != null) 'metadata': metadata,
@@ -536,8 +611,6 @@ class ApiService {
     required String uuidObjet,
     required int photoSlot,
     required String localPath,
-    int? idProjet,
-    int? idMission,
     int? idAgentCrea,
     String? syncSessionUuid,
   }) async {
@@ -556,12 +629,6 @@ class ApiService {
     if (cleanSyncUuid.isNotEmpty) {
       request.fields['sync_session_uuid'] = cleanSyncUuid;
     }
-    if (idProjet != null) {
-      request.fields['id_projet'] = idProjet.toString();
-    }
-    if (idMission != null) {
-      request.fields['id_mission'] = idMission.toString();
-    }
     if (idAgentCrea != null) {
       request.fields['id_agent_crea'] = idAgentCrea.toString();
     }
@@ -569,7 +636,8 @@ class ApiService {
     request.files.add(await http.MultipartFile.fromPath('file', localPath));
 
     try {
-      final streamed = await request.send().timeout(const Duration(seconds: 60));
+      final streamed =
+          await request.send().timeout(const Duration(seconds: 60));
       final response = await http.Response.fromStream(streamed);
       final body = utf8.decode(response.bodyBytes);
 
@@ -583,14 +651,15 @@ class ApiService {
 
       try {
         final decoded = jsonDecode(body);
-        throw Exception(decoded['error'] ?? 'Erreur upload photo ${response.statusCode}');
+        throw Exception(
+            decoded['error'] ?? 'Erreur upload photo ${response.statusCode}');
       } catch (_) {
         throw Exception('Erreur upload photo ${response.statusCode}');
       }
     } on TimeoutException {
       throw Exception('Timeout upload photo');
     } on SocketException {
-      throw Exception('Erreur réseau upload photo');
+      throw Exception('Erreur reseau upload photo');
     }
   }
 
@@ -598,7 +667,7 @@ class ApiService {
   // ██ GET GÉNÉRIQUE (GeoJSON / liste)
   // ══════════════════════════════════════════════════════
 
-  /// Ex : fetchData('ep/vannes') → GET /api/ep/vannes/?id_projet=1
+  /// Ex : fetchData('ep/vannes') -> GET /api/ep/vannes/
   static Future<List<dynamic>> fetchData(
     String endpoint, {
     DateTime? updatedAfter,
@@ -630,9 +699,6 @@ class ApiService {
     int page = 1,
   }) async {
     final params = <String, String>{};
-    if (currentProjetId != null) {
-      params['id_projet'] = currentProjetId.toString();
-    }
     if (updatedAfter != null) {
       params['updated_after'] = updatedAfter.toUtc().toIso8601String();
     }
@@ -657,7 +723,7 @@ class ApiService {
     } on TimeoutException catch (_) {
       throw Exception('Timeout GET $endpoint');
     } on SocketException catch (_) {
-      throw Exception('Erreur réseau GET $endpoint');
+      throw Exception('Erreur reseau GET $endpoint');
     } catch (e) {
       throw Exception('Erreur GET $endpoint: $e');
     }
@@ -773,7 +839,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout GET $endpoint');
     } on SocketException {
-      throw Exception('Erreur réseau GET $endpoint');
+      throw Exception('Erreur reseau GET $endpoint');
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Erreur GET $endpoint: $e');
@@ -793,27 +859,23 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> fetchAgentPublicResume({
     int? idAgent,
-    int? idProjet,
   }) {
     return fetchMetricsFirst(
       'metrics-agent-public-resume',
       queryParameters: {
         'id_agent': idAgent ?? userId,
-        'id_projet': idProjet ?? currentProjetId,
       },
     );
   }
 
   static Future<Map<String, dynamic>?> fetchAgentPublicJour({
     int? idAgent,
-    int? idProjet,
     DateTime? jour,
   }) {
     return fetchMetricsFirst(
       'metrics-agent-public-jour',
       queryParameters: {
         'id_agent': idAgent ?? userId,
-        'id_projet': idProjet ?? currentProjetId,
         if (jour != null) 'jour': _formatDateParam(jour),
       },
     );
@@ -821,7 +883,6 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> fetchAgentPublicSemaine({
     int? idAgent,
-    int? idProjet,
     int? anneeIso,
     int? semaineIso,
   }) {
@@ -829,7 +890,6 @@ class ApiService {
       'metrics-agent-public-semaine',
       queryParameters: {
         'id_agent': idAgent ?? userId,
-        'id_projet': idProjet ?? currentProjetId,
         'annee_iso': anneeIso,
         'semaine_iso': semaineIso,
       },
@@ -838,7 +898,6 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> fetchAgentPublicMois({
     int? idAgent,
-    int? idProjet,
     int? annee,
     int? moisNumero,
   }) {
@@ -846,7 +905,6 @@ class ApiService {
       'metrics-agent-public-mois',
       queryParameters: {
         'id_agent': idAgent ?? userId,
-        'id_projet': idProjet ?? currentProjetId,
         'annee': annee,
         'mois_numero': moisNumero,
       },
@@ -895,7 +953,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout lecture conduite du jour');
     } on SocketException {
-      throw Exception('Erreur réseau lecture conduite du jour');
+      throw Exception('Erreur reseau lecture conduite du jour');
     } on FormatException {
       throw Exception('Réponse conduite du jour invalide');
     }
@@ -961,7 +1019,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout validation conduite');
     } on SocketException {
-      throw Exception('Erreur réseau validation conduite');
+      throw Exception('Erreur reseau validation conduite');
     } on FormatException {
       throw Exception('Réponse validation conduite invalide');
     }
@@ -973,50 +1031,74 @@ class ApiService {
 
   // ── Eau Potable ──
   static Future<List<dynamic>> fetchVannes() => fetchData('ep/vannes');
-  static Future<List<dynamic>> fetchVannesVidange() => fetchData('ep/vannes-vidange');
+  static Future<List<dynamic>> fetchVannesVidange() =>
+      fetchData('ep/vannes-vidange');
   static Future<List<dynamic>> fetchVentouses() => fetchData('ep/ventouses');
   static Future<List<dynamic>> fetchHydrants() => fetchData('ep/hydrants');
-  static Future<List<dynamic>> fetchBornesFontaine() => fetchData('ep/bornes-fontaine');
+  static Future<List<dynamic>> fetchBornesFontaine() =>
+      fetchData('ep/bornes-fontaine');
   static Future<List<dynamic>> fetchBornesOnep() => fetchData('ep/bornes-onep');
-  static Future<List<dynamic>> fetchBouchesCles() => fetchData('ep/bouches-cles');
-  static Future<List<dynamic>> fetchBouchesArrosage() => fetchData('ep/bouches-arrosage');
-  static Future<List<dynamic>> fetchCompteursReseau() => fetchData('ep/compteurs-reseau');
-  static Future<List<dynamic>> fetchCompteursAbonne() => fetchData('ep/compteurs-abonne');
-  static Future<List<dynamic>> fetchConesReduction() => fetchData('ep/cones-reduction');
-  static Future<List<dynamic>> fetchCentresTampon() => fetchData('ep/centres-tampon');
-  static Future<List<dynamic>> fetchObturateurs() => fetchData('ep/obturateurs');
-  static Future<List<dynamic>> fetchReducteursPression() => fetchData('ep/reducteurs-pression');
+  static Future<List<dynamic>> fetchBouchesCles() =>
+      fetchData('ep/bouches-cles');
+  static Future<List<dynamic>> fetchBouchesArrosage() =>
+      fetchData('ep/bouches-arrosage');
+  static Future<List<dynamic>> fetchCompteursReseau() =>
+      fetchData('ep/compteurs-reseau');
+  static Future<List<dynamic>> fetchCompteursAbonne() =>
+      fetchData('ep/compteurs-abonne');
+  static Future<List<dynamic>> fetchConesReduction() =>
+      fetchData('ep/cones-reduction');
+  static Future<List<dynamic>> fetchCentresTampon() =>
+      fetchData('ep/centres-tampon');
+  static Future<List<dynamic>> fetchObturateurs() =>
+      fetchData('ep/obturateurs');
+  static Future<List<dynamic>> fetchReducteursPression() =>
+      fetchData('ep/reducteurs-pression');
   static Future<List<dynamic>> fetchNoeudsEP() => fetchData('ep/noeuds');
   static Future<List<dynamic>> fetchReservoirs() => fetchData('ep/reservoirs');
-  static Future<List<dynamic>> fetchStationsPompage() => fetchData('ep/stations-pompage');
+  static Future<List<dynamic>> fetchStationsPompage() =>
+      fetchData('ep/stations-pompage');
   static Future<List<dynamic>> fetchForages() => fetchData('ep/forages');
   static Future<List<dynamic>> fetchPuits() => fetchData('ep/puits');
   static Future<List<dynamic>> fetchPompes() => fetchData('ep/pompes');
   static Future<List<dynamic>> fetchRegardsEP() => fetchData('ep/regards');
-  static Future<List<dynamic>> fetchRegardsMiroirEP() => fetchData('ep/regards-miroir');
-  static Future<List<dynamic>> fetchConduitesTerrain() => fetchData('ep/conduites-terrain');
-  static Future<List<dynamic>> fetchBranchementsEP() => fetchData('ep/branchements');
+  static Future<List<dynamic>> fetchRegardsMiroirEP() =>
+      fetchData('ep/regards-miroir');
+  static Future<List<dynamic>> fetchConduitesTerrain() =>
+      fetchData('ep/conduites-terrain');
+  static Future<List<dynamic>> fetchBranchementsEP() =>
+      fetchData('ep/branchements');
   static Future<List<dynamic>> fetchTraverses() => fetchData('ep/traverses');
 
   // ── Assainissement ──
   static Future<List<dynamic>> fetchRegardsASS() => fetchData('ass/regards');
-  static Future<List<dynamic>> fetchRegardsBranchement() => fetchData('ass/regards-branchement');
-  static Future<List<dynamic>> fetchCanalisationsASS() => fetchData('ass/canalisations');
-  static Future<List<dynamic>> fetchCanalisationsReutilisation() => fetchData('ass/canalisations-reutilisation');
-  static Future<List<dynamic>> fetchBranchementsASS() => fetchData('ass/branchements');
+  static Future<List<dynamic>> fetchRegardsBranchement() =>
+      fetchData('ass/regards-branchement');
+  static Future<List<dynamic>> fetchCanalisationsASS() =>
+      fetchData('ass/canalisations');
+  static Future<List<dynamic>> fetchCanalisationsReutilisation() =>
+      fetchData('ass/canalisations-reutilisation');
+  static Future<List<dynamic>> fetchBranchementsASS() =>
+      fetchData('ass/branchements');
   static Future<List<dynamic>> fetchBassins() => fetchData('ass/bassins');
   static Future<List<dynamic>> fetchOuvragesASS() => fetchData('ass/ouvrages');
-  static Future<List<dynamic>> fetchEquipementsASS() => fetchData('ass/equipements');
+  static Future<List<dynamic>> fetchEquipementsASS() =>
+      fetchData('ass/equipements');
   static Future<List<dynamic>> fetchStationsASS() => fetchData('ass/stations');
 
   // ── Électricité ──
   static Future<List<dynamic>> fetchSupports() => fetchData('elec/supports');
   static Future<List<dynamic>> fetchPostes() => fetchData('elec/postes');
-  static Future<List<dynamic>> fetchCoffretsBT() => fetchData('elec/coffrets-bt');
-  static Future<List<dynamic>> fetchNoeudsRaccord() => fetchData('elec/noeuds-raccord');
-  static Future<List<dynamic>> fetchPointsDesserte() => fetchData('elec/points-desserte');
-  static Future<List<dynamic>> fetchTronconsBT() => fetchData('elec/troncons-bt');
-  static Future<List<dynamic>> fetchTronconsHTA() => fetchData('elec/troncons-hta');
+  static Future<List<dynamic>> fetchCoffretsBT() =>
+      fetchData('elec/coffrets-bt');
+  static Future<List<dynamic>> fetchNoeudsRaccord() =>
+      fetchData('elec/noeuds-raccord');
+  static Future<List<dynamic>> fetchPointsDesserte() =>
+      fetchData('elec/points-desserte');
+  static Future<List<dynamic>> fetchTronconsBT() =>
+      fetchData('elec/troncons-bt');
+  static Future<List<dynamic>> fetchTronconsHTA() =>
+      fetchData('elec/troncons-hta');
 
   // ── Sync POST générique ──
   static Future<dynamic> syncEntity(
@@ -1027,47 +1109,6 @@ class ApiService {
   // ══════════════════════════════════════════════════════
   // ██ UTILITAIRES
   // ══════════════════════════════════════════════════════
-
-  static Future<Map<String, dynamic>> uploadLocalHistory({
-    List<Map<String, dynamic>> attributes = const [],
-    List<Map<String, dynamic>> events = const [],
-  }) async {
-    final uri = Uri.parse('$baseUrl/api/historique-mobile/upload/');
-    final payload = <String, dynamic>{
-      'attributes': attributes,
-      'events': events,
-    };
-
-    try {
-      final response = await http
-          .post(uri, headers: _headers(), body: jsonEncode(payload))
-          .timeout(const Duration(seconds: 30));
-      final body = utf8.decode(response.bodyBytes);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final decoded = jsonDecode(body);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        }
-        throw Exception('Réponse historique mobile invalide');
-      }
-
-      try {
-        final decoded = jsonDecode(body);
-        throw Exception(
-          decoded['error'] ??
-              decoded['detail'] ??
-              'Erreur upload historique ${response.statusCode}',
-        );
-      } catch (_) {
-        throw Exception('Erreur upload historique ${response.statusCode}');
-      }
-    } on TimeoutException {
-      throw Exception('Timeout upload historique');
-    } on SocketException {
-      throw Exception('Erreur réseau upload historique');
-    }
-  }
 
   static Map<String, String> _headers() => {
         'Content-Type': 'application/json',
@@ -1081,8 +1122,7 @@ class ApiService {
     return '$year-$month-$day';
   }
 
-  static Map<String, dynamic> extractFromGeoJson(
-      Map<String, dynamic> geoJson) {
+  static Map<String, dynamic> extractFromGeoJson(Map<String, dynamic> geoJson) {
     return {
       'properties': geoJson['properties'],
       'geometry': geoJson['geometry'],
@@ -1096,14 +1136,19 @@ class ApiService {
     userId = null;
     userRole = null;
     userLogin = null;
+    userNom = null;
+    userPrenom = null;
     nomPrenom = null;
-    currentProjetId = null;
-    currentProjetNom = null;
-    currentProjetCode = null;
-    currentProjetStatut = null;
-    currentProjetMetier = null;
-    currentProjetRegion = null;
-    currentProjetSrm = null;
-    currentMissionId = null;
+  }
+
+  static String? _buildFullName(Object? prenom, Object? nom, Object? fallback) {
+    final fallbackText = fallback?.toString().trim() ?? '';
+    if (fallbackText.isNotEmpty) return fallbackText;
+
+    final parts = [
+      prenom?.toString().trim() ?? '',
+      nom?.toString().trim() ?? '',
+    ].where((part) => part.isNotEmpty).toList();
+    return parts.isEmpty ? null : parts.join(' ');
   }
 }

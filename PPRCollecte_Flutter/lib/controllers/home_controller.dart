@@ -45,7 +45,8 @@ class HomeController extends ChangeNotifier {
   bool get hasPausedCollection => _collectionManager.hasPausedCollection;
   String? get activeCollectionType => _collectionManager.activeCollectionType;
   String? get activeLineCode => _activeLineCode;
-  SpecialCollection? get specialCollection => _collectionManager.specialCollection;
+  SpecialCollection? get specialCollection =>
+      _collectionManager.specialCollection;
   int get collectionCountdown => _collectionManager.countdown;
   bool get isMockLocationEnabled => _locationService.isMockLocationEnabled;
 
@@ -306,9 +307,8 @@ class HomeController extends ChangeNotifier {
   String? _extractNmeaType(String? nmea) {
     final trimmed = nmea?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
-    final withoutPrefix = trimmed.startsWith(r'$')
-        ? trimmed.substring(1)
-        : trimmed;
+    final withoutPrefix =
+        trimmed.startsWith(r'$') ? trimmed.substring(1) : trimmed;
     final type = withoutPrefix.split(',').first.trim();
     return type.isEmpty ? null : type;
   }
@@ -399,7 +399,8 @@ class HomeController extends ChangeNotifier {
       _collectionManager.addManualPoint(CollectionType.special, point);
     }
 
-    debugPrint('✅ $numberOfPoints points réalistes simulés pour collection spéciale');
+    debugPrint(
+        '✅ $numberOfPoints points réalistes simulés pour collection spéciale');
     notifyListeners();
   }
 
@@ -466,7 +467,8 @@ class HomeController extends ChangeNotifier {
     if (!hasActiveCollection) return;
 
     final random = Random();
-    final numberOfPoints = 15 + random.nextInt(10); // 15-25 points (plus court pour tester vite)
+    final numberOfPoints =
+        15 + random.nextInt(10); // 15-25 points (plus court pour tester vite)
 
     double currentLat = userPosition.latitude;
     double currentLng = userPosition.longitude;
@@ -497,7 +499,8 @@ class HomeController extends ChangeNotifier {
     }
 
     final bearingDeg = (angle * 180 / pi % 360).toStringAsFixed(0);
-    debugPrint('🧪 SIMULATION LIGNE: $numberOfPoints pts, direction ~$bearingDeg°');
+    debugPrint(
+        '🧪 SIMULATION LIGNE: $numberOfPoints pts, direction ~$bearingDeg°');
 
     collectedPolylines.add(
       Polyline(
@@ -514,14 +517,17 @@ class HomeController extends ChangeNotifier {
     addRealisticLineSimulation();
   }
 
-  double _haversineDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _haversineDistance(
+      double lat1, double lon1, double lat2, double lon2) {
     const double earthRadius = 6371000.0;
     final double dLat = _degToRad(lat2 - lat1);
     final double dLon = _degToRad(lon2 - lon1);
 
     final double a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_degToRad(lat1)) * cos(_degToRad(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
+        cos(_degToRad(lat1)) *
+            cos(_degToRad(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
 
     final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
@@ -541,7 +547,8 @@ class HomeController extends ChangeNotifier {
         if (lat.abs() > 90 || lon.abs() > 180) return;
 
         userPosition = LatLng(lat, lon);
-        gpsAccuracy = loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
+        gpsAccuracy =
+            loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
         if (!gpsSourceLabel.startsWith('GNSS externe')) {
           gpsSourceLabel = 'téléphone';
           gpsDetailsLine = _buildPositionDetailsLine(
@@ -594,7 +601,8 @@ class HomeController extends ChangeNotifier {
       _collectionManager.pauseLigneCollection();
     } else if (ligne.isPaused) {
       try {
-        _collectionManager.resumeLigneCollection(_locationService.onLocationChanged());
+        _collectionManager
+            .resumeLigneCollection(_locationService.onLocationChanged());
       } catch (_) {
         rethrow;
       }
@@ -609,7 +617,8 @@ class HomeController extends ChangeNotifier {
       _collectionManager.pauseSpecialCollection();
     } else if (special.isPaused) {
       try {
-        _collectionManager.resumeSpecialCollection(_locationService.onLocationChanged());
+        _collectionManager
+            .resumeSpecialCollection(_locationService.onLocationChanged());
       } catch (_) {
         rethrow;
       }

@@ -52,15 +52,15 @@ class _LegendWidgetState extends State<LegendWidget> {
   final Map<String, bool> _metierExpanded = {};
 
   static const Map<String, Color> _metierColor = {
-    'Eau Potable':    Color(0xFF1565C0),
+    'Eau Potable': Color(0xFF1565C0),
     'Assainissement': Color(0xFF2E7D32),
-    'Électricité':    Color(0xFFE65100),
+    'Électricité': Color(0xFFE65100),
   };
 
   static const Map<String, IconData> _metierIcon = {
-    'Eau Potable':    Icons.water_drop,
+    'Eau Potable': Icons.water_drop,
     'Assainissement': Icons.waves,
-    'Électricité':    Icons.bolt,
+    'Électricité': Icons.bolt,
   };
 
   static String _vk(String tableName) => 'srm_$tableName';
@@ -129,8 +129,10 @@ class _LegendWidgetState extends State<LegendWidget> {
   }
 
   int _countForTable(String table) => widget.pointCountsByTable[table] ?? 0;
-  int _anomaliesForTable(String table) => widget.anomalieCountsByTable[table] ?? 0;
-  int _incompletForTable(String table) => widget.incompletCountsByTable[table] ?? 0;
+  int _anomaliesForTable(String table) =>
+      widget.anomalieCountsByTable[table] ?? 0;
+  int _incompletForTable(String table) =>
+      widget.incompletCountsByTable[table] ?? 0;
 
   int _totalForMetier(String metier) {
     int t = 0;
@@ -159,20 +161,17 @@ class _LegendWidgetState extends State<LegendWidget> {
     return t;
   }
 
-  int get _totalObjects =>
-      widget.pointCountsByTable.entries
-          .where((entry) => entry.key != _readOnlyRegardMiroirTable)
-          .fold(0, (sum, entry) => sum + entry.value);
+  int get _totalObjects => widget.pointCountsByTable.entries
+      .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+      .fold(0, (sum, entry) => sum + entry.value);
 
-  int get _totalAnomalies =>
-      widget.anomalieCountsByTable.entries
-          .where((entry) => entry.key != _readOnlyRegardMiroirTable)
-          .fold(0, (sum, entry) => sum + entry.value);
+  int get _totalAnomalies => widget.anomalieCountsByTable.entries
+      .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+      .fold(0, (sum, entry) => sum + entry.value);
 
-  int get _totalIncompletes =>
-      widget.incompletCountsByTable.entries
-          .where((entry) => entry.key != _readOnlyRegardMiroirTable)
-          .fold(0, (sum, entry) => sum + entry.value);
+  int get _totalIncompletes => widget.incompletCountsByTable.entries
+      .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+      .fold(0, (sum, entry) => sum + entry.value);
 
   bool _isMetierFullyChecked(String metier) {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
@@ -217,7 +216,8 @@ class _LegendWidgetState extends State<LegendWidget> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
+            BoxShadow(
+                color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -244,9 +244,7 @@ class _LegendWidgetState extends State<LegendWidget> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              _isExpanded
-                  ? Icons.legend_toggle
-                  : Icons.legend_toggle_outlined,
+              _isExpanded ? Icons.legend_toggle : Icons.legend_toggle_outlined,
               size: 20,
               color: Colors.blue.shade700,
             ),
@@ -258,10 +256,10 @@ class _LegendWidgetState extends State<LegendWidget> {
               _badge(_totalObjects, color: Colors.grey.shade600),
             ],
             // Badge anomalie toujours visible dans le header si des anomalies existent
-            if (_totalIncompletes > 0) ...[              const SizedBox(width: 4),
+            if (_totalIncompletes > 0) ...[
+              const SizedBox(width: 4),
               _badge(_totalIncompletes,
-                  color: const Color(0xFFF57C00),
-                  icon: Icons.edit_off),
+                  color: const Color(0xFFF57C00), icon: Icons.edit_off),
             ],
             if (_totalAnomalies > 0) ...[
               const SizedBox(width: 4),
@@ -308,12 +306,12 @@ class _LegendWidgetState extends State<LegendWidget> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _anomalieFilterActive
-            ? const Color(0xFFD32F2F).withOpacity(0.07)
+            ? const Color(0xFFD32F2F).withValues(alpha: 0.07)
             : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _anomalieFilterActive
-              ? const Color(0xFFD32F2F).withOpacity(0.45)
+              ? const Color(0xFFD32F2F).withValues(alpha: 0.45)
               : Colors.grey.shade200,
           width: 1.2,
         ),
@@ -379,12 +377,12 @@ class _LegendWidgetState extends State<LegendWidget> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _incompletFilterActive
-            ? const Color(0xFFF57C00).withOpacity(0.07)
+            ? const Color(0xFFF57C00).withValues(alpha: 0.07)
             : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _incompletFilterActive
-              ? const Color(0xFFF57C00).withOpacity(0.45)
+              ? const Color(0xFFF57C00).withValues(alpha: 0.45)
               : Colors.grey.shade200,
           width: 1.2,
         ),
@@ -402,7 +400,7 @@ class _LegendWidgetState extends State<LegendWidget> {
               border: Border.all(color: Colors.white, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.withOpacity(0.4),
+                  color: Colors.orange.withValues(alpha: 0.4),
                   blurRadius: 4,
                   offset: const Offset(0, 1),
                 ),
@@ -447,8 +445,7 @@ class _LegendWidgetState extends State<LegendWidget> {
           ),
           if (_totalIncompletes > 0) ...[
             _badge(_totalIncompletes,
-                color: const Color(0xFFF57C00),
-                icon: Icons.edit_off),
+                color: const Color(0xFFF57C00), icon: Icons.edit_off),
             const SizedBox(width: 4),
           ],
           Transform.scale(
@@ -479,8 +476,7 @@ class _LegendWidgetState extends State<LegendWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
-          onTap: () =>
-              setState(() => _metierExpanded[metier] = !isExpanded),
+          onTap: () => setState(() => _metierExpanded[metier] = !isExpanded),
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
@@ -493,8 +489,7 @@ class _LegendWidgetState extends State<LegendWidget> {
                   child: Checkbox(
                     value: isPartial ? null : isFullyChecked,
                     tristate: true,
-                    onChanged: (_) =>
-                        _toggleMetier(metier, !isFullyChecked),
+                    onChanged: (_) => _toggleMetier(metier, !isFullyChecked),
                     activeColor: color,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
@@ -529,8 +524,7 @@ class _LegendWidgetState extends State<LegendWidget> {
                 if (incomplets > 0) ...[
                   const SizedBox(width: 3),
                   _badge(incomplets,
-                      color: const Color(0xFFF57C00),
-                      icon: Icons.edit_off),
+                      color: const Color(0xFFF57C00), icon: Icons.edit_off),
                 ],
                 if (anomalies > 0) ...[
                   const SizedBox(width: 3),
@@ -548,7 +542,6 @@ class _LegendWidgetState extends State<LegendWidget> {
             ),
           ),
         ),
-
         if (isExpanded)
           Padding(
             padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
@@ -565,7 +558,6 @@ class _LegendWidgetState extends State<LegendWidget> {
               ],
             ),
           ),
-
         const SizedBox(height: 2),
       ],
     );
@@ -583,9 +575,8 @@ class _LegendWidgetState extends State<LegendWidget> {
 
     final iconCfg = CustomMarkerIcons.iconConfig[tableName];
     final entityIcon = iconCfg?.icon ?? Icons.location_pin;
-    final entityColor = isVisible
-        ? (iconCfg?.color ?? metierColor)
-        : Colors.grey.shade300;
+    final entityColor =
+        isVisible ? (iconCfg?.color ?? metierColor) : Colors.grey.shade300;
 
     final isLine = SrmConfig.isLineEntity(metier, entity);
     final isPolygon = SrmConfig.isPolygonEntity(metier, entity);
@@ -626,9 +617,7 @@ class _LegendWidgetState extends State<LegendWidget> {
               entity,
               style: TextStyle(
                 fontSize: 11,
-                color: isVisible
-                    ? Colors.grey.shade700
-                    : Colors.grey.shade400,
+                color: isVisible ? Colors.grey.shade700 : Colors.grey.shade400,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -648,8 +637,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             const SizedBox(width: 3),
           ],
           if (count > 0)
-            _badge(count,
-                color: iconCfg?.color ?? metierColor, small: true),
+            _badge(count, color: iconCfg?.color ?? metierColor, small: true),
         ],
       ),
     );
@@ -770,9 +758,7 @@ class _LegendWidgetState extends State<LegendWidget> {
               label,
               style: TextStyle(
                 fontSize: 11,
-                color: isVisible
-                    ? Colors.grey.shade700
-                    : Colors.grey.shade400,
+                color: isVisible ? Colors.grey.shade700 : Colors.grey.shade400,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -791,8 +777,7 @@ class _LegendWidgetState extends State<LegendWidget> {
                 small: true),
             const SizedBox(width: 3),
           ],
-          if (count > 0)
-            _badge(count, color: color, small: true),
+          if (count > 0) _badge(count, color: color, small: true),
         ],
       ),
     );
@@ -818,7 +803,8 @@ class _LegendWidgetState extends State<LegendWidget> {
             width: 22,
             height: 16,
             decoration: BoxDecoration(
-              color: displayColor.withOpacity(hasAnomalie || hasIncomplet ? 0.28 : 0.0),
+              color: displayColor.withValues(
+                  alpha: hasAnomalie || hasIncomplet ? 0.28 : 0.0),
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
                 color: displayColor,
@@ -871,9 +857,9 @@ class _LegendWidgetState extends State<LegendWidget> {
       padding: EdgeInsets.symmetric(
           horizontal: small ? 4 : 6, vertical: small ? 1 : 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.11),
+        color: color.withValues(alpha: 0.11),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.35), width: 0.8),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -884,9 +870,7 @@ class _LegendWidgetState extends State<LegendWidget> {
           ],
           Text(count.toString(),
               style: TextStyle(
-                  fontSize: fs,
-                  color: color,
-                  fontWeight: FontWeight.w600)),
+                  fontSize: fs, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -935,4 +919,3 @@ class _MiniWarningPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

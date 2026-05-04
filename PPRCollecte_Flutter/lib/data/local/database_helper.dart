@@ -1,13 +1,12 @@
 // lib/data/local/database_helper.dart
 // ── SPRINT 3 : DatabaseHelper SRM ──
 // Tables SQLite miroirs de PostgreSQL :
-//   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom_prenom, role)
-//   projet_local      → public.projet      (id_projet, code_affaire, nom, srm, region, metier, statut)
-//   mission_local     → public.mission     (id_mission, id_agent, id_projet, etat_mission)
+//   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom, prenom, role)
 // Version DB: 18
 
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
@@ -30,15 +29,17 @@ class DatabaseHelper {
         await _database!.rawQuery('SELECT 1');
         return _database!;
       } catch (e) {
-        print('❌ Connexion DB invalide, fermeture: $e');
+        debugPrint('❌ Connexion DB invalide, fermeture: $e');
         await _database!.close();
         _database = null;
       }
     }
 
     if (_isInitializing) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      return database;
+      while (_isInitializing) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      if (_database != null) return _database!;
     }
 
     _isInitializing = true;
@@ -53,10 +54,10 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'srm_collecte.db');
-    print('📂 Chemin DB: $path');
+    debugPrint('📂 Chemin DB: $path');
 
     final dbExists = await databaseExists(path);
-    print(dbExists ? '📁 DB existante' : '🆕 Nouvelle DB');
+    debugPrint(dbExists ? '📁 DB existante' : '🆕 Nouvelle DB');
 
     final dbDir = Directory(dbPath);
     if (!await dbDir.exists()) {
@@ -67,15 +68,15 @@ class DatabaseHelper {
       path,
       version: 18,
       onCreate: (db, version) async {
-        print('🆕 Création tables v$version');
+        debugPrint('🆕 Création tables v$version');
         await _createAllTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        print('🔄 Migration $oldVersion → $newVersion');
+        debugPrint('🔄 Migration $oldVersion → $newVersion');
         await _createAllTables(db);
       },
       onOpen: (db) async {
-        print('🔌 DB ouverte');
+        debugPrint('🔌 DB ouverte');
         await _migrateExistingSrmTables(db);
         await _createConduiteSyncQueueTable(db);
       },
@@ -97,7 +98,7 @@ class DatabaseHelper {
         remember_me INTEGER DEFAULT 0
       )
     ''');
-    print('✅ Table srm_session');
+    debugPrint('✅ Table srm_session');
 
     // ── utilisateur_local ──
     // Miroir de public.utilisateur
@@ -107,34 +108,16 @@ class DatabaseHelper {
         id_user INTEGER PRIMARY KEY,
         login TEXT NOT NULL UNIQUE,
         mot_de_passe TEXT NOT NULL,
-        nom_prenom TEXT,
+        nom TEXT,
+        prenom TEXT,
         role TEXT DEFAULT 'editeur_terrain',
         actif INTEGER DEFAULT 1,
-        id_projet_actif INTEGER,
         nb_objets_collectes_total INTEGER DEFAULT 0,
         date_creation TEXT,
         dernier_login TEXT
       )
     ''');
-    print('✅ Table utilisateur_local');
-
-    // ── projet_local ──
-    // Miroir de public.projet
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS projet_local (
-        id_projet INTEGER PRIMARY KEY,
-        code_affaire TEXT,
-        nom TEXT,
-        srm TEXT,
-        region TEXT,
-        metier TEXT,
-        statut TEXT DEFAULT 'EN_PREPARATION',
-        date_debut TEXT,
-        date_fin TEXT,
-        date_sync TEXT
-      )
-    ''');
-    print('✅ Table projet_local');
+    debugPrint('✅ Table utilisateur_local');
 
     // ── Métadonnées ──
     await db.execute('''
@@ -143,39 +126,41 @@ class DatabaseHelper {
         value TEXT
       )
     ''');
-    print('✅ Table app_metadata');
+    debugPrint('✅ Table app_metadata');
 
     await _createPhotoSyncQueueTable(db);
     await _createConduiteSyncQueueTable(db);
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createOfflineBasemapZoneTable(db);
-    await _createAgentOfflineZoneTable(db);
     await _createOfflineBasemapPackageTable(db);
     await _createSrmFieldOptionLocalTable(db);
     await _createCommuneLocalTable(db);
+    await _createZoneLocalTables(db);
+    await _ensureInterventionAnomalieTerrainTable(db);
     await _createAllSrmEntityTables(db);
 
     // ── SPRINT 7 : Table brouillons automatiques ──
     await DraftService.createTable(db);
 
-    print('🎉 Toutes les tables SRM créées !');
+    debugPrint('🎉 Toutes les tables SRM créées !');
   }
 
   Future<void> _migrateExistingSrmTables(Database db) async {
+    await _ensureUtilisateurLocalColumns(db);
     await _ensureSrmFieldOptionLocalTable(db);
     await _ensureCommuneLocalTable(db);
+    await _migrateZoneLocalTables(db);
+    await _ensureInterventionAnomalieTerrainTable(db);
     await _createAllSrmEntityTables(db);
     await _createPhotoSyncQueueTable(db);
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createOfflineBasemapZoneTable(db);
-    await _createAgentOfflineZoneTable(db);
     await _createOfflineBasemapPackageTable(db);
     // ── SPRINT 7 : S'assurer que la table brouillons existe ──
     await _migrateLocalHistoryTables(db);
     await _migrateOfflineBasemapTables(db);
-    await _migrateAgentOfflineZoneTable(db);
     await DraftService.createTable(db);
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
@@ -192,7 +177,7 @@ class DatabaseHelper {
         if (tables.isEmpty) continue;
         await _ensureSrmFixedColumns(db, tableName);
       } catch (e) {
-        print('⚠️ Migration SRM ignorée pour $tableName: $e');
+        debugPrint('⚠️ Migration SRM ignorée pour $tableName: $e');
       }
     }
   }
@@ -204,19 +189,14 @@ class DatabaseHelper {
       CREATE TABLE IF NOT EXISTS objet_incomplet (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_incomplet INTEGER,
+        nom_table TEXT,
         id_objet INTEGER,
-        nom_classe TEXT,
-        metier TEXT,
-        raison TEXT,
         detail_raison TEXT,
         date_signalement TEXT,
-        id_agent_signal INTEGER,
+        id_agent_incomplet INTEGER,
         statut TEXT DEFAULT 'A_COMPLETER',
-        date_planification TEXT,
-        id_agent_retour INTEGER,
         date_completion TEXT,
-        id_mission INTEGER,
-        id_projet INTEGER,
+        id_agent_completement INTEGER,
         synced INTEGER DEFAULT 0,
         downloaded INTEGER DEFAULT 0,
         date_collecte TEXT,
@@ -227,19 +207,14 @@ class DatabaseHelper {
     // Migrer les colonnes manquantes si la table existait déjà sans elles
     final colonnesMigration = {
       'id_incomplet': 'INTEGER',
+      'nom_table': 'TEXT',
       'id_objet': 'INTEGER',
-      'nom_classe': 'TEXT',
-      'metier': 'TEXT',
-      'raison': 'TEXT',
       'detail_raison': 'TEXT',
       'date_signalement': 'TEXT',
-      'id_agent_signal': 'INTEGER',
+      'id_agent_incomplet': 'INTEGER',
       'statut': "TEXT DEFAULT 'A_COMPLETER'",
-      'date_planification': 'TEXT',
-      'id_agent_retour': 'INTEGER',
       'date_completion': 'TEXT',
-      'id_mission': 'INTEGER',
-      'id_projet': 'INTEGER',
+      'id_agent_completement': 'INTEGER',
       'synced': 'INTEGER DEFAULT 0',
       'downloaded': 'INTEGER DEFAULT 0',
       'date_collecte': 'TEXT',
@@ -255,11 +230,135 @@ class DatabaseHelper {
         await db.execute(
           'ALTER TABLE objet_incomplet ADD COLUMN ${entry.key} ${entry.value}',
         );
-        print('✅ Col ajoutée objet_incomplet.${entry.key}');
+        debugPrint('✅ Col ajoutée objet_incomplet.${entry.key}');
       } catch (e) {
-        print('⚠️ objet_incomplet.${entry.key}: $e');
+        debugPrint('⚠️ objet_incomplet.${entry.key}: $e');
       }
     }
+
+    try {
+      await db.execute('''
+        UPDATE objet_incomplet
+        SET nom_table = nom_classe
+        WHERE (nom_table IS NULL OR trim(nom_table) = '')
+          AND nom_classe IS NOT NULL
+          AND trim(nom_classe) <> ''
+      ''');
+    } catch (_) {
+      // nom_classe n'existe pas sur les installations neuves.
+    }
+    await _normalizeLocalObjetIncompletNomTable(db);
+  }
+
+  Future<void> _normalizeLocalObjetIncompletNomTable(Database db) async {
+    final rows = await db.query(
+      'objet_incomplet',
+      columns: ['id', 'nom_table'],
+      where: "nom_table IS NOT NULL AND trim(nom_table) <> ''",
+    );
+    for (final row in rows) {
+      final id = row['id'];
+      final nomTable = row['nom_table']?.toString().trim() ?? '';
+      if (nomTable.isEmpty || nomTable.contains('.')) continue;
+      final normalized = _objetIncompletNomTable(nomTable);
+      if (normalized == nomTable) continue;
+      await db.update(
+        'objet_incomplet',
+        {'nom_table': normalized, 'synced': 0, 'date_sync': null},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+  }
+
+  Future<void> _ensureInterventionAnomalieTerrainTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS intervention_anomalie (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_intervention INTEGER NOT NULL UNIQUE,
+        id_objet INTEGER,
+        nom_classe TEXT,
+        nom_table TEXT,
+        uuid_objet TEXT,
+        retour_terrain INTEGER DEFAULT 0,
+        statut TEXT,
+        responsable_actuel TEXT,
+        etat_terrain TEXT DEFAULT 'en_attente',
+        commentaire_terrain TEXT,
+        date_terrain TEXT,
+        id_user_terrain INTEGER,
+        date_creation TEXT,
+        date_cloture TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 1,
+        downloaded INTEGER DEFAULT 1,
+        date_collecte TEXT,
+        date_sync TEXT,
+        last_error TEXT
+      )
+    ''');
+
+    final colonnesMigration = {
+      'id_intervention': 'INTEGER',
+      'id_objet': 'INTEGER',
+      'nom_classe': 'TEXT',
+      'nom_table': 'TEXT',
+      'uuid_objet': 'TEXT',
+      'retour_terrain': 'INTEGER DEFAULT 0',
+      'statut': 'TEXT',
+      'responsable_actuel': 'TEXT',
+      'etat_terrain': "TEXT DEFAULT 'en_attente'",
+      'commentaire_terrain': 'TEXT',
+      'date_terrain': 'TEXT',
+      'id_user_terrain': 'INTEGER',
+      'date_creation': 'TEXT',
+      'date_cloture': 'TEXT',
+      'created_at': 'TEXT',
+      'updated_at': 'TEXT',
+      'synced': 'INTEGER DEFAULT 1',
+      'downloaded': 'INTEGER DEFAULT 1',
+      'date_collecte': 'TEXT',
+      'date_sync': 'TEXT',
+      'last_error': 'TEXT',
+    };
+
+    final existing =
+        await db.rawQuery('PRAGMA table_info(intervention_anomalie)');
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+
+    for (final entry in colonnesMigration.entries) {
+      if (existingCols.contains(entry.key)) continue;
+      try {
+        await db.execute(
+          'ALTER TABLE intervention_anomalie ADD COLUMN ${entry.key} ${entry.value}',
+        );
+        debugPrint('âœ… Col ajoutÃ©e intervention_anomalie.${entry.key}');
+      } catch (e) {
+        debugPrint('âš ï¸ intervention_anomalie.${entry.key}: $e');
+      }
+    }
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_intervention_anomalie_statut
+      ON intervention_anomalie(statut)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_intervention_anomalie_id_intervention
+      ON intervention_anomalie(id_intervention)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_intervention_anomalie_objet
+      ON intervention_anomalie(nom_table, id_objet)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_intervention_anomalie_uuid
+      ON intervention_anomalie(uuid_objet)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_intervention_anomalie_sync
+      ON intervention_anomalie(synced, updated_at)
+    ''');
   }
 
   Future<void> _createPhotoSyncQueueTable(Database db) async {
@@ -273,8 +372,6 @@ class DatabaseHelper {
         local_path TEXT NOT NULL,
         remote_path TEXT,
         date_prise_reelle TEXT,
-        id_projet INTEGER,
-        id_mission INTEGER,
         id_agent_crea INTEGER,
         synced INTEGER DEFAULT 0,
         retry_count INTEGER DEFAULT 0,
@@ -472,31 +569,6 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<void> _createAgentOfflineZoneTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS agent_offline_zone (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_user INTEGER NOT NULL,
-        zone_id TEXT NOT NULL,
-        actif INTEGER DEFAULT 1,
-        assigned_at TEXT,
-        updated_at TEXT,
-        metadata_json TEXT,
-        UNIQUE(id_user, zone_id)
-      )
-    ''');
-
-    await db.execute('''
-      CREATE INDEX IF NOT EXISTS agent_offline_zone_user_idx
-      ON agent_offline_zone (id_user, actif)
-    ''');
-
-    await db.execute('''
-      CREATE INDEX IF NOT EXISTS agent_offline_zone_zone_idx
-      ON agent_offline_zone (zone_id, actif)
-    ''');
-  }
-
   Future<void> _migrateOfflineBasemapTables(Database db) async {
     await _ensureColumns(
       db,
@@ -572,6 +644,58 @@ class DatabaseHelper {
     }
   }
 
+  Future<void> _ensureUtilisateurLocalColumns(Database db) async {
+    final existing = await db.rawQuery('PRAGMA table_info(utilisateur_local)');
+    if (existing.isEmpty) return;
+
+    final existingCols = existing.map((r) => r['name'] as String).toSet();
+    await _ensureColumns(
+      db,
+      tableName: 'utilisateur_local',
+      columns: {
+        'nom': 'TEXT',
+        'prenom': 'TEXT',
+      },
+    );
+
+    if (!existingCols.contains('nom_prenom')) return;
+
+    final rows = await db.query('utilisateur_local');
+    for (final row in rows) {
+      final fullName = row['nom_prenom']?.toString().trim();
+      if (fullName == null || fullName.isEmpty) continue;
+
+      final currentNom = row['nom']?.toString().trim() ?? '';
+      final currentPrenom = row['prenom']?.toString().trim() ?? '';
+      if (currentNom.isNotEmpty && currentPrenom.isNotEmpty) continue;
+
+      final parts = fullName.split(RegExp(r'\s+'));
+      final inferredPrenom = parts.isNotEmpty ? parts.first : null;
+      final inferredNom = parts.length > 1 ? parts.skip(1).join(' ') : null;
+
+      await db.update(
+        'utilisateur_local',
+        {
+          if (currentPrenom.isEmpty) 'prenom': inferredPrenom,
+          if (currentNom.isEmpty) 'nom': inferredNom,
+        },
+        where: 'id_user = ?',
+        whereArgs: [row['id_user']],
+      );
+    }
+  }
+
+  static String? fullNameFromUserRow(Map<String, dynamic>? user) {
+    if (user == null) return null;
+    final prenom = user['prenom']?.toString().trim() ?? '';
+    final nom = user['nom']?.toString().trim() ?? '';
+    final fullName = [prenom, nom].where((part) => part.isNotEmpty).join(' ');
+    if (fullName.isNotEmpty) return fullName;
+
+    final oldFullName = user['nom_prenom']?.toString().trim() ?? '';
+    return oldFullName.isNotEmpty ? oldFullName : null;
+  }
+
   Future<void> _createSrmFieldOptionLocalTable(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS srm_field_option_local (
@@ -644,8 +768,78 @@ class DatabaseHelper {
     await _createCommuneLocalTable(db);
   }
 
+  Future<void> _createZoneLocalTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS zone_local (
+        id_zone INTEGER PRIMARY KEY,
+        nom_zone TEXT NOT NULL,
+        etat TEXT DEFAULT 'active',
+        date_debut TEXT,
+        date_cloture TEXT,
+        id_user_creat INTEGER,
+        id_user_cloture INTEGER,
+        geometry_geojson TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS zone_local_name_idx
+      ON zone_local (nom_zone, etat)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS zone_utilisateur_local (
+        id INTEGER PRIMARY KEY,
+        id_zone INTEGER NOT NULL,
+        id_user INTEGER NOT NULL,
+        date_affectation TEXT,
+        actif INTEGER DEFAULT 1,
+        UNIQUE(id_zone, id_user)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS zone_utilisateur_local_user_idx
+      ON zone_utilisateur_local (id_user, actif)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS zone_utilisateur_local_zone_idx
+      ON zone_utilisateur_local (id_zone, actif)
+    ''');
+  }
+
+  Future<void> _migrateZoneLocalTables(Database db) async {
+    await _createZoneLocalTables(db);
+    await _ensureColumns(
+      db,
+      tableName: 'zone_local',
+      columns: const {
+        'id_zone': 'INTEGER',
+        'nom_zone': 'TEXT',
+        'etat': "TEXT DEFAULT 'active'",
+        'date_debut': 'TEXT',
+        'date_cloture': 'TEXT',
+        'id_user_creat': 'INTEGER',
+        'id_user_cloture': 'INTEGER',
+        'geometry_geojson': 'TEXT',
+      },
+    );
+    await _ensureColumns(
+      db,
+      tableName: 'zone_utilisateur_local',
+      columns: const {
+        'id': 'INTEGER',
+        'id_zone': 'INTEGER',
+        'id_user': 'INTEGER',
+        'date_affectation': 'TEXT',
+        'actif': 'INTEGER DEFAULT 1',
+      },
+    );
+  }
+
   Future<void> _ensureSrmFieldOptionLocalTable(Database db) async {
-    final existing = await db.rawQuery('PRAGMA table_info(srm_field_option_local)');
+    final existing =
+        await db.rawQuery('PRAGMA table_info(srm_field_option_local)');
     if (existing.isEmpty) {
       await _createSrmFieldOptionLocalTable(db);
       return;
@@ -769,8 +963,6 @@ class DatabaseHelper {
       'local_path': 'TEXT',
       'remote_path': 'TEXT',
       'date_prise_reelle': 'TEXT',
-      'id_projet': 'INTEGER',
-      'id_mission': 'INTEGER',
       'id_agent_crea': 'INTEGER',
       'synced': 'INTEGER DEFAULT 0',
       'retry_count': 'INTEGER DEFAULT 0',
@@ -815,10 +1007,10 @@ class DatabaseHelper {
   Future<int> upsertUserSrm({
     required String login,
     required String motDePasseHash,
-    String? nomPrenom,
+    String? nom,
+    String? prenom,
     String? role,
     int? apiId,
-    int? idProjetActif,
   }) async {
     final db = await database;
     try {
@@ -828,15 +1020,15 @@ class DatabaseHelper {
           'id_user': apiId,
           'login': login,
           'mot_de_passe': motDePasseHash,
-          'nom_prenom': nomPrenom,
+          'nom': nom,
+          'prenom': prenom,
           'role': role ?? 'editeur_terrain',
-          'id_projet_actif': idProjetActif,
           'dernier_login': DateTime.now().toIso8601String(),
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     } catch (e) {
-      print('❌ Erreur upsertUserSrm: $e');
+      debugPrint('❌ Erreur upsertUserSrm: $e');
       return -1;
     }
   }
@@ -853,7 +1045,8 @@ class DatabaseHelper {
       );
       if (result.isEmpty) return false;
 
-      final storedValue = (result.first['mot_de_passe'] ?? '').toString().trim();
+      final storedValue =
+          (result.first['mot_de_passe'] ?? '').toString().trim();
       if (storedValue.isEmpty) return false;
 
       if (PasswordHashService.looksLikePasswordHash(storedValue)) {
@@ -862,7 +1055,7 @@ class DatabaseHelper {
 
       return storedValue == password;
     } catch (e) {
-      print('❌ Erreur validateUser: $e');
+      debugPrint('❌ Erreur validateUser: $e');
       return false;
     }
   }
@@ -885,7 +1078,7 @@ class DatabaseHelper {
       );
       return user.isNotEmpty ? user.first : null;
     } catch (e) {
-      print('❌ Erreur getCurrentUserSrm: $e');
+      debugPrint('❌ Erreur getCurrentUserSrm: $e');
       return null;
     }
   }
@@ -896,17 +1089,17 @@ class DatabaseHelper {
       final db = await database;
       final result = await db.query(
         'utilisateur_local',
-        columns: ['nom_prenom'],
+        columns: ['nom', 'prenom'],
         where: 'login = ?',
         whereArgs: [login],
         limit: 1,
       );
       if (result.isNotEmpty) {
-        return result.first['nom_prenom'] as String?;
+        return fullNameFromUserRow(result.first);
       }
       return null;
     } catch (e) {
-      print('❌ Erreur getAgentFullName: $e');
+      debugPrint('❌ Erreur getAgentFullName: $e');
       return null;
     }
   }
@@ -942,9 +1135,9 @@ class DatabaseHelper {
           'remember_me': remember ? 1 : 0,
         },
       );
-      print('✅ Session: $login | remember=$remember');
+      debugPrint('✅ Session: $login | remember=$remember');
     } catch (e) {
-      print('❌ Erreur setCurrentUserLogin: $e');
+      debugPrint('❌ Erreur setCurrentUserLogin: $e');
     }
   }
 
@@ -962,7 +1155,7 @@ class DatabaseHelper {
       }
       return null;
     } catch (e) {
-      print('❌ Erreur getCurrentUserLogin: $e');
+      debugPrint('❌ Erreur getCurrentUserLogin: $e');
       return null;
     }
   }
@@ -1009,9 +1202,9 @@ class DatabaseHelper {
           'remember_me': remember,
         },
       );
-      print('✅ Session SRM effacée');
+      debugPrint('✅ Session SRM effacée');
     } catch (e) {
-      print('❌ Erreur clearSrmSession: $e');
+      debugPrint('❌ Erreur clearSrmSession: $e');
     }
   }
 
@@ -1019,119 +1212,9 @@ class DatabaseHelper {
   // ██ PROJETS LOCAL
   // ══════════════════════════════════════════════════════
 
-  /// Insert/update un projet (depuis l'API ou le login)
-  Future<void> upsertProjetLocal({
-    required int idProjet,
-    String? nom,
-    String? codeAffaire,
-    String? srm,
-    String? region,
-    String? metier,
-    String? statut,
-  }) async {
-    final db = await database;
-    await db.insert(
-      'projet_local',
-      {
-        'id_projet': idProjet,
-        'code_affaire': codeAffaire,
-        'nom': nom,
-        'srm': srm,
-        'region': region,
-        'metier': metier,
-        'statut': statut,
-        'date_sync': DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  /// Sauvegarde une liste de projets (depuis GET /api/projets/)
-  Future<void> saveProjetsLocal(
-      List<Map<String, dynamic>> projets) async {
-    final db = await database;
-    final batch = db.batch();
-    for (final p in projets) {
-      batch.insert(
-        'projet_local',
-        {
-          'id_projet': p['id_projet'],
-          'code_affaire': p['code_affaire'],
-          'nom': p['nom'],
-          'srm': p['srm'],
-          'region': p['region'],
-          'metier': p['metier'],
-          'statut': p['statut'],
-          'date_debut': p['date_debut'],
-          'date_fin': p['date_fin'],
-          'date_sync': DateTime.now().toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-    await batch.commit(noResult: true);
-    print('✅ ${projets.length} projets sauvegardés');
-  }
-
-  Future<List<Map<String, dynamic>>> getProjetsLocal() async {
-    final db = await database;
-    return await db.query('projet_local', orderBy: 'nom ASC');
-  }
-
-  Future<Map<String, dynamic>?> getProjetLocal(int idProjet) async {
-    final db = await database;
-    final result = await db.query(
-      'projet_local',
-      where: 'id_projet = ?',
-      whereArgs: [idProjet],
-      limit: 1,
-    );
-    return result.isNotEmpty ? result.first : null;
-  }
-
   // ══════════════════════════════════════════════════════
   // ██ MISSIONS LOCAL
   // ══════════════════════════════════════════════════════
-
-  /// Sauvegarde les missions (depuis GET /api/missions/)
-  Future<void> saveMissionsLocal(
-      List<Map<String, dynamic>> missions, int projetId) async {
-    final db = await database;
-    final batch = db.batch();
-    for (final m in missions) {
-      batch.insert(
-        'mission_local',
-        {
-          'id_mission': m['id_mission'],
-          'id_agent': m['id_agent'],
-          'id_projet': projetId,
-          'etat_mission': m['etat_mission'],
-          'date_debut': m['date_debut'],
-          'date_fin': m['date_fin'],
-          'heure_debut': m['heure_debut'],
-          'heure_fin': m['heure_fin'],
-          'nb_objets_collectes': m['nb_objets_collectes'] ?? 0,
-          'nb_objets_incomplets': m['nb_objets_incomplets'] ?? 0,
-          'nb_photos_prises': m['nb_photos_prises'] ?? 0,
-          'date_sync': DateTime.now().toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-    await batch.commit(noResult: true);
-    print('✅ ${missions.length} missions sauvegardées (projet $projetId)');
-  }
-
-  Future<List<Map<String, dynamic>>> getMissionsLocal(
-      int projetId) async {
-    final db = await database;
-    return await db.query(
-      'mission_local',
-      where: 'id_projet = ?',
-      whereArgs: [projetId],
-      orderBy: 'id_mission DESC',
-    );
-  }
 
   // ══════════════════════════════════════════════════════
   // ██ UTILITAIRES
@@ -1160,17 +1243,14 @@ class DatabaseHelper {
     return null;
   }
 
-  Future<int> insertEntity(
-      String tableName, Map<String, dynamic> data) async {
+  Future<int> insertEntity(String tableName, Map<String, dynamic> data) async {
     final db = await database;
     final enriched = {
       ...data,
       'id_agent_crea': await resolveLoginId(),
-      'id_projet':     ApiService.currentProjetId,
-      // id_mission supprimé — chaque objet porte sa propre date_collecte
     };
     final id = await db.insert(tableName, enriched);
-    print('✅ Entité insérée dans $tableName (ID: $id)');
+    debugPrint('✅ Entité insérée dans $tableName (ID: $id)');
     return id;
   }
 
@@ -1256,7 +1336,8 @@ class DatabaseHelper {
   }
 
   Future<int> upsertDownloadedEntitySrm(
-      String tableName, Map<String, dynamic> data, {bool recordHistory = false}) async {
+      String tableName, Map<String, dynamic> data,
+      {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
@@ -1297,7 +1378,8 @@ class DatabaseHelper {
           whereArgs: [localId],
         );
         if (recordHistory) {
-          final afterRow = Map<String, dynamic>.from(existing)..addAll(sanitizedMerged);
+          final afterRow = Map<String, dynamic>.from(existing)
+            ..addAll(sanitizedMerged);
           await _recordLocalUpdateHistory(
             db,
             tableName: tableName,
@@ -1305,7 +1387,7 @@ class DatabaseHelper {
             afterRow: afterRow,
           );
         }
-        print('SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid');
+        debugPrint('SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid');
         return localId is int ? localId : 0;
       }
     }
@@ -1323,12 +1405,11 @@ class DatabaseHelper {
         row: insertedRow,
       );
     }
-    print('SRM upsertDownloadedEntitySrm -> $tableName (ID: $id)');
+    debugPrint('SRM upsertDownloadedEntitySrm -> $tableName (ID: $id)');
     return id;
   }
 
-  Future<List<Map<String, dynamic>>> getEntities(
-      String tableName) async {
+  Future<List<Map<String, dynamic>>> getEntities(String tableName) async {
     final db = await database;
     return await db.query(tableName);
   }
@@ -1344,8 +1425,6 @@ class DatabaseHelper {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       fid INTEGER,
       uuid TEXT UNIQUE,
-      id_projet INTEGER,
-      id_mission INTEGER,
       id_agent_crea INTEGER,
       id_planche INTEGER,
       id_commune INTEGER,
@@ -1392,21 +1471,44 @@ class DatabaseHelper {
 
   bool _isFixedCol(String col) {
     const fixed = {
-      'id', 'fid', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
-      'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
-      'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
-      'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
-      'nb_points', 'distance_m', 'points_json',
-      'anomalie', 'type_anomalie',
-      'photo_1', 'photo_2', 'photo_3', 'photo_4',
-      'mode_localisation', 'downloaded', 'synced', 'date_collecte', 'date_sync',
+      'id',
+      'fid',
+      'uuid',
+      'id_agent_crea',
+      'id_planche',
+      'id_commune',
+      'latitude_gps',
+      'longitude_gps',
+      'altitude_gps',
+      'x_debut',
+      'y_debut',
+      'x_fin',
+      'y_fin',
+      'lat_debut',
+      'lon_debut',
+      'lat_fin',
+      'lon_fin',
+      'nb_points',
+      'distance_m',
+      'points_json',
+      'anomalie',
+      'type_anomalie',
+      'photo_1',
+      'photo_2',
+      'photo_3',
+      'photo_4',
+      'mode_localisation',
+      'downloaded',
+      'synced',
+      'date_collecte',
+      'date_sync',
     };
     return fixed.contains(col);
   }
 
   /// Insert une entité SRM dans sa table (crée la table si besoin).
-  Future<int> insertEntitySrm(
-      String tableName, Map<String, dynamic> data, {bool recordHistory = false}) async {
+  Future<int> insertEntitySrm(String tableName, Map<String, dynamic> data,
+      {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
@@ -1426,13 +1528,14 @@ class DatabaseHelper {
         row: insertedRow,
       );
     }
-    print('✅ SRM insertEntitySrm → $tableName (ID: $id)');
+    debugPrint('✅ SRM insertEntitySrm → $tableName (ID: $id)');
     return id;
   }
 
   /// Met à jour une entité SRM.
   Future<void> updateEntitySrm(
-      String tableName, int id, Map<String, dynamic> data, {bool recordHistory = false}) async {
+      String tableName, int id, Map<String, dynamic> data,
+      {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
@@ -1459,11 +1562,12 @@ class DatabaseHelper {
         afterRow: afterRow,
       );
     }
-    print('✅ SRM updateEntitySrm → $tableName id=$id');
+    debugPrint('✅ SRM updateEntitySrm → $tableName id=$id');
   }
 
   /// Supprime une entité SRM.
-  Future<void> deleteEntitySrm(String tableName, int id, {bool recordHistory = false}) async {
+  Future<void> deleteEntitySrm(String tableName, int id,
+      {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     Map<String, dynamic>? existingRow;
@@ -1486,7 +1590,7 @@ class DatabaseHelper {
         row: existingRow,
       );
     }
-    print('✅ SRM deleteEntitySrm → $tableName id=$id');
+    debugPrint('✅ SRM deleteEntitySrm → $tableName id=$id');
   }
 
   Future<void> _recordLocalInsertHistory(
@@ -1526,7 +1630,8 @@ class DatabaseHelper {
     required Map<String, dynamic> beforeRow,
     required Map<String, dynamic> afterRow,
   }) async {
-    final historyMeta = _buildLocalHistoryMeta(tableName, afterRow.isNotEmpty ? afterRow : beforeRow);
+    final historyMeta = _buildLocalHistoryMeta(
+        tableName, afterRow.isNotEmpty ? afterRow : beforeRow);
     final batch = db.batch();
     final keys = <String>{...beforeRow.keys, ...afterRow.keys}.toList()..sort();
     final nowIso = DateTime.now().toIso8601String();
@@ -1606,6 +1711,10 @@ class DatabaseHelper {
   }
 
   String? _resolveSchemaNameForTable(String tableName) {
+    if (tableName.contains('.')) {
+      final schema = tableName.split('.').first.trim();
+      return schema.isEmpty ? null : schema;
+    }
     if (tableName == 'objet_incomplet') return 'public';
     for (final metier in SrmConfig.getMetiers()) {
       for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
@@ -1621,10 +1730,27 @@ class DatabaseHelper {
     return null;
   }
 
+  String _objetIncompletNomTable(String tableName, {String? metierCode}) {
+    final cleanTable = tableName.trim();
+    if (cleanTable.contains('.')) return cleanTable;
+
+    final resolvedSchema = _resolveSchemaNameForTable(cleanTable);
+    final fallbackSchema = metierCode?.trim().toLowerCase();
+    final schema = resolvedSchema ??
+        (fallbackSchema == 'asst'
+            ? 'ass'
+            : (fallbackSchema == null || fallbackSchema.isEmpty
+                ? null
+                : fallbackSchema));
+    return schema == null ? cleanTable : '$schema.$cleanTable';
+  }
+
   int? _resolveHistoryAgentId(Map<String, dynamic> row) {
     return _asInt(row['id_agent_modif']) ??
         _asInt(row['id_agent']) ??
         _asInt(row['id_agent_crea']) ??
+        _asInt(row['id_agent_incomplet']) ??
+        _asInt(row['id_agent_completement']) ??
         _asInt(row['id_agent_signal']) ??
         _asInt(row['id_user']) ??
         ApiService.userId;
@@ -1635,6 +1761,14 @@ class DatabaseHelper {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value.toString().trim());
+  }
+
+  int _truthyToInt(dynamic value) {
+    if (value is bool) return value ? 1 : 0;
+    if (value is int) return value == 1 ? 1 : 0;
+    if (value is num) return value.toInt() == 1 ? 1 : 0;
+    final normalized = value?.toString().trim().toLowerCase();
+    return {'1', 'true', 't', 'yes', 'oui'}.contains(normalized) ? 1 : 0;
   }
 
   String? _stringifyHistoryValue(dynamic value) {
@@ -1793,8 +1927,7 @@ class DatabaseHelper {
   }
 
   /// Récupère toutes les entités d'une table SRM.
-  Future<List<Map<String, dynamic>>> getEntitiesSrm(
-      String tableName) async {
+  Future<List<Map<String, dynamic>>> getEntitiesSrm(String tableName) async {
     try {
       _assertAllowedSrmTable(tableName);
       final db = await database;
@@ -1805,7 +1938,7 @@ class DatabaseHelper {
       if (tables.isEmpty) return [];
       return await db.query(tableName, orderBy: 'id DESC');
     } catch (e) {
-      print('❌ getEntitiesSrm $tableName: $e');
+      debugPrint('❌ getEntitiesSrm $tableName: $e');
       return [];
     }
   }
@@ -1823,18 +1956,19 @@ class DatabaseHelper {
       );
       if (tables.isEmpty) return null;
 
+      final nomTable = _objetIncompletNomTable(tableName);
       final rows = await db.query(
         'objet_incomplet',
         where:
-            'nom_classe = ? AND id_objet = ? AND (statut IS NULL OR statut = ?)',
-        whereArgs: [tableName, idObjet, 'A_COMPLETER'],
+            '(nom_table = ? OR nom_table = ?) AND id_objet = ? AND (statut IS NULL OR statut = ?)',
+        whereArgs: [nomTable, tableName, idObjet, 'A_COMPLETER'],
         orderBy: 'date_signalement DESC, id DESC',
         limit: 1,
       );
       if (rows.isEmpty) return null;
       return Map<String, dynamic>.from(rows.first);
     } catch (e) {
-      print('❌ getOpenObjetIncompletForEntity $tableName/$idObjet: $e');
+      debugPrint('❌ getOpenObjetIncompletForEntity $tableName/$idObjet: $e');
       return null;
     }
   }
@@ -1853,24 +1987,22 @@ class DatabaseHelper {
     final nowIso = DateTime.now().toIso8601String();
     final cleanReason = raison?.trim();
     final cleanDetail = detailRaison?.trim();
+    final nomTable = _objetIncompletNomTable(
+      tableName,
+      metierCode: metierCode,
+    );
 
     final payload = <String, dynamic>{
+      'nom_table': nomTable,
       'id_objet': idObjet,
-      'nom_classe': tableName,
-      'metier': metierCode,
-      'raison': (cleanReason == null || cleanReason.isEmpty)
-          ? null
-          : cleanReason,
       'detail_raison': (cleanDetail == null || cleanDetail.isEmpty)
-          ? null
+          ? cleanReason
           : cleanDetail,
       'date_signalement': existing?['date_signalement'] ?? nowIso,
-      'id_agent_signal': ApiService.userId,
+      'id_agent_incomplet': ApiService.userId,
       'statut': 'A_COMPLETER',
-      'date_planification': null,
-      'id_agent_retour': null,
       'date_completion': null,
-      'id_projet': ApiService.currentProjetId,
+      'id_agent_completement': null,
       'synced': 0,
       'downloaded': 0,
       'date_collecte': nowIso,
@@ -1908,12 +2040,13 @@ class DatabaseHelper {
       );
       if (tables.isEmpty) return;
 
+      final nomTable = _objetIncompletNomTable(tableName);
       final rows = await db.query(
         'objet_incomplet',
         columns: ['id'],
         where:
-            'nom_classe = ? AND id_objet = ? AND (statut IS NULL OR statut = ?)',
-        whereArgs: [tableName, idObjet, 'A_COMPLETER'],
+            '(nom_table = ? OR nom_table = ?) AND id_objet = ? AND (statut IS NULL OR statut = ?)',
+        whereArgs: [nomTable, tableName, idObjet, 'A_COMPLETER'],
       );
       if (rows.isEmpty) return;
 
@@ -1926,7 +2059,7 @@ class DatabaseHelper {
           localId,
           {
             'statut': 'COMPLETE',
-            'id_agent_retour': ApiService.userId,
+            'id_agent_completement': ApiService.userId,
             'date_completion': nowIso,
             'synced': 0,
             'date_collecte': nowIso,
@@ -1936,13 +2069,150 @@ class DatabaseHelper {
         );
       }
     } catch (e) {
-      print('❌ resolveObjetIncompletForEntity $tableName/$idObjet: $e');
+      debugPrint('❌ resolveObjetIncompletForEntity $tableName/$idObjet: $e');
     }
   }
 
   /// Récupère les entités non synchronisées d'une table SRM.
-  Future<List<Map<String, dynamic>>> getUnsyncedSrm(
-      String tableName) async {
+  Future<void> upsertDownloadedInterventionAnomalieTerrain(
+    Map<String, dynamic> row,
+  ) async {
+    final idIntervention = _asInt(row['id_intervention'] ?? row['id']);
+    if (idIntervention == null) return;
+
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final existing = await db.query(
+      'intervention_anomalie',
+      where: 'id_intervention = ?',
+      whereArgs: [idIntervention],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty && _asInt(existing.first['synced']) == 0) {
+      return;
+    }
+
+    final nowIso = DateTime.now().toIso8601String();
+    final payload = <String, dynamic>{
+      'id_intervention': idIntervention,
+      'id_objet': _asInt(row['id_objet']),
+      'nom_classe': row['nom_classe']?.toString(),
+      'nom_table': row['nom_table']?.toString(),
+      'uuid_objet': row['uuid_objet']?.toString(),
+      'retour_terrain': _truthyToInt(row['retour_terrain']),
+      'statut': row['statut']?.toString(),
+      'responsable_actuel': row['responsable_actuel']?.toString(),
+      'etat_terrain': row['etat_terrain']?.toString(),
+      'commentaire_terrain': row['commentaire_terrain']?.toString(),
+      'date_terrain': row['date_terrain']?.toString(),
+      'id_user_terrain': _asInt(row['id_user_terrain']),
+      'date_creation': row['date_creation']?.toString(),
+      'date_cloture': row['date_cloture']?.toString(),
+      'created_at': row['created_at']?.toString(),
+      'updated_at': row['updated_at']?.toString(),
+      'synced': 1,
+      'downloaded': 1,
+      'date_sync': nowIso,
+      'last_error': null,
+    };
+
+    if (existing.isNotEmpty) {
+      await db.update(
+        'intervention_anomalie',
+        payload,
+        where: 'id_intervention = ?',
+        whereArgs: [idIntervention],
+      );
+      return;
+    }
+
+    await db.insert('intervention_anomalie', {
+      ...payload,
+      'date_collecte': nowIso,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedInterventionAnomalieTerrain({
+    int limit = 1000,
+  }) async {
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    return await db.query(
+      'intervention_anomalie',
+      where: 'synced IS NULL OR synced = 0',
+      orderBy: 'id ASC',
+      limit: limit,
+    );
+  }
+
+  Future<void> updateInterventionAnomalieTerrainLocal({
+    required int localId,
+    required String etatTerrain,
+    String? commentaireTerrain,
+  }) async {
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final nowIso = DateTime.now().toIso8601String();
+    await db.update(
+      'intervention_anomalie',
+      {
+        'etat_terrain': etatTerrain.trim(),
+        'commentaire_terrain': commentaireTerrain?.trim(),
+        'id_user_terrain': ApiService.userId,
+        'synced': 0,
+        'downloaded': 1,
+        'date_collecte': nowIso,
+        'date_sync': null,
+        'last_error': null,
+      },
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  }
+
+  Future<void> markInterventionAnomalieTerrainSynced(
+    int localId,
+    Map<String, dynamic> remote,
+  ) async {
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final nowIso = DateTime.now().toIso8601String();
+    await db.update(
+      'intervention_anomalie',
+      {
+        'statut': remote['statut']?.toString(),
+        'responsable_actuel': remote['responsable_actuel']?.toString(),
+        'etat_terrain': remote['etat_terrain']?.toString(),
+        'commentaire_terrain': remote['commentaire_terrain']?.toString(),
+        'date_terrain': remote['date_terrain']?.toString(),
+        'id_user_terrain': _asInt(remote['id_user_terrain']),
+        'updated_at': remote['updated_at']?.toString(),
+        'synced': 1,
+        'downloaded': 1,
+        'date_sync': nowIso,
+        'last_error': null,
+      },
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  }
+
+  Future<void> markInterventionAnomalieTerrainFailed(
+    int localId,
+    String error,
+  ) async {
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    await db.update(
+      'intervention_anomalie',
+      {'last_error': error},
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedSrm(String tableName) async {
     try {
       _assertAllowedSrmTable(tableName);
       final db = await database;
@@ -1952,11 +2222,12 @@ class DatabaseHelper {
       if (tables.isEmpty) return [];
       return await db.query(
         tableName,
-        where: '(synced IS NULL OR synced = 0) AND (downloaded IS NULL OR downloaded = 0)',
+        where:
+            '(synced IS NULL OR synced = 0) AND (downloaded IS NULL OR downloaded = 0)',
         orderBy: 'id ASC',
       );
     } catch (e) {
-      print('❌ getUnsyncedSrm $tableName: $e');
+      debugPrint('❌ getUnsyncedSrm $tableName: $e');
       return [];
     }
   }
@@ -1965,7 +2236,8 @@ class DatabaseHelper {
   Future<void> markSyncedSrm(String tableName, int id) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
-    await db.update(tableName, {'synced': 1, 'date_sync': DateTime.now().toIso8601String()},
+    await db.update(
+        tableName, {'synced': 1, 'date_sync': DateTime.now().toIso8601String()},
         where: 'id = ?', whereArgs: [id]);
   }
 
@@ -2023,7 +2295,8 @@ class DatabaseHelper {
     final jourKey = jour.toIso8601String().substring(0, 10);
     final rows = await db.query(
       'conduite_sync_queue',
-      where: 'metier = ? AND id_agent = ? AND jour = ? AND (synced IS NULL OR synced = 0)',
+      where:
+          'metier = ? AND id_agent = ? AND jour = ? AND (synced IS NULL OR synced = 0)',
       whereArgs: [metier, idAgent, jourKey],
       limit: 1,
     );
@@ -2079,15 +2352,14 @@ class DatabaseHelper {
     required String uuidObjet,
     required int photoSlot,
     required String localPath,
-    int? idProjet,
-    int? idMission,
     int? idAgentCrea,
   }) async {
     final db = await database;
     final nowIso = DateTime.now().toIso8601String();
     final existing = await db.query(
       'photo_sync_queue',
-      where: 'schema_name = ? AND table_name = ? AND uuid_objet = ? AND photo_slot = ?',
+      where:
+          'schema_name = ? AND table_name = ? AND uuid_objet = ? AND photo_slot = ?',
       whereArgs: [schemaName, tableName, uuidObjet, photoSlot],
       limit: 1,
     );
@@ -2098,8 +2370,6 @@ class DatabaseHelper {
       'uuid_objet': uuidObjet,
       'photo_slot': photoSlot,
       'local_path': localPath,
-      'id_projet': idProjet,
-      'id_mission': idMission,
       'id_agent_crea': idAgentCrea,
       'synced': 0,
       'last_error': null,
@@ -2246,12 +2516,8 @@ class DatabaseHelper {
   }
 
   Future<void> updatePhotoReferenceByUuid(
-    String tableName,
-    String uuid,
-    int photoSlot,
-    String photoReference,
-    {bool recordHistory = false}
-  ) async {
+      String tableName, String uuid, int photoSlot, String photoReference,
+      {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     final fieldName = 'photo_$photoSlot';
@@ -2325,7 +2591,7 @@ class DatabaseHelper {
   }
 
   static const Set<String> _fixedSrmColumns = {
-    'id', 'fid', 'uuid', 'id_projet', 'id_mission', 'id_agent_crea',
+    'id', 'fid', 'uuid', 'id_agent_crea',
     'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
     'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
     'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
@@ -2336,17 +2602,14 @@ class DatabaseHelper {
     // Flag objet incomplet dans les tables métier
     'objet_incomplet',
     // Colonnes de la table objet_incomplet (correspond à PostgreSQL)
-    'id_incomplet', 'id_objet', 'nom_classe', 'metier',
-    'raison', 'detail_raison', 'date_signalement',
-    'id_agent_signal', 'statut', 'date_planification',
-    'id_agent_retour', 'date_completion',
+    'id_incomplet', 'nom_table', 'id_objet', 'detail_raison',
+    'date_signalement', 'id_agent_incomplet', 'statut',
+    'date_completion', 'id_agent_completement',
   };
 
   static const Map<String, String> _migratableFixedSrmColumns = {
     'fid': 'INTEGER',
     'uuid': 'TEXT',
-    'id_projet': 'INTEGER',
-    'id_mission': 'INTEGER',
     'id_agent_crea': 'INTEGER',
     'id_planche': 'INTEGER',
     'id_commune': 'INTEGER',
@@ -2394,8 +2657,6 @@ class DatabaseHelper {
       switch (field) {
         case 'id':
         case 'fid':
-        case 'id_projet':
-        case 'id_mission':
         case 'id_agent_crea':
         case 'id_planche':
         case 'id_commune':
@@ -2457,9 +2718,9 @@ class DatabaseHelper {
         await db.execute(
           'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
         );
-        print('✅ Colonne fixe ajoutée: $tableName.${entry.key}');
+        debugPrint('✅ Colonne fixe ajoutée: $tableName.${entry.key}');
       } catch (e) {
-        print('⚠️ Impossible d’ajouter $tableName.${entry.key}: $e');
+        debugPrint('⚠️ Impossible d’ajouter $tableName.${entry.key}: $e');
       }
     }
   }
@@ -2473,15 +2734,16 @@ class DatabaseHelper {
     if (existing.isEmpty) return;
 
     final existingCols = existing.map((r) => r['name'] as String).toSet();
-    for (final field in fields.where(_isAllowedSrmColumn).where((f) => !_isFixedCol(f))) {
+    for (final field
+        in fields.where(_isAllowedSrmColumn).where((f) => !_isFixedCol(f))) {
       if (existingCols.contains(field)) continue;
       try {
         await db.execute(
           'ALTER TABLE $tableName ADD COLUMN $field ${_sqliteTypeForField(field)}',
         );
-        print('✅ Colonne métier ajoutée: $tableName.$field');
+        debugPrint('✅ Colonne métier ajoutée: $tableName.$field');
       } catch (e) {
-        print('⚠️ Impossible d’ajouter $tableName.$field: $e');
+        debugPrint('⚠️ Impossible d’ajouter $tableName.$field: $e');
       }
     }
   }
@@ -2500,7 +2762,7 @@ class DatabaseHelper {
       await db.execute(
         'CREATE TABLE IF NOT EXISTS $tableName (${cols.join(', ')})',
       );
-      print('✅ Table SRM créée automatiquement: $tableName');
+      debugPrint('✅ Table SRM créée automatiquement: $tableName');
     } else {
       // Table existe → migrer les colonnes manquantes
       await _ensureSrmFixedColumns(db, tableName);
@@ -2602,13 +2864,14 @@ class DatabaseHelper {
       await txn.delete('commune_local');
 
       for (final commune in communes) {
-        final idCommune = _asInt(commune['id_commune']);
+        final idCommune = _asInt(commune['id_commune'] ?? commune['fid']);
         if (idCommune == null) continue;
 
         final storedCommune = <String, dynamic>{
           'id_commune': idCommune,
           'id_province': _asInt(commune['id_province']),
-          'nom_commune': commune['nom_commune']?.toString().trim(),
+          'nom_commune':
+              (commune['nom_commune'] ?? commune['nom'])?.toString().trim(),
           'nom_province': commune['nom_province']?.toString().trim(),
           'nom_region': commune['nom_region']?.toString().trim(),
           'geometry_geojson': commune['geometry_geojson']?.toString(),
@@ -2623,19 +2886,125 @@ class DatabaseHelper {
     });
   }
 
-  Future<void> _migrateAgentOfflineZoneTable(Database db) async {
-    await _ensureColumns(
-      db,
-      tableName: 'agent_offline_zone',
-      columns: const {
-        'id': 'INTEGER',
-        'id_user': 'INTEGER',
-        'zone_id': 'TEXT',
-        'actif': 'INTEGER DEFAULT 1',
-        'assigned_at': 'TEXT',
-        'updated_at': 'TEXT',
-        'metadata_json': 'TEXT',
-      },
+  Future<void> replaceZones({
+    required List<Map<String, dynamic>> zones,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      await txn.delete('zone_local');
+
+      for (final zone in zones) {
+        final idZone = _asInt(zone['id_zone']);
+        final nomZone = (zone['nom_zone'] ?? '').toString().trim();
+        if (idZone == null || nomZone.isEmpty) continue;
+
+        await txn.insert(
+          'zone_local',
+          {
+            'id_zone': idZone,
+            'nom_zone': nomZone,
+            'etat': (zone['etat'] ?? 'active').toString(),
+            'date_debut': zone['date_debut']?.toString(),
+            'date_cloture': zone['date_cloture']?.toString(),
+            'id_user_creat': _asInt(zone['id_user_creat']),
+            'id_user_cloture': _asInt(zone['id_user_cloture']),
+            'geometry_geojson': zone['geometry_geojson']?.toString(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<void> replaceZoneUtilisateurs({
+    required List<Map<String, dynamic>> affectations,
+    int? idUser,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      if (idUser != null) {
+        await txn.delete(
+          'zone_utilisateur_local',
+          where: 'id_user = ?',
+          whereArgs: [idUser],
+        );
+      } else {
+        await txn.delete('zone_utilisateur_local');
+      }
+
+      for (final affectation in affectations) {
+        final id = _asInt(affectation['id']);
+        final idZone = _asInt(affectation['id_zone']);
+        final idUserValue = _asInt(affectation['id_user']);
+        if (id == null || idZone == null || idUserValue == null) continue;
+
+        await txn.insert(
+          'zone_utilisateur_local',
+          {
+            'id': id,
+            'id_zone': idZone,
+            'id_user': idUserValue,
+            'date_affectation': affectation['date_affectation']?.toString(),
+            'actif': affectation['actif'] == false ? 0 : 1,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getZonesLocal({
+    int? idUser,
+    bool activeOnly = true,
+  }) async {
+    final db = await database;
+    final whereParts = <String>[];
+    final whereArgs = <Object?>[];
+
+    if (activeOnly) {
+      whereParts.add("(etat IS NULL OR lower(etat) = 'active')");
+    }
+    if (idUser != null) {
+      whereParts.add('''
+        id_zone IN (
+          SELECT id_zone FROM zone_utilisateur_local
+          WHERE id_user = ? AND actif = 1
+        )
+      ''');
+      whereArgs.add(idUser);
+    }
+
+    return db.query(
+      'zone_local',
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'nom_zone, id_zone',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getZoneUtilisateursLocal({
+    int? idUser,
+    bool activeOnly = true,
+  }) async {
+    final db = await database;
+    final whereParts = <String>[];
+    final whereArgs = <Object?>[];
+
+    if (idUser != null) {
+      whereParts.add('id_user = ?');
+      whereArgs.add(idUser);
+    }
+    if (activeOnly) {
+      whereParts.add('actif = 1');
+    }
+
+    return db.query(
+      'zone_utilisateur_local',
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'id_user, id_zone',
     );
   }
 
@@ -2668,7 +3037,7 @@ class DatabaseHelper {
           return Map<String, dynamic>.from(row);
         }
       } catch (e) {
-        print('⚠️ commune_local geometry ignoree: $e');
+        debugPrint('⚠️ commune_local geometry ignoree: $e');
       }
     }
     return null;
@@ -2728,7 +3097,8 @@ class DatabaseHelper {
       }
 
       final intersects = ((yi > y) != (yj > y)) &&
-          (x < (xj - xi) * (y - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) + xi);
+          (x <
+              (xj - xi) * (y - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) + xi);
       if (intersects) {
         inside = !inside;
       }
@@ -2858,19 +3228,19 @@ class DatabaseHelper {
         final existingPackageMeta = existingPackageRows.isNotEmpty
             ? Map<String, dynamic>.from(existingPackageRows.first)
             : const <String, dynamic>{};
-        final existingSha256 =
-            (existingPackageMeta['sha256'] ?? '').toString();
+        final existingSha256 = (existingPackageMeta['sha256'] ?? '').toString();
         final existingSizeBytes = _asInt(existingPackageMeta['size_bytes']);
 
-        final packageChanged =
-            existingPackageMeta.isNotEmpty &&
+        final packageChanged = existingPackageMeta.isNotEmpty &&
             ((incomingSha256.isNotEmpty && incomingSha256 != existingSha256) ||
                 (incomingSizeBytes != null &&
                     existingSizeBytes != null &&
                     incomingSizeBytes != existingSizeBytes));
 
         final preservedStatus = packageChanged
-            ? (existingLocalPath.isNotEmpty ? 'update_available' : 'not_downloaded')
+            ? (existingLocalPath.isNotEmpty
+                ? 'update_available'
+                : 'not_downloaded')
             : existingStatus;
 
         await txn.insert(
@@ -2926,12 +3296,7 @@ class DatabaseHelper {
       whereParts.add('zone_id = ?');
       whereArgs.add(zoneId);
     }
-    if (agentId != null) {
-      whereParts.add(
-        'zone_id IN (SELECT zone_id FROM agent_offline_zone WHERE id_user = ? AND actif = 1)',
-      );
-      whereArgs.add(agentId);
-    }
+    // Le catalogue téléchargé est déjà filtré côté serveur via zone_utilisateur.
     if (activeOnly) {
       whereParts.add('actif = 1');
     }
@@ -2973,12 +3338,7 @@ class DatabaseHelper {
       whereParts.add('zone_id = ?');
       whereArgs.add(zoneId);
     }
-    if (agentId != null) {
-      whereParts.add(
-        'zone_id IN (SELECT zone_id FROM agent_offline_zone WHERE id_user = ? AND actif = 1)',
-      );
-      whereArgs.add(agentId);
-    }
+    // Le catalogue téléchargé est déjà filtré côté serveur via zone_utilisateur.
     if (style != null && style.isNotEmpty) {
       whereParts.add('style = ?');
       whereArgs.add(style);
@@ -3027,106 +3387,6 @@ class DatabaseHelper {
       status: 'ready',
       activeOnly: true,
     );
-  }
-
-  Future<void> replaceAgentOfflineZones({
-    required int agentId,
-    required List<String> zoneIds,
-  }) async {
-    final db = await database;
-    final normalizedZoneIds = zoneIds
-        .map((zoneId) => zoneId.trim())
-        .where((zoneId) => zoneId.isNotEmpty)
-        .toSet()
-        .toList();
-    final now = DateTime.now().toUtc().toIso8601String();
-
-    await db.transaction((txn) async {
-      await txn.delete(
-        'agent_offline_zone',
-        where: 'id_user = ?',
-        whereArgs: [agentId],
-      );
-
-      for (final zoneId in normalizedZoneIds) {
-        await txn.insert(
-          'agent_offline_zone',
-          {
-            'id_user': agentId,
-            'zone_id': zoneId,
-            'actif': 1,
-            'assigned_at': now,
-            'updated_at': now,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-    });
-  }
-
-  Future<void> assignAgentOfflineZone({
-    required int agentId,
-    required String zoneId,
-    bool active = true,
-    Map<String, dynamic>? metadata,
-  }) async {
-    final db = await database;
-    final normalizedZoneId = zoneId.trim();
-    if (normalizedZoneId.isEmpty) return;
-
-    final now = DateTime.now().toUtc().toIso8601String();
-    await db.insert(
-      'agent_offline_zone',
-      {
-        'id_user': agentId,
-        'zone_id': normalizedZoneId,
-        'actif': active ? 1 : 0,
-        'assigned_at': now,
-        'updated_at': now,
-        'metadata_json': _encodeJsonValue(metadata),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<void> removeAgentOfflineZone({
-    required int agentId,
-    required String zoneId,
-  }) async {
-    final db = await database;
-    await db.delete(
-      'agent_offline_zone',
-      where: 'id_user = ? AND zone_id = ?',
-      whereArgs: [agentId, zoneId.trim()],
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getAgentOfflineZoneLinks({
-    required int agentId,
-    bool activeOnly = true,
-  }) async {
-    final db = await database;
-    return db.query(
-      'agent_offline_zone',
-      where: activeOnly ? 'id_user = ? AND actif = 1' : 'id_user = ?',
-      whereArgs: [agentId],
-      orderBy: 'zone_id ASC',
-    );
-  }
-
-  Future<List<String>> getAgentOfflineZoneIds({
-    required int agentId,
-    bool activeOnly = true,
-  }) async {
-    final rows = await getAgentOfflineZoneLinks(
-      agentId: agentId,
-      activeOnly: activeOnly,
-    );
-
-    return rows
-        .map((row) => (row['zone_id'] ?? '').toString().trim())
-        .where((zoneId) => zoneId.isNotEmpty)
-        .toList();
   }
 
   String _activeOfflineBasemapPackageKeyMetadata(String style) {
@@ -3245,7 +3505,6 @@ class DatabaseHelper {
     return double.tryParse(value.toString());
   }
 
-
   Future<void> saveLastSyncTime(DateTime dt) async {
     final db = await database;
     await db.insert(
@@ -3310,24 +3569,18 @@ class DatabaseHelper {
     return res.first['value'] as String?;
   }
 
-  String _regardMiroirCacheKey({int? projetId}) =>
-      'ep_regard_miroir_cache_${projetId ?? 'all'}';
+  String _regardMiroirCacheKey() => 'ep_regard_miroir_cache';
 
-  Future<void> saveRegardMiroirCache(
-    List<Map<String, dynamic>> items, {
-    int? projetId,
-  }) async {
+  Future<void> saveRegardMiroirCache(List<Map<String, dynamic>> items) async {
     await saveAppMetadataValue(
-      _regardMiroirCacheKey(projetId: projetId),
+      _regardMiroirCacheKey(),
       jsonEncode(items),
     );
   }
 
-  Future<List<Map<String, dynamic>>> getRegardMiroirCache({
-    int? projetId,
-  }) async {
+  Future<List<Map<String, dynamic>>> getRegardMiroirCache() async {
     final raw = await getAppMetadataValue(
-      _regardMiroirCacheKey(projetId: projetId),
+      _regardMiroirCacheKey(),
     );
     if (raw == null || raw.trim().isEmpty) {
       return const <Map<String, dynamic>>[];
@@ -3486,10 +3739,7 @@ class DatabaseHelper {
     }
   }
 
-  Future<int> countDownloadedSrmRows({
-    int? projetId,
-    int? missionId,
-  }) async {
+  Future<int> countDownloadedSrmRows() async {
     final db = await database;
     int total = 0;
 
@@ -3502,15 +3752,6 @@ class DatabaseHelper {
 
       final whereParts = <String>['downloaded = 1'];
       final whereArgs = <Object?>[];
-
-      if (projetId != null) {
-        whereParts.add('id_projet = ?');
-        whereArgs.add(projetId);
-      }
-      if (missionId != null) {
-        whereParts.add('id_mission = ?');
-        whereArgs.add(missionId);
-      }
 
       final result = await db.rawQuery(
         'SELECT COUNT(*) AS c FROM $tableName WHERE ${whereParts.join(' AND ')}',
@@ -3533,9 +3774,9 @@ class DatabaseHelper {
       if (await databaseExists(path)) {
         await deleteDatabase(path);
       }
-      print('✅ DB réinitialisée');
+      debugPrint('✅ DB réinitialisée');
     } catch (e) {
-      print('❌ Erreur resetDatabase: $e');
+      debugPrint('❌ Erreur resetDatabase: $e');
     }
   }
 }

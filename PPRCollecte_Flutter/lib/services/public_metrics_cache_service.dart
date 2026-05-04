@@ -13,13 +13,12 @@ class PublicMetricsCacheService {
 
   Future<PublicMetricsCacheSnapshot> loadSnapshot({
     required int? agentId,
-    required int? projetId,
   }) async {
-    if (agentId == null || projetId == null) {
+    if (agentId == null) {
       return const PublicMetricsCacheSnapshot();
     }
 
-    final raw = await _db.getAppMetadataValue(_cacheKey(agentId, projetId));
+    final raw = await _db.getAppMetadataValue(_cacheKey(agentId));
     if (raw == null || raw.trim().isEmpty) {
       return const PublicMetricsCacheSnapshot();
     }
@@ -44,11 +43,10 @@ class PublicMetricsCacheService {
 
   Future<PublicMetricsCacheSnapshot> refreshAndSave({
     required int? agentId,
-    required int? projetId,
   }) async {
-    if (agentId == null || projetId == null) {
+    if (agentId == null) {
       return const PublicMetricsCacheSnapshot(
-        error: 'Agent ou projet actif introuvable pour les métriques serveur.',
+        error: 'Agent introuvable pour les metriques serveur.',
       );
     }
 
@@ -59,22 +57,18 @@ class PublicMetricsCacheService {
       final responses = await Future.wait<Map<String, dynamic>?>([
         ApiService.fetchAgentPublicResume(
           idAgent: agentId,
-          idProjet: projetId,
         ),
         ApiService.fetchAgentPublicJour(
           idAgent: agentId,
-          idProjet: projetId,
           jour: now,
         ),
         ApiService.fetchAgentPublicSemaine(
           idAgent: agentId,
-          idProjet: projetId,
           anneeIso: isoWeek.year,
           semaineIso: isoWeek.week,
         ),
         ApiService.fetchAgentPublicMois(
           idAgent: agentId,
-          idProjet: projetId,
           annee: now.year,
           moisNumero: now.month,
         ),
@@ -90,10 +84,9 @@ class PublicMetricsCacheService {
 
       if (snapshot.hasAnyData) {
         await _db.saveAppMetadataValue(
-          _cacheKey(agentId, projetId),
+          _cacheKey(agentId),
           jsonEncode({
             'agent_id': agentId,
-            'projet_id': projetId,
             'fetched_at': now.toIso8601String(),
             'resume': snapshot.resume,
             'day': snapshot.day,
@@ -112,17 +105,13 @@ class PublicMetricsCacheService {
   Future<void> prefetchForCurrentSession() async {
     final currentUser = await _db.getCurrentUserSrm();
     final agentId = ApiService.userId ?? _asIntOrNull(currentUser?['id_user']);
-    final projetId = ApiService.currentProjetId ??
-        _asIntOrNull(currentUser?['id_projet_actif']);
 
     await refreshAndSave(
       agentId: agentId,
-      projetId: projetId,
     );
   }
 
-  String _cacheKey(int agentId, int projetId) =>
-      '$_cacheKeyPrefix:${agentId}_$projetId';
+  String _cacheKey(int agentId) => '$_cacheKeyPrefix:$agentId';
 
   Map<String, dynamic>? _mapValue(dynamic value) {
     if (value is Map<String, dynamic>) {

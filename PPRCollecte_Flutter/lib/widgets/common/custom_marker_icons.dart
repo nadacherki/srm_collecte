@@ -202,7 +202,8 @@ class CustomMarkerIcons {
   };
 
   /// Retourne un Widget pour le marqueur (utilisé dans flutter_map)
-  static Widget getMarkerWidget(String tableName, {double size = 36.0, VoidCallback? onTap}) {
+  static Widget getMarkerWidget(String tableName,
+      {double size = 36.0, VoidCallback? onTap}) {
     final config = iconConfig[tableName];
 
     if (tableName == 'regard' || tableName == 'regard_ep') {
@@ -221,7 +222,8 @@ class CustomMarkerIcons {
   }
 
   /// Construit un marqueur personnalisé
-  static Widget _buildCustomMarker(MarkerIconConfig config, double size, VoidCallback? onTap) {
+  static Widget _buildCustomMarker(
+      MarkerIconConfig config, double size, VoidCallback? onTap) {
     final borderWidth = size <= 18 ? 1.0 : (size <= 32 ? 1.5 : 2.0);
     final iconSize = size * 0.54;
 
@@ -236,7 +238,7 @@ class CustomMarkerIcons {
           border: Border.all(color: Colors.white, width: borderWidth),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.24),
+              color: Colors.black.withValues(alpha: 0.24),
               blurRadius: 3,
               offset: const Offset(0, 1.5),
             ),
@@ -284,7 +286,7 @@ class CustomMarkerIcons {
           border: Border.all(color: Colors.white, width: borderWidth),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.24),
+              color: Colors.black.withValues(alpha: 0.24),
               blurRadius: 3,
               offset: const Offset(0, 1.5),
             ),
@@ -378,7 +380,7 @@ class _WarningSignPainter extends CustomPainter {
     canvas.drawPath(
       shadowPath.shift(const Offset(1.5, 2)),
       Paint()
-        ..color = Colors.black.withOpacity(0.25)
+        ..color = Colors.black.withValues(alpha: 0.25)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
 
@@ -444,7 +446,7 @@ class _IncompletSignPainter extends CustomPainter {
       center.translate(1.5, 2),
       radius,
       Paint()
-        ..color = Colors.black.withOpacity(0.22)
+        ..color = Colors.black.withValues(alpha: 0.22)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
 

@@ -82,16 +82,8 @@ class SpecialLinesService {
                   'distance_km': _polylineDistanceKm(points),
                   'synced': (row['synced'] ?? 0).toString(),
                   'existing_item': editableItem,
-                  'region_name':
-                      (row['region_name'] ??
-                              ApiService.currentProjetRegion ??
-                              '')
-                          .toString(),
-                  'prefecture_name':
-                      (row['prefecture_name'] ??
-                              ApiService.currentProjetNom ??
-                              '')
-                          .toString(),
+                  'region_name': (row['region_name'] ?? '').toString(),
+                  'prefecture_name': (row['prefecture_name'] ?? '').toString(),
                   'commune_name': (row['commune_name'] ?? '').toString(),
                   'enqueteur': (row['enqueteur'] ??
                           ApiService.nomPrenom ??
@@ -108,10 +100,10 @@ class SpecialLinesService {
         }
       }
 
-      print('[SRM-LIGNES] ${polylines.length} polyligne(s) affichee(s)');
+      debugPrint('[SRM-LIGNES] ${polylines.length} polyligne(s) affichee(s)');
       return polylines;
     } catch (e) {
-      print('Error loading displayed SRM lines: $e');
+      debugPrint('Error loading displayed SRM lines: $e');
       return [];
     }
   }
@@ -144,16 +136,10 @@ class SpecialLinesService {
         }
       }
 
-      if (ApiService.currentProjetId != null &&
-          availableColumns.contains('id_projet')) {
-        filters.add('id_projet = ?');
-        args.add(ApiService.currentProjetId);
-      }
-
       final where = filters.isEmpty ? null : filters.join(' OR ');
       return await db.query(tableName, where: where, whereArgs: args);
     } catch (e) {
-      print('Error reading line table $tableName: $e');
+      debugPrint('Error reading line table $tableName: $e');
       return [];
     }
   }
@@ -244,19 +230,19 @@ class SpecialLinesService {
       return _LineStyle(
         color: const Color(0xFFD84315),
         strokeWidth: 6.0,
-        pattern: StrokePattern.dashed(segments: [14, 5]),
+        pattern: StrokePattern.dashed(segments: const [14, 5]),
       );
     }
     if (hasAnomalie) {
       return _LineStyle(
         color: const Color(0xFFD32F2F),
         strokeWidth: 5.0,
-        pattern: StrokePattern.dashed(segments: [12, 6]),
+        pattern: StrokePattern.dashed(segments: const [12, 6]),
       );
     }
     if (hasIncomplet) {
-      return _LineStyle(
-        color: const Color(0xFFF57C00),
+      return const _LineStyle(
+        color: Color(0xFFF57C00),
         strokeWidth: 5.0,
         pattern: StrokePattern.dotted(spacingFactor: 2.0),
       );

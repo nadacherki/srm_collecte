@@ -182,7 +182,9 @@ class OfflineBasemapService {
 
     final style = _normalizedStyle(package['style']?.toString());
     final localPath = package['local_path']?.toString().trim();
-    if (localPath == null || localPath.isEmpty || !await File(localPath).exists()) {
+    if (localPath == null ||
+        localPath.isEmpty ||
+        !await File(localPath).exists()) {
       throw Exception('Package non téléchargé localement: $packageKey');
     }
 
@@ -218,8 +220,8 @@ class OfflineBasemapService {
     if (!shouldActivate) {
       final sameZone = activePackage['zone_id']?.toString() ==
           packageRow['zone_id']?.toString();
-      final sameStyle = _normalizedStyle(activePackage['style']?.toString()) ==
-          style;
+      final sameStyle =
+          _normalizedStyle(activePackage['style']?.toString()) == style;
       shouldActivate = sameZone && sameStyle;
     }
 
@@ -263,10 +265,9 @@ class OfflineBasemapService {
       if (shouldVerifyChecksum &&
           expectedSha256 != null &&
           expectedSha256.isNotEmpty) {
-        final actualSha256 =
-            (await crypto.sha256.bind(file.openRead()).first)
-                .toString()
-                .toLowerCase();
+        final actualSha256 = (await crypto.sha256.bind(file.openRead()).first)
+            .toString()
+            .toLowerCase();
         if (actualSha256 != expectedSha256.toLowerCase()) {
           continue;
         }
@@ -484,10 +485,11 @@ class OfflineBasemapService {
             'Package ${packageRow['zone_id']} ${packageRow['style']} téléchargé.',
       );
     } catch (e) {
+      final message = _downloadErrorMessage(e);
       await db.updateOfflineBasemapPackageDownloadState(
         packageKey: packageKey,
         status: 'failed',
-        lastError: e.toString(),
+        lastError: message,
       );
       await db.recordLocalEvent(
         eventType: 'BASEMAP_PACKAGE_DOWNLOAD_FAILED',
@@ -497,12 +499,12 @@ class OfflineBasemapService {
           'zone_id': packageRow['zone_id'],
           'style': packageRow['style'],
           'version': packageRow['version'],
-          'error': e.toString(),
+          'error': message,
         },
       );
       return OfflineBasemapPackageDownloadResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: message,
         userMessage: 'Impossible de télécharger ce package de zone.',
       );
     }
@@ -604,6 +606,44 @@ class OfflineBasemapService {
         if (ApiService.authToken != null)
           'Authorization': 'Bearer ${ApiService.authToken}',
       };
+
+  String _downloadErrorMessage(Object error) {
+    if (_isNetworkFailure(error)) {
+      return 'Connexion interrompue pendant le telechargement des cartes offline.';
+    }
+
+    var value = error.toString().trim();
+    value = value
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^SocketException:\s*'), '')
+        .replaceFirst(RegExp(r'^TimeoutException(?: after .*?)?:\s*'), '')
+        .replaceFirst(RegExp(r'^ClientException:\s*'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (value.isEmpty) {
+      return 'Impossible de telecharger ce package de zone.';
+    }
+    return value.length > 180 ? value.substring(0, 180) : value;
+  }
+
+  bool _isNetworkFailure(Object error) {
+    final value = error.toString().toLowerCase();
+    return value.contains('connexion interrompue') ||
+        value.contains('erreur reseau') ||
+        value.contains('erreur réseau') ||
+        value.contains('erreur rã') ||
+        value.contains('timeout') ||
+        value.contains('socketexception') ||
+        value.contains('clientexception') ||
+        value.contains('failed host lookup') ||
+        value.contains('connection refused') ||
+        value.contains('connection reset') ||
+        value.contains('connection closed') ||
+        value.contains('network is unreachable') ||
+        value.contains('no route to host') ||
+        value.contains('software caused connection abort') ||
+        value.contains('broken pipe');
+  }
 
   double? _asDouble(dynamic value) {
     if (value == null) return null;

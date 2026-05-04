@@ -1,0 +1,437 @@
+{
+  "SRM": {
+    "columns": [
+      {
+        "ordinal_position": 1,
+        "column_name": "id_user",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('utilisateur_id_user_seq'::regclass)"
+      },
+      {
+        "ordinal_position": 2,
+        "column_name": "login",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 100,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 3,
+        "column_name": "mot_de_passe",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 4,
+        "column_name": "nom_prenom",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 200,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 5,
+        "column_name": "actif",
+        "data_type": "boolean",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "ordinal_position": 6,
+        "column_name": "date_creation",
+        "data_type": "date",
+        "udt_name": "date",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 7,
+        "column_name": "dernier_login",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 8,
+        "column_name": "nb_objets_collectes_total",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "0"
+      },
+      {
+        "ordinal_position": 9,
+        "column_name": "id_projet_actif",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 10,
+        "column_name": "role",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 20,
+        "is_nullable": "YES",
+        "column_default": "'viewer_mobile'::character varying"
+      }
+    ],
+    "count": 3,
+    "constraints": [
+      {
+        "constraint_type": "CHECK",
+        "constraint_name": "2200_68879_1_not_null",
+        "column_name": null,
+        "foreign_table_schema": null,
+        "foreign_table_name": null,
+        "foreign_column_name": null
+      },
+      {
+        "constraint_type": "CHECK",
+        "constraint_name": "2200_68879_2_not_null",
+        "column_name": null,
+        "foreign_table_schema": null,
+        "foreign_table_name": null,
+        "foreign_column_name": null
+      },
+      {
+        "constraint_type": "CHECK",
+        "constraint_name": "utilisateur_role_check",
+        "column_name": null,
+        "foreign_table_schema": "public",
+        "foreign_table_name": "utilisateur",
+        "foreign_column_name": "role"
+      },
+      {
+        "constraint_type": "FOREIGN KEY",
+        "constraint_name": "utilisateur_id_projet_actif_fkey",
+        "column_name": "id_projet_actif",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "projet",
+        "foreign_column_name": "id_projet"
+      },
+      {
+        "constraint_type": "PRIMARY KEY",
+        "constraint_name": "utilisateur_pkey",
+        "column_name": "id_user",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "utilisateur",
+        "foreign_column_name": "id_user"
+      },
+      {
+        "constraint_type": "UNIQUE",
+        "constraint_name": "utilisateur_login_key",
+        "column_name": "login",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "utilisateur",
+        "foreign_column_name": "login"
+      }
+    ],
+    "rows": [
+      {
+        "id_user": 2,
+        "login": "nada",
+        "mot_de_passe": "argon2$argon2id$v=19$m=102400,t=2,p=8$UVNpTzVCUENYT2pjc0dVNDZiNUNSbw$Xlfa2vnjPQ54ye/vJKz6NI1YXfpbUJr5J6zUmxH/NCQ",
+        "nom_prenom": "NADA CHERKI",
+        "actif": true,
+        "date_creation": "2026-03-29",
+        "dernier_login": "2026-04-10 10:11:04.589948",
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": 1,
+        "role": "admin"
+      },
+      {
+        "id_user": 3,
+        "login": "anas",
+        "mot_de_passe": "argon2$argon2id$v=19$m=102400,t=2,p=8$VlgzZWNESThPUzR2MDZoOXJaVGl3dA$c+4mGFiNgqW4QTtKw3oTu1WB27runWZAwdL3gxiPicE",
+        "nom_prenom": "Agent Test 2",
+        "actif": true,
+        "date_creation": "2026-04-08",
+        "dernier_login": "2026-04-08 10:28:22.532712",
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": 1,
+        "role": "admin"
+      },
+      {
+        "id_user": 4,
+        "login": "anasd@etafat.ma",
+        "mot_de_passe": "argon2$argon2id$v=19$m=102400,t=2,p=8$dG1LZ1U2Zmwyc1hveTl1TzFEczM2bA$jV97tDJ5iFHuC2olHZkqyobluPn5Y1h2mVlUrHJbfxw",
+        "nom_prenom": "ANAS DAHOU",
+        "actif": true,
+        "date_creation": "2026-04-12",
+        "dernier_login": "2026-04-30 08:57:42.031559",
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": 1,
+        "role": "admin"
+      }
+    ]
+  },
+  "SRM_bureau": {
+    "columns": [
+      {
+        "ordinal_position": 1,
+        "column_name": "id_user",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('utilisateur_id_user_seq'::regclass)"
+      },
+      {
+        "ordinal_position": 2,
+        "column_name": "login",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 100,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 3,
+        "column_name": "mot_de_passe_hash",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 4,
+        "column_name": "nom_prenom",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 200,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 5,
+        "column_name": "actif",
+        "data_type": "boolean",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "ordinal_position": 6,
+        "column_name": "date_creation",
+        "data_type": "date",
+        "udt_name": "date",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 7,
+        "column_name": "dernier_login",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 8,
+        "column_name": "nb_objets_collectes_total",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "0"
+      },
+      {
+        "ordinal_position": 9,
+        "column_name": "id_projet_actif",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "ordinal_position": 10,
+        "column_name": "role",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "character_maximum_length": 20,
+        "is_nullable": "YES",
+        "column_default": "'viewer_mobile'::character varying"
+      },
+      {
+        "ordinal_position": 11,
+        "column_name": "is_deleted",
+        "data_type": "boolean",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "false"
+      }
+    ],
+    "count": 8,
+    "constraints": [
+      {
+        "constraint_type": "CHECK",
+        "constraint_name": "2200_90645_1_not_null",
+        "column_name": null,
+        "foreign_table_schema": null,
+        "foreign_table_name": null,
+        "foreign_column_name": null
+      },
+      {
+        "constraint_type": "CHECK",
+        "constraint_name": "2200_90645_2_not_null",
+        "column_name": null,
+        "foreign_table_schema": null,
+        "foreign_table_name": null,
+        "foreign_column_name": null
+      },
+      {
+        "constraint_type": "CHECK",
+        "constraint_name": "utilisateur_role_check",
+        "column_name": null,
+        "foreign_table_schema": "public",
+        "foreign_table_name": "utilisateur",
+        "foreign_column_name": "role"
+      },
+      {
+        "constraint_type": "PRIMARY KEY",
+        "constraint_name": "utilisateur_pkey",
+        "column_name": "id_user",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "utilisateur",
+        "foreign_column_name": "id_user"
+      },
+      {
+        "constraint_type": "UNIQUE",
+        "constraint_name": "utilisateur_login_key",
+        "column_name": "login",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "utilisateur",
+        "foreign_column_name": "login"
+      }
+    ],
+    "rows": [
+      {
+        "id_user": 2,
+        "login": "yassine",
+        "mot_de_passe_hash": "yassineoudadda2002",
+        "nom_prenom": "yassine",
+        "actif": true,
+        "date_creation": "2026-03-26",
+        "dernier_login": null,
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": null,
+        "role": "superadmin",
+        "is_deleted": false
+      },
+      {
+        "id_user": 7,
+        "login": "fouad",
+        "mot_de_passe_hash": "fouad",
+        "nom_prenom": "fouad bourich",
+        "actif": true,
+        "date_creation": "2026-03-28",
+        "dernier_login": null,
+        "nb_objets_collectes_total": null,
+        "id_projet_actif": 1,
+        "role": "editeur_terrain",
+        "is_deleted": false
+      },
+      {
+        "id_user": 8,
+        "login": "abdelhak",
+        "mot_de_passe_hash": "abdelhak",
+        "nom_prenom": "abdelhakboutrak",
+        "actif": true,
+        "date_creation": "2026-03-28",
+        "dernier_login": null,
+        "nb_objets_collectes_total": null,
+        "id_projet_actif": null,
+        "role": "editeur_terrain",
+        "is_deleted": false
+      },
+      {
+        "id_user": 10,
+        "login": "badr",
+        "mot_de_passe_hash": "badr",
+        "nom_prenom": "bar elguareh",
+        "actif": false,
+        "date_creation": "2026-03-28",
+        "dernier_login": null,
+        "nb_objets_collectes_total": null,
+        "id_projet_actif": null,
+        "role": "viewer",
+        "is_deleted": false
+      },
+      {
+        "id_user": 13,
+        "login": "hakim",
+        "mot_de_passe_hash": "hakim",
+        "nom_prenom": "hakim",
+        "actif": true,
+        "date_creation": "2026-04-09",
+        "dernier_login": null,
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": null,
+        "role": "editeur_terrain",
+        "is_deleted": false
+      },
+      {
+        "id_user": 14,
+        "login": "driss",
+        "mot_de_passe_hash": "driss",
+        "nom_prenom": "driss",
+        "actif": true,
+        "date_creation": "2026-04-09",
+        "dernier_login": null,
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": null,
+        "role": "editeur_terrain",
+        "is_deleted": false
+      },
+      {
+        "id_user": 15,
+        "login": "salma",
+        "mot_de_passe_hash": "salma",
+        "nom_prenom": "salma",
+        "actif": true,
+        "date_creation": "2026-04-09",
+        "dernier_login": null,
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": null,
+        "role": "editeur_bureau",
+        "is_deleted": false
+      },
+      {
+        "id_user": 16,
+        "login": "exploitant",
+        "mot_de_passe_hash": "exploitant1",
+        "nom_prenom": "exploitant 1",
+        "actif": true,
+        "date_creation": "2026-04-15",
+        "dernier_login": null,
+        "nb_objets_collectes_total": 0,
+        "id_projet_actif": null,
+        "role": "exploitant_srm",
+        "is_deleted": false
+      }
+    ]
+  }
+}

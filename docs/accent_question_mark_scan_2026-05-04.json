@@ -1,0 +1,70 @@
+{
+  "SRM": [
+    {
+      "schema": "ep",
+      "table": "vanne",
+      "column": "ep_etat",
+      "count": 1,
+      "samples": [
+        {
+          "text": ".?",
+          "unicode_escape": ".?"
+        }
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "historique_attribut",
+      "column": "nouvelle_valeur",
+      "count": 1,
+      "samples": [
+        {
+          "text": ".?",
+          "unicode_escape": ".?"
+        }
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "historique_mobile",
+      "column": "nouvelle_valeur",
+      "count": 2,
+      "samples": [
+        {
+          "text": ".?",
+          "unicode_escape": ".?"
+        },
+        {
+          "text": ".?",
+          "unicode_escape": ".?"
+        }
+      ]
+    }
+  ],
+  "SRM_bureau": [
+    {
+      "schema": "ep",
+      "table": "ep_regard",
+      "column": "ep_observation",
+      "count": 1,
+      "samples": [
+        {
+          "text": "Puisard construit côte haut ??",
+          "unicode_escape": "Puisard construit c\\xf4te haut ??"
+        }
+      ]
+    },
+    {
+      "schema": "ep",
+      "table": "onep_db",
+      "column": "adresse postale client payeur",
+      "count": 1,
+      "samples": [
+        {
+          "text": "ISLY null APP 19? IMM K CITE DU 6°G.M.",
+          "unicode_escape": "ISLY null APP 19? IMM K CITE DU 6\\xb0G.M."
+        }
+      ]
+    }
+  ]
+}

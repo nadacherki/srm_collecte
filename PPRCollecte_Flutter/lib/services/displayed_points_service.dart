@@ -60,8 +60,7 @@ class DisplayedPointsService {
             }
 
             // Detecter l'anomalie stockee comme 1 / true en base.
-            final hasAnomalie =
-                row['anomalie'] == 1 ||
+            final hasAnomalie = row['anomalie'] == 1 ||
                 row['anomalie'] == true ||
                 row['ep_anomalie'] == 1 ||
                 row['ep_anomalie'] == true;
@@ -87,12 +86,11 @@ class DisplayedPointsService {
                     'table_name': tableName,
                     'anomalie': hasAnomalie,
                     'objet_incomplet': hasIncomplet,
-                    'type_anomalie': (
-                      row['type_anomalie'] ??
-                      row['anomalie_regard'] ??
-                      row['anomalie_tamp'] ??
-                      ''
-                    ).toString(),
+                    'type_anomalie': (row['type_anomalie'] ??
+                            row['anomalie_regard'] ??
+                            row['anomalie_tamp'] ??
+                            '')
+                        .toString(),
                     'enqueteur': (row['enqueteur'] ??
                             ApiService.nomPrenom ??
                             ApiService.userLogin ??
@@ -103,12 +101,9 @@ class DisplayedPointsService {
                     'lng': latLng.longitude,
                     'synced': (row['synced'] ?? 0).toString(),
                     'existing_item': editableItem,
-                    'region_name':
-                        (row['region_name'] ?? ApiService.currentProjetRegion ?? '')
-                            .toString(),
+                    'region_name': (row['region_name'] ?? '').toString(),
                     'prefecture_name':
-                        (row['prefecture_name'] ?? ApiService.currentProjetNom ?? '')
-                            .toString(),
+                        (row['prefecture_name'] ?? '').toString(),
                     'commune_name': (row['commune_name'] ?? '').toString(),
                   });
                 },
@@ -144,12 +139,12 @@ class DisplayedPointsService {
         }
       }
 
-      print(
+      debugPrint(
         'Loaded ${markers.length} displayed SRM point markers (cache: ${CustomMarkerIcons.getCacheSize()})',
       );
       return markers;
     } catch (e) {
-      print('Error in getDisplayedPointsMarkers: $e');
+      debugPrint('Error in getDisplayedPointsMarkers: $e');
       return [];
     }
   }
@@ -170,7 +165,11 @@ class DisplayedPointsService {
       final args = <dynamic>[];
 
       if (loginId != null) {
-        for (final column in ['id_agent_crea', 'saved_by_user_id', 'login_id']) {
+        for (final column in [
+          'id_agent_crea',
+          'saved_by_user_id',
+          'login_id'
+        ]) {
           if (availableColumns.contains(column)) {
             filters.add('$column = ?');
             args.add(loginId);
@@ -178,16 +177,10 @@ class DisplayedPointsService {
         }
       }
 
-      if (ApiService.currentProjetId != null &&
-          availableColumns.contains('id_projet')) {
-        filters.add('id_projet = ?');
-        args.add(ApiService.currentProjetId);
-      }
-
       final where = filters.isEmpty ? null : filters.join(' OR ');
       return await db.query(tableName, where: where, whereArgs: args);
     } catch (e) {
-      print('Error reading table $tableName: $e');
+      debugPrint('Error reading table $tableName: $e');
       return [];
     }
   }
@@ -224,8 +217,7 @@ class DisplayedPointsService {
         editableItem['source_entity'] = entityType;
         editableItem['geometry_type'] = 'Point';
 
-        final hasAnomalie =
-            row['anomalie'] == 1 ||
+        final hasAnomalie = row['anomalie'] == 1 ||
             row['anomalie'] == true ||
             row['ep_anomalie'] == 1 ||
             row['ep_anomalie'] == true;
@@ -291,7 +283,7 @@ class DisplayedPointsService {
 
       return markers;
     } catch (e) {
-      print('Error in getDisplayedRegardMarkersForDay: $e');
+      debugPrint('Error in getDisplayedRegardMarkersForDay: $e');
       return [];
     }
   }

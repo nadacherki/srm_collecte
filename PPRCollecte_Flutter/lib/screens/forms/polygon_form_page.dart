@@ -95,8 +95,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     return text == '1' || text == 'true' || text == 't';
   }
 
-  Color get _categoryColor =>
-      Color(SrmConfig.getMetierColor(widget.metier));
+  Color get _categoryColor => Color(SrmConfig.getMetierColor(widget.metier));
   String get _metierCode => widget.metier == 'Eau Potable'
       ? 'EP'
       : widget.metier == 'Assainissement'
@@ -120,11 +119,21 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     // Activer le brouillon automatique uniquement en création simple
     if (!_isEditing && !_isRegardEp) {
       final allControllers = [
-        _nomController, _codeGpsController, _epNumController,
-        _epTypeController, _epFormeController, _epLongueurController,
-        _epLargeurController, _epCoteTamponController, _epCoteRadierController,
-        _epCoteFilEauController, _epEtatController, _emplacementController,
-        _refRueController, _etageAquaController, _secteurAquaController,
+        _nomController,
+        _codeGpsController,
+        _epNumController,
+        _epTypeController,
+        _epFormeController,
+        _epLongueurController,
+        _epLargeurController,
+        _epCoteTamponController,
+        _epCoteRadierController,
+        _epCoteFilEauController,
+        _epEtatController,
+        _emplacementController,
+        _refRueController,
+        _etageAquaController,
+        _secteurAquaController,
         _observationController,
       ];
       for (final c in allControllers) {
@@ -138,23 +147,20 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   Future<void> _initializeData() async {
     _superficieHa = _calculateAreaHectares(widget.polygonPoints);
 
-    _closedCoordinates = widget.polygonPoints
-        .map((p) => [p.longitude, p.latitude])
-        .toList();
+    _closedCoordinates =
+        widget.polygonPoints.map((p) => [p.longitude, p.latitude]).toList();
     if (_closedCoordinates.isNotEmpty) {
       _closedCoordinates.add(List<double>.from(_closedCoordinates.first));
     }
 
     // Calcul du centroïde Merchich Nord
     if (widget.polygonPoints.isNotEmpty) {
-      final centroidLat = widget.polygonPoints
-              .map((p) => p.latitude)
-              .reduce((a, b) => a + b) /
-          widget.polygonPoints.length;
-      final centroidLon = widget.polygonPoints
-              .map((p) => p.longitude)
-              .reduce((a, b) => a + b) /
-          widget.polygonPoints.length;
+      final centroidLat =
+          widget.polygonPoints.map((p) => p.latitude).reduce((a, b) => a + b) /
+              widget.polygonPoints.length;
+      final centroidLon =
+          widget.polygonPoints.map((p) => p.longitude).reduce((a, b) => a + b) /
+              widget.polygonPoints.length;
       final m = ProjectionService()
           .wgs84ToMerchich(longitude: centroidLon, latitude: centroidLat);
       _xMerchich = m.x;
@@ -176,12 +182,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
     if (_isEditing) {
       _nomController.text = widget.existingData!['nom']?.toString() ?? '';
-      _codeGpsController.text =
-          widget.existingData!['code']?.toString() ??
-              widget.existingData!['code_gps']?.toString() ??
-              '';
-      _epNumController.text =
-          widget.existingData!['ep_num']?.toString() ?? '';
+      _codeGpsController.text = widget.existingData!['code']?.toString() ??
+          widget.existingData!['code_gps']?.toString() ??
+          '';
+      _epNumController.text = widget.existingData!['ep_num']?.toString() ?? '';
       _epTypeController.text =
           widget.existingData!['ep_type']?.toString() ?? '';
       _epFormeController.text =
@@ -213,21 +217,20 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     await _loadRegardEpOptions();
     if (!mounted) return;
     final existingUuid = widget.existingData?['uuid']?.toString().trim() ?? '';
-    _regardEpUuid =
-        existingUuid.isNotEmpty ? existingUuid : const Uuid().v4();
+    _regardEpUuid = existingUuid.isNotEmpty ? existingUuid : const Uuid().v4();
 
     final fields = SrmConfig.getFields(widget.metier, widget.entityType);
     final now = DateTime.now();
     for (final field in fields) {
       final initialValue = _resolveRegardEpInitialValue(field, now);
-      _regardEpControllers[field] =
-          TextEditingController(text: initialValue);
+      _regardEpControllers[field] = TextEditingController(text: initialValue);
     }
 
     await _populateRegardEpSpatialContext();
     if (!mounted) return;
     _applyRegardEpDerivedValues(now);
-    _regardEpControllers['ep_ref_rue']?.addListener(_syncRegardEpAdresseFromRefRue);
+    _regardEpControllers['ep_ref_rue']
+        ?.addListener(_syncRegardEpAdresseFromRefRue);
 
     if (!_isEditing) {
       for (final controller in _regardEpControllers.values) {
@@ -241,9 +244,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   void _recomputePolygonGeometry({bool prefillDerivedFields = false}) {
     _superficieHa = _calculateAreaHectares(_polygonPoints);
 
-    _closedCoordinates = _polygonPoints
-        .map((p) => <double>[p.longitude, p.latitude])
-        .toList();
+    _closedCoordinates =
+        _polygonPoints.map((p) => <double>[p.longitude, p.latitude]).toList();
     if (_closedCoordinates.isNotEmpty) {
       _closedCoordinates.add(List<double>.from(_closedCoordinates.first));
     }
@@ -388,7 +390,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     _setRegardEpControllerIfEmpty('ep_date_insertion', _formatDateOnly(now));
     _setRegardEpControllerIfEmpty('ep_coor_x', _xMerchich.toStringAsFixed(3));
     _setRegardEpControllerIfEmpty('ep_coor_y', _yMerchich.toStringAsFixed(3));
-    _setRegardEpControllerIfEmpty('id_user_creat', ApiService.userId?.toString() ?? '');
+    _setRegardEpControllerIfEmpty(
+        'id_user_creat', ApiService.userId?.toString() ?? '');
     _setRegardEpControllerIfEmpty('date_creation', now.toIso8601String());
     _syncRegardEpAdresseFromRefRue();
   }
@@ -496,8 +499,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
     _raisonIncomplet ??= linked['raison']?.toString();
     if (_detailRaisonController.text.trim().isEmpty) {
-      _detailRaisonController.text =
-          linked['detail_raison']?.toString() ?? '';
+      _detailRaisonController.text = linked['detail_raison']?.toString() ?? '';
     }
   }
 
@@ -601,7 +603,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return (normalized == '1' || normalized.toLowerCase() == 'true') ? 1 : 0;
     }
 
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
     switch (rule.kind) {
       case SrmFieldKind.integer:
         return int.tryParse(normalized);
@@ -625,7 +628,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       ctrl.addListener(() {
         final text = ctrl.text;
         if (text.isEmpty) return;
-        final corrected = text[0].toUpperCase() + text.substring(1).toLowerCase();
+        final corrected =
+            text[0].toUpperCase() + text.substring(1).toLowerCase();
         if (text != corrected) {
           final pos = ctrl.selection;
           ctrl.value = ctrl.value.copyWith(
@@ -746,8 +750,6 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           'nb_points': _polygonPoints.length,
           'ep_coor_x': double.tryParse(_xMerchich.toStringAsFixed(3)),
           'ep_coor_y': double.tryParse(_yMerchich.toStringAsFixed(3)),
-          'id_projet':
-              widget.existingData?['id_projet'] ?? ApiService.currentProjetId,
           'id_agent_crea':
               widget.existingData?['id_agent_crea'] ?? ApiService.userId,
           'anomalie': (_hasAnomalie || _isRegardEpAnomalieActive()) ? 1 : 0,
@@ -762,16 +764,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           data['mode_localisation'] = modeLocalisationCode;
         }
 
-        if (!_isObjetIncomplet) {
-          for (final field in fields) {
-            final controller = _regardEpControllers[field];
-            if (controller == null) continue;
+        for (final field in fields) {
+          final controller = _regardEpControllers[field];
+          if (controller == null) continue;
 
-            final normalized =
-                _normalizeRegardEpFieldValue(field, controller.text.trim());
-            if (normalized != null) {
-              data[field] = normalized;
-            }
+          final normalized =
+              _normalizeRegardEpFieldValue(field, controller.text.trim());
+          if (normalized != null) {
+            data[field] = normalized;
           }
         }
 
@@ -854,12 +854,15 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
       final data = <String, dynamic>{
         'uuid': widget.existingData?['uuid'] ?? const Uuid().v4(),
-        'nom': _nomController.text.trim().isEmpty ? null : _nomController.text.trim(),
+        'nom': _nomController.text.trim().isEmpty
+            ? null
+            : _nomController.text.trim(),
         'code': _codeGpsController.text.trim().isEmpty
             ? null
             : _codeGpsController.text.trim(),
-        'ep_num':
-            _epNumController.text.trim().isEmpty ? null : _epNumController.text.trim(),
+        'ep_num': _epNumController.text.trim().isEmpty
+            ? null
+            : _epNumController.text.trim(),
         'ep_type': _epTypeController.text.trim().isEmpty
             ? null
             : _epTypeController.text.trim(),
@@ -907,35 +910,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         'anomalie': _hasAnomalie ? 1 : 0,
         'type_anomalie': _hasAnomalie ? _typeAnomalie : null,
         'objet_incomplet': _isObjetIncomplet ? 1 : 0,
-        'id_projet': ApiService.currentProjetId,
         'id_agent_crea': ApiService.userId,
         'mode_localisation': 'gnss',
         'synced': 0,
         'date_collecte': now.toIso8601String(),
       };
-
-      if (_isObjetIncomplet) {
-        for (final key in const [
-          'nom',
-          'code',
-          'ep_num',
-          'ep_type',
-          'ep_forme',
-          'ep_longueur',
-          'ep_largeur',
-          'ep_cote_tampon',
-          'ep_cote_radier',
-          'ep_cote_fil_eau',
-          'ep_etat',
-          'emplacement',
-          'ref_rue',
-          'etage_aqua',
-          'secteur_aqua',
-          'observation',
-        ]) {
-          data.remove(key);
-        }
-      }
 
       late final int localId;
       if (_isEditing) {
@@ -1084,7 +1063,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             children: [
               CircularProgressIndicator(color: _categoryColor),
               const SizedBox(height: 20),
-              Text('Préparation du formulaire...', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+              Text('Préparation du formulaire...',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600])),
             ],
           ),
         ),
@@ -1096,7 +1076,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             DateTime.now().toIso8601String())
         : DateTime.now().toIso8601String();
     final formSections = <Widget>[
-      if (_isRegardEp) ..._buildRegardEpSections() else ...[
+      if (_isRegardEp)
+        ..._buildRegardEpSections()
+      else ...[
         _buildFormSection(
           title: 'Attributs ${widget.entityType}',
           children: [
@@ -1106,7 +1088,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               decoration: BoxDecoration(
                 color: _categoryColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _categoryColor.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: _categoryColor.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1190,7 +1173,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               _buildGpsInfoRow(
                 'Sommet ${i + 1}:',
                 '${_polygonPoints[i].latitude.toStringAsFixed(7)}, '
-                '${_polygonPoints[i].longitude.toStringAsFixed(7)}',
+                    '${_polygonPoints[i].longitude.toStringAsFixed(7)}',
               ),
           ],
         ),
@@ -1214,115 +1197,126 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         backgroundColor: const Color(0xFFF0F8FF),
         body: SafeArea(
           child: Column(
-          children: [
-            // ===== Header =====
-            Container(
-              decoration: BoxDecoration(
-                color: _isLocked
-                    ? Colors.grey.shade700
-                    : (_isObjetIncomplet ? Colors.orange : _categoryColor),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: _handleBack,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          _pageTitle,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          'Table: $_tableName',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withAlpha((0.9 * 255).round()),
-                          ),
-                        ),
-                      ],
+            children: [
+              // ===== Header =====
+              Container(
+                decoration: BoxDecoration(
+                  color: _isLocked
+                      ? Colors.grey.shade700
+                      : (_isObjetIncomplet ? Colors.orange : _categoryColor),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: _handleBack,
+                      icon: const Icon(Icons.arrow_back,
+                          color: Colors.white, size: 24),
                     ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _clearForm,
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            _pageTitle,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'Table: $_tableName',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color:
+                                  Colors.white.withAlpha((0.9 * 255).round()),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    icon: const Icon(Icons.delete, size: 18),
-                    label: const Text('Effacer'),
-                  ),
-                ],
-              ),
-            ),
-
-            // ===== CONTENU DU FORMULAIRE =====
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: formSections,
-              ),
-            ),
-
-            // ===== Bouton enregistrer =====
-            Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
-                boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2)),
-                ],
-              ),
-              padding: const EdgeInsets.all(20),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _handleSave,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        _isObjetIncomplet ? Colors.orange : _categoryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 3,
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isObjetIncomplet
-                                  ? Icons.warning_amber_rounded
-                                  : Icons.save,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _isObjetIncomplet
-                                  ? 'Signaler incomplet'
-                                  : 'Enregistrer',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                    TextButton.icon(
+                      onPressed: _clearForm,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                      ),
+                      icon: const Icon(Icons.delete, size: 18),
+                      label: const Text('Effacer'),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+
+              // ===== CONTENU DU FORMULAIRE =====
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: formSections,
+                ),
+              ),
+
+              // ===== Bouton enregistrer =====
+              Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, -2)),
+                  ],
+                ),
+                padding: const EdgeInsets.all(20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _handleSave,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _isObjetIncomplet ? Colors.orange : _categoryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      elevation: 3,
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _isObjetIncomplet
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.save,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _isObjetIncomplet
+                                    ? 'Signaler incomplet'
+                                    : 'Enregistrer',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1349,7 +1343,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           _buildRegardEpStaticField(
             'Province',
             _regardEpProvinceName,
-            helperText: provinceId.isNotEmpty ? 'ID province: $provinceId' : null,
+            helperText:
+                provinceId.isNotEmpty ? 'ID province: $provinceId' : null,
           ),
           _buildRegardEpField('ep_sect_com'),
           _buildRegardEpField('ep_adresse'),
@@ -1409,7 +1404,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     String value, {
     String? helperText,
   }) {
-    final displayValue = value.trim().isEmpty ? 'Non d\u00E9termin\u00E9' : value.trim();
+    final displayValue =
+        value.trim().isEmpty ? 'Non d\u00E9termin\u00E9' : value.trim();
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1502,7 +1498,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     );
   }
 
-  Widget _buildFormSection({required String title, required List<Widget> children}) {
+  Widget _buildFormSection(
+      {required String title, required List<Widget> children}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -1546,10 +1543,12 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     final controller = _regardEpControllers[field];
     if (controller == null) return const SizedBox.shrink();
 
-    final label = SrmConfig.getFieldLabel(widget.metier, widget.entityType, field);
+    final label =
+        SrmConfig.getFieldLabel(widget.metier, widget.entityType, field);
     final options = _regardEpOptions[field] ?? const <Map<String, dynamic>>[];
     final isReadOnly = _isRegardEpReadOnlyField(field);
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule =
+        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
     if (_isRegardEpBooleanField(field)) {
       final boolValue = controller.text.trim() == '1';
@@ -1605,7 +1604,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(8),
@@ -1626,7 +1626,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
       final currentValue = controller.text.trim();
       final hasCurrentValue = currentValue.isNotEmpty &&
-          options.any((option) => (option['code_value'] ?? '').toString() == currentValue);
+          options.any((option) =>
+              (option['code_value'] ?? '').toString() == currentValue);
 
       return Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -1742,7 +1743,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       case SrmFieldKind.integer:
         return TextInputType.number;
       case SrmFieldKind.decimal:
-        return const TextInputType.numberWithOptions(decimal: true, signed: true);
+        return const TextInputType.numberWithOptions(
+            decimal: true, signed: true);
       case SrmFieldKind.date:
         return TextInputType.datetime;
       default:
@@ -1801,7 +1803,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF374151))),
           const SizedBox(height: 8),
           TextFormField(
             controller: controller,
@@ -1810,11 +1816,21 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               hintText: hint,
               hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
               filled: true,
-              fillColor: effectiveEnabled ? const Color(0xFFF9FAFB) : const Color(0xFFF5F5F5),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-              disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE0E0E0))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1976D2))),
+              fillColor: effectiveEnabled
+                  ? const Color(0xFFF9FAFB)
+                  : const Color(0xFFF5F5F5),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0))),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF1976D2))),
             ),
           ),
         ],
@@ -1832,7 +1848,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF374151))),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -1843,12 +1863,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, size: 20, color: Color(0xFF1976D2)),
+                const Icon(Icons.calendar_today,
+                    size: 20, color: Color(0xFF1976D2)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     _formatDisplayDate(value),
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+                    style:
+                        const TextStyle(fontSize: 14, color: Color(0xFF374151)),
                   ),
                 ),
               ],
@@ -1857,7 +1879,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           if (readOnly)
             const Padding(
               padding: EdgeInsets.only(top: 4),
-              child: Text('Date automatique (non modifiable)', style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
+              child: Text('Date automatique (non modifiable)',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
             ),
         ],
       ),
@@ -1882,10 +1905,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: _isEditing ? const Color(0xFFF9FAFB) : const Color(0xFFF5F5F5),
+              color: _isEditing
+                  ? const Color(0xFFF9FAFB)
+                  : const Color(0xFFF5F5F5),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: _isEditing ? const Color(0xFFE5E7EB) : const Color(0xFFE0E0E0),
+                color: _isEditing
+                    ? const Color(0xFFE5E7EB)
+                    : const Color(0xFFE0E0E0),
               ),
             ),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
@@ -1899,10 +1926,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _isEditing ? 'Sera mise à jour automatiquement' : 'Non modifiée',
+                    _isEditing
+                        ? 'Sera mise à jour automatiquement'
+                        : 'Non modifiée',
                     style: TextStyle(
                       fontSize: 14,
-                      color: _isEditing ? const Color(0xFF374151) : const Color(0xFF9E9E9E),
+                      color: _isEditing
+                          ? const Color(0xFF374151)
+                          : const Color(0xFF9E9E9E),
                     ),
                   ),
                 ),
@@ -1942,9 +1973,12 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             ],
           ),
           const SizedBox(height: 12),
-          _buildGpsInfoRow('Nombre de sommets :', '${_polygonPoints.length} points'),
-          _buildGpsInfoRow('Superficie :', '${_superficieHa.toStringAsFixed(4)} ha'),
-          _buildGpsInfoRow('Surface :', '${(_superficieHa * 10000).toStringAsFixed(1)} m\u00B2'),
+          _buildGpsInfoRow(
+              'Nombre de sommets :', '${_polygonPoints.length} points'),
+          _buildGpsInfoRow(
+              'Superficie :', '${_superficieHa.toStringAsFixed(4)} ha'),
+          _buildGpsInfoRow('Surface :',
+              '${(_superficieHa * 10000).toStringAsFixed(1)} m\u00B2'),
         ],
       ),
     );
@@ -2005,7 +2039,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Agent enqu\u00EAteur', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const Text('Agent enqu\u00EAteur',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
                 const SizedBox(height: 4),
                 Text(
                   widget.agentName,

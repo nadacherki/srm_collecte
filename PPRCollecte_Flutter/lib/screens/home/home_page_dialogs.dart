@@ -333,7 +333,9 @@ void _showDownloadResultImpl(
       final remainingWarnings = result.warnings.length - warningsToShow.length;
       bool isLikelyNetworkFailure(String error) {
         final lower = error.toLowerCase();
-        return lower.contains('erreur reseau') ||
+        return lower.contains('connexion interrompue') ||
+            lower.contains('erreur reseau') ||
+            lower.contains('erreur rã') ||
             lower.contains('erreur réseau') ||
             lower.contains('timeout') ||
             lower.contains('socketexception') ||
@@ -344,12 +346,14 @@ void _showDownloadResultImpl(
       final hasFailures = result.failedCount > 0;
       final fullFailure =
           hasFailures && result.successCount == 0 && result.skippedCount == 0;
-      final partialFailure =
-          hasFailures && !fullFailure && !alreadyDownloaded && !nothingAvailable;
-      final networkOnlyFailure =
-          hasFailures &&
-          result.errors.isNotEmpty &&
-          result.errors.every(isLikelyNetworkFailure);
+      final partialFailure = hasFailures &&
+          !fullFailure &&
+          !alreadyDownloaded &&
+          !nothingAvailable;
+      final networkOnlyFailure = result.interrupted ||
+          (hasFailures &&
+              result.errors.isNotEmpty &&
+              result.errors.every(isLikelyNetworkFailure));
 
       return AlertDialog(
         title: Text(
@@ -357,13 +361,15 @@ void _showDownloadResultImpl(
               ? 'Aucune nouvelle donnée à télécharger'
               : nothingAvailable
                   ? 'Aucune donnée disponible'
-                  : fullFailure
-                      ? networkOnlyFailure
-                          ? 'Connexion au serveur indisponible'
-                          : 'Téléchargement impossible'
-                      : partialFailure
-                          ? 'Téléchargement partiel'
-                          : 'Téléchargement terminé',
+                  : result.interrupted
+                      ? 'Telechargement interrompu'
+                      : fullFailure
+                          ? networkOnlyFailure
+                              ? 'Connexion au serveur indisponible'
+                              : 'Téléchargement impossible'
+                          : partialFailure
+                              ? 'Téléchargement partiel'
+                              : 'Téléchargement terminé',
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -372,7 +378,7 @@ void _showDownloadResultImpl(
             children: [
               if (alreadyDownloaded) ...[
                 const Text(
-                  'Les données du serveur pour ce projet et cette mission sont déjà téléchargées ou déjà à jour sur cet appareil.',
+                  'Les donnees du serveur sont deja telechargees ou deja a jour sur cet appareil.',
                 ),
                 const SizedBox(height: 8),
                 const Text('Toutes les données étaient déjà à jour.'),
@@ -387,7 +393,18 @@ void _showDownloadResultImpl(
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ],
-              if (fullFailure) ...[
+              if (result.interrupted) ...[
+                Text(
+                  result.interruptionMessage ??
+                      'Connexion interrompue. Le telechargement a ete arrete.',
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Les donnees deja recues sont conservees. Relancez le telechargement quand la connexion revient pour reprendre.',
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (fullFailure && !result.interrupted) ...[
                 Text(
                   networkOnlyFailure
                       ? "Aucune donnée n'a pu être téléchargée pour le moment."
@@ -654,7 +671,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         if (expectingExternal) {
           messenger?.showSnackBar(
             SnackBar(
-              content: Text(
+              content: const Text(
                 'Pont NMEA actif mais aucun fix GNSS externe reçu. '
                 'Aucune position téléphone utilisée.',
               ),
@@ -899,7 +916,8 @@ Future<void> _showNmeaBridgeDialog(
                             subtitle: Text(device.address),
                             onTap: () async {
                               try {
-                                await bridge.savePreferredBluetoothDevice(device);
+                                await bridge
+                                    .savePreferredBluetoothDevice(device);
                                 await bridge.connectBluetooth(device.address);
                                 state.homeController.markNmeaBridgePending(
                                   deviceLabel: device.label,

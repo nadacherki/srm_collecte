@@ -50,11 +50,13 @@ class MapControlsWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasLigneContext = controller.ligneCollection != null;
-    final hasPolygonContext =
-        isSpecialCollection && isPolygonCollection && controller.specialCollection != null;
+    final hasPolygonContext = isSpecialCollection &&
+        isPolygonCollection &&
+        controller.specialCollection != null;
     // SPRINT 7 fix : le bouton Point doit apparaître aussi quand la collecte est en PAUSE
-    final showAddPointForLigne = (controller.ligneCollection?.isActive ?? false) ||
-        (controller.ligneCollection?.isPaused ?? false);
+    final showAddPointForLigne =
+        (controller.ligneCollection?.isActive ?? false) ||
+            (controller.ligneCollection?.isPaused ?? false);
     final showAddPointForPolygon = isPolygonCollection &&
         ((controller.specialCollection?.isActive ?? false) ||
             (controller.specialCollection?.isPaused ?? false));
@@ -146,9 +148,9 @@ class MapControlsWidget extends StatelessWidget {
   Widget _buildPointControls({bool compact = false}) {
     final isManualCollectionActive =
         (controller.ligneCollection?.isActive ?? false) ||
-        (isPolygonCollection && (controller.specialCollection?.isActive ?? false));
-    final hasManualCollectionContext =
-        controller.ligneCollection != null ||
+            (isPolygonCollection &&
+                (controller.specialCollection?.isActive ?? false));
+    final hasManualCollectionContext = controller.ligneCollection != null ||
         (isPolygonCollection && controller.specialCollection != null);
 
     if (isSpecialCollection && !isPolygonCollection) {
@@ -253,7 +255,9 @@ class MapControlsWidget extends StatelessWidget {
     final ligneCollection = controller.ligneCollection;
 
     if (ligneCollection == null || ligneCollection.isInactive) {
-      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.specialCollection != null) {
+      if (controller.hasActiveCollection ||
+          controller.hasPausedCollection ||
+          controller.specialCollection != null) {
         return const SizedBox.shrink();
       }
 
@@ -325,7 +329,10 @@ class MapControlsWidget extends StatelessWidget {
         isSpecialCollection && isPolygonCollection && specialCollection != null;
 
     if (!isPolygonActive) {
-      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.ligneCollection != null || controller.specialCollection != null) {
+      if (controller.hasActiveCollection ||
+          controller.hasPausedCollection ||
+          controller.ligneCollection != null ||
+          controller.specialCollection != null) {
         return const SizedBox.shrink();
       }
 
@@ -349,7 +356,8 @@ class MapControlsWidget extends StatelessWidget {
             heroTag: "undoPolygonBtn",
             icon: Icons.undo,
             color: const Color(0xFF455A64),
-            onPressed: specialCollection.points.isNotEmpty ? onUndoPolygon : null,
+            onPressed:
+                specialCollection.points.isNotEmpty ? onUndoPolygon : null,
             tooltip: "Revenir en arrière",
           ),
           const SizedBox(width: 6),

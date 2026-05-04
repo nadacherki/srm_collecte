@@ -1,16 +1,9 @@
 // lib/collection_models.dart - VERSION CORRIGEE
 import 'package:latlong2/latlong.dart';
 
-enum CollectionType {
-  ligne,
-  special
-}
+enum CollectionType { ligne, special }
 
-enum CollectionStatus {
-  inactive,
-  active,
-  paused
-}
+enum CollectionStatus { inactive, active, paused }
 
 class CollectionBase {
   final int id;
@@ -101,12 +94,8 @@ class LigneCollection extends CollectionBase {
       'lineCode': lineCode,
       'type': 'ligne',
       'status': status.toString(),
-      'points': points
-          .map((p) => {
-                'lat': p.latitude,
-                'lng': p.longitude
-              })
-          .toList(),
+      'points':
+          points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
       'startTime': startTime.toIso8601String(),
       'lastPointTime': lastPointTime?.toIso8601String(),
       'totalDistance': totalDistance,
@@ -120,9 +109,13 @@ class LigneCollection extends CollectionBase {
       status: CollectionStatus.values.firstWhere(
         (e) => e.toString() == json['status'],
       ),
-      points: (json['points'] as List).map((p) => LatLng(p['lat'], p['lng'])).toList(),
+      points: (json['points'] as List)
+          .map((p) => LatLng(p['lat'], p['lng']))
+          .toList(),
       startTime: DateTime.parse(json['startTime']),
-      lastPointTime: json['lastPointTime'] != null ? DateTime.parse(json['lastPointTime']) : null,
+      lastPointTime: json['lastPointTime'] != null
+          ? DateTime.parse(json['lastPointTime'])
+          : null,
       totalDistance: json['totalDistance']?.toDouble() ?? 0.0,
     );
   }

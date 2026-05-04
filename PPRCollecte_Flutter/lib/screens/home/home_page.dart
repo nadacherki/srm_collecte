@@ -203,11 +203,14 @@ class _HomePageState extends State<HomePage> {
 
   SrmSelection? _pendingSrmLigneSelection;
 
-
-  final DownloadedLinesService _downloadedLinesService = DownloadedLinesService();
+  final DownloadedLinesService _downloadedLinesService =
+      DownloadedLinesService();
   List<Polyline> _downloadedLinesPolylines = [];
   bool _showDownloadedLines = true; // comme pour les points
-  bool get _autoCenterSuspended => _autoCenterDisabledByUser || (_suspendAutoCenterUntil != null && DateTime.now().isBefore(_suspendAutoCenterUntil!));
+  bool get _autoCenterSuspended =>
+      _autoCenterDisabledByUser ||
+      (_suspendAutoCenterUntil != null &&
+          DateTime.now().isBefore(_suspendAutoCenterUntil!));
   bool get _canUseAdminGpsTools =>
       (ApiService.userRole ?? '').trim().toLowerCase() == 'admin';
   String? _lastSyncTimeText;
@@ -262,7 +265,9 @@ class _HomePageState extends State<HomePage> {
   }) {
     final v = (enqueteurValue ?? '').trim();
 
-    if (v.isNotEmpty && v.toLowerCase() != 'null' && v.toLowerCase() != 'sync') {
+    if (v.isNotEmpty &&
+        v.toLowerCase() != 'null' &&
+        v.toLowerCase() != 'sync') {
       return v;
     }
 
@@ -319,7 +324,9 @@ class _HomePageState extends State<HomePage> {
           },
         );
 
-        if (_mapController != null && _lastCameraPosition == null && userPosition != null) {
+        if (_mapController != null &&
+            _lastCameraPosition == null &&
+            userPosition != null) {
           _mapController!.move(userPosition!, 17);
           _lastCameraPosition = userPosition;
         } else {
@@ -382,8 +389,6 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadDownloadedSpecialLines() =>
       _loadDownloadedSpecialLinesImpl(this);
 
-
-
   void _showSpecialLineDetailsSheet({
     required BuildContext context,
     required String specialType,
@@ -398,7 +403,8 @@ class _HomePageState extends State<HomePage> {
     required double endLat,
     required double endLng,
     Map<String, dynamic>? editableItem,
-  }) => _showSpecialLineDetailsSheetImpl(
+  }) =>
+      _showSpecialLineDetailsSheetImpl(
         this,
         context: context,
         specialType: specialType,
@@ -435,10 +441,10 @@ class _HomePageState extends State<HomePage> {
     String? debutTravaux,
     String? finTravaux,
     String? financement,
-    String? projet,
     String? entreprise,
     Map<String, dynamic>? editableItem,
-  }) => _showLineDetailsSheetImpl(
+  }) =>
+      _showLineDetailsSheetImpl(
         this,
         context: context,
         lineCode: lineCode,
@@ -459,7 +465,6 @@ class _HomePageState extends State<HomePage> {
         debutTravaux: debutTravaux,
         finTravaux: finTravaux,
         financement: financement,
-        projet: projet,
         entreprise: entreprise,
         editableItem: editableItem,
       );
@@ -477,7 +482,8 @@ class _HomePageState extends State<HomePage> {
     required double lng,
     required String statut,
     Map<String, dynamic>? editableItem,
-  }) => _showPointDetailsSheetImpl(
+  }) =>
+      _showPointDetailsSheetImpl(
         this,
         context: context,
         type: type,
@@ -512,27 +518,27 @@ class _HomePageState extends State<HomePage> {
         children: [
           Expanded(
             flex: 4,
-            child: Text(label, style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600)),
+            child: Text(label,
+                style: TextStyle(
+                    color: Colors.grey[700], fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 10),
           Expanded(
             flex: 6,
-            child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _loadAdminNamesOffline() =>
-      _loadAdminNamesOfflineImpl(this);
+  Future<void> _loadAdminNamesOffline() => _loadAdminNamesOfflineImpl(this);
 
-  void _suspendAutoCenterFor(Duration d) =>
-      _suspendAutoCenterForImpl(this, d);
+  void _suspendAutoCenterFor(Duration d) => _suspendAutoCenterForImpl(this, d);
 
-  void _startOnlineWatcher() =>
-      _startOnlineWatcherImpl(this);
-
+  void _startOnlineWatcher() => _startOnlineWatcherImpl(this);
 
   bool _isSrmTableVisible(String tableName) {
     final entityKey = 'srm_$tableName';
@@ -625,7 +631,8 @@ class _HomePageState extends State<HomePage> {
 
         if (isBac && (_legendVisibility['bac'] == true)) {
           filtered.add(l);
-        } else if (isPassage && (_legendVisibility['passage_submersible'] == true)) {
+        } else if (isPassage &&
+            (_legendVisibility['passage_submersible'] == true)) {
           filtered.add(l);
         } else if (!isBac && !isPassage) {
           filtered.add(l);
@@ -641,13 +648,12 @@ class _HomePageState extends State<HomePage> {
         filtered.add(
           Polyline(
             points: lignePoints,
-            color: homeController.ligneCollection!.isPaused ? Colors.orange : Colors.green,
+            color: homeController.ligneCollection!.isPaused
+                ? Colors.orange
+                : Colors.green,
             strokeWidth: 4.0,
             pattern: homeController.ligneCollection!.isPaused
-                ? StrokePattern.dashed(segments: const [
-                    10,
-                    5
-                  ])
+                ? StrokePattern.dashed(segments: const [10, 5])
                 : const StrokePattern.solid(),
           ),
         );
@@ -673,17 +679,16 @@ class _HomePageState extends State<HomePage> {
           );
         } else {
           // Bac / Passage : afficher comme LIGNE
-          final specialColor = _specialCollectionType == "Bac" ? Colors.purple : Colors.deepPurple;
+          final specialColor = _specialCollectionType == "Bac"
+              ? Colors.purple
+              : Colors.deepPurple;
           filtered.add(
             Polyline(
               points: specialPoints,
               color: specialColor,
               strokeWidth: 5.0,
               pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: const [
-                      10,
-                      5
-                    ])
+                  ? StrokePattern.dashed(segments: const [10, 5])
                   : const StrokePattern.solid(),
             ),
           );
@@ -907,26 +912,19 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<void> _checkOnlineStatus() =>
-      _checkOnlineStatusImpl(this);
+  Future<void> _checkOnlineStatus() => _checkOnlineStatusImpl(this);
 
   Future<bool> _refreshOnlineStatusForNetworkAction() =>
       _refreshOnlineStatusForNetworkActionImpl(this);
 
-  Future<void> _loadLastSyncTime() =>
-      _loadLastSyncTimeImpl(this);
+  Future<void> _loadLastSyncTime() => _loadLastSyncTimeImpl(this);
 
-  String _formatTimeHHmm(DateTime dt) =>
-      _formatTimeHHmmImpl(dt);
+  String _formatTimeHHmm(DateTime dt) => _formatTimeHHmmImpl(dt);
 
   Future<void> _loadDownloadedLineOverlays() =>
       _loadDownloadedLineOverlaysImpl(this);
 
-
-  double polylineDistanceKm(List<LatLng> pts) =>
-      _polylineDistanceKmImpl(pts);
-
-
+  double polylineDistanceKm(List<LatLng> pts) => _polylineDistanceKmImpl(pts);
 
   Future<void> _focusOnTarget(MapFocusTarget target) =>
       _focusOnTargetImpl(this, target);
@@ -951,31 +949,25 @@ class _HomePageState extends State<HomePage> {
       _startSpecialCollectionImpl(type);
 
   // Remplacer finishSpecialLigneCollection par :
-  Future<void> finishSpecialCollection() =>
-      _finishSpecialCollectionImpl();
+  Future<void> finishSpecialCollection() => _finishSpecialCollectionImpl();
 
-  Future<void> cancelSpecialCollection() =>
-      _cancelSpecialCollectionImpl();
+  Future<void> cancelSpecialCollection() => _cancelSpecialCollectionImpl();
 
-  Future<void> _loadDisplayedPolygons() =>
-      _loadDisplayedPolygonsImpl(this);
+  Future<void> _loadDisplayedPolygons() => _loadDisplayedPolygonsImpl(this);
 
   bool _containsPolygonPreview(
     List<Polygon> polygons,
     List<LatLng> previewPoints,
   ) =>
       _containsPolygonPreviewImpl(polygons, previewPoints);
-  Future<void> _loadDisplayedPoints() =>
-      _loadDisplayedPointsImpl(this);
+  Future<void> _loadDisplayedPoints() => _loadDisplayedPointsImpl(this);
 
-  Future<void> _loadPointCountsByTable() =>
-      _loadPointCountsByTableImpl(this);
+  Future<void> _loadPointCountsByTable() => _loadPointCountsByTableImpl(this);
 
   Future<void> _enterConduiteDrawingMode([String metier = 'ep']) =>
       _enterConduiteDrawingModeImpl(this, metier: metier);
 
-  Widget _buildConduiteModeHeader() =>
-      _buildConduiteModeHeaderImpl(this);
+  Widget _buildConduiteModeHeader() => _buildConduiteModeHeaderImpl(this);
 
   void _handleConduiteRegardTap(Map<String, dynamic> data) =>
       _handleConduiteRegardTapImpl(this, data);
@@ -983,25 +975,18 @@ class _HomePageState extends State<HomePage> {
   void _handleConduiteMapTap(TapPosition tapPosition, LatLng latLng) =>
       _handleConduiteMapTapImpl(this, tapPosition, latLng);
 
-  void _focusConduiteModeBounds() =>
-      _focusConduiteModeBoundsImpl(this);
+  void _focusConduiteModeBounds() => _focusConduiteModeBoundsImpl(this);
 
   void _onMapCreated(MapController controller) =>
       _onMapCreatedImpl(this, controller);
 
-  void _moveCameraIfNeeded() =>
-      _moveCameraIfNeededImpl(this);
+  void _moveCameraIfNeeded() => _moveCameraIfNeededImpl(this);
 
   // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
-  Future<void> addPointOfInterest() =>
-      _addPointOfInterestImpl();
-
+  Future<void> addPointOfInterest() => _addPointOfInterestImpl();
 
   // === SPRINT 5 : COLLECTE LIGNE SRM ===
-  Future<void> startLigneSrmCollection() =>
-      _startLigneSrmCollectionImpl();
-
-
+  Future<void> startLigneSrmCollection() => _startLigneSrmCollectionImpl();
 
 // === COLLECTE POLYGONE (Zone de Plaine) ===
   String? _pendingSrmPolygoneMetier;
@@ -1016,47 +1001,30 @@ class _HomePageState extends State<HomePage> {
         entityType: entityType,
       );
 
-  void toggleSpecialCollection() =>
-      _toggleSpecialCollectionImpl();
+  void toggleSpecialCollection() => _toggleSpecialCollectionImpl();
 
-  void toggleLigneCollection() =>
-      _toggleLigneCollectionImpl();
+  void toggleLigneCollection() => _toggleLigneCollectionImpl();
 
-  void undoLignePoint() =>
-      _undoLignePointImpl();
+  void undoLignePoint() => _undoLignePointImpl();
 
-  void redoLignePoint() =>
-      _redoLignePointImpl();
+  void redoLignePoint() => _redoLignePointImpl();
 
-  void undoPolygonPoint() =>
-      _undoPolygonPointImpl();
+  void undoPolygonPoint() => _undoPolygonPointImpl();
 
-  void redoPolygonPoint() =>
-      _redoPolygonPointImpl();
+  void redoPolygonPoint() => _redoPolygonPointImpl();
 
-  Future<void> finishLigneCollection() =>
-      _finishLigneCollectionImpl();
+  Future<void> finishLigneCollection() => _finishLigneCollectionImpl();
 
-  Future<void> cancelLigneCollection() =>
-      _cancelLigneCollectionImpl();
-
+  Future<void> cancelLigneCollection() => _cancelLigneCollectionImpl();
 
   // Dans la classe _HomePageState
-  Future<void> _loadDisplayedLines() =>
-      _loadDisplayedLinesImpl(this);
+  Future<void> _loadDisplayedLines() => _loadDisplayedLinesImpl(this);
 
+  void _showSyncConfirmationDialog() => _showSyncConfirmationDialogImpl(this);
 
-  void _showSyncConfirmationDialog() =>
-      _showSyncConfirmationDialogImpl(this);
+  void _showSyncResult(SyncResult result) => _showSyncResultImpl(this, result);
 
-
-  void _showSyncResult(SyncResult result) =>
-      _showSyncResultImpl(this, result);
-
-
-  void _showSaveConfirmationDialog() =>
-      _showSaveConfirmationDialogImpl(this);
-
+  void _showSaveConfirmationDialog() => _showSaveConfirmationDialogImpl(this);
 
   void _showDownloadResult(
     SyncResult result, {
@@ -1133,7 +1101,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00ACC1).withValues(alpha: 0.25),
+                          color:
+                              const Color(0xFF00ACC1).withValues(alpha: 0.25),
                           blurRadius: 10,
                           spreadRadius: 2,
                         ),
@@ -1194,7 +1163,8 @@ class _HomePageState extends State<HomePage> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFD32F2F).withValues(alpha: 0.92),
+                              color: const Color(0xFFD32F2F)
+                                  .withValues(alpha: 0.92),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -1221,27 +1191,23 @@ class _HomePageState extends State<HomePage> {
         if (_isPolygonCollection) {
           filteredPolylines.add(
             Polyline(
-              points: [
-                ...specialPoints,
-                specialPoints.first
-              ],
+              points: [...specialPoints, specialPoints.first],
               color: const Color(0xFF2E7D32),
               strokeWidth: 3.0,
               pattern: const StrokePattern.solid(),
             ),
           );
         } else {
-          final specialColor = _specialCollectionType == "Bac" ? Colors.purple : Colors.deepPurple;
+          final specialColor = _specialCollectionType == "Bac"
+              ? Colors.purple
+              : Colors.deepPurple;
           filteredPolylines.add(
             Polyline(
               points: specialPoints,
               color: specialColor,
               strokeWidth: 5.0,
               pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: const [
-                      10,
-                      5
-                    ])
+                  ? StrokePattern.dashed(segments: const [10, 5])
                   : const StrokePattern.solid(),
             ),
           );
@@ -1283,13 +1249,12 @@ class _HomePageState extends State<HomePage> {
         filteredPolylines.add(
           Polyline(
             points: lignePoints,
-            color: homeController.ligneCollection!.isPaused ? Colors.orange : Colors.green,
+            color: homeController.ligneCollection!.isPaused
+                ? Colors.orange
+                : Colors.green,
             strokeWidth: 4.0,
             pattern: homeController.ligneCollection!.isPaused
-                ? StrokePattern.dashed(segments: const [
-                    10,
-                    5
-                  ])
+                ? StrokePattern.dashed(segments: const [10, 5])
                 : const StrokePattern.solid(),
           ),
         );
@@ -1304,11 +1269,11 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           children: [
             TopBarWidget(
-                agentName: widget.agentName,
-                onLogout: _showLogoutConfirmation,
-                onStartConduiteDrawing: (metier) =>
-                    _enterConduiteDrawingMode(metier),
-              ),
+              agentName: widget.agentName,
+              onLogout: _showLogoutConfirmation,
+              onStartConduiteDrawing: (metier) =>
+                  _enterConduiteDrawingMode(metier),
+            ),
             Expanded(
               child: Stack(
                 children: [
@@ -1402,30 +1367,30 @@ class _HomePageState extends State<HomePage> {
                   ),
                   if (!_isLegendExpanded)
                     MapControlsWidget(
-                        controller: homeController,
-                        onAddPoint: addPointOfInterest,
-                        onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
-                        onStartPolygon: startPolygonCollection,
-                        onToggleLigne: toggleLigneCollection,
-                        onTogglePolygon: toggleSpecialCollection,
-                        onUndoLigne: undoLignePoint,
-                        onRedoLigne: redoLignePoint,
-                        onUndoPolygon: undoPolygonPoint,
-                        onRedoPolygon: redoPolygonPoint,
-                        canRedoLigne: _ligneRedoPoints.isNotEmpty,
-                        canRedoPolygon: _polygonRedoPoints.isNotEmpty,
-                        onFinishLigne: finishLigneCollection,
-                        onFinishPolygon: finishSpecialCollection,
-                        onCancelLigne: cancelLigneCollection,
-                        onCancelPolygon: cancelSpecialCollection,
-                        onRefresh: _loadDisplayedPoints,
-                        isSpecialCollection: _isSpecialCollection,
-                        onStopSpecial: finishSpecialCollection,
-                        isPolygonCollection: _isPolygonCollection,
+                      controller: homeController,
+                      onAddPoint: addPointOfInterest,
+                      onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
+                      onStartPolygon: startPolygonCollection,
+                      onToggleLigne: toggleLigneCollection,
+                      onTogglePolygon: toggleSpecialCollection,
+                      onUndoLigne: undoLignePoint,
+                      onRedoLigne: redoLignePoint,
+                      onUndoPolygon: undoPolygonPoint,
+                      onRedoPolygon: redoPolygonPoint,
+                      canRedoLigne: _ligneRedoPoints.isNotEmpty,
+                      canRedoPolygon: _polygonRedoPoints.isNotEmpty,
+                      onFinishLigne: finishLigneCollection,
+                      onFinishPolygon: finishSpecialCollection,
+                      onCancelLigne: cancelLigneCollection,
+                      onCancelPolygon: cancelSpecialCollection,
+                      onRefresh: _loadDisplayedPoints,
+                      isSpecialCollection: _isSpecialCollection,
+                      onStopSpecial: finishSpecialCollection,
+                      isPolygonCollection: _isPolygonCollection,
                     ),
                   // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
 
-                // Afficher le statut de ligne si active
+                  // Afficher le statut de ligne si active
                   if (homeController.ligneCollection != null)
                     LigneStatusWidget(
                       collection: homeController.ligneCollection!,
@@ -1435,7 +1400,8 @@ class _HomePageState extends State<HomePage> {
                   if (homeController.specialCollection != null)
                     SpecialStatusWidget(
                       collection: homeController.specialCollection!,
-                      topOffset: homeController.ligneCollection != null ? 70 : 16,
+                      topOffset:
+                          homeController.ligneCollection != null ? 70 : 16,
                     ),
 
                   // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
@@ -1517,4 +1483,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-

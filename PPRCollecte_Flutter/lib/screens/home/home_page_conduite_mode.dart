@@ -1,5 +1,7 @@
 part of 'home_page.dart';
 
+const int _conduitePathSeparatorNodeId = -1;
+
 class _ConduiteMetierConfig {
   final String code;
   final String metier;
@@ -96,7 +98,8 @@ Future<void> _enterConduiteDrawingModeImpl(
     if (!state.mounted) return;
     ScaffoldMessenger.of(state.context).showSnackBar(
       const SnackBar(
-        content: Text("Aucun regard levé aujourd'hui pour démarrer la conduite."),
+        content:
+            Text("Aucun regard levé aujourd'hui pour démarrer la conduite."),
       ),
     );
     return;
@@ -127,8 +130,7 @@ Future<void> _enterConduiteDrawingModeImpl(
       ? null
       : _buildConduiteLocalPendingPreview(localPending);
 
-  final isServerFrozen =
-      existingSnapshot != null &&
+  final isServerFrozen = existingSnapshot != null &&
       existingSnapshot['exists'] == true &&
       existingSnapshot['frozen'] == true;
   final serverFrozenSnapshot = isServerFrozen ? existingSnapshot : null;
@@ -164,10 +166,10 @@ Future<void> _enterConduiteDrawingModeImpl(
     state._conduiteModeStatusText = localPendingPreview != null
         ? 'Conduite locale en attente de synchronisation.'
         : isFrozen
-        ? 'La conduite du jour est déjà validée et figée.'
-        : state._isOnlineDynamic
-        ? 'Touchez un regard pour commencer.'
-        : 'Touchez un regard pour préparer la conduite. Validation disponible seulement en ligne.';
+            ? 'La conduite du jour est déjà validée et figée.'
+            : state._isOnlineDynamic
+                ? 'Touchez un regard pour commencer.'
+                : 'Touchez un regard pour préparer la conduite. Validation disponible seulement en ligne.';
     state._autoCenterDisabledByUser = true;
   });
 
@@ -227,9 +229,7 @@ void _handleConduiteRegardTapImpl(
   if (node == null) return;
 
   final currentLabel = _labelForConduiteNode(node);
-  final previousNodeId = state._conduiteSelectionHistoryNodeIds.isEmpty
-      ? null
-      : state._conduiteSelectionHistoryNodeIds.last;
+  final previousNodeId = _currentConduiteLastNodeId(state);
 
   if (previousNodeId == nodeId) {
     state._setStateFromPart(() {
@@ -252,8 +252,8 @@ void _handleConduiteRegardTapImpl(
     final segmentKey = _conduiteSegmentKey(previousNodeId, nodeId);
     final isNewSegment = !state._conduiteSegmentKeys.contains(segmentKey);
     statusText = isNewSegment
-        ? 'Segment ${previousLabel} -> $currentLabel ajouté.'
-        : 'Segment ${previousLabel} -> $currentLabel déjà compté. $currentLabel actif.';
+        ? 'Segment $previousLabel -> $currentLabel ajouté.'
+        : 'Segment $previousLabel -> $currentLabel déjà compté. $currentLabel actif.';
   }
 
   state._conduiteSelectionHistoryNodeIds.add(nodeId);
@@ -313,8 +313,8 @@ void _handleConduiteMapTapImpl(
   final maxTapSnapDistancePx = zoom >= 18
       ? 72.0
       : zoom >= 16
-      ? 88.0
-      : 104.0;
+          ? 88.0
+          : 104.0;
   if ((nearestDistance ?? double.infinity) > maxTapSnapDistancePx) {
     state._setStateFromPart(() {
       state._conduiteModeError =
@@ -373,14 +373,18 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
   final countRegards = state._conduiteModeMarkers.length;
   final countSegments = state._conduiteSegmentKeys.length;
   final day = state._conduiteModeDay ?? DateTime.now();
-  final canUndo =
-      !state._conduiteIsFrozenForDay &&
+  final canUndo = !state._conduiteIsFrozenForDay &&
       !state._conduiteIsSaving &&
       state._conduiteSelectionHistoryNodeIds.isNotEmpty;
-  final canValidate =
-      !state._conduiteIsFrozenForDay &&
+  final canFinishCurrentConduite = !state._conduiteIsFrozenForDay &&
+      !state._conduiteIsSaving &&
+      _currentConduiteNodeCount(state) >= 2 &&
+      !_selectionHistoryEndsWithSeparator(state);
+  final canValidate = !state._conduiteIsFrozenForDay &&
       !state._conduiteIsSaving &&
       state._conduiteSegmentKeys.isNotEmpty;
+  final countConduites =
+      _conduitePathCount(state._conduiteSelectionHistoryNodeIds);
 
   return Container(
     color: const Color(0xFF1B4F72),
@@ -396,7 +400,7 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
                 children: [
                   Text(
                     'Mode dessin conduite ${config.shortLabel}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -440,6 +444,7 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
           children: [
             _conduiteChip('Regards', '$countRegards'),
             _conduiteChip('Segments', '$countSegments'),
+            _conduiteChip('Conduites', '$countConduites'),
             _conduiteChip(
               'Longueur',
               _formatConduiteLength(state._conduitePreviewLengthM),
@@ -468,17 +473,25 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
               onPressed: canUndo ? () => _handleConduiteUndoImpl(state) : null,
             ),
             _buildConduiteActionButton(
+              label: 'Terminer',
+              icon: Icons.call_split,
+              backgroundColor: const Color(0xFFFFF3E0),
+              foregroundColor: const Color(0xFFE65100),
+              onPressed: canFinishCurrentConduite
+                  ? () => _handleConduiteFinishCurrentImpl(state)
+                  : null,
+            ),
+            _buildConduiteActionButton(
               label: state._conduiteIsFrozenForDay
                   ? 'Validée'
                   : state._conduiteIsSaving
-                  ? 'Validation...'
-                  : 'Valider',
+                      ? 'Validation...'
+                      : 'Valider',
               icon: Icons.check_circle,
               backgroundColor: const Color(0xFF2E7D32),
               foregroundColor: Colors.white,
-              onPressed: canValidate
-                  ? () => _handleConduiteValidateImpl(state)
-                  : null,
+              onPressed:
+                  canValidate ? () => _handleConduiteValidateImpl(state) : null,
             ),
           ],
         ),
@@ -599,14 +612,48 @@ void _handleConduiteUndoImpl(_HomePageState state) {
 
   final removedNodeId = state._conduiteSelectionHistoryNodeIds.removeLast();
   final removedNode = state._conduiteRegardNodesById[removedNodeId];
-  final removedLabel = removedNode == null
-      ? 'Dernier regard'
-      : _labelForConduiteNode(removedNode);
+  final removedLabel = _isConduitePathSeparator(removedNodeId)
+      ? 'Séparation de conduite'
+      : removedNode == null
+          ? 'Dernier regard'
+          : _labelForConduiteNode(removedNode);
 
-  final statusText = state._conduiteSelectionHistoryNodeIds.isEmpty
-      ? '$removedLabel retiré. Touchez un regard pour recommencer.'
-      : '$removedLabel retiré. ${_labelForConduiteNode(state._conduiteRegardNodesById[state._conduiteSelectionHistoryNodeIds.last]!)} actif.';
+  final activeNodeId = _currentConduiteLastNodeId(state);
+  final activeNode = activeNodeId == null
+      ? null
+      : state._conduiteRegardNodesById[activeNodeId];
+  final statusText = activeNode == null
+      ? '$removedLabel retiré. Touchez un regard pour continuer.'
+      : '$removedLabel retiré. ${_labelForConduiteNode(activeNode)} actif.';
 
+  _recomputeConduitePreviewFromHistory(state, statusText: statusText);
+  _showConduiteModeSnack(state, statusText);
+}
+
+void _handleConduiteFinishCurrentImpl(_HomePageState state) {
+  if (state._conduiteIsSaving || state._conduiteIsFrozenForDay) {
+    return;
+  }
+
+  if (_selectionHistoryEndsWithSeparator(state)) {
+    _showConduiteModeSnack(
+      state,
+      'Cette conduite est déjà terminée. Touchez un regard pour démarrer la suivante.',
+    );
+    return;
+  }
+
+  if (_currentConduiteNodeCount(state) < 2) {
+    _showConduiteModeSnack(
+      state,
+      'Sélectionnez au moins deux regards avant de terminer cette conduite.',
+    );
+    return;
+  }
+
+  state._conduiteSelectionHistoryNodeIds.add(_conduitePathSeparatorNodeId);
+  const statusText =
+      'Conduite terminée. Touchez un regard pour démarrer une autre conduite.';
   _recomputeConduitePreviewFromHistory(state, statusText: statusText);
   _showConduiteModeSnack(state, statusText);
 }
@@ -762,9 +809,14 @@ void _recomputeConduitePreviewFromHistory(
   final polylines = <Polyline>[];
   var totalMeters = 0.0;
 
-  for (var index = 1; index < state._conduiteSelectionHistoryNodeIds.length; index++) {
+  for (var index = 1;
+      index < state._conduiteSelectionHistoryNodeIds.length;
+      index++) {
     final leftId = state._conduiteSelectionHistoryNodeIds[index - 1];
     final rightId = state._conduiteSelectionHistoryNodeIds[index];
+    if (_isConduitePathSeparator(leftId) || _isConduitePathSeparator(rightId)) {
+      continue;
+    }
     if (leftId == rightId) {
       continue;
     }
@@ -790,9 +842,7 @@ void _recomputeConduitePreviewFromHistory(
     );
   }
 
-  final currentNodeId = state._conduiteSelectionHistoryNodeIds.isEmpty
-      ? null
-      : state._conduiteSelectionHistoryNodeIds.last;
+  final currentNodeId = _currentConduiteLastNodeId(state);
   final currentPoint = currentNodeId == null
       ? null
       : state._conduiteRegardNodesById[currentNodeId]?.point;
@@ -893,6 +943,10 @@ _ConduiteLocalPendingPreview? _buildConduiteLocalPendingPreview(
   for (var i = 1; i < nodes.length; i++) {
     final left = nodes[i - 1];
     final right = nodes[i];
+    if (_isConduiteSerializedSeparator(left) ||
+        _isConduiteSerializedSeparator(right)) {
+      continue;
+    }
     final leftId = _resolveConduiteNodeId(left);
     final rightId = _resolveConduiteNodeId(right);
     if (leftId == null || rightId == null || leftId == rightId) {
@@ -941,6 +995,49 @@ LatLng? _latLngFromConduiteNode(Map<String, dynamic> node) {
   return LatLng(lat, lng);
 }
 
+bool _isConduitePathSeparator(int nodeId) =>
+    nodeId == _conduitePathSeparatorNodeId;
+
+bool _isConduiteSerializedSeparator(Map<String, dynamic> node) =>
+    node['separator'] == true || node['type'] == 'separator';
+
+bool _selectionHistoryEndsWithSeparator(_HomePageState state) =>
+    state._conduiteSelectionHistoryNodeIds.isNotEmpty &&
+    _isConduitePathSeparator(state._conduiteSelectionHistoryNodeIds.last);
+
+int? _currentConduiteLastNodeId(_HomePageState state) {
+  if (state._conduiteSelectionHistoryNodeIds.isEmpty ||
+      _selectionHistoryEndsWithSeparator(state)) {
+    return null;
+  }
+  return state._conduiteSelectionHistoryNodeIds.last;
+}
+
+int _currentConduiteNodeCount(_HomePageState state) {
+  var count = 0;
+  for (var i = state._conduiteSelectionHistoryNodeIds.length - 1; i >= 0; i--) {
+    final nodeId = state._conduiteSelectionHistoryNodeIds[i];
+    if (_isConduitePathSeparator(nodeId)) break;
+    count++;
+  }
+  return count;
+}
+
+int _conduitePathCount(List<int> history) {
+  var count = 0;
+  var nodeCountInPath = 0;
+  for (final nodeId in history) {
+    if (_isConduitePathSeparator(nodeId)) {
+      if (nodeCountInPath >= 2) count++;
+      nodeCountInPath = 0;
+      continue;
+    }
+    nodeCountInPath++;
+  }
+  if (nodeCountInPath >= 2) count++;
+  return count;
+}
+
 Set<String> _segmentKeysFromServerPayload(Map<String, dynamic> payload) {
   final keys = <String>{};
   final rawSegments = payload['segments_wgs84'];
@@ -960,26 +1057,45 @@ Set<String> _segmentKeysFromServerPayload(Map<String, dynamic> payload) {
 
 List<Map<String, dynamic>> _buildConduiteValidationNodes(_HomePageState state) {
   final config = _conduiteConfigFor(state._conduiteModeMetier);
-  return state._conduiteSelectionHistoryNodeIds
-      .map((nodeId) => state._conduiteRegardNodesById[nodeId])
-      .whereType<_ConduiteRegardNode>()
-      .map(
-        (node) => <String, dynamic>{
-          'node_id': node.nodeId,
-          'fid': node.sourceFid,
-          'uuid': node.row['uuid']?.toString(),
-          'label': _labelForConduiteNode(node),
+  final nodes = <Map<String, dynamic>>[];
+  var previousWasSeparator = true;
+
+  for (final nodeId in state._conduiteSelectionHistoryNodeIds) {
+    if (_isConduitePathSeparator(nodeId)) {
+      if (!previousWasSeparator && nodes.isNotEmpty) {
+        nodes.add({
+          'separator': true,
           'metier': config.code,
           'table_name': config.tableName,
-          'ep_num': node.row['ep_num']?.toString(),
-          'x': _asDoubleConduite(node.row[config.xField]),
-          'y': _asDoubleConduite(node.row[config.yField]),
-          'z': _asDoubleConduite(node.row[config.zField]),
-          'lat': node.point.latitude,
-          'lng': node.point.longitude,
-        },
-      )
-      .toList();
+        });
+        previousWasSeparator = true;
+      }
+      continue;
+    }
+
+    final node = state._conduiteRegardNodesById[nodeId];
+    if (node == null) continue;
+    nodes.add({
+      'node_id': node.nodeId,
+      'fid': node.sourceFid,
+      'uuid': node.row['uuid']?.toString(),
+      'label': _labelForConduiteNode(node),
+      'metier': config.code,
+      'table_name': config.tableName,
+      'ep_num': node.row['ep_num']?.toString(),
+      'x': _asDoubleConduite(node.row[config.xField]),
+      'y': _asDoubleConduite(node.row[config.yField]),
+      'z': _asDoubleConduite(node.row[config.zField]),
+      'lat': node.point.latitude,
+      'lng': node.point.longitude,
+    });
+    previousWasSeparator = false;
+  }
+
+  if (nodes.isNotEmpty && _isConduiteSerializedSeparator(nodes.last)) {
+    nodes.removeLast();
+  }
+  return nodes;
 }
 
 String _formatConduiteLength(double meters) {

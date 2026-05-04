@@ -60,7 +60,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
   final _vegetationController = TextEditingController();
 
   final _financementController = TextEditingController();
-  final _projetController = TextEditingController();
   double _noteGlobale = 0.0;
   DateTime? _debutTravaux;
   DateTime? _finTravaux;
@@ -111,14 +110,14 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       _reliefController,
       _vegetationController,
       _financementController,
-      _projetController,
     ];
 
     for (var ctrl in textControllers) {
       ctrl.addListener(() {
         final text = ctrl.text;
         if (text.isEmpty) return;
-        final corrected = text[0].toUpperCase() + text.substring(1).toLowerCase();
+        final corrected =
+            text[0].toUpperCase() + text.substring(1).toLowerCase();
         if (text != corrected) {
           final pos = ctrl.selection;
           ctrl.value = ctrl.value.copyWith(
@@ -140,7 +139,13 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     double pe = double.tryParse(_protectionEnvController.text) ?? 0.0;
 
     setState(() {
-      _noteGlobale = (0.05 * ns) + (0.05 * fo) + (0.15 * isa) + (0.20 * p) + (0.30 * pa) + (0.20 * ci) + (0.05 * pe);
+      _noteGlobale = (0.05 * ns) +
+          (0.05 * fo) +
+          (0.15 * isa) +
+          (0.20 * p) +
+          (0.30 * pa) +
+          (0.20 * ci) +
+          (0.05 * pe);
     });
   }
 
@@ -153,7 +158,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     }
 
     // Récupérer automatiquement l'utilisateur connecté et l'heure actuelle
-    _userLoginController.text = widget.agentName ?? _getCurrentUser(); // À implémenter selon votre système d'auth
+    _userLoginController.text = widget.agentName ??
+        _getCurrentUser(); // À implémenter selon votre système d'auth
     // Date de création = maintenant par défaut
     _dateCreation = DateTime.now();
 
@@ -161,21 +167,25 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     _dateModification = null;
     if (widget.startTime != null) {
       final startTime = TimeOfDay.fromDateTime(widget.startTime!);
-      _heureDebutController.text = "${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}";
+      _heureDebutController.text =
+          "${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}";
     } else {
       // Fallback : heure actuelle
       final now = TimeOfDay.now();
-      _heureDebutController.text = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      _heureDebutController.text =
+          "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
     }
 
     // 🚀 NOUVEAU : Heure de fin automatique
     if (widget.endTime != null) {
       final endTime = TimeOfDay.fromDateTime(widget.endTime!);
-      _heureFinController.text = "${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}";
+      _heureFinController.text =
+          "${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}";
     } else {
       // Cas exceptionnel : utiliser l'heure actuelle comme fallback
       final now = TimeOfDay.now();
-      _heureFinController.text = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      _heureFinController.text =
+          "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
     }
 
     // Calculer et remplir automatiquement les coordonnées d'origine et destination
@@ -205,27 +215,40 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       _xDestinationController.text = data['destination_x']?.toString() ?? '';
       _yDestinationController.text = data['destination_y']?.toString() ?? '';
       _travauxRealisesController.text = data['completed_works'] ?? '';
-      _dateDebutTravaux = data['work_date'] != null ? DateTime.parse(data['work_date']) : null;
+      _dateDebutTravaux =
+          data['work_date'] != null ? DateTime.parse(data['work_date']) : null;
       _entrepriseController.text = data['company'] ?? '';
-      _dateCreation = data['created_at'] != null ? DateTime.parse(data['created_at']) : null;
+      _dateCreation = data['created_at'] != null
+          ? DateTime.parse(data['created_at'])
+          : null;
       _dateModification = DateTime.now(); // ← Date modif actuelle
 
       _niveauServiceController.text = _cleanEvalValue(data['service_level']);
       _fonctionnaliteController.text = _cleanEvalValue(data['fonctionnalite']);
-      _interetSocioAdminController.text = _cleanEvalValue(data['socio_administrative_interest']);
-      _populationDesservieController.text = _cleanEvalValue(data['served_population']);
-      _potentielAgricoleController.text = _cleanEvalValue(data['agricultural_potential']);
-      _coutInvestissementController.text = _cleanEvalValue(data['investment_cost']);
-      _protectionEnvController.text = _cleanEvalValue(data['environmental_protection']);
+      _interetSocioAdminController.text =
+          _cleanEvalValue(data['socio_administrative_interest']);
+      _populationDesservieController.text =
+          _cleanEvalValue(data['served_population']);
+      _potentielAgricoleController.text =
+          _cleanEvalValue(data['agricultural_potential']);
+      _coutInvestissementController.text =
+          _cleanEvalValue(data['investment_cost']);
+      _protectionEnvController.text =
+          _cleanEvalValue(data['environmental_protection']);
       _noteGlobale = data['global_score']?.toDouble() ?? 0.0;
       // ===== CHAMPS TERRAIN =====
       _plateformeController.text = data['platform'] ?? '';
       _reliefController.text = data['relief'] ?? '';
       _vegetationController.text = data['vegetation'] ?? '';
-      _debutTravaux = (data['work_start'] != null && data['work_start'].toString().isNotEmpty) ? DateTime.tryParse(data['work_start'].toString()) : null;
-      _finTravaux = (data['work_end'] != null && data['work_end'].toString().isNotEmpty) ? DateTime.tryParse(data['work_end'].toString()) : null;
+      _debutTravaux = (data['work_start'] != null &&
+              data['work_start'].toString().isNotEmpty)
+          ? DateTime.tryParse(data['work_start'].toString())
+          : null;
+      _finTravaux =
+          (data['work_end'] != null && data['work_end'].toString().isNotEmpty)
+              ? DateTime.tryParse(data['work_end'].toString())
+              : null;
       _financementController.text = data['funding'] ?? '';
-      _projetController.text = data['project'] ?? '';
     });
   }
 
@@ -253,14 +276,19 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     final dLat = (point2.latitude - point1.latitude) * p;
     final dLon = (point2.longitude - point1.longitude) * p;
 
-    final a = sin(dLat / 2) * sin(dLat / 2) + cos(point1.latitude * p) * cos(point2.latitude * p) * sin(dLon / 2) * sin(dLon / 2);
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(point1.latitude * p) *
+            cos(point2.latitude * p) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
 
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
     return 6371000 * c; // Rayon de la Terre en mètres
   }
 
-  Future<DateTime?> _showDatePickerWithValidation(BuildContext context, DateTime initialDate) {
+  Future<DateTime?> _showDatePickerWithValidation(
+      BuildContext context, DateTime initialDate) {
     return showDatePicker(
       context: context,
       initialDate: initialDate,
@@ -276,7 +304,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
             colorScheme: const ColorScheme.light(
               primary: Color(0xFF1976D2), // Couleur principale
               onPrimary: Colors.white,
-            ), dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
+            ),
+            dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -286,7 +315,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
 
   Future<void> _selectDate(BuildContext context) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final DateTime? picked = await _showDatePickerWithValidation(context, DateTime.now());
+    final DateTime? picked =
+        await _showDatePickerWithValidation(context, DateTime.now());
     FocusManager.instance.primaryFocus?.unfocus();
     if (!mounted) return;
     if (picked != null) {
@@ -296,10 +326,10 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     }
   }
 
-
   Future<void> _selectTravauxDate(BuildContext context, bool isStart) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final DateTime? picked = await _showDatePickerWithValidation(context, DateTime.now());
+    final DateTime? picked =
+        await _showDatePickerWithValidation(context, DateTime.now());
     FocusManager.instance.primaryFocus?.unfocus();
     if (!mounted) return;
     if (picked != null) {
@@ -330,7 +360,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Impossible de déterminer l’utilisateur (login_id).'),
+              content:
+                  Text('Impossible de déterminer l’utilisateur (login_id).'),
               backgroundColor: Colors.red,
             ),
           );
@@ -347,26 +378,39 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         'end_time': _heureFinController.text,
         'origin_name': _nomOrigineController.text,
         'destination_name': _nomDestinationController.text,
-        'completed_works': _travauxRealisesController.text.isNotEmpty ? _travauxRealisesController.text : null,
+        'completed_works': _travauxRealisesController.text.isNotEmpty
+            ? _travauxRealisesController.text
+            : null,
         'work_date': _dateDebutTravaux?.toIso8601String(),
-        'company': _entrepriseController.text.isNotEmpty ? _entrepriseController.text : null,
+        'company': _entrepriseController.text.isNotEmpty
+            ? _entrepriseController.text
+            : null,
         'service_level': double.tryParse(_niveauServiceController.text),
         'fonctionnalite': double.tryParse(_fonctionnaliteController.text),
-        'socio_administrative_interest': double.tryParse(_interetSocioAdminController.text),
-        'served_population': double.tryParse(_populationDesservieController.text),
-        'agricultural_potential': double.tryParse(_potentielAgricoleController.text),
+        'socio_administrative_interest':
+            double.tryParse(_interetSocioAdminController.text),
+        'served_population':
+            double.tryParse(_populationDesservieController.text),
+        'agricultural_potential':
+            double.tryParse(_potentielAgricoleController.text),
         'investment_cost': double.tryParse(_coutInvestissementController.text),
-        'environmental_protection': double.tryParse(_protectionEnvController.text),
+        'environmental_protection':
+            double.tryParse(_protectionEnvController.text),
         'global_score': _noteGlobale,
         // ===== CHAMPS TERRAIN =====
-        'platform': _plateformeController.text.isNotEmpty ? _plateformeController.text : null,
-        'relief': _reliefController.text.isNotEmpty ? _reliefController.text : null,
-        'vegetation': _vegetationController.text.isNotEmpty ? _vegetationController.text : null,
+        'platform': _plateformeController.text.isNotEmpty
+            ? _plateformeController.text
+            : null,
+        'relief':
+            _reliefController.text.isNotEmpty ? _reliefController.text : null,
+        'vegetation': _vegetationController.text.isNotEmpty
+            ? _vegetationController.text
+            : null,
         'work_start': _debutTravaux?.toIso8601String(),
         'work_end': _finTravaux?.toIso8601String(),
-        'funding': _financementController.text.isNotEmpty ? _financementController.text : null,
-        'project': _projetController.text.isNotEmpty ? _projetController.text : null,
-
+        'funding': _financementController.text.isNotEmpty
+            ? _financementController.text
+            : null,
         // ✅ TOUS les points de la ligne (MultiLineString)
         'points': widget.linePoints
             .map((p) => {
@@ -382,7 +426,9 @@ class _FormulairePageState extends State<FormulaireLignePage> {
         'destination_y': widget.linePoints.last.latitude,
 
         // ✅ Dates
-        'created_at': widget.initialData != null ? widget.initialData!['created_at'] : DateTime.now().toIso8601String(),
+        'created_at': widget.initialData != null
+            ? widget.initialData!['created_at']
+            : DateTime.now().toIso8601String(),
         'updated_at': widget.initialData != null
             ? DateTime.now().toIso8601String() // seulement si modification
             : null,
@@ -394,13 +440,15 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       final storageHelper = LineStorageHelper();
       if (widget.isEditingMode) {
         await storageHelper.updateLine(lineData);
-        debugPrint('✅ Ligne "${lineData['line_code']}" mise à jour (ID: ${lineData['id']})');
+        debugPrint(
+            '✅ Ligne "${lineData['line_code']}" mise à jour (ID: ${lineData['id']})');
       } else {
         final savedId = await storageHelper.saveLine(lineData);
         if (savedId != null) {
           debugPrint('✅ Ligne sauvegardée en local avec ID: $savedId');
           await storageHelper.debugPrintAllLines();
-          await storageHelper.saveDisplayedLine(_codeController.text, widget.linePoints, Colors.blue, 4.0);
+          await storageHelper.saveDisplayedLine(
+              _codeController.text, widget.linePoints, Colors.blue, 4.0);
         }
       }
 
@@ -470,7 +518,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     }
   }
 
-
   void _confirmExit() {
     showDialog(
       context: context,
@@ -500,7 +547,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirmation'),
-        content: const Text('Êtes-vous sûr de vouloir effacer tous les champs?'),
+        content:
+            const Text('Êtes-vous sûr de vouloir effacer tous les champs?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -540,7 +588,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       _debutTravaux = null;
       _finTravaux = null;
       _financementController.clear();
-      _projetController.clear();
 
       _dateDebutTravaux = null;
 
@@ -589,7 +636,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     _reliefController.dispose();
     _vegetationController.dispose();
     _financementController.dispose();
-    _projetController.dispose();
     super.dispose();
   }
 
@@ -617,8 +663,10 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => _confirmExit(), // ← On va créer cette méthode
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                    onPressed: () =>
+                        _confirmExit(), // ← On va créer cette méthode
+                    icon: const Icon(Icons.arrow_back,
+                        color: Colors.white, size: 28),
                     padding: const EdgeInsets.all(8),
                   ),
                   const Expanded(
@@ -662,7 +710,9 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                         // ⭐ Code ligne - Affichage conditionnel
                         Builder(builder: (_) {
                           final String lineCode = _codeController.text;
-                          final bool isTemporary = lineCode.isEmpty || lineCode.startsWith('Line_0_0_0_') || lineCode.startsWith('TEMP_');
+                          final bool isTemporary = lineCode.isEmpty ||
+                              lineCode.startsWith('Line_0_0_0_') ||
+                              lineCode.startsWith('TEMP_');
 
                           if (isTemporary) {
                             // CAS 1 : Temporaire → message vert
@@ -673,16 +723,19 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                                 color: const Color(0xFFE8F5E9),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: const Color(0xFF4CAF50).withValues(alpha: 0.4),
+                                  color: const Color(0xFF4CAF50)
+                                      .withValues(alpha: 0.4),
                                 ),
                               ),
                               child: const Row(
                                 children: [
-                                  Icon(Icons.sync, size: 20, color: Color(0xFF4CAF50)),
+                                  Icon(Icons.sync,
+                                      size: 20, color: Color(0xFF4CAF50)),
                                   SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Code ligne',
@@ -817,7 +870,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                       ],
                     ),
 
-
                     // Section Évaluation et Priorisation
                     _buildFormSection(
                       title: '📊 Évaluation et Priorisation',
@@ -850,7 +902,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                           controller: _protectionEnvController,
                           label: 'Protection de l’environnement (PE)',
                         ),
-                        const Divider(height: 32, thickness: 1, color: Colors.blueAccent),
+                        const Divider(
+                            height: 32, thickness: 1, color: Colors.blueAccent),
                         _buildReadOnlyField(
                           label: 'Note Globale (NG)',
                           icon: Icons.star,
@@ -904,11 +957,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                           controller: _financementController,
                           label: 'Financement',
                           hint: 'Source de financement',
-                        ),
-                        _buildTextField(
-                          controller: _projetController,
-                          label: 'Projet',
-                          hint: 'Nom du projet',
                         ),
                         _buildDateField(
                           label: 'Début des travaux',
@@ -995,7 +1043,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     );
   }
 
-
   Widget _buildReadOnlyField({
     required String label,
     required IconData icon,
@@ -1065,14 +1112,16 @@ class _FormulairePageState extends State<FormulaireLignePage> {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB), // ← Même couleur que les champs normaux
+              color: const Color(
+                  0xFFF9FAFB), // ← Même couleur que les champs normaux
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, size: 20, color: Color(0xFF1976D2)),
+                const Icon(Icons.calendar_today,
+                    size: 20, color: Color(0xFF1976D2)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -1082,7 +1131,9 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                         : "Date/heure automatique",
                     style: TextStyle(
                       fontSize: 14,
-                      color: _dateCreation != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+                      color: _dateCreation != null
+                          ? const Color(0xFF374151)
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ),
@@ -1117,10 +1168,14 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                 : () => _selectDateModification(context),
             child: Container(
               decoration: BoxDecoration(
-                color: isCreation ? const Color(0xFFF5F5F5) : const Color(0xFFF9FAFB),
+                color: isCreation
+                    ? const Color(0xFFF5F5F5)
+                    : const Color(0xFFF9FAFB),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isCreation ? const Color(0xFFE0E0E0) : const Color(0xFFE5E7EB),
+                  color: isCreation
+                      ? const Color(0xFFE0E0E0)
+                      : const Color(0xFFE5E7EB),
                 ),
               ),
               padding: const EdgeInsets.all(12),
@@ -1136,12 +1191,16 @@ class _FormulairePageState extends State<FormulaireLignePage> {
                     child: Text(
                       isCreation
                           ? "Non modifié" // ✅ Texte grisé en création
-                          : (_dateModification != null ? "${_dateModification!.day.toString().padLeft(2, '0')}/${_dateModification!.month.toString().padLeft(2, '0')}/${_dateModification!.year}" : "Sélectionner une date"),
+                          : (_dateModification != null
+                              ? "${_dateModification!.day.toString().padLeft(2, '0')}/${_dateModification!.month.toString().padLeft(2, '0')}/${_dateModification!.year}"
+                              : "Sélectionner une date"),
                       style: TextStyle(
                         fontSize: 14,
                         color: isCreation
                             ? const Color(0xFF9E9E9E) // ✅ Gris en création
-                            : (_dateModification != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF)),
+                            : (_dateModification != null
+                                ? const Color(0xFF374151)
+                                : const Color(0xFF9CA3AF)),
                       ),
                     ),
                   ),
@@ -1154,7 +1213,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     );
   }
 
-  Widget _buildFormSection({required String title, required List<Widget> children}) {
+  Widget _buildFormSection(
+      {required String title, required List<Widget> children}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -1237,13 +1297,15 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               ),
               disabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)), // ← Même bordure
+                borderSide: const BorderSide(
+                    color: Color(0xFFE5E7EB)), // ← Même bordure
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: const BorderSide(color: Color(0xFF1976D2)),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             style: const TextStyle(
               // ← Style du texte
@@ -1295,13 +1357,18 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_today, size: 20, color: Color(0xFF666666)),
+                  const Icon(Icons.calendar_today,
+                      size: 20, color: Color(0xFF666666)),
                   const SizedBox(width: 12),
                   Text(
-                    value != null ? "${value.day}/${value.month}/${value.year}" : "Sélectionner une date",
+                    value != null
+                        ? "${value.day}/${value.month}/${value.year}"
+                        : "Sélectionner une date",
                     style: TextStyle(
                       fontSize: 14,
-                      color: value != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+                      color: value != null
+                          ? const Color(0xFF374151)
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ],
@@ -1334,7 +1401,8 @@ class _FormulairePageState extends State<FormulaireLignePage> {
           decoration: BoxDecoration(
             color: const Color(0xFFF9FAFB), // ← Même couleur de fond
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5E7EB)), // ← Même bordure
+            border:
+                Border.all(color: const Color(0xFFE5E7EB)), // ← Même bordure
           ),
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -1342,12 +1410,16 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               Icon(
                 Icons.access_time,
                 size: 20,
-                color: enabled ? const Color(0xFF666666) : const Color(0xFF666666), // ← Même couleur d'icône
+                color: enabled
+                    ? const Color(0xFF666666)
+                    : const Color(0xFF666666), // ← Même couleur d'icône
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  controller.text.isEmpty ? "Heure automatique" : controller.text,
+                  controller.text.isEmpty
+                      ? "Heure automatique"
+                      : controller.text,
                   style: const TextStyle(
                     // ← Même style de texte
                     fontSize: 14,
@@ -1390,10 +1462,13 @@ class _FormulairePageState extends State<FormulaireLignePage> {
           ),
           const SizedBox(height: 12),
           _buildGpsInfoRow('Points collectés:', '${widget.linePoints.length}'),
-          _buildGpsInfoRow('Distance totale:', '${(_calculateTotalDistance(widget.linePoints) / 1000).toStringAsFixed(2)} km'),
+          _buildGpsInfoRow('Distance totale:',
+              '${(_calculateTotalDistance(widget.linePoints) / 1000).toStringAsFixed(2)} km'),
           if (widget.linePoints.isNotEmpty) ...[
-            _buildGpsInfoRow('Premier point:', '${widget.linePoints.first.latitude.toStringAsFixed(6)}°, ${widget.linePoints.first.longitude.toStringAsFixed(6)}°'),
-            _buildGpsInfoRow('Dernier point:', '${widget.linePoints.last.latitude.toStringAsFixed(6)}°, ${widget.linePoints.last.longitude.toStringAsFixed(6)}°'),
+            _buildGpsInfoRow('Premier point:',
+                '${widget.linePoints.first.latitude.toStringAsFixed(6)}°, ${widget.linePoints.first.longitude.toStringAsFixed(6)}°'),
+            _buildGpsInfoRow('Dernier point:',
+                '${widget.linePoints.last.latitude.toStringAsFixed(6)}°, ${widget.linePoints.last.longitude.toStringAsFixed(6)}°'),
           ],
         ],
       ),
@@ -1427,7 +1502,6 @@ class _FormulairePageState extends State<FormulaireLignePage> {
     );
   }
 
-
   Widget _buildEvaluationField({
     required TextEditingController controller,
     required String label,
@@ -1437,7 +1511,11 @@ class _FormulairePageState extends State<FormulaireLignePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF374151))),
           const SizedBox(height: 8),
           TextFormField(
             controller: controller,
@@ -1447,12 +1525,24 @@ class _FormulairePageState extends State<FormulaireLignePage> {
               hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
               filled: true,
               fillColor: const Color(0xFFF9FAFB),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2)),
-              errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red)),
-              focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red, width: 2)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF1976D2), width: 2)),
+              errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red)),
+              focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red, width: 2)),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) return null;

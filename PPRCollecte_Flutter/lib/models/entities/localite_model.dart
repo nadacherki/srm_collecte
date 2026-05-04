@@ -34,7 +34,9 @@ class Localite {
       'nom': nom,
       'type': type,
       'enqueteur': enqueteur,
-      'date_creation': dateCreation.isEmpty ? DateTime.now().toIso8601String() : dateCreation,
+      'date_creation': dateCreation.isEmpty
+          ? DateTime.now().toIso8601String()
+          : dateCreation,
       'date_modification': dateModification,
       'synced': synced,
       'commune_id': communeId,
@@ -67,7 +69,9 @@ class Localite {
         'nom': nom,
         'type': type,
         'enqueteur': enqueteur,
-        'date_creation': dateCreation.isEmpty ? DateTime.now().toIso8601String() : dateCreation,
+        'date_creation': dateCreation.isEmpty
+            ? DateTime.now().toIso8601String()
+            : dateCreation,
         'synced': synced,
       };
 

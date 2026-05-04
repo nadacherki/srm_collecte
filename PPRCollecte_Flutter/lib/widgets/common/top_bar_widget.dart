@@ -62,7 +62,7 @@ class TopBarWidget extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -105,7 +105,7 @@ class TopBarWidget extends StatelessWidget {
                         Icon(
                           Icons.arrow_forward_ios,
                           size: 9,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                       ],
                     ),
@@ -121,8 +121,7 @@ class TopBarWidget extends StatelessWidget {
               backgroundColor: const Color(0xFF64B5F6),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
               elevation: 0,
             ),
             onPressed: onLogout,

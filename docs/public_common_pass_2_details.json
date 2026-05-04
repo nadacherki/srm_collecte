@@ -1,0 +1,1390 @@
+{
+  "geometry_columns": {
+    "SRM": {
+      "type": "VIEW",
+      "columns": [
+        {
+          "ordinal_position": 1,
+          "column_name": "f_table_catalog",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 256,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 2,
+          "column_name": "f_table_schema",
+          "data_type": "name",
+          "udt_name": "name",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 3,
+          "column_name": "f_table_name",
+          "data_type": "name",
+          "udt_name": "name",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 4,
+          "column_name": "f_geometry_column",
+          "data_type": "name",
+          "udt_name": "name",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 5,
+          "column_name": "coord_dimension",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 6,
+          "column_name": "srid",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 7,
+          "column_name": "type",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 30,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        }
+      ],
+      "count": 44,
+      "checksum": "8f18d03123369e685db1ec25fd7c80d9",
+      "sample": [
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_bassin",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_branchement",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_canalisation",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_canalisation_reutilisation",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_equipement",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_ouvrage",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_regard",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_regard_branchement",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ass",
+          "f_table_name": "asst_station",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "autre_objet",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "borne_fontaine",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "borne_onep",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "bouche_cles",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "bouche_darrosage",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "branchement",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "centre_tampon",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "compteur_abonne",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "compteur_reseau",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "cone_de_reduction",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM",
+          "f_table_schema": "ep",
+          "f_table_name": "ep_conduite_bureau",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        }
+      ],
+      "constraints": []
+    },
+    "SRM_bureau": {
+      "type": "VIEW",
+      "columns": [
+        {
+          "ordinal_position": 1,
+          "column_name": "f_table_catalog",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 256,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 2,
+          "column_name": "f_table_schema",
+          "data_type": "name",
+          "udt_name": "name",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 3,
+          "column_name": "f_table_name",
+          "data_type": "name",
+          "udt_name": "name",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 4,
+          "column_name": "f_geometry_column",
+          "data_type": "name",
+          "udt_name": "name",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 5,
+          "column_name": "coord_dimension",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 6,
+          "column_name": "srid",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 7,
+          "column_name": "type",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 30,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        }
+      ],
+      "count": 62,
+      "checksum": "92242b8899297bc99b073804546e7792",
+      "sample": [
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_BASSIN_RET",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POLYGON"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_BASSIN_RET_L",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_BASSIN_VERSANT",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POLYGON"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_BORGNE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_BOUCHE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_BRANCHEMENT",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_CANIVEAU",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_CANIV_BRANCHE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_COLLECTEUR",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_COL_BOUCHE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_DEVERSOIR",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_ECOULEMENT",
+          "f_geometry_column": "geom",
+          "coord_dimension": 2,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_FOSSE_SEPT",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_OUED",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POLYGON"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_OUV_TRAVERSEE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_POINTS-NOIRS",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_POMPE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 2,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_REFOULEMENTR",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "LINESTRING"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_REGARD",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        },
+        {
+          "f_table_catalog": "SRM_bureau",
+          "f_table_schema": "asst",
+          "f_table_name": "ASS_REGARD_FACADE",
+          "f_geometry_column": "geom",
+          "coord_dimension": 3,
+          "srid": 26191,
+          "type": "POINT"
+        }
+      ],
+      "constraints": []
+    }
+  },
+  "objet_incomplet": {
+    "SRM": {
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "ordinal_position": 1,
+          "column_name": "id_incomplet",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "NO",
+          "column_default": "nextval('objet_incomplet_id_incomplet_seq'::regclass)"
+        },
+        {
+          "ordinal_position": 2,
+          "column_name": "id_objet",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 3,
+          "column_name": "nom_classe",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 100,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 4,
+          "column_name": "metier",
+          "data_type": "USER-DEFINED",
+          "udt_name": "metier_enum",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 5,
+          "column_name": "raison",
+          "data_type": "USER-DEFINED",
+          "udt_name": "raison_incomplet_enum",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 6,
+          "column_name": "detail_raison",
+          "data_type": "text",
+          "udt_name": "text",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 7,
+          "column_name": "date_signalement",
+          "data_type": "timestamp without time zone",
+          "udt_name": "timestamp",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 8,
+          "column_name": "id_agent_signal",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 9,
+          "column_name": "statut",
+          "data_type": "USER-DEFINED",
+          "udt_name": "statut_incomplet_enum",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": "'A_COMPLETER'::statut_incomplet_enum"
+        },
+        {
+          "ordinal_position": 10,
+          "column_name": "date_planification",
+          "data_type": "date",
+          "udt_name": "date",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 11,
+          "column_name": "id_agent_retour",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 12,
+          "column_name": "date_completion",
+          "data_type": "timestamp without time zone",
+          "udt_name": "timestamp",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 13,
+          "column_name": "id_mission",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 14,
+          "column_name": "id_projet",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        }
+      ],
+      "count": 0,
+      "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+      "sample": [],
+      "constraints": [
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_68864_1_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "FOREIGN KEY",
+          "constraint_name": "objet_incomplet_id_agent_retour_fkey",
+          "column_name": "id_agent_retour",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "utilisateur",
+          "foreign_column_name": "id_user"
+        },
+        {
+          "constraint_type": "FOREIGN KEY",
+          "constraint_name": "objet_incomplet_id_agent_signal_fkey",
+          "column_name": "id_agent_signal",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "utilisateur",
+          "foreign_column_name": "id_user"
+        },
+        {
+          "constraint_type": "FOREIGN KEY",
+          "constraint_name": "objet_incomplet_id_mission_fkey",
+          "column_name": "id_mission",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "mission",
+          "foreign_column_name": "id_mission"
+        },
+        {
+          "constraint_type": "FOREIGN KEY",
+          "constraint_name": "objet_incomplet_id_projet_fkey",
+          "column_name": "id_projet",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "projet",
+          "foreign_column_name": "id_projet"
+        },
+        {
+          "constraint_type": "PRIMARY KEY",
+          "constraint_name": "objet_incomplet_pkey",
+          "column_name": "id_incomplet",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "objet_incomplet",
+          "foreign_column_name": "id_incomplet"
+        }
+      ]
+    },
+    "SRM_bureau": {
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "NO",
+          "column_default": "nextval('objet_incomplet_id_seq'::regclass)"
+        },
+        {
+          "ordinal_position": 2,
+          "column_name": "nom_table",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 100,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 3,
+          "column_name": "id_objet",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 4,
+          "column_name": "id_user",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 5,
+          "column_name": "date_signalement",
+          "data_type": "timestamp without time zone",
+          "udt_name": "timestamp",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "NO",
+          "column_default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "ordinal_position": 6,
+          "column_name": "raison",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 255,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 7,
+          "column_name": "commentaire",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 500,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 8,
+          "column_name": "statut",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 50,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 9,
+          "column_name": "type",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 20,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 10,
+          "column_name": "date_cloture",
+          "data_type": "timestamp without time zone",
+          "udt_name": "timestamp",
+          "character_maximum_length": null,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        }
+      ],
+      "count": 0,
+      "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+      "sample": [],
+      "constraints": [
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_90622_1_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_90622_2_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_90622_3_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_90622_4_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_90622_5_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "objet_incomplet_type_check",
+          "column_name": null,
+          "foreign_table_schema": "public",
+          "foreign_table_name": "objet_incomplet",
+          "foreign_column_name": "type"
+        },
+        {
+          "constraint_type": "PRIMARY KEY",
+          "constraint_name": "objet_incomplet_pkey",
+          "column_name": "id",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "objet_incomplet",
+          "foreign_column_name": "id"
+        }
+      ]
+    }
+  },
+  "spatial_ref_sys": {
+    "SRM": {
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "ordinal_position": 1,
+          "column_name": "srid",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 2,
+          "column_name": "auth_name",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 256,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 3,
+          "column_name": "auth_srid",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 4,
+          "column_name": "srtext",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 2048,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 5,
+          "column_name": "proj4text",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 2048,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        }
+      ],
+      "count": 8500,
+      "checksum": "fdb0e80574bc8aa77b19b07db09aee70",
+      "sample": [
+        {
+          "srid": 2000,
+          "auth_name": "EPSG",
+          "auth_srid": 2000,
+          "srtext": "PROJCS[\"Anguilla 1957 / British West Indies Grid\",GEOGCS[\"Anguilla 1957\",DATUM[\"Anguilla_1957\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],AUTHORITY[\"EPSG\",\"6600\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4600\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2000\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +units=m +no_defs "
+        },
+        {
+          "srid": 2001,
+          "auth_name": "EPSG",
+          "auth_srid": 2001,
+          "srtext": "PROJCS[\"Antigua 1943 / British West Indies Grid\",GEOGCS[\"Antigua 1943\",DATUM[\"Antigua_1943\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[-255,-15,71,0,0,0,0],AUTHORITY[\"EPSG\",\"6601\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4601\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2001\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=-255,-15,71,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2002,
+          "auth_name": "EPSG",
+          "auth_srid": 2002,
+          "srtext": "PROJCS[\"Dominica 1945 / British West Indies Grid\",GEOGCS[\"Dominica 1945\",DATUM[\"Dominica_1945\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[725,685,536,0,0,0,0],AUTHORITY[\"EPSG\",\"6602\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4602\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2002\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=725,685,536,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2003,
+          "auth_name": "EPSG",
+          "auth_srid": 2003,
+          "srtext": "PROJCS[\"Grenada 1953 / British West Indies Grid\",GEOGCS[\"Grenada 1953\",DATUM[\"Grenada_1953\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[72,213.7,93,0,0,0,0],AUTHORITY[\"EPSG\",\"6603\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4603\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2003\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=72,213.7,93,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2004,
+          "auth_name": "EPSG",
+          "auth_srid": 2004,
+          "srtext": "PROJCS[\"Montserrat 1958 / British West Indies Grid\",GEOGCS[\"Montserrat 1958\",DATUM[\"Montserrat_1958\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[174,359,365,0,0,0,0],AUTHORITY[\"EPSG\",\"6604\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4604\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2004\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=174,359,365,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2005,
+          "auth_name": "EPSG",
+          "auth_srid": 2005,
+          "srtext": "PROJCS[\"St. Kitts 1955 / British West Indies Grid\",GEOGCS[\"St. Kitts 1955\",DATUM[\"St_Kitts_1955\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[9,183,236,0,0,0,0],AUTHORITY[\"EPSG\",\"6605\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4605\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2005\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=9,183,236,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2006,
+          "auth_name": "EPSG",
+          "auth_srid": 2006,
+          "srtext": "PROJCS[\"St. Lucia 1955 / British West Indies Grid\",GEOGCS[\"St. Lucia 1955\",DATUM[\"St_Lucia_1955\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[-149,128,296,0,0,0,0],AUTHORITY[\"EPSG\",\"6606\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4606\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2006\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=-149,128,296,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2007,
+          "auth_name": "EPSG",
+          "auth_srid": 2007,
+          "srtext": "PROJCS[\"St. Vincent 45 / British West Indies Grid\",GEOGCS[\"St. Vincent 1945\",DATUM[\"St_Vincent_1945\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[195.671,332.517,274.607,0,0,0,0],AUTHORITY[\"EPSG\",\"6607\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4607\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2007\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=195.671,332.517,274.607,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2008,
+          "auth_name": "EPSG",
+          "auth_srid": 2008,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 2 (deprecated)\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-55.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2008\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-55.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2009,
+          "auth_name": "EPSG",
+          "auth_srid": 2009,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 3\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-58.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2009\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-58.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2010,
+          "auth_name": "EPSG",
+          "auth_srid": 2010,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 4\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-61.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2010\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-61.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2011,
+          "auth_name": "EPSG",
+          "auth_srid": 2011,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 5\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-64.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2011\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-64.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2012,
+          "auth_name": "EPSG",
+          "auth_srid": 2012,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 6\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-67.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2012\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-67.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2013,
+          "auth_name": "EPSG",
+          "auth_srid": 2013,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 7\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-70.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2013\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2014,
+          "auth_name": "EPSG",
+          "auth_srid": 2014,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 8\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-73.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2014\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2015,
+          "auth_name": "EPSG",
+          "auth_srid": 2015,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 9\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-76.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2015\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2016,
+          "auth_name": "EPSG",
+          "auth_srid": 2016,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 10\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-79.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2016\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2017,
+          "auth_name": "EPSG",
+          "auth_srid": 2017,
+          "srtext": "PROJCS[\"NAD27(76) / MTM zone 8\",GEOGCS[\"NAD27(76)\",DATUM[\"North_American_Datum_1927_1976\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6608\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4608\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-73.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2017\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2018,
+          "auth_name": "EPSG",
+          "auth_srid": 2018,
+          "srtext": "PROJCS[\"NAD27(76) / MTM zone 9\",GEOGCS[\"NAD27(76)\",DATUM[\"North_American_Datum_1927_1976\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6608\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4608\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-76.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2018\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2019,
+          "auth_name": "EPSG",
+          "auth_srid": 2019,
+          "srtext": "PROJCS[\"NAD27(76) / MTM zone 10\",GEOGCS[\"NAD27(76)\",DATUM[\"North_American_Datum_1927_1976\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6608\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4608\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-79.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2019\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_67344_1_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "spatial_ref_sys_srid_check",
+          "column_name": null,
+          "foreign_table_schema": "public",
+          "foreign_table_name": "spatial_ref_sys",
+          "foreign_column_name": "srid"
+        },
+        {
+          "constraint_type": "PRIMARY KEY",
+          "constraint_name": "spatial_ref_sys_pkey",
+          "column_name": "srid",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "spatial_ref_sys",
+          "foreign_column_name": "srid"
+        }
+      ]
+    },
+    "SRM_bureau": {
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "ordinal_position": 1,
+          "column_name": "srid",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 2,
+          "column_name": "auth_name",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 256,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 3,
+          "column_name": "auth_srid",
+          "data_type": "integer",
+          "udt_name": "int4",
+          "character_maximum_length": null,
+          "numeric_precision": 32,
+          "numeric_scale": 0,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 4,
+          "column_name": "srtext",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 2048,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "ordinal_position": 5,
+          "column_name": "proj4text",
+          "data_type": "character varying",
+          "udt_name": "varchar",
+          "character_maximum_length": 2048,
+          "numeric_precision": null,
+          "numeric_scale": null,
+          "is_nullable": "YES",
+          "column_default": null
+        }
+      ],
+      "count": 8500,
+      "checksum": "fdb0e80574bc8aa77b19b07db09aee70",
+      "sample": [
+        {
+          "srid": 2000,
+          "auth_name": "EPSG",
+          "auth_srid": 2000,
+          "srtext": "PROJCS[\"Anguilla 1957 / British West Indies Grid\",GEOGCS[\"Anguilla 1957\",DATUM[\"Anguilla_1957\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],AUTHORITY[\"EPSG\",\"6600\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4600\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2000\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +units=m +no_defs "
+        },
+        {
+          "srid": 2001,
+          "auth_name": "EPSG",
+          "auth_srid": 2001,
+          "srtext": "PROJCS[\"Antigua 1943 / British West Indies Grid\",GEOGCS[\"Antigua 1943\",DATUM[\"Antigua_1943\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[-255,-15,71,0,0,0,0],AUTHORITY[\"EPSG\",\"6601\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4601\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2001\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=-255,-15,71,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2002,
+          "auth_name": "EPSG",
+          "auth_srid": 2002,
+          "srtext": "PROJCS[\"Dominica 1945 / British West Indies Grid\",GEOGCS[\"Dominica 1945\",DATUM[\"Dominica_1945\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[725,685,536,0,0,0,0],AUTHORITY[\"EPSG\",\"6602\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4602\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2002\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=725,685,536,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2003,
+          "auth_name": "EPSG",
+          "auth_srid": 2003,
+          "srtext": "PROJCS[\"Grenada 1953 / British West Indies Grid\",GEOGCS[\"Grenada 1953\",DATUM[\"Grenada_1953\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[72,213.7,93,0,0,0,0],AUTHORITY[\"EPSG\",\"6603\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4603\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2003\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=72,213.7,93,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2004,
+          "auth_name": "EPSG",
+          "auth_srid": 2004,
+          "srtext": "PROJCS[\"Montserrat 1958 / British West Indies Grid\",GEOGCS[\"Montserrat 1958\",DATUM[\"Montserrat_1958\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[174,359,365,0,0,0,0],AUTHORITY[\"EPSG\",\"6604\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4604\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2004\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=174,359,365,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2005,
+          "auth_name": "EPSG",
+          "auth_srid": 2005,
+          "srtext": "PROJCS[\"St. Kitts 1955 / British West Indies Grid\",GEOGCS[\"St. Kitts 1955\",DATUM[\"St_Kitts_1955\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[9,183,236,0,0,0,0],AUTHORITY[\"EPSG\",\"6605\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4605\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2005\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=9,183,236,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2006,
+          "auth_name": "EPSG",
+          "auth_srid": 2006,
+          "srtext": "PROJCS[\"St. Lucia 1955 / British West Indies Grid\",GEOGCS[\"St. Lucia 1955\",DATUM[\"St_Lucia_1955\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[-149,128,296,0,0,0,0],AUTHORITY[\"EPSG\",\"6606\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4606\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2006\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=-149,128,296,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2007,
+          "auth_name": "EPSG",
+          "auth_srid": 2007,
+          "srtext": "PROJCS[\"St. Vincent 45 / British West Indies Grid\",GEOGCS[\"St. Vincent 1945\",DATUM[\"St_Vincent_1945\",SPHEROID[\"Clarke 1880 (RGS)\",6378249.145,293.465,AUTHORITY[\"EPSG\",\"7012\"]],TOWGS84[195.671,332.517,274.607,0,0,0,0],AUTHORITY[\"EPSG\",\"6607\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4607\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-62],PARAMETER[\"scale_factor\",0.9995],PARAMETER[\"false_easting\",400000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2007\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-62 +k=0.9995000000000001 +x_0=400000 +y_0=0 +ellps=clrk80 +towgs84=195.671,332.517,274.607,0,0,0,0 +units=m +no_defs "
+        },
+        {
+          "srid": 2008,
+          "auth_name": "EPSG",
+          "auth_srid": 2008,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 2 (deprecated)\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-55.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2008\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-55.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2009,
+          "auth_name": "EPSG",
+          "auth_srid": 2009,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 3\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-58.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2009\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-58.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2010,
+          "auth_name": "EPSG",
+          "auth_srid": 2010,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 4\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-61.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2010\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-61.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2011,
+          "auth_name": "EPSG",
+          "auth_srid": 2011,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 5\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-64.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2011\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-64.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2012,
+          "auth_name": "EPSG",
+          "auth_srid": 2012,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 6\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-67.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2012\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-67.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2013,
+          "auth_name": "EPSG",
+          "auth_srid": 2013,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 7\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-70.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2013\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2014,
+          "auth_name": "EPSG",
+          "auth_srid": 2014,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 8\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-73.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2014\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2015,
+          "auth_name": "EPSG",
+          "auth_srid": 2015,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 9\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-76.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2015\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2016,
+          "auth_name": "EPSG",
+          "auth_srid": 2016,
+          "srtext": "PROJCS[\"NAD27(CGQ77) / SCoPQ zone 10\",GEOGCS[\"NAD27(CGQ77)\",DATUM[\"North_American_Datum_1927_CGQ77\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6609\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4609\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-79.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2016\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2017,
+          "auth_name": "EPSG",
+          "auth_srid": 2017,
+          "srtext": "PROJCS[\"NAD27(76) / MTM zone 8\",GEOGCS[\"NAD27(76)\",DATUM[\"North_American_Datum_1927_1976\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6608\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4608\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-73.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2017\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2018,
+          "auth_name": "EPSG",
+          "auth_srid": 2018,
+          "srtext": "PROJCS[\"NAD27(76) / MTM zone 9\",GEOGCS[\"NAD27(76)\",DATUM[\"North_American_Datum_1927_1976\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6608\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4608\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-76.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2018\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        },
+        {
+          "srid": 2019,
+          "auth_name": "EPSG",
+          "auth_srid": 2019,
+          "srtext": "PROJCS[\"NAD27(76) / MTM zone 10\",GEOGCS[\"NAD27(76)\",DATUM[\"North_American_Datum_1927_1976\",SPHEROID[\"Clarke 1866\",6378206.4,294.9786982138982,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6608\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4608\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-79.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",304800],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"X\",EAST],AXIS[\"Y\",NORTH],AUTHORITY[\"EPSG\",\"2019\"]]",
+          "proj4text": "+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=clrk66 +units=m +no_defs "
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "2200_88597_1_not_null",
+          "column_name": null,
+          "foreign_table_schema": null,
+          "foreign_table_name": null,
+          "foreign_column_name": null
+        },
+        {
+          "constraint_type": "CHECK",
+          "constraint_name": "spatial_ref_sys_srid_check",
+          "column_name": null,
+          "foreign_table_schema": "public",
+          "foreign_table_name": "spatial_ref_sys",
+          "foreign_column_name": "srid"
+        },
+        {
+          "constraint_type": "PRIMARY KEY",
+          "constraint_name": "spatial_ref_sys_pkey",
+          "column_name": "srid",
+          "foreign_table_schema": "public",
+          "foreign_table_name": "spatial_ref_sys",
+          "foreign_column_name": "srid"
+        }
+      ]
+    }
+  }
+}

@@ -8,7 +8,8 @@ import '../../data/remote/api_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 
 class ProfilePage extends StatefulWidget {
-  static const String startConduiteDrawingEpResult = 'start_conduite_drawing_ep';
+  static const String startConduiteDrawingEpResult =
+      'start_conduite_drawing_ep';
   static const String startConduiteDrawingAsstResult =
       'start_conduite_drawing_asst';
   static const String startConduiteDrawingResult = startConduiteDrawingEpResult;
@@ -81,13 +82,10 @@ class _ProfilePageState extends State<ProfilePage> {
       final currentUser = await _db.getCurrentUserSrm();
       final activeAgentId =
           ApiService.userId ?? _asIntOrNull(currentUser?['id_user']);
-      final currentProjetId =
-          ApiService.currentProjetId ?? _asIntOrNull(currentUser?['id_projet_actif']);
       final results = await Future.wait<dynamic>([
         _loadLocalInventorySnapshot(),
         _metricsCache.loadSnapshot(
           agentId: activeAgentId,
-          projetId: currentProjetId,
         ),
       ]);
       final inventory = results[0] as _LocalInventorySnapshot;
@@ -98,7 +96,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _nomPrenom = _coalesceText(
           ApiService.nomPrenom,
-          currentUser?['nom_prenom'],
+          DatabaseHelper.fullNameFromUserRow(currentUser),
           widget.agentName,
         );
         _login = _coalesceText(ApiService.userLogin, currentUser?['login']);
@@ -134,7 +132,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final refreshFuture = _refreshMetricsInBackground(
         agentId: activeAgentId,
-        projetId: currentProjetId,
       );
       if (waitForMetricsRefresh) {
         await refreshFuture;
@@ -152,11 +149,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _refreshMetricsInBackground({
     required int? agentId,
-    required int? projetId,
   }) async {
     final freshMetrics = await _metricsCache.refreshAndSave(
       agentId: agentId,
-      projetId: projetId,
     );
     if (!mounted) return;
 
@@ -1233,20 +1228,11 @@ class _ProfilePageState extends State<ProfilePage> {
   List<Widget> _buildOverviewBadges() {
     final badges = <Widget>[];
 
-    final missions = _metricInt(_resumeMetrics, 'nb_missions_total');
     final modifications =
         _metricInt(_resumeMetrics, 'nb_modifications_terrain_total');
     final syncs = _metricInt(_resumeMetrics, 'nb_evenements_sync_total');
     final last30Days = _metricInt(_resumeMetrics, 'nb_objets_30j');
 
-    if (missions > 0) {
-      badges.add(
-        _buildBadge(
-          label: 'Missions : $missions',
-          color: const Color(0xFF1976D2),
-        ),
-      );
-    }
     if (modifications > 0) {
       badges.add(
         _buildBadge(
@@ -1552,7 +1538,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return '${months[parsed.month - 1]} ${parsed.year}';
   }
-
 }
 
 class _LocalInventorySnapshot {

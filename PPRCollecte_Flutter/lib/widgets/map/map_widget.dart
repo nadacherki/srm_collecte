@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +12,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:pmtiles/pmtiles.dart' as pmtiles;
 import 'package:vector_map_tiles/vector_map_tiles.dart' as vmt;
 import 'package:vector_map_tiles_pmtiles/vector_map_tiles_pmtiles.dart';
+// ignore: implementation_imports
 import 'package:vector_map_tiles_pmtiles/src/themes/v4/_package.dart'
     as protomaps_v4;
 import 'package:vector_tile/vector_tile.dart' as vt;
@@ -218,10 +218,12 @@ class _MapWidgetState extends State<MapWidget> {
 
   void _zoomIn() {
     if (_controllerReady) {
-      final targetZoom = math.min(
-        _mapController.camera.zoom + 1,
-        _mapController.camera.maxZoom ?? double.infinity,
-      ).toDouble();
+      final targetZoom = math
+          .min(
+            _mapController.camera.zoom + 1,
+            _mapController.camera.maxZoom ?? double.infinity,
+          )
+          .toDouble();
       _mapController.move(
         _mapController.camera.center,
         targetZoom,
@@ -231,10 +233,12 @@ class _MapWidgetState extends State<MapWidget> {
 
   void _zoomOut() {
     if (_controllerReady) {
-      final targetZoom = math.max(
-        _mapController.camera.zoom - 1,
-        _mapController.camera.minZoom ?? 1,
-      ).toDouble();
+      final targetZoom = math
+          .max(
+            _mapController.camera.zoom - 1,
+            _mapController.camera.minZoom ?? 1,
+          )
+          .toDouble();
       _mapController.move(
         _mapController.camera.center,
         targetZoom,
@@ -266,8 +270,7 @@ class _MapWidgetState extends State<MapWidget> {
     String? basemapFormat,
   ) async {
     final normalizedFormat = _normalizedBasemapFormat(basemapFormat);
-    final hasLoadedProvider =
-        _rasterTileProvider != null ||
+    final hasLoadedProvider = _rasterTileProvider != null ||
         (_vectorTileProvider != null && _vectorTheme != null);
     if (basemapPath == _loadedBasemapPath &&
         normalizedFormat == _loadedBasemapFormat &&
@@ -362,7 +365,8 @@ class _MapWidgetState extends State<MapWidget> {
             debugPrint('[BASEMAP] Fallback theme Protomaps standard: $e');
             vectorTheme = ProtomapsThemes.lightV4();
             vectorDetailsSummary = 'PMTiles details fallback theme standard';
-            vectorDetailsWarning = 'Theme local indisponible, fallback standard';
+            vectorDetailsWarning =
+                'Theme local indisponible, fallback standard';
           }
           break;
         case 'mbtiles':
@@ -460,10 +464,11 @@ class _MapWidgetState extends State<MapWidget> {
     }
 
     final textAndBaseLayers = localizedLayers
-        .where((layer) => !(layer['id']?.toString().endsWith('_icons') ?? false))
+        .where(
+            (layer) => !(layer['id']?.toString().endsWith('_icons') ?? false))
         .toList(growable: false);
 
-    final protomaps = ProtomapsThemes(sprites: null);
+    const protomaps = ProtomapsThemes(sprites: null);
     return _LocalProtomapsThemeBundle(
       theme: protomaps.build(textAndBaseLayers),
       check: _inspectThemeLayers(rawLayers),
@@ -500,7 +505,8 @@ class _MapWidgetState extends State<MapWidget> {
 
   Map<String, dynamic> _normalizeProtomapsLayer(Map<String, dynamic> layer) {
     final normalizedLayer = Map<String, dynamic>.from(layer);
-    final layerId = normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
+    final layerId =
+        normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
     final sourceLayer =
         normalizedLayer['source-layer']?.toString().trim().toLowerCase() ?? '';
     final layout = normalizedLayer['layout'];
@@ -532,18 +538,18 @@ class _MapWidgetState extends State<MapWidget> {
   List<Map<String, Object>> _expandProtomapsLayer(
     Map<String, dynamic> normalizedLayer,
   ) {
-    final layerId = normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
+    final layerId =
+        normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
     final sourceLayer =
         normalizedLayer['source-layer']?.toString().trim().toLowerCase() ?? '';
-    final shouldSplit =
-        (layerId == 'pois' && sourceLayer == 'pois') ||
+    final shouldSplit = (layerId == 'pois' && sourceLayer == 'pois') ||
         (layerId == 'places_locality' && sourceLayer == 'places');
     if (!shouldSplit) {
       return [Map<String, Object>.from(normalizedLayer)];
     }
 
-    final iconLayer = jsonDecode(jsonEncode(normalizedLayer))
-        as Map<String, dynamic>;
+    final iconLayer =
+        jsonDecode(jsonEncode(normalizedLayer)) as Map<String, dynamic>;
     final iconLayout =
         Map<String, dynamic>.from(iconLayer['layout'] as Map? ?? const {});
     iconLayout.remove('text-field');
@@ -560,8 +566,8 @@ class _MapWidgetState extends State<MapWidget> {
     iconLayer['id'] = '${normalizedLayer['id']}_icons';
     iconLayer['layout'] = iconLayout;
 
-    final textLayer = jsonDecode(jsonEncode(normalizedLayer))
-        as Map<String, dynamic>;
+    final textLayer =
+        jsonDecode(jsonEncode(normalizedLayer)) as Map<String, dynamic>;
     final textLayout =
         Map<String, dynamic>.from(textLayer['layout'] as Map? ?? const {});
     textLayout.remove('icon-image');
@@ -936,7 +942,8 @@ class _MapWidgetState extends State<MapWidget> {
                 final properties = feature.decodeProperties();
                 final kind = properties['kind']?.dartStringValue?.trim();
                 if (kind == null || kind.isEmpty) continue;
-                placeKinds.update(kind, (value) => value + 1, ifAbsent: () => 1);
+                placeKinds.update(kind, (value) => value + 1,
+                    ifAbsent: () => 1);
               }
             }
           }
@@ -958,12 +965,10 @@ class _MapWidgetState extends State<MapWidget> {
       debugPrint('[BASEMAP] Icon diag pois: none in sampled tiles');
     } else {
       for (final entry in poiSummary.take(20)) {
-        final spriteState = spriteNames.contains(entry.key)
-            ? 'sprite=yes'
-            : 'sprite=no';
-        final sampleNames = (poiNamesByKind[entry.key] ?? const <String>{})
-            .take(3)
-            .join(' | ');
+        final spriteState =
+            spriteNames.contains(entry.key) ? 'sprite=yes' : 'sprite=no';
+        final sampleNames =
+            (poiNamesByKind[entry.key] ?? const <String>{}).take(3).join(' | ');
         debugPrint(
           '[BASEMAP] Icon diag poi kind=${entry.key} count=${entry.value} '
           '$spriteState'
@@ -986,8 +991,8 @@ class _MapWidgetState extends State<MapWidget> {
     final scale = 1 << zoom;
     final x = ((point.longitude + 180.0) / 360.0 * scale).floor();
     final latRad = point.latitude * math.pi / 180.0;
-    final mercatorY = 1 -
-        (math.log(math.tan(latRad) + (1 / math.cos(latRad))) / math.pi);
+    final mercatorY =
+        1 - (math.log(math.tan(latRad) + (1 / math.cos(latRad))) / math.pi);
     final y = ((mercatorY / 2) * scale).floor();
     return (x, y);
   }
@@ -1009,7 +1014,8 @@ class _MapWidgetState extends State<MapWidget> {
     return (xMin, xMax, yMin, yMax);
   }
 
-  Future<pmtiles.PmTilesArchive> _getOfflinePoiArchive(String basemapPath) async {
+  Future<pmtiles.PmTilesArchive> _getOfflinePoiArchive(
+      String basemapPath) async {
     if (_offlinePoiArchive != null && _offlinePoiArchivePath == basemapPath) {
       return _offlinePoiArchive!;
     }
@@ -1480,7 +1486,7 @@ class _MapWidgetState extends State<MapWidget> {
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
+                  color: Colors.blue.withValues(alpha: 0.3),
                   blurRadius: 6,
                   spreadRadius: 2,
                 ),
@@ -1490,23 +1496,20 @@ class _MapWidgetState extends State<MapWidget> {
         ),
     ];
 
-    final fallbackCenter = widget.basemapCenter ?? BasemapConstants.fallbackCenter;
+    final fallbackCenter =
+        widget.basemapCenter ?? BasemapConstants.fallbackCenter;
     final requestedCenterRaw =
         widget.gpsEnabled ? widget.userPosition : fallbackCenter;
-    final desiredInitialZoom =
-        widget.gpsEnabled
-            ? 15.0
-            : (widget.basemapDefaultZoom ??
-                BasemapConstants.fallbackDefaultZoom);
+    final desiredInitialZoom = widget.gpsEnabled
+        ? 15.0
+        : (widget.basemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom);
     final minZoom = widget.basemapMinZoom ?? BasemapConstants.fallbackMinZoom;
     final maxZoom = widget.basemapMaxZoom ?? BasemapConstants.fallbackMaxZoom;
     final showOnlineBasemap = widget.useOnlineBasemap && !widget.isSatellite;
-    final hasRasterBasemap =
-        !showOnlineBasemap &&
+    final hasRasterBasemap = !showOnlineBasemap &&
         _rasterTileProvider != null &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
-    final hasVectorBasemap =
-        !showOnlineBasemap &&
+    final hasVectorBasemap = !showOnlineBasemap &&
         _vectorTileProvider != null &&
         _vectorTheme != null &&
         _normalizedBasemapFormat(widget.offlineBasemapFormat) == 'pmtiles' &&
@@ -1517,8 +1520,7 @@ class _MapWidgetState extends State<MapWidget> {
     final effectiveMaxZoom = maxZoom;
     final initialZoom =
         desiredInitialZoom.clamp(minZoom, effectiveMaxZoom).toDouble();
-    final hasOfflineBasemap =
-        (hasRasterBasemap || hasVectorBasemap) &&
+    final hasOfflineBasemap = (hasRasterBasemap || hasVectorBasemap) &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
     final initialCenter =
         _controllerReady ? _mapController.camera.center : requestedCenterRaw;
@@ -1616,7 +1618,7 @@ class _MapWidgetState extends State<MapWidget> {
                   color: (_vectorDetailsWarning != null
                           ? Colors.orange
                           : Colors.black)
-                      .withOpacity(0.72),
+                      .withValues(alpha: 0.72),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -1644,7 +1646,7 @@ class _MapWidgetState extends State<MapWidget> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.92),
+                  color: Colors.white.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [
                     BoxShadow(
@@ -1941,12 +1943,11 @@ class DownloadedLinesToggle extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isOn
-                            ? const Color(0xFFB86E1D).withOpacity(0.12)
-                            : Colors.grey.withOpacity(0.15),
+                            ? const Color(0xFFB86E1D).withValues(alpha: 0.12)
+                            : Colors.grey.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color:
-                              isOn ? const Color(0xFFB86E1D) : Colors.grey,
+                          color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
                           width: 0.8,
                         ),
                       ),
@@ -1955,9 +1956,8 @@ class DownloadedLinesToggle extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isOn
-                              ? const Color(0xFFB86E1D)
-                              : Colors.grey[700],
+                          color:
+                              isOn ? const Color(0xFFB86E1D) : Colors.grey[700],
                         ),
                       ),
                     ),
@@ -1971,4 +1971,3 @@ class DownloadedLinesToggle extends StatelessWidget {
     );
   }
 }
-

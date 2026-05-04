@@ -17,7 +17,7 @@ from api.basemap_utils import (
     read_mbtiles_tile_stats,
     upsert_mbtiles_metadata,
 )
-from api.models import BasemapPackage, BasemapZone
+from api.models import BasemapPackage, Zone
 
 
 class Command(BaseCommand):
@@ -91,7 +91,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         zone_id = str(options["zone_id"]).strip()
-        zone = BasemapZone.objects.filter(zone_id=zone_id).first()
+        zone = self._resolve_zone(zone_id)
         if zone is None:
             raise CommandError(f"Zone inconnue: {zone_id}")
         if zone.geom is None or zone.geom.empty:
@@ -217,7 +217,7 @@ class Command(BaseCommand):
     def _resolve_output_path(
         self,
         *,
-        zone: BasemapZone,
+        zone: Zone,
         style: str,
         package_version: str,
         raw_output: str,
@@ -244,7 +244,7 @@ class Command(BaseCommand):
         *,
         source_path: Path,
         cutline_geojson: Path,
-        zone: BasemapZone,
+        zone: Zone,
         work_dir: Path,
         output_path: Path,
         tile_format: str,
@@ -320,7 +320,7 @@ class Command(BaseCommand):
         self,
         *,
         mbtiles_path: Path,
-        zone: BasemapZone,
+        zone: Zone,
         style: str,
         package_version: str,
         tile_format: str,
@@ -360,7 +360,7 @@ class Command(BaseCommand):
     def _validate_output(
         self,
         *,
-        zone: BasemapZone,
+        zone: Zone,
         tile_stats: dict[str, int | None],
         skip_zoom_validation: bool,
     ) -> None:
@@ -387,7 +387,7 @@ class Command(BaseCommand):
     def _register_package(
         self,
         *,
-        zone: BasemapZone,
+        zone: Zone,
         style: str,
         package_version: str,
         output_path: Path,
@@ -429,7 +429,7 @@ class Command(BaseCommand):
         }
 
         BasemapPackage.objects.update_or_create(
-            zone_id=zone.zone_id,
+            id_zone=zone.id_zone,
             style=style,
             version=package_version,
             defaults=defaults,
@@ -439,8 +439,20 @@ class Command(BaseCommand):
             },
         )
 
-    def _zone_feature_collection(self, zone: BasemapZone) -> dict[str, object]:
-        geometry = json.loads(zone.geom.geojson)
+    def _resolve_zone(self, zone_id: str) -> Zone | None:
+        raw = zone_id.strip()
+        if raw.startswith("zone_"):
+            raw = raw[5:]
+        try:
+            id_zone = int(raw)
+        except ValueError:
+            return None
+        return Zone.objects.filter(id_zone=id_zone).first()
+
+    def _zone_feature_collection(self, zone: Zone) -> dict[str, object]:
+        geom = zone.geom.clone()
+        geom.transform(4326)
+        geometry = json.loads(geom.geojson)
         return {
             "type": "FeatureCollection",
             "features": [
@@ -456,13 +468,13 @@ class Command(BaseCommand):
             ],
         }
 
-    def _bounds_metadata(self, zone: BasemapZone) -> str:
+    def _bounds_metadata(self, zone: Zone) -> str:
         return (
             f"{zone.bbox_west},{zone.bbox_south},"
             f"{zone.bbox_east},{zone.bbox_north}"
         )
 
-    def _center_metadata(self, zone: BasemapZone) -> str:
+    def _center_metadata(self, zone: Zone) -> str:
         center_zoom = min(max(zone.min_zoom or 11, 13), zone.max_zoom or 19)
         return f"{zone.center_longitude},{zone.center_latitude},{center_zoom}"
 

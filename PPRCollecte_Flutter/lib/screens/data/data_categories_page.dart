@@ -67,7 +67,8 @@ class DataCategoriesPage extends StatelessWidget {
                   _buildCategoryCard(
                     context,
                     title: 'Données Enregistrées',
-                    description: 'Données créées localement, non encore synchronisées',
+                    description:
+                        'Données créées localement, non encore synchronisées',
                     icon: Icons.save,
                     color: const Color.fromARGB(255, 167, 94, 196),
                   ),
@@ -122,7 +123,7 @@ class DataCategoriesPage extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE0E0E0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -136,7 +137,7 @@ class DataCategoriesPage extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Icon(icon, size: 28, color: color),

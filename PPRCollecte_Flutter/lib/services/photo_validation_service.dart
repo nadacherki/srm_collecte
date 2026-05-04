@@ -162,17 +162,19 @@ class PhotoValidationService {
   static Future<int?> findDuplicateSlot({
     required String candidatePath,
     required Map<int, String?> existingPaths,
-    int? currentSlot, // slot en cours de remplacement (ignoré dans la comparaison)
+    int?
+        currentSlot, // slot en cours de remplacement (ignoré dans la comparaison)
   }) async {
     final candidateFile = File(candidatePath);
     if (!await candidateFile.exists()) return null;
 
-    final candidateSize   = await candidateFile.length();
-    final candidateHeader = await _readFingerprint(candidateFile, candidateSize);
+    final candidateSize = await candidateFile.length();
+    final candidateHeader =
+        await _readFingerprint(candidateFile, candidateSize);
 
     for (final entry in existingPaths.entries) {
-      final slot      = entry.key;
-      final slotPath  = entry.value;
+      final slot = entry.key;
+      final slotPath = entry.value;
 
       // Ignorer le slot qu'on est en train de remplacer et les slots vides
       if (slot == currentSlot || slotPath == null) continue;
@@ -185,7 +187,9 @@ class PhotoValidationService {
       if (!await slotFile.exists()) continue;
 
       final slotSize = await slotFile.length();
-      if (slotSize != candidateSize) continue; // tailles différentes → pas un doublon
+      if (slotSize != candidateSize) {
+        continue;
+      }
 
       final slotHeader = await _readFingerprint(slotFile, slotSize);
       if (_fingerprintsMatch(candidateHeader, slotHeader)) return slot;
@@ -203,7 +207,7 @@ class PhotoValidationService {
 
     Uint8List footer = Uint8List(0);
     if (size > sampleSize) {
-      final start  = size - sampleSize;
+      final start = size - sampleSize;
       final stream = file.openRead(start, size);
       final chunks = <int>[];
       await for (final chunk in stream) {
@@ -215,8 +219,7 @@ class PhotoValidationService {
     return _PhotoFingerprint(size: size, header: header, footer: footer);
   }
 
-  static bool _fingerprintsMatch(
-      _PhotoFingerprint a, _PhotoFingerprint b) {
+  static bool _fingerprintsMatch(_PhotoFingerprint a, _PhotoFingerprint b) {
     if (a.size != b.size) return false;
     if (a.header.length != b.header.length) return false;
     for (int i = 0; i < a.header.length; i++) {

@@ -20,13 +20,14 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from .models import (
     # Public
-    Utilisateur, Projet, Mission, Commune,
-    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, FondDePlan, EvaluationAgent,
-    StatistiqueConduite, StatistiqueConduiteSegment,
-    SrmFieldOption, BasemapZone, BasemapPackage,
+    Utilisateur, Commune, Zone, ZoneUtilisateur,
+    HistoriqueAction, ObjetIncomplet, ObjetPhoto,
+    InterventionAnomalie,
+    EpStatistiqueConduite, EpStatistiqueConduiteSegment,
+    SrmFieldOption, BasemapPackage,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
+    MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
-    MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
     # EP ponctuels
     EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
     EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
@@ -79,6 +80,11 @@ class StrictSerializerMixin:
         errors = {}
 
         for key, value in data.items():
+            if key in self.photo_fields and value not in (None, ''):
+                errors[key] = (
+                    'Reference photo centralisee: utiliser /api/photos/upload/.'
+                )
+                continue
             if isinstance(value, str):
                 stripped = value.strip()
                 if any(ord(char) < 32 and char not in '\t\n\r' for char in stripped):
@@ -179,6 +185,12 @@ class StrictSerializerMixin:
 
         return super().validate(attrs)
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        for field_name in self.photo_fields:
+            representation.pop(field_name, None)
+        return representation
+
     def _is_finite_number(self, value):
         try:
             return math.isfinite(float(value))
@@ -267,8 +279,6 @@ class PhotoUploadSerializer(serializers.Serializer):
         allow_null=True,
         trim_whitespace=True,
     )
-    id_projet = serializers.IntegerField(required=False, allow_null=True)
-    id_mission = serializers.IntegerField(required=False, allow_null=True)
     id_agent_crea = serializers.IntegerField(required=False, allow_null=True)
     file = serializers.FileField()
 
@@ -295,6 +305,7 @@ class PhotoUploadSerializer(serializers.Serializer):
 
 
 class StatistiqueConduiteNodeSerializer(serializers.Serializer):
+    separator = serializers.BooleanField(required=False, default=False)
     fid = serializers.IntegerField(required=False, allow_null=True)
     uuid = serializers.CharField(
         required=False,
@@ -336,6 +347,9 @@ class StatistiqueConduiteNodeSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        if attrs.get('separator'):
+            return attrs
+
         fid = attrs.get('fid')
         uuid = (attrs.get('uuid') or '').strip()
         if fid is None and not uuid:
@@ -365,7 +379,8 @@ class StatistiqueConduiteValidateSerializer(serializers.Serializer):
     nodes = StatistiqueConduiteNodeSerializer(many=True)
 
     def validate_nodes(self, value):
-        if len(value) < 2:
+        real_nodes = [node for node in value if not node.get('separator')]
+        if len(real_nodes) < 2:
             raise serializers.ValidationError(
                 'Au moins deux regards sont necessaires pour valider une conduite.'
             )
@@ -374,14 +389,14 @@ class StatistiqueConduiteValidateSerializer(serializers.Serializer):
 
 class StatistiqueConduiteSegmentSerializer(StrictGeoFeatureModelSerializer):
     class Meta:
-        model = StatistiqueConduiteSegment
+        model = EpStatistiqueConduiteSegment
         geo_field = 'geom'
         fields = '__all__'
 
 
 class StatistiqueConduiteSerializer(StrictGeoFeatureModelSerializer):
     class Meta:
-        model = StatistiqueConduite
+        model = EpStatistiqueConduite
         geo_field = 'geom'
         fields = '__all__'
 
@@ -392,100 +407,214 @@ class StatistiqueConduiteSerializer(StrictGeoFeatureModelSerializer):
 class UtilisateurSerializer(StrictModelSerializer):
     class Meta:
         model = Utilisateur
-        fields = '__all__'
+        exclude = ('mot_de_passe_hash',)
 
 
-class ProjetSerializer(StrictGeoFeatureModelSerializer):
+class ObjetPhotoSerializer(StrictModelSerializer):
     class Meta:
-        model = Projet
-        geo_field = 'geom_zone'
+        model = ObjetPhoto
         fields = '__all__'
+        read_only_fields = ('id_photo',)
 
 
-class MissionSerializer(StrictModelSerializer):
+class InterventionAnomalieTerrainSerializer(StrictModelSerializer):
+    writable_fields = {'etat_terrain', 'commentaire_terrain', 'id_user_terrain'}
+    allowed_terrain_states = {'en_attente', 'traite'}
+
     class Meta:
-        model = Mission
-        fields = '__all__'
+        model = InterventionAnomalie
+        fields = (
+            'id',
+            'id_objet',
+            'nom_classe',
+            'nom_table',
+            'uuid_objet',
+            'retour_terrain',
+            'statut',
+            'responsable_actuel',
+            'etat_terrain',
+            'commentaire_terrain',
+            'date_terrain',
+            'id_user_terrain',
+            'date_creation',
+            'date_cloture',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = (
+            'id',
+            'id_objet',
+            'nom_classe',
+            'nom_table',
+            'uuid_objet',
+            'retour_terrain',
+            'statut',
+            'responsable_actuel',
+            'date_terrain',
+            'date_creation',
+            'date_cloture',
+            'created_at',
+            'updated_at',
+        )
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            raise serializers.ValidationError('Payload JSON objet attendu')
+
+        forbidden = sorted(set(data) - self.writable_fields)
+        if forbidden:
+            raise serializers.ValidationError({
+                field: 'Champ non modifiable depuis le mobile terrain.'
+                for field in forbidden
+            })
+
+        return super().to_internal_value(data)
+
+    def validate_etat_terrain(self, value):
+        clean_value = (value or '').strip()
+        if clean_value not in self.allowed_terrain_states:
+            raise serializers.ValidationError(
+                'Etat terrain mobile autorise: en_attente ou traite.'
+            )
+        return clean_value
+
+    def update(self, instance, validated_data):
+        for field in ('commentaire_terrain', 'id_user_terrain'):
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+
+        if 'etat_terrain' in validated_data:
+            instance.etat_terrain = validated_data['etat_terrain']
+            if instance.etat_terrain == 'traite':
+                instance.statut = 'terrain_traite'
+            elif instance.statut in (None, '', 'signale', 'retour_terrain'):
+                instance.statut = 'signale'
+
+        instance.save()
+        return instance
 
 
 class CommuneSerializer(StrictGeoFeatureModelSerializer):
+    id_commune = serializers.IntegerField(source='fid', read_only=True)
+    nom_commune = serializers.SerializerMethodField()
+    nom_province = serializers.SerializerMethodField()
+    nom_region = serializers.SerializerMethodField()
+
+    def get_nom_commune(self, obj):
+        return obj.nom
+
+    def get_nom_province(self, obj):
+        if obj.code_provi == '02.411.':
+            return "Préfecture d'Oujda-Angad"
+        return None
+
+    def get_nom_region(self, obj):
+        if obj.code_regio == '02.':
+            return 'Oriental'
+        return None
+
     class Meta:
         model = Commune
         geo_field = 'geom'
-        fields = '__all__'
+        fields = (
+            'fid',
+            'code_provi',
+            'code_regio',
+            'nom',
+            'nom_arabe',
+            'id_province',
+            'id_commune',
+            'nom_commune',
+            'nom_province',
+            'nom_region',
+        )
 
 
-class HistoriqueAttributSerializer(StrictModelSerializer):
+class ZoneSerializer(StrictGeoFeatureModelSerializer):
+    geometry_geojson = serializers.SerializerMethodField()
+
     class Meta:
-        model = HistoriqueAttribut
-        fields = '__all__'
+        model = Zone
+        geo_field = 'geom'
+        fields = (
+            'id_zone',
+            'nom_zone',
+            'etat',
+            'date_debut',
+            'date_cloture',
+            'id_user_creat',
+            'id_user_cloture',
+            'geometry_geojson',
+        )
+
+    def get_geometry_geojson(self, obj):
+        if obj.geom is None:
+            return None
+        try:
+            return json.loads(obj.geom.json)
+        except AttributeError:
+            return None
+        except json.JSONDecodeError:
+            return None
 
 
-class HistoriqueMobileSerializer(StrictModelSerializer):
+class ZoneUtilisateurSerializer(StrictModelSerializer):
     class Meta:
-        model = HistoriqueMobile
+        model = ZoneUtilisateur
         fields = '__all__'
 
 
-class MobileHistoryAttributeUploadSerializer(serializers.Serializer):
-    sync_uuid = serializers.CharField(max_length=64)
-    id_historique_local = serializers.IntegerField(required=False, allow_null=True)
-    id_objet = serializers.IntegerField(required=False, allow_null=True)
-    cle_ligne = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    uuid_objet = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nom_schema = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nom_table = serializers.CharField(max_length=100)
-    nom_classe = serializers.CharField(max_length=100)
-    nom_attribut = serializers.CharField(max_length=100)
-    ancienne_valeur = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nouvelle_valeur = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    date_action = serializers.DateTimeField()
-    id_agent = serializers.IntegerField(required=False, allow_null=True)
-    type_action = serializers.CharField(max_length=50)
-
-
-class MobileHistoryEventUploadSerializer(serializers.Serializer):
-    sync_uuid = serializers.CharField(max_length=64)
-    id_evenement_local = serializers.IntegerField(required=False, allow_null=True)
-    type_evenement = serializers.CharField(max_length=100)
-    nom_schema = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nom_table = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    cle_ligne = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    uuid_objet = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    id_objet = serializers.IntegerField(required=False, allow_null=True)
-    id_agent = serializers.IntegerField(required=False, allow_null=True)
-    payload_json = serializers.JSONField(required=False, allow_null=True)
-    date_action = serializers.DateTimeField()
-
-
-class MobileHistoryUploadSerializer(serializers.Serializer):
-    attributes = MobileHistoryAttributeUploadSerializer(many=True, required=False, default=list)
-    events = MobileHistoryEventUploadSerializer(many=True, required=False, default=list)
-
-    def validate(self, attrs):
-        if not attrs.get('attributes') and not attrs.get('events'):
-            raise serializers.ValidationError(
-                'Le journal local doit contenir au moins une entrée.'
-            )
-        return attrs
+class HistoriqueActionSerializer(StrictModelSerializer):
+    class Meta:
+        model = HistoriqueAction
+        fields = '__all__'
 
 
 class ObjetIncompletSerializer(StrictModelSerializer):
+    allowed_statuses = {'A_COMPLETER', 'COMPLETE'}
+
     class Meta:
         model = ObjetIncomplet
         fields = '__all__'
 
+    def validate_statut(self, value):
+        if value in (None, ''):
+            return 'A_COMPLETER'
+        normalized = str(value).strip().upper()
+        if normalized not in self.allowed_statuses:
+            raise serializers.ValidationError(
+                "Statut attendu: A_COMPLETER ou COMPLETE"
+            )
+        return normalized
 
-class FondDePlanSerializer(StrictModelSerializer):
-    class Meta:
-        model = FondDePlan
-        fields = '__all__'
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        has_incoming_status = 'statut' in attrs
+        statut = attrs.get('statut')
+        if statut in (None, ''):
+            statut = getattr(self.instance, 'statut', None) or 'A_COMPLETER'
+            if self.instance is None:
+                attrs['statut'] = statut
+        if self.instance is None and attrs.get('date_signalement') is None:
+            attrs['date_signalement'] = timezone.localtime(timezone.now())
+        if (
+            statut == 'COMPLETE'
+            and has_incoming_status
+            and attrs.get('date_completion') is None
+            and getattr(self.instance, 'date_completion', None) is None
+        ):
+            attrs['date_completion'] = timezone.localtime(timezone.now())
+        if statut == 'A_COMPLETER' and has_incoming_status:
+            attrs['date_completion'] = None
+            attrs['id_agent_completement'] = None
+        return attrs
 
-
-class EvaluationAgentSerializer(StrictModelSerializer):
-    class Meta:
-        model = EvaluationAgent
-        fields = '__all__'
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if validated_data:
+            instance.save(update_fields=list(validated_data.keys()))
+        return instance
 
 
 class SrmFieldOptionSerializer(StrictModelSerializer):
@@ -494,21 +623,20 @@ class SrmFieldOptionSerializer(StrictModelSerializer):
         fields = '__all__'
 
 
-class BasemapZoneGeoSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = BasemapZone
-        geo_field = 'geom'
-        id_field = 'zone_id'
-        fields = '__all__'
-
-
-class BasemapZoneCatalogSerializer(StrictModelSerializer):
+class ZoneBasemapCatalogSerializer(StrictModelSerializer):
+    zone_id = serializers.SerializerMethodField()
+    city_slug = serializers.SerializerMethodField()
+    nom = serializers.SerializerMethodField()
     bbox = serializers.SerializerMethodField()
     center = serializers.SerializerMethodField()
     geometry = serializers.SerializerMethodField()
+    min_zoom = serializers.SerializerMethodField()
+    max_zoom = serializers.SerializerMethodField()
+    actif = serializers.SerializerMethodField()
+    metadata_json = serializers.SerializerMethodField()
 
     class Meta:
-        model = BasemapZone
+        model = Zone
         fields = (
             'zone_id',
             'city_slug',
@@ -520,36 +648,80 @@ class BasemapZoneCatalogSerializer(StrictModelSerializer):
             'max_zoom',
             'actif',
             'metadata_json',
-            'created_at',
-            'updated_at',
         )
 
+    def get_zone_id(self, obj):
+        return f'zone_{obj.id_zone}'
+
+    def get_city_slug(self, obj):
+        return 'oujda'
+
+    def get_nom(self, obj):
+        return obj.nom_zone
+
+    def _geom_4326(self, obj):
+        if obj.geom is None:
+            return None
+        geom = obj.geom
+        try:
+            geom = geom.clone()
+            geom.transform(4326)
+            return geom
+        except Exception:
+            return None
+
     def get_bbox(self, obj):
+        geom = self._geom_4326(obj)
+        if geom is None:
+            return {'west': 0, 'south': 0, 'east': 0, 'north': 0}
+        extent = geom.extent
         return {
-            'west': obj.bbox_west,
-            'south': obj.bbox_south,
-            'east': obj.bbox_east,
-            'north': obj.bbox_north,
+            'west': extent[0],
+            'south': extent[1],
+            'east': extent[2],
+            'north': extent[3],
         }
 
     def get_center(self, obj):
+        geom = self._geom_4326(obj)
+        if geom is None:
+            return {'latitude': 0, 'longitude': 0}
+        center = geom.point_on_surface
         return {
-            'latitude': obj.center_latitude,
-            'longitude': obj.center_longitude,
+            'latitude': center.y,
+            'longitude': center.x,
         }
 
     def get_geometry(self, obj):
-        if obj.geom is None:
+        geom = self._geom_4326(obj)
+        if geom is None:
             return None
         try:
-            return json.loads(obj.geom.json)
+            return json.loads(geom.json)
         except AttributeError:
             return None
         except json.JSONDecodeError:
             return None
 
+    def get_min_zoom(self, obj):
+        return 11
+
+    def get_max_zoom(self, obj):
+        return 19
+
+    def get_actif(self, obj):
+        return (obj.etat or 'active') == 'active'
+
+    def get_metadata_json(self, obj):
+        return {
+            'source': 'public.zone',
+            'id_zone': obj.id_zone,
+            'nom_zone': obj.nom_zone,
+        }
+
 
 class BasemapPackageSerializer(StrictModelSerializer):
+    zone_id = serializers.SerializerMethodField()
     download_url = serializers.SerializerMethodField()
     file_available = serializers.SerializerMethodField()
 
@@ -557,6 +729,7 @@ class BasemapPackageSerializer(StrictModelSerializer):
         model = BasemapPackage
         fields = (
             'id_package',
+            'id_zone',
             'zone_id',
             'city_slug',
             'style',
@@ -580,6 +753,9 @@ class BasemapPackageSerializer(StrictModelSerializer):
             'download_url',
             'file_available',
         )
+
+    def get_zone_id(self, obj):
+        return f'zone_{obj.id_zone}'
 
     def get_download_url(self, obj):
         request = self.context.get('request')
@@ -617,6 +793,24 @@ class MetricAgentMoisSerializer(StrictModelSerializer):
         fields = '__all__'
 
 
+class MetricAgentTablePeriodSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentTablePeriod
+        fields = '__all__'
+
+
+class MetricAgentPeriodSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentPeriod
+        fields = '__all__'
+
+
+class MetricAgentResumeSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentResume
+        fields = '__all__'
+
+
 class MetricAgentPublicJourSerializer(StrictModelSerializer):
     class Meta:
         model = MetricAgentPublicJour
@@ -638,30 +832,6 @@ class MetricAgentPublicMoisSerializer(StrictModelSerializer):
 class MetricAgentPublicResumeSerializer(StrictModelSerializer):
     class Meta:
         model = MetricAgentPublicResume
-        fields = '__all__'
-
-
-class MetricProjetJourSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetJour
-        fields = '__all__'
-
-
-class MetricProjetSemaineSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetSemaine
-        fields = '__all__'
-
-
-class MetricProjetMoisSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetMois
-        fields = '__all__'
-
-
-class MetricProjetResumeSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetResume
         fields = '__all__'
 
 

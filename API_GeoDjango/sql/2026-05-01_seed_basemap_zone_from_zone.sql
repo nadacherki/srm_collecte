@@ -1,0 +1,2 @@
+-- Obsolete: public.basemap_zone a ete supprimee.
+-- public.basemap_package reference directement public.zone(id_zone).

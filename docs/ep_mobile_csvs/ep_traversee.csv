@@ -1,0 +1,36 @@
+﻿nom_du_champ,type,titre_mobile,obligatoire,valeur_par_defaut,reference_autre_table,liste_de_choix,remarque_metier
+type_traver,varchar(400),Type traverssé,non,,,Route (Route) | Oued (Oued) | Voie (Voie) | CHAABA (Chaaba),Mode de remplissage: saisie agent mobile
+ep_diam,varchar(400),Diamètre,non,,,1000 (1000) | 800 (800) | 700 (700) | 600 (600) | 500 (500) | 400 (400) | 350 (350) | 315 (315) | 300 (300) | 250 (250) | 225 (225) | 200 (200) | 160 (160) | 150 (150) | 125 (125) | 110 (110) | 100 (100) | 90 (90) | 80 (80) | 75 (75) | 63 (63) | 60 (60) | 40 (40) | 50 (50) | 32 (32),Mode de remplissage: saisie agent mobile
+ep_mat,varchar(400),Matériau,non,,,Acier (AC) | Amiante Ciment (AMC) | Beton (BE) | Beton précontraint (BEP) | Fonte (FO) | Fonte Ductile (FOD) | Fonte grise (FOG) | Plomb (PB) | PVC (PVC) | Polyethylene (PE) | Indéfini (IN) | BVA (BVA) | CAO (CAO) | POLYPROBELENE (PP) | POLYPROBELENE2 (PEHD) | BETON ARME (BETON ARME) | Inconnu (INC),Mode de remplissage: saisie agent mobile
+ep_profondeur,float8,Profondeur,non,,,,Mode de remplissage: saisie agent mobile
+ep_classe_conduite,varchar(400),Ep Classe,non,,,PN6 (PN6) | PN10 (PN10) | PN16 (PN16) | PN25 (PN25) | (Inconnue),Mode de remplissage: saisie agent mobile | Note: facultative
+ep_ref_rue,varchar(400),Référence rue,non,,,,Mode de remplissage: saisie agent mobile
+ep_observ,varchar(400),Observation,non,,,,Mode de remplissage: saisie agent mobile
+ep_conf_plan,varchar(400),Conformité des plans,non,,,Conforme aux plan (Conforme aux plan) | Objet découvrt sur terrain (Objet découvrt sur terrain) | Objet non trouvé sur le terrain (Objet non trouvé sur le terrain),Mode de remplissage: saisie agent mobile
+ep_observation,varchar(400),Observation,non,,,,Mode de remplissage: saisie agent mobile
+ep_anomalie,varchar(400),Anomalie,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Valeur attendue: oui ou non
+nom_obstac,varchar(400),Nom Obstacle,non,,,(Nom_route),Mode de remplissage: saisie agent mobile
+type_prot,varchar(400),Type protection,non,,,Fourreau (Fourreau) | Béton (Béton) | Aucun (Aucun),Mode de remplissage: saisie agent mobile
+mode_localisation,varchar(400),Mode localisation,non,,,Levé topographique (Levé topographique) | Triangulé (Triangulé) | Schématique (Schématique) | Indéterminé (Indéterminé),Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+fid,serial (PK),Identifiant unique (PK),non,nextval('ep.ep_traversee_fid_seq'),,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+uuid,varchar(254),Identifiant unique universel,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_date_insertion,date,Date D'Insertion Sur Elex,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_long_r,float8,Longueur réelle,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_photo,varchar(400),Photo,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+geom,geometry,Géométrie PostGIS,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_commune,int4,FK commune,non,,-> public.commune.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_province,int4,FK province,non,,-> public.province.fid,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_creat,int4,FK utilisateur créateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+id_user_modif,int4,FK utilisateur modificateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_creation,timestamptz,Date/heure de création,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_modif,timestamptz,Date/heure dernière modification,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_deleted,bool,Suppression logique,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+is_validated,bool,Validation exploitant,non,False,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source | Description: Validation exploitant
+id_user_valid,int4,FK utilisateur validateur,non,,-> public.utilisateur.id_user,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+date_validation,timestamp,Date/heure validation,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_adresse,varchar(400),Adresse,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_secteur_com,varchar(400),Secteur commercial,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_agent_maj,varchar(400),Dernier intervenant SIG,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_statut,varchar(400),Statut de la conduite,non,,,EP_POSE (EP_POSE) | (EP_REHABILITE) | EP_EXISTANT (EP_EXISTANT) | EP_PROJETE (EP_PROJETE) | EP_A REHABILITE (EP_A REHABI) | EP_EN COURS (EP_EN COURSS) | EP_A RESILISER (EP_A RESILISE),Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+ep_agent_crea,varchar(400),Agent de création SIG,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source
+sec_com,varchar(400),Sec Com,non,,,,Mode de remplissage: pre-rempli / automatique / relation spatiale selon le code couleur source

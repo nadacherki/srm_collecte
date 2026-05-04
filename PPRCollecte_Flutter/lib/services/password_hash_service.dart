@@ -28,7 +28,6 @@ class PasswordHashService {
 
   static bool looksLikePasswordHash(String value) {
     final normalized = value.trim().toLowerCase();
-    return normalized.startsWith(r'$argon2') ||
-        normalized.startsWith('argon2');
+    return normalized.startsWith(r'$argon2') || normalized.startsWith('argon2');
   }
 }

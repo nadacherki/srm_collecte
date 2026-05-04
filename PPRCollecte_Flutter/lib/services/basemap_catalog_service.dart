@@ -4,6 +4,8 @@ import 'offline_basemap_service.dart';
 
 class BasemapCatalogService {
   final DatabaseHelper _db;
+  static const String _networkInterruptedMessage =
+      'Connexion interrompue pendant le telechargement des cartes offline.';
 
   BasemapCatalogService({DatabaseHelper? databaseHelper})
       : _db = databaseHelper ?? DatabaseHelper();
@@ -97,7 +99,11 @@ class BasemapCatalogService {
       } else {
         failedCount++;
         final zoneId = packageRow['zone_id']?.toString() ?? 'zone inconnue';
-        final error = result.errorMessage ?? result.userMessage ?? 'échec inconnu';
+        final error =
+            result.errorMessage ?? result.userMessage ?? 'échec inconnu';
+        if (_isNetworkFailure(error)) {
+          throw Exception(_networkInterruptedMessage);
+        }
         errors.add('$zoneId: $error');
       }
     }
@@ -119,7 +125,9 @@ class BasemapCatalogService {
     for (final packageRow in packages) {
       final zoneId = packageRow['zone_id']?.toString().trim();
       if (zoneId == null || zoneId.isEmpty) continue;
-      grouped.putIfAbsent(zoneId, () => <Map<String, dynamic>>[]).add(packageRow);
+      grouped
+          .putIfAbsent(zoneId, () => <Map<String, dynamic>>[])
+          .add(packageRow);
     }
 
     final selected = <Map<String, dynamic>>[];
@@ -171,5 +179,24 @@ class BasemapCatalogService {
     if (format == 'pmtiles') return 0;
     if (format == 'mbtiles') return 1;
     return 2;
+  }
+
+  bool _isNetworkFailure(Object error) {
+    final value = error.toString().toLowerCase();
+    return value.contains('connexion interrompue') ||
+        value.contains('erreur reseau') ||
+        value.contains('erreur réseau') ||
+        value.contains('erreur rã') ||
+        value.contains('timeout') ||
+        value.contains('socketexception') ||
+        value.contains('clientexception') ||
+        value.contains('failed host lookup') ||
+        value.contains('connection refused') ||
+        value.contains('connection reset') ||
+        value.contains('connection closed') ||
+        value.contains('network is unreachable') ||
+        value.contains('no route to host') ||
+        value.contains('software caused connection abort') ||
+        value.contains('broken pipe');
   }
 }

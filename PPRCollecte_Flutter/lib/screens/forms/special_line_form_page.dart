@@ -3,7 +3,6 @@ import 'package:latlong2/latlong.dart';
 
 import '../../data/local/database_helper.dart';
 import '../../data/local/line_storage_helper.dart';
-import '../../data/remote/api_service.dart';
 
 class SpecialLineFormPage extends StatefulWidget {
   final List<LatLng> linePoints;
@@ -53,8 +52,7 @@ class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
 
   List<String> get _typeOptions => _isBac ? _bacTypes : _submersibleTypes;
 
-  String get _tableName =>
-      _isBac ? 'bacs' : 'passages_submersibles';
+  String get _tableName => _isBac ? 'bacs' : 'passages_submersibles';
 
   @override
   void initState() {
@@ -121,7 +119,6 @@ class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
         'date_creation': now,
         'id_agent_crea': loginId,
         'login_id': loginId,
-        'id_projet': ApiService.currentProjetId,
         'synced': 0,
         'downloaded': 0,
       };
@@ -173,8 +170,7 @@ class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Abandonner la saisie ?'),
-        content:
-            const Text('Les données non sauvegardées seront perdues.'),
+        content: const Text('Les données non sauvegardées seront perdues.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -232,7 +228,7 @@ class _SpecialLineFormPageState extends State<SpecialLineFormPage> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedTypeValue,
+              initialValue: _selectedTypeValue,
               items: _typeOptions
                   .map(
                     (value) => DropdownMenuItem<String>(

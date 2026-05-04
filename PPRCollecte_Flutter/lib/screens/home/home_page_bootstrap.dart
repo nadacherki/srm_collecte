@@ -7,15 +7,15 @@ Future<void> _checkPausedCollectionDraftImpl(_HomePageState state) async {
   final type = draft['collectionType'] as String? ?? '?';
   final nbPoints = (draft['points'] as List?)?.length ?? 0;
   final pausedAt = draft['pausedAt'] as String?;
-  final timeAgo = pausedAt != null
-      ? CollectionManager.pauseTimeAgo(pausedAt)
-      : '?';
+  final timeAgo =
+      pausedAt != null ? CollectionManager.pauseTimeAgo(pausedAt) : '?';
 
   final shouldRestore = await showDialog<bool>(
     context: state.context,
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
-      icon: const Icon(Icons.pause_circle_filled, color: Colors.orange, size: 36),
+      icon:
+          const Icon(Icons.pause_circle_filled, color: Colors.orange, size: 36),
       title: const Text('Collecte en pause'),
       content: Text(
         'Une collecte de $type avec $nbPoints points a été '
@@ -260,14 +260,10 @@ double? _asDoubleOrNullImpl(dynamic value) {
 
 Future<void> _loadAdminNamesOfflineImpl(_HomePageState state) async {
   try {
-    final projetRegion =
-        (ApiService.currentProjetRegion ?? '').toString().trim();
-    final projetNom = (ApiService.currentProjetNom ?? '').toString().trim();
-
     if (!state.mounted) return;
     state._setStateFromPart(() {
-      state._regionNom = projetRegion.isNotEmpty ? projetRegion : '----';
-      state._prefectureNom = projetNom.isNotEmpty ? projetNom : '----';
+      state._regionNom = '----';
+      state._prefectureNom = '----';
       state._communeNom = '----';
     });
   } catch (_) {
@@ -294,7 +290,8 @@ Future<void> _checkOnlineStatusImpl(_HomePageState state) async {
   await _applyOnlineStatusImpl(state, reachable);
 }
 
-Future<bool> _refreshOnlineStatusForNetworkActionImpl(_HomePageState state) async {
+Future<bool> _refreshOnlineStatusForNetworkActionImpl(
+    _HomePageState state) async {
   final reachable = await _isApiReachableForStatusImpl();
   await _applyOnlineStatusImpl(state, reachable);
   return reachable;
@@ -332,25 +329,9 @@ Future<void> _restoreApiServiceFromLocalImpl(_HomePageState state) async {
         : int.tryParse(user['id_user']?.toString() ?? '');
     ApiService.userRole = user['role']?.toString();
     ApiService.userLogin = user['login']?.toString();
-    ApiService.nomPrenom = user['nom_prenom']?.toString();
-
-    final idProjetActif = user['id_projet_actif'];
-    if (idProjetActif != null && ApiService.currentProjetId == null) {
-      ApiService.currentProjetId = idProjetActif is int
-          ? idProjetActif
-          : int.tryParse(idProjetActif.toString());
-
-      if (ApiService.currentProjetId != null) {
-        final projet = await DatabaseHelper()
-            .getProjetLocal(ApiService.currentProjetId!);
-        if (projet != null) {
-          ApiService.currentProjetNom = projet['nom']?.toString();
-          ApiService.currentProjetStatut = projet['statut']?.toString();
-          ApiService.currentProjetMetier = projet['metier']?.toString();
-          ApiService.currentProjetRegion = projet['region']?.toString();
-        }
-      }
-    }
+    ApiService.userNom = user['nom']?.toString();
+    ApiService.userPrenom = user['prenom']?.toString();
+    ApiService.nomPrenom = DatabaseHelper.fullNameFromUserRow(user);
   } catch (_) {
     // Échec silencieux : on retentera au prochain retour en ligne.
   }
@@ -364,12 +345,14 @@ Future<void> _autoStartNmeaBridgeIfConfiguredImpl(_HomePageState state) async {
     final bridge = NmeaBridgeService();
     final status = await bridge.getStatus();
     if (!status.mockLocationSelected) {
-      print('[NMEA] Auto-connect ignore: SRM Collecte non selectionnee en position fictive');
+      debugPrint(
+          '[NMEA] Auto-connect ignore: SRM Collecte non selectionnee en position fictive');
       return;
     }
 
     if (!_isNmeaBridgeDisconnectedStatus(status.status)) {
-      print('[NMEA] Auto-connect ignore: pont deja actif (${status.status})');
+      debugPrint(
+          '[NMEA] Auto-connect ignore: pont deja actif (${status.status})');
       state.homeController.markNmeaBridgePending(
         deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
         bridgeStatus: status.status,
@@ -386,23 +369,24 @@ Future<void> _autoStartNmeaBridgeIfConfiguredImpl(_HomePageState state) async {
 
     final permissionsOk = await _ensureNmeaBluetoothPermissionsImpl();
     if (!permissionsOk) {
-      print('[NMEA] Auto-connect ignore: permissions Bluetooth non accordees');
+      debugPrint(
+          '[NMEA] Auto-connect ignore: permissions Bluetooth non accordees');
       return;
     }
 
     final device = await bridge.resolveAutoConnectDevice();
     if (device == null) {
-      print('[NMEA] Auto-connect ignore: aucun GNSS appaire reconnu');
+      debugPrint('[NMEA] Auto-connect ignore: aucun GNSS appaire reconnu');
       return;
     }
 
     await bridge.connectBluetooth(device.address);
-    print('[NMEA] Auto-connect lance vers ${device.label}');
+    debugPrint('[NMEA] Auto-connect lance vers ${device.label}');
     state.homeController.markNmeaBridgePending(deviceLabel: device.label);
     _startNmeaBridgeWatchImpl(state);
     unawaited(_centerOnNmeaFirstFixImpl(state, bridge));
   } catch (e) {
-    print('[NMEA] Auto-connect echec: $e');
+    debugPrint('[NMEA] Auto-connect echec: $e');
   }
 }
 
@@ -438,7 +422,7 @@ void _startNmeaBridgeWatchImpl(_HomePageState state) {
           );
         }
       } catch (e) {
-        print('[NMEA] Suivi pont GNSS ignore: $e');
+        debugPrint('[NMEA] Suivi pont GNSS ignore: $e');
       }
     },
   );
@@ -461,13 +445,14 @@ Future<void> _centerOnNmeaFirstFixImpl(
         return;
       }
     } catch (e) {
-      print('[NMEA] Attente premier fix GNSS: $e');
+      debugPrint('[NMEA] Attente premier fix GNSS: $e');
     }
 
     await Future.delayed(retryDelay);
   }
 
-  print('[NMEA] Aucun fix GNSS exploitable recu pour recentrage automatique');
+  debugPrint(
+      '[NMEA] Aucun fix GNSS exploitable recu pour recentrage automatique');
 }
 
 bool _applyNmeaBridgeFixToMapImpl(
@@ -504,8 +489,8 @@ bool _applyNmeaBridgeFixToMapImpl(
   final nmea = nativeLocation?['nmea']?.toString() ?? status.lastNmea;
   final bluetoothName =
       nativeLocation?['bluetoothName']?.toString() ?? status.bluetoothName;
-  final bluetoothAddress =
-      nativeLocation?['bluetoothAddress']?.toString() ?? status.bluetoothAddress;
+  final bluetoothAddress = nativeLocation?['bluetoothAddress']?.toString() ??
+      status.bluetoothAddress;
   final target = LatLng(nativeLat, nativeLon);
 
   state.homeController.applyNmeaBridgeLocation(
@@ -531,7 +516,8 @@ bool _applyNmeaBridgeFixToMapImpl(
       state._mapController!.move(target, 17);
       state._lastCameraPosition = target;
     }
-    print('[NMEA] Carte recentree sur fix GNSS externe source=nmea_bridge');
+    debugPrint(
+        '[NMEA] Carte recentree sur fix GNSS externe source=nmea_bridge');
   }
   return true;
 }

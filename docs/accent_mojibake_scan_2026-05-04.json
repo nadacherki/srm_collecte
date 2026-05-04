@@ -1,0 +1,86 @@
+{
+  "SRM": {
+    "server_encoding": "UTF8",
+    "client_encoding": "UTF8",
+    "matches": [
+      {
+        "schema": "ep",
+        "table": "vanne",
+        "column": "ep_etat",
+        "type": "character varying",
+        "count": 1,
+        "samples": [
+          ".?"
+        ]
+      },
+      {
+        "schema": "public",
+        "table": "historique_attribut",
+        "column": "nouvelle_valeur",
+        "type": "text",
+        "count": 1,
+        "samples": [
+          ".?"
+        ]
+      },
+      {
+        "schema": "public",
+        "table": "historique_mobile",
+        "column": "nouvelle_valeur",
+        "type": "text",
+        "count": 2,
+        "samples": [
+          ".?",
+          ".?"
+        ]
+      },
+      {
+        "schema": "public",
+        "table": "vw_srm_historique_fact",
+        "column": "nouvelle_valeur",
+        "type": "text",
+        "count": 1,
+        "samples": [
+          ".?"
+        ]
+      },
+      {
+        "schema": "public",
+        "table": "vw_srm_historique_mobile_fact",
+        "column": "nouvelle_valeur",
+        "type": "text",
+        "count": 2,
+        "samples": [
+          ".?",
+          ".?"
+        ]
+      }
+    ]
+  },
+  "SRM_bureau": {
+    "server_encoding": "UTF8",
+    "client_encoding": "UTF8",
+    "matches": [
+      {
+        "schema": "ep",
+        "table": "ep_regard",
+        "column": "ep_observation",
+        "type": "character varying",
+        "count": 1,
+        "samples": [
+          "Puisard construit côte haut ??"
+        ]
+      },
+      {
+        "schema": "ep",
+        "table": "onep_db",
+        "column": "adresse postale client payeur",
+        "type": "character varying",
+        "count": 1,
+        "samples": [
+          "ISLY null APP 19? IMM K CITE DU 6°G.M."
+        ]
+      }
+    ]
+  }
+}

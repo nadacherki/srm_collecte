@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
@@ -18,16 +19,35 @@ class SyncResult {
   int photoSuccessCount = 0;
   int failedCount = 0;
   int skippedCount = 0;
+  bool interrupted = false;
+  String? interruptionMessage;
   final List<String> errors = [];
   final List<String> warnings = [];
 
   int get warningCount => warnings.length;
   int get displaySuccessCount => entitySuccessCount;
 
+  void stopForInterruption(String message) {
+    interrupted = true;
+    interruptionMessage = message;
+    if (!errors.contains(message)) {
+      errors.add(message);
+    }
+  }
+
   @override
   String toString() =>
       'Synchronisation: $displaySuccessCount succès, $failedCount échecs, '
       '$skippedCount ignorés, $warningCount avertissements';
+}
+
+class DownloadInterruptedException implements Exception {
+  final String message;
+
+  const DownloadInterruptedException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 class _TableInfo {
@@ -50,22 +70,28 @@ class _TableInfo {
 
 class SyncService {
   final DatabaseHelper dbHelper = DatabaseHelper();
+  final Map<String, int> _serverIdsByLocalObjectKey = {};
+  static const String _downloadInterruptedMessage =
+      'Connexion interrompue. Le telechargement a ete arrete. Verifiez Internet puis relancez pour reprendre.';
 
   Future<SyncResult> downloadAllData({
     Function(double, String, int, int)? onProgress,
   }) async {
     final tables = _collectSrmTables();
     final result = SyncResult();
-    final total = tables.isEmpty ? 1 : tables.length + 1;
+    final total = tables.length + 2;
     final nowIso = DateTime.now().toIso8601String();
     final downloadStartedAt = DateTime.now().toUtc();
     final updatedAfter = await dbHelper.getLastDownloadTime();
 
-    await _ensureBasemapCoverageForDownload(
+    final canContinueAfterBasemap = await _ensureBasemapCoverageForDownload(
       result: result,
       onProgress: onProgress,
       total: total,
     );
+    if (!canContinueAfterBasemap || result.interrupted) {
+      return result;
+    }
 
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
@@ -83,15 +109,13 @@ class SyncService {
           : DateTime.tryParse(statusUpdatedAfterRaw);
       final lastTableDownload =
           await dbHelper.getLastDownloadTimeForTable(info.table);
-      final tableUpdatedAfter =
-          (canResumeTable ? statusUpdatedAfter : null) ??
+      final tableUpdatedAfter = (canResumeTable ? statusUpdatedAfter : null) ??
           lastTableDownload ??
           updatedAfter;
       final updatedAfterIso =
           tableUpdatedAfter?.toUtc().toIso8601String() ?? '';
-      var nextPage = canResumeTable
-          ? (_asIntOrNull(tableStatus?['next_page']) ?? 1)
-          : 1;
+      var nextPage =
+          canResumeTable ? (_asIntOrNull(tableStatus?['next_page']) ?? 1) : 1;
       if (nextPage < 1) {
         nextPage = 1;
       }
@@ -148,11 +172,8 @@ class SyncService {
             }
 
             map.remove('id');
-            if (ApiService.currentProjetId != null &&
-                (map['id_projet'] == null ||
-                    map['id_projet'].toString().trim().isEmpty)) {
-              map['id_projet'] = ApiService.currentProjetId;
-            }
+            map.remove('id_projet');
+            map.remove('id_mission');
             map['downloaded'] = 1;
             map['synced'] = 1;
             map['date_sync'] = nowIso;
@@ -192,16 +213,28 @@ class SyncService {
           downloadedCount: downloadedForTable,
         );
       } catch (e) {
+        final message = _short(e);
         await dbHelper.saveDownloadTableStatus(
           info.table,
           status: 'failed',
           downloadedCount: downloadedForTable,
           nextPage: nextPage,
           updatedAfter: updatedAfterIso,
-          error: _short(e),
+          error: message,
         );
+        if (_isNetworkInterruption(e)) {
+          result.failedCount++;
+          result.stopForInterruption(_downloadInterruptedMessage);
+          onProgress?.call(
+            (current - 1) / total,
+            'Telechargement arrete - connexion interrompue',
+            current - 1,
+            total,
+          );
+          return result;
+        }
         result.failedCount++;
-        result.errors.add('Telechargement ${info.table}: ${_short(e)}');
+        result.errors.add('Telechargement ${info.table}: $message');
       }
 
       onProgress?.call(
@@ -210,6 +243,18 @@ class SyncService {
         current,
         total,
       );
+    }
+
+    await _downloadTerrainInterventions(
+      result: result,
+      onProgress: onProgress,
+      current: tables.length + 2,
+      total: total,
+      updatedAfterFallback: updatedAfter,
+      nowIso: nowIso,
+    );
+    if (result.interrupted) {
+      return result;
     }
 
     await refreshEpRegardMiroirCache(result: result);
@@ -221,7 +266,7 @@ class SyncService {
     return result;
   }
 
-  Future<void> _ensureBasemapCoverageForDownload({
+  Future<bool> _ensureBasemapCoverageForDownload({
     required SyncResult result,
     required Function(double, String, int, int)? onProgress,
     required int total,
@@ -234,7 +279,8 @@ class SyncService {
     );
 
     try {
-      final payload = await BasemapCatalogService().ensureGlobalCoverageDownloaded(
+      final payload =
+          await BasemapCatalogService().ensureGlobalCoverageDownloaded(
         citySlug: BasemapConstants.catalogCitySlug,
       );
       final failed = _asIntOrNull(payload['mobile_failed_count']) ?? 0;
@@ -243,10 +289,22 @@ class SyncService {
       final available =
           _asIntOrNull(payload['mobile_already_available_count']) ?? 0;
       if (failed > 0) {
+        final errors = payload['mobile_errors'];
+        if (errors is List &&
+            errors.any((error) => _isNetworkInterruption(error))) {
+          result.failedCount++;
+          result.stopForInterruption(_downloadInterruptedMessage);
+          onProgress?.call(
+            0,
+            'Telechargement arrete - connexion interrompue',
+            0,
+            total,
+          );
+          return false;
+        }
         result.warnings.add(
           'Cartes offline partielles: $failed/$selected package(s) restent a telecharger.',
         );
-        final errors = payload['mobile_errors'];
         if (errors is List) {
           for (final error in errors.take(3)) {
             final text = error.toString().trim();
@@ -261,6 +319,17 @@ class SyncService {
         );
       }
     } catch (e) {
+      if (_isNetworkInterruption(e)) {
+        result.failedCount++;
+        result.stopForInterruption(_downloadInterruptedMessage);
+        onProgress?.call(
+          0,
+          'Telechargement arrete - connexion interrompue',
+          0,
+          total,
+        );
+        return false;
+      }
       result.warnings.add(
         'Cartes offline non mises a jour: ${_short(e)}',
       );
@@ -270,6 +339,77 @@ class SyncService {
       1 / total,
       'Cartes offline verifiees',
       1,
+      total,
+    );
+    return true;
+  }
+
+  Future<void> _downloadTerrainInterventions({
+    required SyncResult result,
+    required Function(double, String, int, int)? onProgress,
+    required int current,
+    required int total,
+    required DateTime? updatedAfterFallback,
+    required String nowIso,
+  }) async {
+    const tableName = 'intervention_anomalie';
+    final startedAt = DateTime.now().toUtc();
+    final updatedAfter =
+        await dbHelper.getLastDownloadTimeForTable(tableName) ??
+            updatedAfterFallback;
+
+    onProgress?.call(
+      (current - 1) / total,
+      'Telechargement anomalies terrain',
+      current - 1,
+      total,
+    );
+
+    try {
+      final rows = await ApiService.fetchTerrainInterventions(
+        updatedAfter: updatedAfter,
+      );
+      for (final row in rows) {
+        final normalized = Map<String, dynamic>.from(row);
+        normalized['downloaded'] = 1;
+        normalized['synced'] = 1;
+        normalized['date_sync'] = nowIso;
+        await dbHelper.upsertDownloadedInterventionAnomalieTerrain(normalized);
+        result.successCount++;
+        result.entitySuccessCount++;
+      }
+      await dbHelper.saveLastDownloadTimeForTable(tableName, startedAt);
+      await dbHelper.saveDownloadTableStatus(
+        tableName,
+        status: 'completed',
+        downloadedCount: rows.length,
+      );
+    } catch (e) {
+      final message = _short(e);
+      await dbHelper.saveDownloadTableStatus(
+        tableName,
+        status: 'failed',
+        error: message,
+      );
+      if (_isNetworkInterruption(e)) {
+        result.failedCount++;
+        result.stopForInterruption(_downloadInterruptedMessage);
+        onProgress?.call(
+          (current - 1) / total,
+          'Telechargement arrete - connexion interrompue',
+          current - 1,
+          total,
+        );
+        return;
+      }
+      result.failedCount++;
+      result.errors.add('Telechargement anomalies terrain: $message');
+    }
+
+    onProgress?.call(
+      current / total,
+      'Telechargement anomalies terrain',
+      current,
       total,
     );
   }
@@ -366,16 +506,14 @@ class SyncService {
             expectedUuid: payload['uuid']?.toString(),
             response: response,
           );
+          _rememberServerObjectId(info, row, response);
 
           final localId = _asIntOrNull(row['id']);
           if (localId != null) {
             await dbHelper.updateEntitySrm(
               info.table,
               localId,
-              {
-                'synced': 1,
-                'date_sync': nowIso,
-              },
+              _syncedPatchForResponse(info, response, nowIso),
               recordHistory: true,
             );
           } else {
@@ -405,11 +543,14 @@ class SyncService {
       result,
       syncSessionUuid: syncSessionUuid,
     );
+    await _syncPendingTerrainInterventions(
+      result,
+      syncSessionUuid: syncSessionUuid,
+    );
     await _processPendingPhotoQueue(
       result,
       syncSessionUuid: syncSessionUuid,
     );
-    await _syncLocalHistoryJournal(result);
 
     return result;
   }
@@ -448,7 +589,13 @@ class SyncService {
             .whereType<Map>()
             .map((node) => Map<String, dynamic>.from(node))
             .toList();
-        if (nodes.length < 2) {
+        final realNodeCount = nodes
+            .where(
+              (node) =>
+                  node['separator'] != true && node['type'] != 'separator',
+            )
+            .length;
+        if (realNodeCount < 2) {
           throw Exception('Au moins deux regards sont necessaires');
         }
 
@@ -468,6 +615,54 @@ class SyncService {
       } catch (e) {
         final message = 'Conduite $metier $jourText: ${_short(e)}';
         await dbHelper.markConduiteSyncItemFailed(localId, message);
+        result.failedCount++;
+        result.errors.add(message);
+      }
+    }
+  }
+
+  Future<void> _syncPendingTerrainInterventions(
+    SyncResult result, {
+    String? syncSessionUuid,
+  }) async {
+    final rows = await dbHelper.getUnsyncedInterventionAnomalieTerrain(
+      limit: 1000,
+    );
+    for (final row in rows) {
+      final localId = _asIntOrNull(row['id']);
+      final idIntervention = _asIntOrNull(row['id_intervention']);
+      final etatTerrain = row['etat_terrain']?.toString().trim() ?? '';
+
+      if (localId == null || idIntervention == null || etatTerrain.isEmpty) {
+        if (localId != null) {
+          await dbHelper.markInterventionAnomalieTerrainFailed(
+            localId,
+            'Intervention terrain locale invalide',
+          );
+        }
+        result.failedCount++;
+        continue;
+      }
+
+      try {
+        final response = await ApiService.updateTerrainIntervention(
+          idIntervention: idIntervention,
+          etatTerrain: etatTerrain,
+          commentaireTerrain: row['commentaire_terrain']?.toString(),
+          idUserTerrain:
+              _asIntOrNull(row['id_user_terrain']) ?? ApiService.userId,
+          syncSessionUuid: syncSessionUuid,
+          syncClientItemUuid: _terrainInterventionClientItemUuid(row),
+        );
+        await dbHelper.markInterventionAnomalieTerrainSynced(
+          localId,
+          response,
+        );
+        result.successCount++;
+        result.entitySuccessCount++;
+      } catch (e) {
+        final message = 'Intervention terrain #$idIntervention: ${_short(e)}';
+        await dbHelper.markInterventionAnomalieTerrainFailed(localId, message);
         result.failedCount++;
         result.errors.add(message);
       }
@@ -502,11 +697,8 @@ class SyncService {
         rows.add(row);
       }
 
-      await dbHelper.saveRegardMiroirCache(
-        rows,
-        projetId: ApiService.currentProjetId,
-      );
-      print(
+      await dbHelper.saveRegardMiroirCache(rows);
+      debugPrint(
         '[REGARD-MIROIR] cache maj depuis serveur: ${rows.length}/${remoteItems.length}'
         ' (géométrie ignorée: $skippedWithoutGeometry)',
       );
@@ -538,7 +730,8 @@ class SyncService {
       rows = await dbHelper.getUnsyncedSrm(info.table);
     } catch (e) {
       result.failedCount++;
-      result.errors.add('Sync ${info.table}: lecture impossible - ${_short(e)}');
+      result.errors
+          .add('Sync ${info.table}: lecture impossible - ${_short(e)}');
       onProgress?.call(
         current / total,
         'Synchronisation ${info.geometryLabel} · ${info.endpoint}',
@@ -593,16 +786,14 @@ class SyncService {
           expectedUuid: payload['uuid']?.toString(),
           response: response,
         );
+        _rememberServerObjectId(info, row, response);
 
         final localId = _asIntOrNull(row['id']);
         if (localId != null) {
           await dbHelper.updateEntitySrm(
             info.table,
             localId,
-            {
-              'synced': 1,
-              'date_sync': nowIso,
-            },
+            _syncedPatchForResponse(info, response, nowIso),
             recordHistory: true,
           );
         } else {
@@ -692,6 +883,8 @@ class SyncService {
       final syncUuid = item['sync_uuid']?.toString().trim() ?? '';
       final metier = item['metier']?.toString().trim() ?? 'ep';
       if (syncUuid.isEmpty) continue;
+      final statSchema = _conduiteStatSchemaForMetier(metier);
+      final statTable = _conduiteStatTableName();
 
       final payload = {
         'metier': metier,
@@ -701,17 +894,46 @@ class SyncService {
       };
       items.add({
         'client_item_uuid': syncUuid,
-        'nom_schema': 'public',
-        'nom_table': _conduiteStatTableForMetier(metier),
+        'nom_schema': statSchema,
+        'nom_table': statTable,
         'uuid_objet': syncUuid,
         'local_id': _asIntOrNull(item['id']),
         'operation': 'validate',
         'payload_hash': _hashPayload(payload),
         'payload_summary': {
-          'table': _conduiteStatTableForMetier(metier),
+          'schema': statSchema,
+          'table': statTable,
           'local_id': _asIntOrNull(item['id']),
           'metier': metier,
           'jour': item['jour'],
+        },
+      });
+    }
+
+    final pendingTerrainInterventions =
+        await dbHelper.getUnsyncedInterventionAnomalieTerrain(limit: 10000);
+    for (final item in pendingTerrainInterventions) {
+      final idIntervention = _asIntOrNull(item['id_intervention']);
+      if (idIntervention == null) continue;
+
+      final payload = {
+        'etat_terrain': item['etat_terrain'],
+        'commentaire_terrain': item['commentaire_terrain'],
+        'id_user_terrain': item['id_user_terrain'] ?? ApiService.userId,
+      };
+      items.add({
+        'client_item_uuid': _terrainInterventionClientItemUuid(item),
+        'nom_schema': 'public',
+        'nom_table': 'intervention_anomalie',
+        'uuid_objet': idIntervention.toString(),
+        'local_id': _asIntOrNull(item['id']),
+        'operation': 'terrain_update',
+        'payload_hash': _hashPayload(payload),
+        'payload_summary': {
+          'table': 'intervention_anomalie',
+          'local_id': _asIntOrNull(item['id']),
+          'id_intervention': idIntervention,
+          'etat_terrain': item['etat_terrain'],
         },
       });
     }
@@ -741,7 +963,7 @@ class SyncService {
       return null;
     }
 
-    final syncUuid = Uuid().v4();
+    final syncUuid = const Uuid().v4();
     final response = await ApiService.createSyncManifest(
       syncUuid: syncUuid,
       items: items,
@@ -793,6 +1015,17 @@ class SyncService {
       }
     }
 
+    tables.add(
+      const _TableInfo(
+        metier: 'public',
+        entity: 'objet_incomplet',
+        schema: 'public',
+        table: 'objet_incomplet',
+        endpoint: 'objets-incomplets',
+        geometryLabel: 'Objets incomplets',
+      ),
+    );
+
     return tables;
   }
 
@@ -827,6 +1060,10 @@ class SyncService {
     required String? expectedUuid,
     required dynamic response,
   }) {
+    if (tableName == 'objet_incomplet') {
+      return;
+    }
+
     final cleanExpected = expectedUuid?.trim() ?? '';
     if (cleanExpected.isEmpty) {
       throw Exception('uuid local manquant pour $tableName');
@@ -901,17 +1138,59 @@ class SyncService {
     return endpointMap['$schema/$table'];
   }
 
-  String _conduiteStatTableForMetier(String metier) {
+  String _conduiteStatTableName() {
+    return 'statistique_conduite';
+  }
+
+  String _conduiteStatSchemaForMetier(String metier) {
     final normalized = metier.trim().toLowerCase();
     if (normalized == 'asst' || normalized == 'ass') {
-      return 'conduite_statique_asst';
+      return 'ass';
     }
-    return 'conduite_statistique_ep';
+    return 'ep';
   }
 
   String _short(Object e) {
-    final value = e.toString();
+    if (_isNetworkInterruption(e)) {
+      return _downloadInterruptedMessage;
+    }
+
+    var value = e.toString().trim();
+    value = value
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^SocketException:\s*'), '')
+        .replaceFirst(RegExp(r'^TimeoutException(?: after .*?)?:\s*'), '')
+        .replaceFirst(RegExp(r'^ClientException:\s*'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    if (value.isEmpty) {
+      value = 'Operation impossible.';
+    }
     return value.length > 180 ? value.substring(0, 180) : value;
+  }
+
+  bool _isNetworkInterruption(Object e) {
+    if (e is DownloadInterruptedException) {
+      return true;
+    }
+
+    final value = e.toString().toLowerCase();
+    return value.contains('connexion interrompue') ||
+        value.contains('erreur reseau') ||
+        value.contains('erreur réseau') ||
+        value.contains('erreur rã') ||
+        value.contains('timeout') ||
+        value.contains('socketexception') ||
+        value.contains('clientexception') ||
+        value.contains('failed host lookup') ||
+        value.contains('connection refused') ||
+        value.contains('connection reset') ||
+        value.contains('connection closed') ||
+        value.contains('network is unreachable') ||
+        value.contains('no route to host') ||
+        value.contains('software caused connection abort') ||
+        value.contains('broken pipe');
   }
 
   void _sanitizePayloadForSync(
@@ -928,12 +1207,101 @@ class SyncService {
     payload.remove('photo_4');
     _removeKnownObsoleteKeys(info, payload);
 
+    if (info.schema == 'public' && info.table == 'objet_incomplet') {
+      payload.remove('date_collecte');
+      _normalizeObjetIncompletPayloadForSync(payload);
+      return;
+    }
+
     if (info.schema == 'ep' && info.table == 'regard') {
       _normalizeRegardPayload(payload);
       return;
     }
 
     _normalizeSyncPayload(payload);
+  }
+
+  void _normalizeObjetIncompletPayloadForSync(Map<String, dynamic> payload) {
+    final nomTable = payload['nom_table']?.toString().trim() ?? '';
+    final localIdObjet = _asIntOrNull(payload['id_objet']);
+    if (nomTable.isEmpty || localIdObjet == null) {
+      return;
+    }
+
+    final serverId = _mappedServerObjectId(nomTable, localIdObjet);
+    if (serverId != null) {
+      payload['id_objet'] = serverId;
+    }
+  }
+
+  int? _mappedServerObjectId(String nomTable, int localId) {
+    final direct = _serverIdsByLocalObjectKey['$nomTable:$localId'];
+    if (direct != null) return direct;
+
+    if (nomTable.contains('.')) return null;
+
+    int? match;
+    final suffix = '.$nomTable:$localId';
+    for (final entry in _serverIdsByLocalObjectKey.entries) {
+      if (!entry.key.endsWith(suffix)) continue;
+      if (match != null && match != entry.value) return null;
+      match = entry.value;
+    }
+    return match;
+  }
+
+  void _rememberServerObjectId(
+    _TableInfo info,
+    Map<String, dynamic> row,
+    dynamic response,
+  ) {
+    if (info.schema == 'public' || info.table == 'objet_incomplet') {
+      return;
+    }
+
+    final localId = _asIntOrNull(row['id']);
+    final serverId = _responseServerObjectId(response);
+    if (localId == null || serverId == null) {
+      return;
+    }
+
+    _serverIdsByLocalObjectKey['${info.schema}.${info.table}:$localId'] =
+        serverId;
+  }
+
+  int? _responseServerObjectId(dynamic response) {
+    if (response is! Map) return null;
+    final raw = Map<String, dynamic>.from(response);
+    final featureId = _asIntOrNull(raw['id']);
+    if (featureId != null) return featureId;
+
+    final properties = raw['properties'];
+    if (properties is Map) {
+      return _asIntOrNull(properties['id']);
+    }
+
+    return null;
+  }
+
+  Map<String, dynamic> _syncedPatchForResponse(
+    _TableInfo info,
+    dynamic response,
+    String nowIso,
+  ) {
+    final patch = <String, dynamic>{
+      'synced': 1,
+      'date_sync': nowIso,
+    };
+
+    if (info.schema == 'public' && info.table == 'objet_incomplet') {
+      final normalizedResponse = _normalizeSyncResponseItem(response);
+      final idIncomplet = _asIntOrNull(normalizedResponse?['id_incomplet']);
+      if (idIncomplet != null) {
+        patch['id_incomplet'] = idIncomplet;
+      }
+    }
+
+    return patch;
   }
 
   Future<void> _markRowSyncedByUuid({
@@ -1001,7 +1369,7 @@ class SyncService {
       final localPath = PhotoReferenceService.toLocalFilePath(raw);
       if (!File(localPath).existsSync()) {
         if (!strictMissing) {
-          print('[PHOTO] Photo locale introuvable ignoree au manifest: '
+          debugPrint('[PHOTO] Photo locale introuvable ignoree au manifest: '
               'photo_$slot ($localPath)');
           continue;
         }
@@ -1010,7 +1378,7 @@ class SyncService {
       photos[slot] = localPath;
     }
     if (photos.isNotEmpty) {
-      print('[PHOTO] Photos locales détectées: ${photos.keys.join(',')}');
+      debugPrint('[PHOTO] Photos locales détectées: ${photos.keys.join(',')}');
     }
     return photos;
   }
@@ -1026,15 +1394,13 @@ class SyncService {
     }
 
     for (final entry in localPhotos.entries) {
-      print('[PHOTO] Enqueue ${info.table} uuid=$uuid slot=${entry.key}');
+      debugPrint('[PHOTO] Enqueue ${info.table} uuid=$uuid slot=${entry.key}');
       await dbHelper.enqueuePhotoSyncItem(
         schemaName: info.schema,
         tableName: info.table,
         uuidObjet: uuid,
         photoSlot: entry.key,
         localPath: entry.value,
-        idProjet: _asIntOrNull(row['id_projet']),
-        idMission: _asIntOrNull(row['id_mission']),
         idAgentCrea: _asIntOrNull(row['id_agent_crea']),
       );
     }
@@ -1045,7 +1411,7 @@ class SyncService {
     String? syncSessionUuid,
   }) async {
     final items = await dbHelper.getPendingPhotoSyncItems();
-    print('[PHOTO] Queue pending count=${items.length}');
+    debugPrint('[PHOTO] Queue pending count=${items.length}');
     for (final item in items) {
       final id = _asIntOrNull(item['id']);
       final schemaName = item['schema_name']?.toString().trim() ?? '';
@@ -1068,15 +1434,13 @@ class SyncService {
           throw Exception('Photo locale introuvable: $localPath');
         }
 
-        print('[PHOTO] Upload $tableName uuid=$uuidObjet slot=$photoSlot');
+        debugPrint('[PHOTO] Upload $tableName uuid=$uuidObjet slot=$photoSlot');
         final response = await ApiService.uploadPhoto(
           schemaName: schemaName,
           tableName: tableName,
           uuidObjet: uuidObjet,
           photoSlot: photoSlot,
           localPath: localPath,
-          idProjet: _asIntOrNull(item['id_projet']),
-          idMission: _asIntOrNull(item['id_mission']),
           idAgentCrea: _asIntOrNull(item['id_agent_crea']),
           syncSessionUuid: syncSessionUuid,
         );
@@ -1114,167 +1478,6 @@ class SyncService {
     }
   }
 
-  Future<void> _syncLocalHistoryJournal(SyncResult result) async {
-    await _syncLocalAttributeHistory(result);
-    await _syncLocalEventHistory(result);
-  }
-
-  Future<void> _syncLocalAttributeHistory(SyncResult result) async {
-    final rows = await dbHelper.getPendingLocalAttributeHistory(limit: 500);
-    if (rows.isEmpty) {
-      return;
-    }
-
-    await _syncLocalHistoryChunks(
-      rows: rows,
-      syncLabel: 'historique attributaire local',
-      buildPayload: (row) => _buildAttributeHistoryPayload(row),
-      sendBatch: (chunk) => ApiService.uploadLocalHistory(
-        attributes: chunk,
-        events: const [],
-      ),
-      markSynced: dbHelper.markLocalAttributeHistorySynced,
-      markFailed: dbHelper.markLocalAttributeHistoryFailed,
-      result: result,
-    );
-  }
-
-  Future<void> _syncLocalEventHistory(SyncResult result) async {
-    final rows = await dbHelper.getPendingLocalEventHistory(limit: 500);
-    if (rows.isEmpty) {
-      return;
-    }
-
-    await _syncLocalHistoryChunks(
-      rows: rows,
-      syncLabel: 'historique événementiel local',
-      buildPayload: (row) => _buildEventHistoryPayload(row),
-      sendBatch: (chunk) => ApiService.uploadLocalHistory(
-        attributes: const [],
-        events: chunk,
-      ),
-      markSynced: dbHelper.markLocalEventHistorySynced,
-      markFailed: dbHelper.markLocalEventHistoryFailed,
-      result: result,
-    );
-  }
-
-  Future<void> _syncLocalHistoryChunks({
-    required List<Map<String, dynamic>> rows,
-    required String syncLabel,
-    required Map<String, dynamic> Function(Map<String, dynamic>) buildPayload,
-    required Future<Map<String, dynamic>> Function(List<Map<String, dynamic>>) sendBatch,
-    required Future<void> Function(List<String>) markSynced,
-    required Future<void> Function(List<String>, String) markFailed,
-    required SyncResult result,
-  }) async {
-    const batchSize = 100;
-    for (var start = 0; start < rows.length; start += batchSize) {
-      final end = (start + batchSize > rows.length) ? rows.length : start + batchSize;
-      final chunkRows = rows.sublist(start, end);
-      final payloadChunk = chunkRows.map(buildPayload).toList();
-      final syncUuids = payloadChunk
-          .map((item) => item['sync_uuid']?.toString().trim() ?? '')
-          .where((value) => value.isNotEmpty)
-          .toList();
-
-      try {
-        await sendBatch(payloadChunk);
-        await markSynced(syncUuids);
-      } catch (e) {
-        if (chunkRows.length == 1) {
-          final warning = '$syncLabel: ${_short(e)}';
-          await markFailed(syncUuids, warning);
-          result.warnings.add(warning);
-          continue;
-        }
-
-        for (final row in chunkRows) {
-          final payload = buildPayload(row);
-          final rowSyncUuid = payload['sync_uuid']?.toString().trim() ?? '';
-          try {
-            await sendBatch([payload]);
-            if (rowSyncUuid.isNotEmpty) {
-              await markSynced([rowSyncUuid]);
-            }
-          } catch (rowError) {
-            final warning = '$syncLabel: ${_describeLocalHistoryRow(row)} - ${_short(rowError)}';
-            if (rowSyncUuid.isNotEmpty) {
-              await markFailed([rowSyncUuid], warning);
-            }
-            result.warnings.add(warning);
-          }
-        }
-      }
-    }
-  }
-
-  Map<String, dynamic> _buildAttributeHistoryPayload(Map<String, dynamic> row) {
-    return {
-      'sync_uuid': row['sync_uuid'],
-      'id_historique_local': _asIntOrNull(row['id_historique_local']),
-      'id_objet': _asIntOrNull(row['id_objet']),
-      'cle_ligne': row['cle_ligne']?.toString(),
-      'uuid_objet': row['uuid_objet']?.toString(),
-      'nom_schema': row['nom_schema']?.toString(),
-      'nom_table': row['nom_table']?.toString(),
-      'nom_classe': row['nom_classe']?.toString(),
-      'nom_attribut': row['nom_attribut']?.toString(),
-      'ancienne_valeur': row['ancienne_valeur']?.toString(),
-      'nouvelle_valeur': row['nouvelle_valeur']?.toString(),
-      'date_action': row['date_action']?.toString(),
-      'id_agent': _asIntOrNull(row['id_agent']),
-      'type_action': row['type_action']?.toString(),
-    };
-  }
-
-  Map<String, dynamic> _buildEventHistoryPayload(Map<String, dynamic> row) {
-    dynamic payloadJson;
-    final rawPayload = row['payload_json'];
-    if (rawPayload is String && rawPayload.trim().isNotEmpty) {
-      try {
-        payloadJson = jsonDecode(rawPayload);
-      } catch (_) {
-        payloadJson = {'raw_payload': rawPayload};
-      }
-    }
-
-    return {
-      'sync_uuid': row['sync_uuid'],
-      'id_evenement_local': _asIntOrNull(row['id_evenement_local']),
-      'type_evenement': row['type_evenement']?.toString(),
-      'nom_schema': row['nom_schema']?.toString(),
-      'nom_table': row['nom_table']?.toString(),
-      'cle_ligne': row['cle_ligne']?.toString(),
-      'uuid_objet': row['uuid_objet']?.toString(),
-      'id_objet': _asIntOrNull(row['id_objet']),
-      'id_agent': _asIntOrNull(row['id_agent']),
-      'payload_json': payloadJson,
-      'date_action': row['date_action']?.toString(),
-    };
-  }
-
-  String _describeLocalHistoryRow(Map<String, dynamic> row) {
-    final typeEvenement = row['type_evenement']?.toString().trim();
-    if (typeEvenement != null && typeEvenement.isNotEmpty) {
-      return typeEvenement;
-    }
-
-    final table = row['nom_table']?.toString().trim();
-    final attribute = row['nom_attribut']?.toString().trim();
-    final uuid = row['uuid_objet']?.toString().trim();
-    final localId = row['id_objet']?.toString().trim();
-
-    final parts = <String>[
-      if (table != null && table.isNotEmpty) table,
-      if (attribute != null && attribute.isNotEmpty) attribute,
-      if (uuid != null && uuid.isNotEmpty) 'uuid=$uuid',
-      if ((uuid == null || uuid.isEmpty) && localId != null && localId.isNotEmpty)
-        'id=$localId',
-    ];
-    return parts.isEmpty ? 'entrée locale' : parts.join(' | ');
-  }
-
   int? _asIntOrNull(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
@@ -1288,6 +1491,15 @@ class SyncService {
     }
     final localId = row['id']?.toString().trim() ?? 'unknown';
     return '${info.schema}.${info.table}:local:$localId';
+  }
+
+  String _terrainInterventionClientItemUuid(Map<String, dynamic> row) {
+    final idIntervention = row['id_intervention']?.toString().trim() ?? '';
+    if (idIntervention.isNotEmpty) {
+      return 'public.intervention_anomalie:$idIntervention';
+    }
+    final localId = row['id']?.toString().trim() ?? 'unknown';
+    return 'public.intervention_anomalie:local:$localId';
   }
 
   String _hashPayload(Map<String, dynamic> payload) {
@@ -1368,7 +1580,9 @@ class SyncService {
       info.table,
       if (label != null && label.isNotEmpty) '"$label"',
       if (uuid != null && uuid.isNotEmpty) 'uuid=$uuid',
-      if ((uuid == null || uuid.isEmpty) && localId != null && localId.isNotEmpty)
+      if ((uuid == null || uuid.isEmpty) &&
+          localId != null &&
+          localId.isNotEmpty)
         'id=$localId',
     ];
 
@@ -1469,8 +1683,8 @@ class SyncService {
   }
 
   void _normalizeRegardPayload(Map<String, dynamic> payload) {
-    final hasAnomalie = _isTruthy(payload['ep_anomalie']) ||
-        _isTruthy(payload['anomalie']);
+    final hasAnomalie =
+        _isTruthy(payload['ep_anomalie']) || _isTruthy(payload['anomalie']);
 
     payload['ep_anomalie'] = hasAnomalie ? 1 : 0;
 

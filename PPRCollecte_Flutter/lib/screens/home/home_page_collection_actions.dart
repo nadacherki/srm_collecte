@@ -148,7 +148,8 @@ extension _HomePageCollectionActions on _HomePageState {
     final result = homeController.finishSpecialCollection();
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Une ligne doit contenir au moins 2 points.')),
+        const SnackBar(
+            content: Text('Une ligne doit contenir au moins 2 points.')),
       );
       return;
     }
@@ -423,7 +424,8 @@ extension _HomePageCollectionActions on _HomePageState {
     if (homeController.ligneCollection?.isActive ?? false) {
       _ligneRedoPoints.clear();
     }
-    if (_isPolygonCollection && (homeController.specialCollection?.isActive ?? false)) {
+    if (_isPolygonCollection &&
+        (homeController.specialCollection?.isActive ?? false)) {
       _polygonRedoPoints.clear();
     }
 

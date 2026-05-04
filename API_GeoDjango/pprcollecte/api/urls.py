@@ -1,14 +1,11 @@
 """
-URLs API pour SRM Collecte — COMPLET (55 endpoints).
+URLs API pour SRM Collecte.
 
 Organisation :
   /api/login/                           → Authentification
-  /api/projets/                         → Projets
-  /api/missions/                        → Missions
   /api/communes/                        → Communes
-  /api/historique/                       → Journal des modifications
+  /api/historique-actions/               → Journal des modifications
   /api/objets-incomplets/               → Objets non collectés
-  /api/fonds-de-plan/                   → Services cartographiques
   /api/evaluations/                     → Évaluations agents
 
   /api/ep/vannes/                       → Vannes EP
@@ -71,28 +68,25 @@ router = DefaultRouter()
 # =====================================================================
 #  PUBLIC (8 endpoints)
 # =====================================================================
-router.register(r'projets', views.ProjetViewSet, basename='projet')
-router.register(r'missions', views.MissionViewSet, basename='mission')
 router.register(r'communes', views.CommuneViewSet, basename='commune')
-router.register(r'historique', views.HistoriqueAttributViewSet, basename='historique')
-router.register(r'historique-mobile', views.HistoriqueMobileViewSet, basename='historique-mobile')
+router.register(r'zones', views.ZoneViewSet, basename='zone')
+router.register(r'zone-utilisateurs', views.ZoneUtilisateurViewSet, basename='zone-utilisateur')
+router.register(r'historique-actions', views.HistoriqueActionViewSet, basename='historique-action')
 router.register(r'objets-incomplets', views.ObjetIncompletViewSet, basename='objet-incomplet')
-router.register(r'fonds-de-plan', views.FondDePlanViewSet, basename='fond-de-plan')
-router.register(r'evaluations', views.EvaluationAgentViewSet, basename='evaluation')
+router.register(r'objets-photos', views.ObjetPhotoViewSet, basename='objet-photo')
+router.register(r'interventions-anomalies-terrain', views.InterventionAnomalieTerrainViewSet, basename='intervention-anomalie-terrain')
 router.register(r'srm-field-options', views.SrmFieldOptionViewSet, basename='srm-field-option')
-router.register(r'basemap-zones', views.BasemapZoneViewSet, basename='basemap-zone')
 router.register(r'basemap-packages', views.BasemapPackageViewSet, basename='basemap-package')
 router.register(r'metrics-agent-jour', views.MetricAgentJourViewSet, basename='metrics-agent-jour')
 router.register(r'metrics-agent-semaine', views.MetricAgentSemaineViewSet, basename='metrics-agent-semaine')
 router.register(r'metrics-agent-mois', views.MetricAgentMoisViewSet, basename='metrics-agent-mois')
+router.register(r'metrics-agent-table-period', views.MetricAgentTablePeriodViewSet, basename='metrics-agent-table-period')
+router.register(r'metrics-agent-period', views.MetricAgentPeriodViewSet, basename='metrics-agent-period')
+router.register(r'metrics-agent-resume', views.MetricAgentResumeViewSet, basename='metrics-agent-resume')
 router.register(r'metrics-agent-public-jour', views.MetricAgentPublicJourViewSet, basename='metrics-agent-public-jour')
 router.register(r'metrics-agent-public-semaine', views.MetricAgentPublicSemaineViewSet, basename='metrics-agent-public-semaine')
 router.register(r'metrics-agent-public-mois', views.MetricAgentPublicMoisViewSet, basename='metrics-agent-public-mois')
 router.register(r'metrics-agent-public-resume', views.MetricAgentPublicResumeViewSet, basename='metrics-agent-public-resume')
-router.register(r'metrics-projet-jour', views.MetricProjetJourViewSet, basename='metrics-projet-jour')
-router.register(r'metrics-projet-semaine', views.MetricProjetSemaineViewSet, basename='metrics-projet-semaine')
-router.register(r'metrics-projet-mois', views.MetricProjetMoisViewSet, basename='metrics-projet-mois')
-router.register(r'metrics-projet-resume', views.MetricProjetResumeViewSet, basename='metrics-projet-resume')
 
 # =====================================================================
 #  EP — Eau Potable (27 endpoints)
@@ -167,7 +161,6 @@ urlpatterns = [
     path('api/sync/manifest/', views.sync_manifest_view, name='sync-manifest'),
     path('api/sync/session/<str:sync_uuid>/', views.sync_session_status_view, name='sync-session-status'),
     path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),
-    path('api/historique-mobile/upload/', views.mobile_history_upload_view, name='historique-mobile-upload'),
 
     # Toutes les routes du router sous /api/
     path('api/', include(router.urls)),

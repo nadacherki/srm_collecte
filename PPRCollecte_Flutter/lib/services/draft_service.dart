@@ -30,7 +30,7 @@ class DraftService {
         updated_at TEXT NOT NULL
       )
     ''');
-    print('[DRAFT] table form_drafts creee');
+    debugPrint('[DRAFT] table form_drafts creee');
   }
 
   // ══════════════════════════════════════════════════════
@@ -79,8 +79,7 @@ class DraftService {
           'draft_key': draftKey,
           'form_data': jsonEncode(formData),
           'photo_paths': photoPaths != null
-              ? jsonEncode(
-                  photoPaths.map((k, v) => MapEntry(k.toString(), v)))
+              ? jsonEncode(photoPaths.map((k, v) => MapEntry(k.toString(), v)))
               : null,
           'extra_state': extraState != null ? jsonEncode(extraState) : null,
           'created_at': createdAt,
@@ -95,11 +94,14 @@ class DraftService {
         payload: {
           'draft_key': draftKey,
           'field_count': formData.length,
-          'photo_count': photoPaths?.values.where((p) => p != null && p.isNotEmpty).length ?? 0,
+          'photo_count': photoPaths?.values
+                  .where((p) => p != null && p.isNotEmpty)
+                  .length ??
+              0,
         },
       );
     } catch (e) {
-      print('[DRAFT] erreur saveDraft: $e');
+      debugPrint('[DRAFT] erreur saveDraft: $e');
     }
   }
 
@@ -129,8 +131,8 @@ class DraftService {
       if (row['photo_paths'] != null) {
         final photoRaw =
             jsonDecode(row['photo_paths'] as String) as Map<String, dynamic>;
-        photoPaths = photoRaw
-            .map((k, v) => MapEntry(int.parse(k), v as String?));
+        photoPaths =
+            photoRaw.map((k, v) => MapEntry(int.parse(k), v as String?));
       }
 
       Map<String, dynamic>? extraState;
@@ -148,7 +150,7 @@ class DraftService {
         updatedAt: DateTime.parse(row['updated_at'] as String),
       );
     } catch (e) {
-      print('[DRAFT] erreur loadDraft: $e');
+      debugPrint('[DRAFT] erreur loadDraft: $e');
       return null;
     }
   }
@@ -173,9 +175,9 @@ class DraftService {
         cleLigne: draftKey,
         payload: {'draft_key': draftKey},
       );
-      print('[DRAFT] brouillon supprime: $draftKey');
+      debugPrint('[DRAFT] brouillon supprime: $draftKey');
     } catch (e) {
-      print('[DRAFT] erreur deleteDraft: $e');
+      debugPrint('[DRAFT] erreur deleteDraft: $e');
     }
   }
 
@@ -188,9 +190,9 @@ class DraftService {
         eventType: 'DELETE_ALL_FORM_DRAFTS',
         tableName: 'form_drafts',
       );
-      print('[DRAFT] tous les brouillons supprimes');
+      debugPrint('[DRAFT] tous les brouillons supprimes');
     } catch (e) {
-      print('[DRAFT] erreur deleteAllDrafts: $e');
+      debugPrint('[DRAFT] erreur deleteAllDrafts: $e');
     }
   }
 
@@ -201,9 +203,15 @@ class DraftService {
   /// Retourne un texte lisible comme "il y a 5 minutes", "il y a 2 heures".
   static String timeAgoText(DateTime dateTime) {
     final diff = DateTime.now().difference(dateTime);
-    if (diff.inSeconds < 60) return 'il y a quelques secondes';
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''}';
-    if (diff.inHours < 24) return 'il y a ${diff.inHours} heure${diff.inHours > 1 ? 's' : ''}';
+    if (diff.inSeconds < 60) {
+      return 'il y a quelques secondes';
+    }
+    if (diff.inMinutes < 60) {
+      return 'il y a ${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''}';
+    }
+    if (diff.inHours < 24) {
+      return 'il y a ${diff.inHours} heure${diff.inHours > 1 ? 's' : ''}';
+    }
     return 'il y a ${diff.inDays} jour${diff.inDays > 1 ? 's' : ''}';
   }
 }
@@ -394,6 +402,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
           'updated_at': draft.updatedAt.toIso8601String(),
         },
       );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Brouillon restauré'),

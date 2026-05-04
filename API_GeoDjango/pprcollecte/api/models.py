@@ -1,16 +1,16 @@
-"""
-Modèles Django pour la base de données SIG SRM.
+﻿"""
+ModÃ¨les Django pour la base de donnÃ©es SIG SRM.
 
-IMPORTANT : managed = False sur tous les modèles car les tables existent déjà
-dans la base sig_srm. Django ne crée ni ne modifie les tables — il les lit.
+IMPORTANT : managed = False sur tous les modÃ¨les car les tables existent dÃ©jÃ 
+dans la base sig_srm. Django ne crÃ©e ni ne modifie les tables â€” il les lit.
 
 Organisation :
-  - Schéma public : Utilisateur, Projet, Mission, Commune, etc. (8 tables)
-  - Schéma ep     : Eau Potable (27 tables)
-  - Schéma ass    : Assainissement (9 tables)
-  - Schéma elec   : Électricité (11 tables)
+  - SchÃ©ma public : Utilisateur, Commune, Zone, synchronisation, etc.
+  - SchÃ©ma ep     : Eau Potable (27 tables)
+  - SchÃ©ma ass    : Assainissement (9 tables)
+  - SchÃ©ma elec   : Ã‰lectricitÃ© (11 tables)
 
-Toutes les géométries sont en EPSG:26191 (Merchich Nord).
+Toutes les gÃ©omÃ©tries sont en EPSG:26191 (Merchich Nord).
 """
 
 from django.contrib.gis.db import models
@@ -19,14 +19,13 @@ from .metrics_models import (
     MetricAgentJour,
     MetricAgentSemaine,
     MetricAgentMois,
+    MetricAgentTablePeriod,
+    MetricAgentPeriod,
+    MetricAgentResume,
     MetricAgentPublicJour,
     MetricAgentPublicSemaine,
     MetricAgentPublicMois,
     MetricAgentPublicResume,
-    MetricProjetJour,
-    MetricProjetSemaine,
-    MetricProjetMois,
-    MetricProjetResume,
 )
 
 
@@ -38,152 +37,219 @@ class SrmTrackedModel(models.Model):
 
 
 # =====================================================================
-#  SCHÉMA PUBLIC — Tables de gestion (8 tables)
+#  SCHÃ‰MA PUBLIC â€” Tables de gestion (8 tables)
 # =====================================================================
 
 class Utilisateur(models.Model):
     id_user = models.AutoField(primary_key=True)
     login = models.CharField(max_length=100, unique=True)
-    mot_de_passe = models.CharField(max_length=255, null=True, blank=True)
-    nom_prenom = models.CharField(max_length=200, null=True, blank=True)
+    mot_de_passe_hash = models.CharField(max_length=255, null=True, blank=True)
+    nom = models.CharField(max_length=200, null=True, blank=True)
+    prenom = models.CharField(max_length=200, null=True, blank=True)
     actif = models.BooleanField(default=True)
     date_creation = models.DateField(null=True, blank=True)
     dernier_login = models.DateTimeField(null=True, blank=True)
     nb_objets_collectes_total = models.IntegerField(default=0)
-    id_projet_actif = models.IntegerField(null=True, blank=True)
     role = models.CharField(max_length=20, default='viewer_mobile')
+    is_deleted = models.BooleanField(default=False)
 
     class Meta:
         managed = False
         db_table = 'utilisateur'
 
-    def __str__(self):
-        return f"{self.nom_prenom} ({self.login})"
-
-
-class Projet(models.Model):
-    id_projet = models.AutoField(primary_key=True)
-    code_affaire = models.CharField(max_length=100)
-    nom = models.CharField(max_length=200, null=True, blank=True)
-    srm = models.CharField(max_length=100, null=True, blank=True)
-    region = models.CharField(max_length=100, null=True, blank=True)
-    date_debut = models.DateField(null=True, blank=True)
-    date_fin = models.DateField(null=True, blank=True)
-    statut = models.CharField(max_length=20, default='EN_PREPARATION')
-    metier = models.CharField(max_length=10, null=True, blank=True)
-    geom_zone = models.MultiPolygonField(srid=26191, dim=3,null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'projet'
+    @property
+    def nom_complet(self):
+        return ' '.join(part for part in (self.prenom, self.nom) if part) or self.login
 
     def __str__(self):
-        return f"{self.nom} ({self.code_affaire})"
-
-
-class Mission(models.Model):
-    id_mission = models.AutoField(primary_key=True)
-    id_agent = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
-    heure_debut = models.DateTimeField(null=True, blank=True)
-    heure_fin = models.DateTimeField(null=True, blank=True)
-    nb_objets_collectes = models.IntegerField(default=0)
-    nb_objets_incomplets = models.IntegerField(default=0)
-    nb_photos_prises = models.IntegerField(default=0)
-    etat_mission = models.CharField(max_length=20, default='EN_COURS')
-    date_debut = models.DateField(null=True, blank=True)
-    date_fin = models.DateField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'mission'
-
-    def __str__(self):
-        return f"Mission {self.id_mission} (agent {self.id_agent})"
+        return f"{self.nom_complet} ({self.login})"
 
 
 class Commune(models.Model):
-    id_commune = models.AutoField(primary_key=True)
-    nom_commune = models.CharField(max_length=100)
-    nom_province = models.CharField(max_length=100, null=True, blank=True)
-    nom_region = models.CharField(max_length=100, null=True, blank=True)
-    geom = models.MultiPolygonField(srid=26191, dim=3,null=True, blank=True)
+    fid = models.IntegerField(primary_key=True)
+    geom = models.MultiPolygonField(srid=26191, null=True, blank=True)
+    code_provi = models.CharField(max_length=100, null=True, blank=True)
+    code_regio = models.CharField(max_length=100, null=True, blank=True)
+    nom = models.CharField(max_length=255, null=True, blank=True)
+    nom_arabe = models.CharField(max_length=255, null=True, blank=True)
+    id_province = models.IntegerField(null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = 'commune'
 
     def __str__(self):
-        return self.nom_commune
+        return self.nom or str(self.fid)
 
 
-class HistoriqueAttribut(models.Model):
-    id_historique = models.AutoField(primary_key=True)
-    id_objet = models.IntegerField(null=True, blank=True)
-    cle_ligne = models.CharField(max_length=254, null=True, blank=True)
-    uuid_objet = models.CharField(max_length=254, null=True, blank=True)
-    nom_schema = models.CharField(max_length=30, null=True, blank=True)
-    nom_table = models.CharField(max_length=100, null=True, blank=True)
-    nom_classe = models.CharField(max_length=100, null=True, blank=True)
-    nom_attribut = models.CharField(max_length=100, null=True, blank=True)
-    ancienne_valeur = models.TextField(null=True, blank=True)
-    nouvelle_valeur = models.TextField(null=True, blank=True)
-    date_action = models.DateTimeField(null=True, blank=True)
-    id_agent = models.IntegerField(null=True, blank=True)
-    type_action = models.CharField(max_length=50, null=True, blank=True)
-    commentaire_correction = models.TextField(null=True, blank=True)
+class Zone(models.Model):
+    id_zone = models.AutoField(primary_key=True)
+    geom = models.PolygonField(srid=26191, null=True, blank=True)
+    nom_zone = models.CharField(max_length=254)
+    etat = models.CharField(max_length=50, default='active', null=True, blank=True)
+    date_debut = models.DateTimeField(null=True, blank=True)
+    date_cloture = models.DateTimeField(null=True, blank=True)
+    id_user_creat = models.IntegerField(null=True, blank=True)
+    id_user_cloture = models.IntegerField(null=True, blank=True)
 
     class Meta:
         managed = False
-        db_table = 'historique_attribut'
+        db_table = 'zone'
+
+    def __str__(self):
+        return self.nom_zone or str(self.id_zone)
+
+    @property
+    def zone_id(self):
+        return f"zone_{self.id_zone}"
+
+    @property
+    def city_slug(self):
+        return "oujda"
+
+    @property
+    def nom(self):
+        return self.nom_zone
+
+    @property
+    def min_zoom(self):
+        return 11
+
+    @property
+    def max_zoom(self):
+        return 19
+
+    def _geom_4326(self):
+        if self.geom is None:
+            return None
+        geom = self.geom.clone()
+        geom.transform(4326)
+        return geom
+
+    @property
+    def bbox_west(self):
+        geom = self._geom_4326()
+        return geom.extent[0] if geom is not None else 0
+
+    @property
+    def bbox_south(self):
+        geom = self._geom_4326()
+        return geom.extent[1] if geom is not None else 0
+
+    @property
+    def bbox_east(self):
+        geom = self._geom_4326()
+        return geom.extent[2] if geom is not None else 0
+
+    @property
+    def bbox_north(self):
+        geom = self._geom_4326()
+        return geom.extent[3] if geom is not None else 0
+
+    @property
+    def center_latitude(self):
+        geom = self._geom_4326()
+        return geom.point_on_surface.y if geom is not None else 0
+
+    @property
+    def center_longitude(self):
+        geom = self._geom_4326()
+        return geom.point_on_surface.x if geom is not None else 0
 
 
-class HistoriqueMobile(models.Model):
-    id_historique_mobile = models.BigAutoField(primary_key=True)
-    sync_uuid = models.CharField(max_length=64, unique=True)
-    type_entree = models.CharField(max_length=20)
-    source_table_locale = models.CharField(max_length=64)
-    source_id_local = models.BigIntegerField(null=True, blank=True)
-    id_objet = models.IntegerField(null=True, blank=True)
-    cle_ligne = models.CharField(max_length=254, null=True, blank=True)
-    uuid_objet = models.CharField(max_length=254, null=True, blank=True)
-    nom_schema = models.CharField(max_length=30, null=True, blank=True)
-    nom_table = models.CharField(max_length=100, null=True, blank=True)
-    nom_classe = models.CharField(max_length=100, null=True, blank=True)
-    nom_attribut = models.CharField(max_length=100, null=True, blank=True)
-    ancienne_valeur = models.TextField(null=True, blank=True)
-    nouvelle_valeur = models.TextField(null=True, blank=True)
-    type_action = models.CharField(max_length=50, null=True, blank=True)
-    type_evenement = models.CharField(max_length=100, null=True, blank=True)
-    payload_json = models.JSONField(null=True, blank=True)
+class ZoneUtilisateur(models.Model):
+    id = models.AutoField(primary_key=True)
+    id_zone = models.IntegerField()
+    id_user = models.IntegerField()
+    date_affectation = models.DateTimeField(null=True, blank=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = 'zone_utilisateur'
+        unique_together = (('id_zone', 'id_user'),)
+
+    def __str__(self):
+        return f"user={self.id_user} zone={self.id_zone}"
+
+
+class HistoriqueAction(models.Model):
+    id = models.AutoField(primary_key=True)
+    nom_table = models.CharField(max_length=100)
+    id_objet = models.IntegerField()
+    action = models.CharField(max_length=50)
+    source = models.CharField(max_length=20, default='bureau')
+    id_user = models.IntegerField(null=True, blank=True)
+    nom_user = models.CharField(max_length=255, null=True, blank=True)
     date_action = models.DateTimeField()
-    date_reception = models.DateTimeField(null=True, blank=True)
-    id_agent = models.IntegerField(null=True, blank=True)
+    old_data = models.JSONField(null=True, blank=True)
+    new_data = models.JSONField(null=True, blank=True)
 
     class Meta:
         managed = False
-        db_table = 'historique_mobile'
+        db_table = 'historique_action'
 
 
 class ObjetIncomplet(models.Model):
     id_incomplet = models.AutoField(primary_key=True)
-    id_objet = models.IntegerField(null=True, blank=True)
-    nom_classe = models.CharField(max_length=100, null=True, blank=True)
-    metier = models.CharField(max_length=10, null=True, blank=True)
-    raison = models.CharField(max_length=50, null=True, blank=True)
+    nom_table = models.CharField(max_length=255)
+    id_objet = models.IntegerField()
     detail_raison = models.TextField(null=True, blank=True)
     date_signalement = models.DateTimeField(null=True, blank=True)
-    id_agent_signal = models.IntegerField(null=True, blank=True)
+    id_agent_incomplet = models.IntegerField(null=True, blank=True)
     statut = models.CharField(max_length=20, default='A_COMPLETER')
-    date_planification = models.DateField(null=True, blank=True)
-    id_agent_retour = models.IntegerField(null=True, blank=True)
     date_completion = models.DateTimeField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
+    id_agent_completement = models.IntegerField(null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = 'objet_incomplet'
+
+
+class InterventionAnomalie(models.Model):
+    id = models.AutoField(primary_key=True)
+    id_objet = models.IntegerField()
+    nom_classe = models.CharField(max_length=100)
+    nom_table = models.CharField(max_length=255)
+    uuid_objet = models.CharField(max_length=254, null=True, blank=True)
+    retour_terrain = models.BooleanField(default=False)
+    statut = models.CharField(max_length=50, default='signale')
+    responsable_actuel = models.CharField(max_length=50, default='terrain')
+    etat_exploitant = models.CharField(max_length=50, default='en_attente')
+    commentaire_exploitant = models.TextField(null=True, blank=True)
+    date_exploitant = models.DateTimeField(null=True, blank=True)
+    id_user_exploitant = models.IntegerField(null=True, blank=True)
+    etat_terrain = models.CharField(max_length=50, default='en_attente')
+    commentaire_terrain = models.TextField(null=True, blank=True)
+    date_terrain = models.DateTimeField(null=True, blank=True)
+    id_user_terrain = models.IntegerField(null=True, blank=True)
+    etat_bureau = models.CharField(max_length=50, default='en_attente')
+    commentaire_bureau = models.TextField(null=True, blank=True)
+    date_bureau = models.DateTimeField(null=True, blank=True)
+    id_user_bureau = models.IntegerField(null=True, blank=True)
+    date_creation = models.DateTimeField(null=True, blank=True)
+    date_cloture = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'intervention_anomalie'
+
+
+class InterventionLog(models.Model):
+    id = models.AutoField(primary_key=True)
+    id_intervention = models.IntegerField()
+    action = models.CharField(max_length=50)
+    de_statut = models.CharField(max_length=50, null=True, blank=True)
+    a_statut = models.CharField(max_length=50, null=True, blank=True)
+    id_user = models.IntegerField(null=True, blank=True)
+    commentaire = models.TextField(null=True, blank=True)
+    date_action = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'intervention_log'
 
 
 class ObjetPhoto(models.Model):
@@ -197,8 +263,6 @@ class ObjetPhoto(models.Model):
     hash_sha256 = models.CharField(max_length=64, null=True, blank=True)
     mime_type = models.CharField(max_length=100, null=True, blank=True)
     taille_octets = models.BigIntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
     date_prise_reelle = models.DateTimeField(null=True, blank=True)
     date_upload = models.DateTimeField(null=True, blank=True)
@@ -216,8 +280,6 @@ class SyncSession(models.Model):
     id_sync_session = models.BigAutoField(primary_key=True)
     sync_uuid = models.CharField(max_length=64, unique=True)
     id_agent = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     device_id = models.CharField(max_length=128, null=True, blank=True)
     app_version = models.CharField(max_length=64, null=True, blank=True)
     statut = models.CharField(max_length=30, default='manifest_received')
@@ -305,20 +367,6 @@ class SyncSessionAttachment(models.Model):
         )
 
 
-class FondDePlan(models.Model):
-    id_fdp = models.AutoField(primary_key=True)
-    id_projet = models.IntegerField()
-    nom = models.CharField(max_length=200, null=True, blank=True)
-    type_source = models.CharField(max_length=50, null=True, blank=True)
-    url_service = models.TextField(null=True, blank=True)
-    date_maj = models.DateField(null=True, blank=True)
-    actif = models.BooleanField(default=True)
-
-    class Meta:
-        managed = False
-        db_table = 'fond_de_plan'
-
-
 class EvaluationAgent(models.Model):
     id_eval = models.AutoField(primary_key=True)
     id_agent = models.IntegerField(null=True, blank=True)
@@ -337,7 +385,7 @@ class EvaluationAgent(models.Model):
         db_table = 'evaluation_agent'
 
 
-class StatistiqueConduite(models.Model):
+class EpStatistiqueConduite(models.Model):
     id_statistique_conduite = models.BigAutoField(primary_key=True)
     id_agent = models.IntegerField()
     jour = models.DateField()
@@ -348,13 +396,13 @@ class StatistiqueConduite(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'statistique_conduite'
+        db_table = '"ep"."statistique_conduite"'
 
     def __str__(self):
-        return f"Stat conduite agent={self.id_agent} jour={self.jour}"
+        return f"Stat conduite EP agent={self.id_agent} jour={self.jour}"
 
 
-class StatistiqueConduiteSegment(models.Model):
+class EpStatistiqueConduiteSegment(models.Model):
     id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
     id_statistique_conduite = models.BigIntegerField()
     fid_regard_a = models.IntegerField()
@@ -368,47 +416,7 @@ class StatistiqueConduiteSegment(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'statistique_conduite_segment'
-
-    def __str__(self):
-        return (
-            f"Segment conduite stat={self.id_statistique_conduite} "
-            f"{self.fid_regard_min}-{self.fid_regard_max}"
-        )
-
-
-class ConduiteStatistiqueEp(models.Model):
-    id_statistique_conduite = models.BigAutoField(primary_key=True)
-    id_agent = models.IntegerField()
-    jour = models.DateField()
-    geom = models.MultiLineStringField(srid=26191, dim=3, null=True, blank=True)
-    longueur_conduite_m = models.FloatField(default=0.0)
-    created_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'conduite_statistique_ep'
-
-    def __str__(self):
-        return f"Conduite stat EP agent={self.id_agent} jour={self.jour}"
-
-
-class ConduiteStatistiqueEpSegment(models.Model):
-    id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
-    id_statistique_conduite = models.BigIntegerField()
-    fid_regard_a = models.IntegerField()
-    fid_regard_b = models.IntegerField()
-    fid_regard_min = models.IntegerField()
-    fid_regard_max = models.IntegerField()
-    geom = models.LineStringField(srid=26191, dim=3)
-    longueur_segment_m = models.FloatField(default=0.0)
-    created_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'conduite_statistique_ep_segment'
+        db_table = '"ep"."statistique_conduite_segment"'
 
     def __str__(self):
         return (
@@ -417,7 +425,7 @@ class ConduiteStatistiqueEpSegment(models.Model):
         )
 
 
-class ConduiteStatiqueAsst(models.Model):
+class AssStatistiqueConduite(models.Model):
     id_statistique_conduite = models.BigAutoField(primary_key=True)
     id_agent = models.IntegerField()
     jour = models.DateField()
@@ -428,13 +436,13 @@ class ConduiteStatiqueAsst(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'conduite_statique_asst'
+        db_table = '"ass"."statistique_conduite"'
 
     def __str__(self):
-        return f"Conduite stat ASS agent={self.id_agent} jour={self.jour}"
+        return f"Stat conduite ASS agent={self.id_agent} jour={self.jour}"
 
 
-class ConduiteStatiqueAsstSegment(models.Model):
+class AssStatistiqueConduiteSegment(models.Model):
     id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
     id_statistique_conduite = models.BigIntegerField()
     fid_regard_a = models.IntegerField()
@@ -448,7 +456,7 @@ class ConduiteStatiqueAsstSegment(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'conduite_statique_asst_segment'
+        db_table = '"ass"."statistique_conduite_segment"'
 
     def __str__(self):
         return (
@@ -473,32 +481,9 @@ class SrmFieldOption(models.Model):
         db_table = 'srm_field_option'
 
 
-class BasemapZone(models.Model):
-    zone_id = models.CharField(primary_key=True, max_length=100)
-    city_slug = models.CharField(max_length=100)
-    nom = models.CharField(max_length=200)
-    geom = models.MultiPolygonField(srid=4326, null=True, blank=True)
-    bbox_west = models.FloatField()
-    bbox_south = models.FloatField()
-    bbox_east = models.FloatField()
-    bbox_north = models.FloatField()
-    center_latitude = models.FloatField()
-    center_longitude = models.FloatField()
-    min_zoom = models.IntegerField(default=11)
-    max_zoom = models.IntegerField(default=19)
-    actif = models.BooleanField(default=True)
-    metadata_json = models.JSONField(null=True, blank=True)
-    created_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'basemap_zone'
-
-
 class BasemapPackage(models.Model):
     id_package = models.BigAutoField(primary_key=True)
-    zone_id = models.CharField(max_length=100)
+    id_zone = models.IntegerField()
     city_slug = models.CharField(max_length=100)
     style = models.CharField(max_length=30)
     format = models.CharField(max_length=20)
@@ -524,24 +509,8 @@ class BasemapPackage(models.Model):
         db_table = 'basemap_package'
 
 
-class AgentBasemapZone(models.Model):
-    id_agent_basemap_zone = models.BigAutoField(primary_key=True)
-    id_user = models.IntegerField()
-    zone_id = models.CharField(max_length=100)
-    actif = models.BooleanField(default=True)
-    assigned_by = models.IntegerField(null=True, blank=True)
-    assigned_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
-    metadata_json = models.JSONField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'agent_basemap_zone'
-        unique_together = (('id_user', 'zone_id'),)
-
-
 # =====================================================================
-#  SCHÉMA EP — Eau Potable : PONCTUELS (tables 1 à 22)
+#  SCHÃ‰MA EP â€” Eau Potable : PONCTUELS (tables 1 Ã  22)
 # =====================================================================
 
 class EpVanne(SrmTrackedModel):
@@ -571,9 +540,7 @@ class EpVanne(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -615,9 +582,7 @@ class EpVanneDeVidange(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -662,9 +627,7 @@ class EpVentouse(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -705,9 +668,7 @@ class EpHydrant(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -746,9 +707,7 @@ class EpBorneFontaine(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -777,9 +736,7 @@ class EpBorneOnep(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -802,9 +759,7 @@ class EpBoucheCles(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_compteur_abonne = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -839,9 +794,7 @@ class EpBoucheDarrosage(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -890,9 +843,7 @@ class EpCompteurAbonne(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -937,9 +888,7 @@ class EpCompteurReseau(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -977,9 +926,7 @@ class EpConeDeReduction(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
@@ -1011,9 +958,7 @@ class EpCentreTampon(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1043,9 +988,7 @@ class EpNoeud(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1077,9 +1020,7 @@ class EpObturateur(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -1113,9 +1054,7 @@ class EpReducteurDePression(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     id_conduite = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
@@ -1133,7 +1072,7 @@ class EpReducteurDePression(SrmTrackedModel):
         db_table = '"ep"."reducteur_de_pression"'
 
 # =====================================================================
-#  SCHÉMA EP — Eau Potable : suite des PONCTUELS + LINÉAIRES + SURFACIQUES
+#  SCHÃ‰MA EP â€” Eau Potable : suite des PONCTUELS + LINÃ‰AIRES + SURFACIQUES
 # =====================================================================
 
 class EpForage(SrmTrackedModel):
@@ -1153,9 +1092,7 @@ class EpForage(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1190,9 +1127,7 @@ class EpPuit(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1228,9 +1163,7 @@ class EpPompe(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1267,9 +1200,7 @@ class EpReservoir(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1285,7 +1216,7 @@ class EpReservoir(SrmTrackedModel):
         db_table = '"ep"."reservoir"'
 
     def __str__(self):
-        return f"Réservoir {self.ep_num or self.fid}"
+        return f"RÃ©servoir {self.ep_num or self.fid}"
 
 
 class EpStationDePompage(SrmTrackedModel):
@@ -1305,9 +1236,7 @@ class EpStationDePompage(SrmTrackedModel):
     ep_coor_z = models.FloatField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1495,9 +1424,7 @@ class EpAutreObjet(SrmTrackedModel):
     observation = models.CharField(max_length=254, null=True, blank=True)
     uuid = models.CharField(max_length=100, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1517,7 +1444,7 @@ class EpAutreObjet(SrmTrackedModel):
         return f"Autre objet EP {self.type_objet or self.fid}"
 
 
-# ---------- EP LINÉAIRES ----------
+# ---------- EP LINÃ‰AIRES ----------
 
 class EpConduiteTerrain(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
@@ -1546,9 +1473,7 @@ class EpConduiteTerrain(SrmTrackedModel):
     ep_date_interv = models.DateField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1592,9 +1517,7 @@ class EpConduiteBureau(SrmTrackedModel):
     ep_date_interv = models.DateField(null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1625,9 +1548,7 @@ class EpBranchement(SrmTrackedModel):
     observation = models.CharField(max_length=254, null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1656,9 +1577,7 @@ class EpTraverse(SrmTrackedModel):
     observation = models.CharField(max_length=254, null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1672,7 +1591,7 @@ class EpTraverse(SrmTrackedModel):
         db_table = '"ep"."traverse"'
 
     def __str__(self):
-        return f"Traversée EP {self.ep_num or self.fid}"
+        return f"TraversÃ©e EP {self.ep_num or self.fid}"
 
 
 # ---------- EP SURFACIQUE ----------
@@ -1685,9 +1604,7 @@ class EpPlanche(SrmTrackedModel):
     observation = models.CharField(max_length=254, null=True, blank=True)
     uuid = models.CharField(max_length=254, null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
@@ -1703,7 +1620,7 @@ class EpPlanche(SrmTrackedModel):
 
 
 # =====================================================================
-#  SCHÉMA ASS — Assainissement (9 tables)
+#  SCHÃ‰MA ASS â€” Assainissement (9 tables)
 # =====================================================================
 
 class AssRegard(SrmTrackedModel):
@@ -1736,9 +1653,7 @@ class AssRegard(SrmTrackedModel):
     id_canalisation_aval = models.IntegerField(null=True, blank=True)
     id_regard = models.IntegerField(null=True, blank=True)
     elevation = models.FloatField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     ass_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -1786,9 +1701,7 @@ class AssRegardBranchement(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_branchement = models.IntegerField(null=True, blank=True)
     id_regard_branchement = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     ass_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -1836,9 +1749,7 @@ class AssCanalisation(SrmTrackedModel):
     centre = models.CharField(max_length=254, null=True, blank=True)
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_canalisation = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -1878,9 +1789,7 @@ class AssCanalisationReutilisation(SrmTrackedModel):
     centre = models.CharField(max_length=254, null=True, blank=True)
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_canalisation_reutilisation = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     ass_coor_x = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
@@ -1899,7 +1808,7 @@ class AssCanalisationReutilisation(SrmTrackedModel):
         db_table = '"ass"."asst_canalisation_reutilisation"'
 
     def __str__(self):
-        return f"Canalisation réutilisation ASS {self.fid}"
+        return f"Canalisation rÃ©utilisation ASS {self.fid}"
 
 
 class AssBranchement(SrmTrackedModel):
@@ -1925,9 +1834,7 @@ class AssBranchement(SrmTrackedModel):
     id_regard = models.IntegerField(null=True, blank=True)
     id_canalisation = models.IntegerField(null=True, blank=True)
     id_branchement = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -1971,9 +1878,7 @@ class AssBassin(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_canalisation_depart = models.IntegerField(null=True, blank=True)
     id_bassin = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2016,9 +1921,7 @@ class AssOuvrage(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_canalisation_amont = models.IntegerField(null=True, blank=True)
     id_ouvrage = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2059,9 +1962,7 @@ class AssEquipement(SrmTrackedModel):
     id_ouvrage = models.IntegerField(null=True, blank=True)
     id_canalisation = models.IntegerField(null=True, blank=True)
     id_equipement = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     ass_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2078,7 +1979,7 @@ class AssEquipement(SrmTrackedModel):
         db_table = '"ass"."asst_equipement"'
 
     def __str__(self):
-        return f"Équipement ASS {self.fid}"
+        return f"Ã‰quipement ASS {self.fid}"
 
 
 class AssStation(SrmTrackedModel):
@@ -2106,9 +2007,7 @@ class AssStation(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_canalisation_amont = models.IntegerField(null=True, blank=True)
     id_station = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2127,10 +2026,10 @@ class AssStation(SrmTrackedModel):
         return f"Station ASS {self.nom or self.fid}"
 
 # =====================================================================
-#  SCHÉMA ELEC — Électricité (11 tables)
+#  SCHÃ‰MA ELEC â€” Ã‰lectricitÃ© (11 tables)
 # =====================================================================
 
-# ---------- PONCTUELS (avec géométrie) ----------
+# ---------- PONCTUELS (avec gÃ©omÃ©trie) ----------
 
 class ElecSupport(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
@@ -2160,9 +2059,7 @@ class ElecSupport(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_support = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     elec_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2223,9 +2120,7 @@ class ElecPoste(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_poste = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     elec_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2271,9 +2166,7 @@ class ElecCoffretBt(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_coffret_bt = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     elec_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2312,9 +2205,7 @@ class ElecNoeudRaccord(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_noeud_raccord = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     elec_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2358,9 +2249,7 @@ class ElecPointDesserte(SrmTrackedModel):
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_point_desserte = models.IntegerField(null=True, blank=True)
     elevation = models.FloatField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     elec_coor_z = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2380,7 +2269,7 @@ class ElecPointDesserte(SrmTrackedModel):
         return f"Point desserte {self.nom or self.fid}"
 
 
-# ---------- ATTRIBUTS (sans géométrie propre, liés à poste) ----------
+# ---------- ATTRIBUTS (sans gÃ©omÃ©trie propre, liÃ©s Ã  poste) ----------
 
 class ElecTransformateur(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
@@ -2411,9 +2300,7 @@ class ElecTransformateur(SrmTrackedModel):
     regleur_en_charge = models.CharField(max_length=254, null=True, blank=True)
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_transfo = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2448,9 +2335,7 @@ class ElecCellule(SrmTrackedModel):
     date_fabrication = models.DateField(null=True, blank=True)
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_cellule = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2484,9 +2369,7 @@ class ElecDepartBt(SrmTrackedModel):
     neutre = models.FloatField(null=True, blank=True)
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_depart_bt = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2498,7 +2381,7 @@ class ElecDepartBt(SrmTrackedModel):
         db_table = '"elec"."depart_bt"'
 
     def __str__(self):
-        return f"Départ BT {self.nom_depart or self.fid}"
+        return f"DÃ©part BT {self.nom_depart or self.fid}"
 
 
 class ElecDepartHta(SrmTrackedModel):
@@ -2515,9 +2398,7 @@ class ElecDepartHta(SrmTrackedModel):
     section = models.IntegerField(null=True, blank=True)
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     id_depart_hta = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2529,10 +2410,10 @@ class ElecDepartHta(SrmTrackedModel):
         db_table = '"elec"."depart_hta"'
 
     def __str__(self):
-        return f"Départ HTA {self.nom_depart or self.fid}"
+        return f"DÃ©part HTA {self.nom_depart or self.fid}"
 
 
-# ---------- LINÉAIRES ----------
+# ---------- LINÃ‰AIRES ----------
 
 class ElecTronconBt(SrmTrackedModel):
     fid = models.AutoField(primary_key=True)
@@ -2562,9 +2443,7 @@ class ElecTronconBt(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_troncon_bt = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2578,7 +2457,7 @@ class ElecTronconBt(SrmTrackedModel):
         db_table = '"elec"."troncon_bt"'
 
     def __str__(self):
-        return f"Tronçon BT {self.fid}"
+        return f"TronÃ§on BT {self.fid}"
 
 
 class ElecTronconHta(SrmTrackedModel):
@@ -2611,9 +2490,7 @@ class ElecTronconHta(SrmTrackedModel):
     commentaire = models.CharField(max_length=254, null=True, blank=True)
     conformite_plan = models.CharField(max_length=254, null=True, blank=True)
     id_troncon_hta = models.IntegerField(null=True, blank=True)
-    id_projet = models.IntegerField(null=True, blank=True)
     id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_mission = models.IntegerField(null=True, blank=True)
     id_planche = models.IntegerField(null=True, blank=True)
     id_commune = models.IntegerField(null=True, blank=True)
     mode_localisation = models.CharField(max_length=100, default='gnss')
@@ -2627,4 +2504,4 @@ class ElecTronconHta(SrmTrackedModel):
         db_table = '"elec"."troncon_hta"'
 
     def __str__(self):
-        return f"Tronçon HTA {self.fid}"
+        return f"TronÃ§on HTA {self.fid}"

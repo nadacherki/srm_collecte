@@ -1,8 +1,8 @@
-"""
-Vues API pour SRM Collecte — COMPLET (55 modèles).
+﻿"""
+Vues API pour SRM Collecte.
 
-Chaque ViewSet filtre par id_projet et id_mission via query params.
-Le login vérifie le mot de passe hashé PBKDF2 via Django.
+Le contexte applicatif est porte par utilisateur, zone et synchronisation.
+Le login verifie le mot de passe hashe via Django.
 """
 
 import datetime
@@ -41,18 +41,17 @@ except ImportError:  # pragma: no cover - depends on runtime env
     ExifTags = None
 
 from .models import (
-    Utilisateur, Projet, Mission, Commune,
-    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, ObjetPhoto,
+    Utilisateur, Commune, Zone, ZoneUtilisateur,
+    HistoriqueAction, ObjetIncomplet, ObjetPhoto,
+    InterventionAnomalie,
     SyncSession, SyncSessionItem, SyncSessionAttachment,
-    FondDePlan, EvaluationAgent,
-    StatistiqueConduite, StatistiqueConduiteSegment,
-    ConduiteStatistiqueEp, ConduiteStatistiqueEpSegment,
-    ConduiteStatiqueAsst, ConduiteStatiqueAsstSegment,
+    EpStatistiqueConduite, EpStatistiqueConduiteSegment,
+    AssStatistiqueConduite, AssStatistiqueConduiteSegment,
     SrmFieldOption,
-    BasemapZone, BasemapPackage, AgentBasemapZone,
+    BasemapPackage,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
+    MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
-    MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
     EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
     EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
     EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
@@ -67,16 +66,17 @@ from .models import (
     ElecTronconBt, ElecTronconHta,
 )
 from .serializers import (
-    ProjetSerializer, MissionSerializer, CommuneSerializer,
-    HistoriqueAttributSerializer, HistoriqueMobileSerializer,
-    MobileHistoryUploadSerializer, ObjetIncompletSerializer,
-    FondDePlanSerializer, EvaluationAgentSerializer, SrmFieldOptionSerializer,
-    BasemapZoneGeoSerializer, BasemapZoneCatalogSerializer, BasemapPackageSerializer,
+    CommuneSerializer,
+    ZoneSerializer, ZoneUtilisateurSerializer,
+    HistoriqueActionSerializer,
+    ObjetIncompletSerializer,
+    InterventionAnomalieTerrainSerializer,
+    SrmFieldOptionSerializer, ObjetPhotoSerializer,
+    ZoneBasemapCatalogSerializer, BasemapPackageSerializer,
     MetricAgentJourSerializer, MetricAgentSemaineSerializer, MetricAgentMoisSerializer,
+    MetricAgentTablePeriodSerializer, MetricAgentPeriodSerializer, MetricAgentResumeSerializer,
     MetricAgentPublicJourSerializer, MetricAgentPublicSemaineSerializer,
     MetricAgentPublicMoisSerializer, MetricAgentPublicResumeSerializer,
-    MetricProjetJourSerializer, MetricProjetSemaineSerializer,
-    MetricProjetMoisSerializer, MetricProjetResumeSerializer,
     EpVanneSerializer, EpVanneDeVidangeSerializer, EpVentouseSerializer,
     EpHydrantSerializer, EpBorneFontaineSerializer, EpBorneOnepSerializer,
     EpBoucheClesSerializer, EpBoucheDarrosageSerializer,
@@ -176,7 +176,7 @@ _OBJET_PHOTO_SCHEMA_READY = False
 
 
 def _ensure_objet_photo_schema():
-    """Keep legacy dev databases compatible with the current photo model."""
+    """Keep development databases aligned with the current photo model."""
     global _OBJET_PHOTO_SCHEMA_READY
     if _OBJET_PHOTO_SCHEMA_READY:
         return
@@ -184,9 +184,69 @@ def _ensure_objet_photo_schema():
     with connection.cursor() as cursor:
         cursor.execute(
             """
+            CREATE TABLE IF NOT EXISTS public.objet_photo (
+                id_photo BIGSERIAL PRIMARY KEY,
+                uuid_objet VARCHAR(254) NOT NULL,
+                nom_schema VARCHAR(20) NOT NULL,
+                nom_table VARCHAR(100) NOT NULL,
+                num_photo SMALLINT NOT NULL,
+                nom_fichier VARCHAR(255) NOT NULL,
+                chemin_relatif TEXT NOT NULL,
+                hash_sha256 CHAR(64),
+                mime_type VARCHAR(100),
+                taille_octets BIGINT,
+                id_agent_crea INTEGER,
+                date_upload TIMESTAMPTZ NOT NULL DEFAULT now(),
+                actif BOOLEAN NOT NULL DEFAULT true,
+                date_prise_reelle TIMESTAMPTZ
+            )
+            """
+        )
+        cursor.execute(
+            """
             ALTER TABLE public.objet_photo
                 ADD COLUMN IF NOT EXISTS date_prise_reelle timestamptz,
                 ADD COLUMN IF NOT EXISTS date_upload timestamptz
+            """
+        )
+        cursor.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'objet_photo_num_photo_check'
+                ) THEN
+                    ALTER TABLE public.objet_photo
+                        ADD CONSTRAINT objet_photo_num_photo_check
+                        CHECK (num_photo BETWEEN 1 AND 4);
+                END IF;
+            END $$;
+            """
+        )
+        cursor.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS
+                objet_photo_nom_schema_nom_table_uuid_objet_num_photo_key
+                ON public.objet_photo (
+                    nom_schema,
+                    nom_table,
+                    uuid_objet,
+                    num_photo
+                )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS objet_photo_schema_table_uuid_idx
+                ON public.objet_photo (nom_schema, nom_table, uuid_objet)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS objet_photo_uuid_objet_idx
+                ON public.objet_photo (uuid_objet)
             """
         )
         cursor.execute(
@@ -236,7 +296,7 @@ def _resolve_conduite_regard_node(node_payload):
                 )
             else:
                 raise ValidationError(
-                    {'nodes': [f'Regard fid={fid} sans géométrie exploitable.']}
+                    {'nodes': [f'Regard fid={fid} sans gÃ©omÃ©trie exploitable.']}
                 )
         return regard
 
@@ -284,7 +344,7 @@ def _resolve_conduite_regard_node(node_payload):
                 raise ValidationError(
                     {
                         'nodes': [
-                            f'Regard {ep_num or uuid_value} sans géométrie exploitable.'
+                            f'Regard {ep_num or uuid_value} sans gÃ©omÃ©trie exploitable.'
                         ]
                     }
                 )
@@ -298,13 +358,26 @@ def _resolve_conduite_regard_node(node_payload):
 def _build_unique_conduite_segments(regard_nodes):
     unique_segments = []
     seen_pairs = set()
+    previous = None
 
-    for left, right in zip(regard_nodes, regard_nodes[1:]):
+    for current in regard_nodes:
+        if current is None:
+            previous = None
+            continue
+
+        if previous is None:
+            previous = current
+            continue
+
+        left = previous
+        right = current
         if left.fid == right.fid:
+            previous = current
             continue
 
         pair_key = tuple(sorted((left.fid, right.fid)))
         if pair_key in seen_pairs:
+            previous = current
             continue
 
         line = LineString(left.geom.coords, right.geom.coords, srid=26191)
@@ -316,55 +389,9 @@ def _build_unique_conduite_segments(regard_nodes):
             }
         )
         seen_pairs.add(pair_key)
+        previous = current
 
     return unique_segments
-
-
-def _insert_statistique_conduite_segments(
-    id_statistique_conduite,
-    unique_segments,
-    now,
-):
-    if not unique_segments:
-        return
-
-    rows = [
-        (
-            id_statistique_conduite,
-            segment['fid_regard_a'],
-            segment['fid_regard_b'],
-            segment['geom'].ewkt,
-            0.0,
-            now,
-            now,
-        )
-        for segment in unique_segments
-    ]
-
-    with connection.cursor() as cursor:
-        cursor.executemany(
-            """
-            INSERT INTO public.statistique_conduite_segment (
-                id_statistique_conduite,
-                fid_regard_a,
-                fid_regard_b,
-                geom,
-                longueur_segment_m,
-                created_at,
-                updated_at
-            )
-            VALUES (
-                %s,
-                %s,
-                %s,
-                ST_GeomFromEWKT(%s),
-                %s,
-                %s,
-                %s
-            )
-            """,
-            rows,
-        )
 
 
 def _segment_geom_to_wgs84_points(geom):
@@ -379,85 +406,48 @@ def _segment_geom_to_wgs84_points(geom):
     ]
 
 
-def _statistique_conduite_snapshot(stat_row):
-    segment_qs = StatistiqueConduiteSegment.objects.filter(
-        id_statistique_conduite=stat_row.id_statistique_conduite
-    ).order_by('fid_regard_min', 'fid_regard_max')
-
-    segments_wgs84 = [
-        {
-            'fid_regard_a': segment.fid_regard_a,
-            'fid_regard_b': segment.fid_regard_b,
-            'points': _segment_geom_to_wgs84_points(segment.geom),
-            'longueur_segment_m': float(segment.longueur_segment_m or 0.0),
-        }
-        for segment in segment_qs
-    ]
-
-    return {
-        'exists': True,
-        'frozen': True,
-        'id_statistique_conduite': stat_row.id_statistique_conduite,
-        'id_agent': stat_row.id_agent,
-        'jour': stat_row.jour.isoformat(),
-        'longueur_conduite_m': float(stat_row.longueur_conduite_m or 0.0),
-        'segments_count': len(segments_wgs84),
-        'segments_wgs84': segments_wgs84,
-    }
-
-
 _CONDUITE_METIER_CONFIG = {
-    'legacy': {
-        'label': 'EP',
-        'regard_model': EpRegard,
-        'stat_model': StatistiqueConduite,
-        'segment_model': StatistiqueConduiteSegment,
-        'stat_table': 'statistique_conduite',
-        'segment_table': 'statistique_conduite_segment',
-        'coord_fields': ('ep_coor_x', 'ep_coor_y', 'ep_coor_z'),
-        'sync_schema': 'public',
-        'sync_table': 'statistique_conduite',
-        'ensure_tables': False,
-    },
     'ep': {
         'label': 'EP',
         'regard_model': EpRegard,
-        'stat_model': ConduiteStatistiqueEp,
-        'segment_model': ConduiteStatistiqueEpSegment,
-        'stat_table': 'conduite_statistique_ep',
-        'segment_table': 'conduite_statistique_ep_segment',
+        'stat_model': EpStatistiqueConduite,
+        'segment_model': EpStatistiqueConduiteSegment,
+        'schema': 'ep',
+        'stat_table': 'statistique_conduite',
+        'segment_table': 'statistique_conduite_segment',
         'coord_fields': ('ep_coor_x', 'ep_coor_y', 'ep_coor_z'),
-        'sync_schema': 'public',
-        'sync_table': 'conduite_statistique_ep',
+        'sync_schema': 'ep',
+        'sync_table': 'statistique_conduite',
         'ensure_tables': True,
     },
     'asst': {
         'label': 'ASS',
         'regard_model': AssRegard,
-        'stat_model': ConduiteStatiqueAsst,
-        'segment_model': ConduiteStatiqueAsstSegment,
-        'stat_table': 'conduite_statique_asst',
-        'segment_table': 'conduite_statique_asst_segment',
+        'stat_model': AssStatistiqueConduite,
+        'segment_model': AssStatistiqueConduiteSegment,
+        'schema': 'ass',
+        'stat_table': 'statistique_conduite',
+        'segment_table': 'statistique_conduite_segment',
         'coord_fields': ('ass_coor_x', 'ass_coor_y', 'ass_coor_z'),
-        'sync_schema': 'public',
-        'sync_table': 'conduite_statique_asst',
+        'sync_schema': 'ass',
+        'sync_table': 'statistique_conduite',
         'ensure_tables': True,
     },
 }
 
 
-def _normalize_conduite_metier(raw_metier, *, default='legacy'):
+def _normalize_conduite_metier(raw_metier, *, default='ep'):
     value = str(raw_metier or '').strip().lower()
     if value in ('ep', 'eau_potable', 'eau potable'):
         return 'ep'
     if value in ('asst', 'ass', 'assainissement'):
         return 'asst'
-    if value in ('legacy', ''):
+    if value == '':
         return default
     raise ValidationError({'metier': [f'Metier conduite non supporte: {raw_metier}.']})
 
 
-def _conduite_config(raw_metier=None, *, default='legacy'):
+def _conduite_config(raw_metier=None, *, default='ep'):
     key = _normalize_conduite_metier(raw_metier, default=default)
     config = _CONDUITE_METIER_CONFIG[key]
     if config.get('ensure_tables'):
@@ -466,29 +456,34 @@ def _conduite_config(raw_metier=None, *, default='legacy'):
 
 
 def _ensure_conduite_stat_tables(config):
+    schema = config['schema']
     stat_table = config['stat_table']
     segment_table = config['segment_table']
     with connection.cursor() as cursor:
+        cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
         cursor.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS public.{stat_table} (
+            CREATE TABLE IF NOT EXISTS {schema}.{stat_table} (
                 id_statistique_conduite BIGSERIAL PRIMARY KEY,
-                id_agent INTEGER NOT NULL,
+                id_agent INTEGER NOT NULL
+                    REFERENCES public.utilisateur(id_user)
+                    ON DELETE RESTRICT,
                 jour DATE NOT NULL,
                 geom geometry(MultiLineStringZ,26191),
-                longueur_conduite_m DOUBLE PRECISION DEFAULT 0,
-                created_at TIMESTAMPTZ DEFAULT now(),
-                updated_at TIMESTAMPTZ DEFAULT now(),
-                CONSTRAINT {stat_table}_agent_jour_uniq UNIQUE (id_agent, jour)
+                longueur_conduite_m DOUBLE PRECISION NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT {stat_table}_agent_jour_key UNIQUE (id_agent, jour),
+                CONSTRAINT {stat_table}_longueur_chk CHECK (longueur_conduite_m >= 0)
             )
             """
         )
         cursor.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS public.{segment_table} (
+            CREATE TABLE IF NOT EXISTS {schema}.{segment_table} (
                 id_statistique_conduite_segment BIGSERIAL PRIMARY KEY,
                 id_statistique_conduite BIGINT NOT NULL
-                    REFERENCES public.{stat_table}(id_statistique_conduite)
+                    REFERENCES {schema}.{stat_table}(id_statistique_conduite)
                     ON DELETE CASCADE,
                 fid_regard_a INTEGER NOT NULL,
                 fid_regard_b INTEGER NOT NULL,
@@ -499,10 +494,12 @@ def _ensure_conduite_stat_tables(config):
                     GREATEST(fid_regard_a, fid_regard_b)
                 ) STORED,
                 geom geometry(LineStringZ,26191) NOT NULL,
-                longueur_segment_m DOUBLE PRECISION DEFAULT 0,
-                created_at TIMESTAMPTZ DEFAULT now(),
-                updated_at TIMESTAMPTZ DEFAULT now(),
-                CONSTRAINT {segment_table}_uniq UNIQUE (
+                longueur_segment_m DOUBLE PRECISION NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT {segment_table}_no_loop_chk CHECK (fid_regard_a <> fid_regard_b),
+                CONSTRAINT {segment_table}_longueur_chk CHECK (longueur_segment_m >= 0),
+                CONSTRAINT {segment_table}_unique_pair_key UNIQUE (
                     id_statistique_conduite,
                     fid_regard_min,
                     fid_regard_max
@@ -512,8 +509,44 @@ def _ensure_conduite_stat_tables(config):
         )
         cursor.execute(
             f"""
-            CREATE INDEX IF NOT EXISTS {segment_table}_stat_idx
-                ON public.{segment_table} (id_statistique_conduite)
+            CREATE INDEX IF NOT EXISTS {stat_table}_agent_idx
+                ON {schema}.{stat_table} (id_agent, jour DESC)
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {stat_table}_jour_idx
+                ON {schema}.{stat_table} (jour DESC)
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {stat_table}_geom_gix
+                ON {schema}.{stat_table} USING GIST (geom)
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {segment_table}_parent_idx
+                ON {schema}.{segment_table} (id_statistique_conduite)
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {segment_table}_regard_a_idx
+                ON {schema}.{segment_table} (fid_regard_a)
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {segment_table}_regard_b_idx
+                ON {schema}.{segment_table} (fid_regard_b)
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {segment_table}_geom_gix
+                ON {schema}.{segment_table} USING GIST (geom)
             """
         )
 
@@ -632,12 +665,13 @@ def _insert_statistique_conduite_segments(
         for segment in unique_segments
     ]
 
+    schema = config['schema']
     segment_table = config['segment_table']
     stat_table = config['stat_table']
     with connection.cursor() as cursor:
         cursor.executemany(
             f"""
-            INSERT INTO public.{segment_table} (
+            INSERT INTO {schema}.{segment_table} (
                 id_statistique_conduite,
                 fid_regard_a,
                 fid_regard_b,
@@ -660,7 +694,7 @@ def _insert_statistique_conduite_segments(
         )
         cursor.execute(
             f"""
-            UPDATE public.{segment_table}
+            UPDATE {schema}.{segment_table}
                SET longueur_segment_m = ST_Length(geom),
                    updated_at = %s
              WHERE id_statistique_conduite = %s
@@ -669,7 +703,7 @@ def _insert_statistique_conduite_segments(
         )
         cursor.execute(
             f"""
-            UPDATE public.{stat_table}
+            UPDATE {schema}.{stat_table}
                SET geom = sub.geom,
                    longueur_conduite_m = sub.longueur,
                    updated_at = %s
@@ -677,7 +711,7 @@ def _insert_statistique_conduite_segments(
                     SELECT
                         ST_Multi(ST_Collect(geom))::geometry(MultiLineStringZ,26191) AS geom,
                         COALESCE(SUM(longueur_segment_m), 0.0) AS longueur
-                      FROM public.{segment_table}
+                      FROM {schema}.{segment_table}
                      WHERE id_statistique_conduite = %s
               ) AS sub
              WHERE id_statistique_conduite = %s
@@ -686,8 +720,8 @@ def _insert_statistique_conduite_segments(
         )
 
 
-def _statistique_conduite_snapshot(stat_row, config=None, metier_key='legacy'):
-    config = config or _CONDUITE_METIER_CONFIG['legacy']
+def _statistique_conduite_snapshot(stat_row, config=None, metier_key='ep'):
+    config = config or _CONDUITE_METIER_CONFIG['ep']
     segment_qs = config['segment_model'].objects.filter(
         id_statistique_conduite=stat_row.id_statistique_conduite
     ).order_by('fid_regard_min', 'fid_regard_max')
@@ -719,15 +753,153 @@ def _normalized_db_table(model):
     return str(model._meta.db_table).replace('"', '')
 
 
-def _set_local_audit_user_id(user_id):
-    if user_id is None:
+def _split_normalized_db_table(model):
+    normalized = _normalized_db_table(model)
+    if '.' in normalized:
+        return normalized.split('.', 1)
+    return 'public', normalized
+
+
+def _is_truthy_anomaly(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value == 1
+    if value is None:
+        return False
+    return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'oui'}
+
+
+def _first_non_empty_attr(instance, names):
+    for name in names:
+        value = getattr(instance, name, None)
+        if value in (None, ''):
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ''
+
+
+def _instance_has_anomaly(instance):
+    return any(
+        _is_truthy_anomaly(getattr(instance, field_name, None))
+        for field_name in ('anomalie', 'ep_anomalie')
+    )
+
+
+def _upsert_intervention_anomalie_from_instance(instance, id_user=None):
+    if instance is None or not _instance_has_anomaly(instance):
         return
+
+    schema_name, table_name = _split_normalized_db_table(instance.__class__)
+    nom_table = f'{schema_name}.{table_name}'
+    id_objet = getattr(instance, instance._meta.pk.attname, None)
+    if id_objet is None:
+        return
+
+    uuid_objet = getattr(instance, 'uuid', None)
+    uuid_text = str(uuid_objet).strip() if uuid_objet not in (None, '') else None
+    commentaire = _first_non_empty_attr(
+        instance,
+        (
+            'type_anomalie',
+            'anomalie_regard',
+            'anomalie_tamp',
+            'ep_observation',
+            'observation',
+            'commentaire',
+        ),
+    )
 
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT set_config('app.current_user_id', %s, true)",
-            [str(user_id)],
+            """
+            SELECT id
+            FROM public.intervention_anomalie
+            WHERE nom_table = %s
+              AND id_objet = %s
+              AND statut NOT IN ('cloture', 'annule')
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            [nom_table, id_objet],
         )
+        row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                """
+                UPDATE public.intervention_anomalie
+                SET uuid_objet = COALESCE(NULLIF(%s, ''), uuid_objet),
+                    commentaire_terrain = COALESCE(NULLIF(%s, ''), commentaire_terrain),
+                    id_user_terrain = COALESCE(%s, id_user_terrain),
+                    updated_at = now()
+                WHERE id = %s
+                """,
+                [uuid_text, commentaire, id_user, row[0]],
+            )
+            return
+
+        cursor.execute(
+            """
+            INSERT INTO public.intervention_anomalie (
+                id_objet,
+                nom_classe,
+                nom_table,
+                uuid_objet,
+                statut,
+                responsable_actuel,
+                etat_terrain,
+                commentaire_terrain,
+                id_user_terrain,
+                date_creation
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                'signale',
+                'terrain',
+                'en_attente',
+                NULLIF(%s, ''),
+                %s,
+                now()::timestamp
+            )
+            """,
+            [id_objet, table_name, nom_table, uuid_text, commentaire, id_user],
+        )
+
+
+def _set_local_audit_context(user_id=None, source=None, action=None):
+    with connection.cursor() as cursor:
+        if user_id is not None:
+            cursor.execute(
+                "SELECT set_config('app.current_user_id', %s, true)",
+                [str(user_id)],
+            )
+
+        clean_source = str(source or '').strip().lower()
+        if clean_source:
+            if clean_source in ('application mobile', 'mobile'):
+                clean_source = 'mobile'
+            elif clean_source in ('application web', 'web', 'bureau', 'backoffice'):
+                clean_source = 'bureau'
+            cursor.execute(
+                "SELECT set_config('app.history_source', %s, true)",
+                [clean_source],
+            )
+
+        clean_action = str(action or '').strip().lower()
+        if clean_action:
+            cursor.execute(
+                "SELECT set_config('app.history_action', %s, true)",
+                [clean_action],
+            )
+
+
+def _set_local_audit_user_id(user_id):
+    _set_local_audit_context(user_id=user_id)
 
 
 _SRM_PHOTO_MODELS = [
@@ -818,13 +990,62 @@ def _strip_sync_meta(data):
     return cleaned
 
 
+def _dict_like_get(source, key):
+    if source is None or not hasattr(source, 'get'):
+        return None
+    return source.get(key)
+
+
+def _history_source_for_request(request, sync_session_uuid=None, default=None):
+    header_source = str(request.headers.get('X-SRM-Source', '')).strip().lower()
+    if header_source in ('mobile', 'application mobile'):
+        return 'mobile'
+    if header_source in ('bureau', 'web', 'application web', 'backoffice'):
+        return 'bureau'
+
+    if sync_session_uuid:
+        return 'mobile'
+
+    for key in ('_sync_session_uuid', 'sync_session_uuid', 'sync_uuid'):
+        value = _request_param(request, key)
+        if value not in (None, ''):
+            return 'mobile'
+
+    return default
+
+
+def _payload_truthy(data, field_name):
+    sources = []
+    if hasattr(data, 'get'):
+        sources.append(data)
+        properties = data.get('properties')
+        if hasattr(properties, 'get'):
+            sources.append(properties)
+
+    for source in sources:
+        value = source.get(field_name)
+        if value in (None, ''):
+            continue
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if str(value).strip().lower() in {'1', 'true', 'yes', 'oui', 'on'}:
+            return True
+    return False
+
+
+def _history_action_for_write(request, default_action):
+    if default_action == 'update' and _payload_truthy(request.data, 'is_validated'):
+        return 'validate'
+    return default_action
+
+
 def _sync_session_payload(session):
     return {
         'sync_uuid': session.sync_uuid,
         'statut': session.statut,
         'id_agent': session.id_agent,
-        'id_projet': session.id_projet,
-        'id_mission': session.id_mission,
         'total_items': session.total_items,
         'total_attachments': session.total_attachments,
         'received_items': session.received_items,
@@ -1033,17 +1254,24 @@ def _mark_sync_attachment_received(*, sync_uuid, schema_name, table_name, uuid_o
     _refresh_sync_session_counters(session)
 
 
-def _assigned_zone_ids_for_agent(agent_id):
-    return AgentBasemapZone.objects.filter(
+def _assigned_id_zones_for_agent(agent_id):
+    return ZoneUtilisateur.objects.filter(
         id_user=agent_id,
         actif=True,
-    ).values_list('zone_id', flat=True)
+    ).values_list('id_zone', flat=True)
 
 
 def _requested_basemap_agent_id(request):
     return _parse_positive_int_value(
         request.query_params.get('id_user') or request.query_params.get('id_agent')
     )
+
+
+def _id_zone_from_catalog_zone_id(zone_id):
+    raw = str(zone_id or '').strip()
+    if raw.startswith('zone_'):
+        raw = raw[5:]
+    return _parse_positive_int_value(raw)
 
 
 def _parse_bool_value(raw_value, default=False):
@@ -1061,26 +1289,25 @@ def _request_param(request, name):
 
 
 def _filtered_basemap_querysets(*, city_slug='', style='', active_only=True, agent_id=None):
-    zones_qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
+    zones_qs = Zone.objects.all().order_by('nom_zone', 'id_zone')
     packages_qs = BasemapPackage.objects.all().order_by(
         'city_slug',
-        'zone_id',
+        'id_zone',
         'style',
         'version',
     )
 
     if agent_id is not None:
-        assigned_zone_ids = _assigned_zone_ids_for_agent(agent_id)
-        zones_qs = zones_qs.filter(zone_id__in=assigned_zone_ids)
-        packages_qs = packages_qs.filter(zone_id__in=assigned_zone_ids)
+        assigned_id_zones = _assigned_id_zones_for_agent(agent_id)
+        zones_qs = zones_qs.filter(id_zone__in=assigned_id_zones)
+        packages_qs = packages_qs.filter(id_zone__in=assigned_id_zones)
 
     if city_slug:
-        zones_qs = zones_qs.filter(city_slug=city_slug)
         packages_qs = packages_qs.filter(city_slug=city_slug)
     if style:
         packages_qs = packages_qs.filter(style=style)
     if active_only:
-        zones_qs = zones_qs.filter(actif=True)
+        zones_qs = zones_qs.filter(etat='active')
         packages_qs = packages_qs.filter(actif=True)
 
     return zones_qs, packages_qs
@@ -1093,7 +1320,7 @@ def _basemap_catalog_payload(request, *, city_slug='', style='', active_only=Tru
         active_only=active_only,
         agent_id=agent_id,
     )
-    zones_payload = BasemapZoneCatalogSerializer(zones_qs, many=True).data
+    zones_payload = ZoneBasemapCatalogSerializer(zones_qs, many=True).data
     packages_payload = BasemapPackageSerializer(
         packages_qs,
         many=True,
@@ -1115,8 +1342,8 @@ def _package_file_exists(package):
     return (Path(settings.MEDIA_ROOT) / relative_path).exists()
 
 
-def _latest_ready_basemap_package(*, zone_id, style='', package_format=''):
-    qs = BasemapPackage.objects.filter(zone_id=zone_id)
+def _latest_ready_basemap_package(*, id_zone, style='', package_format=''):
+    qs = BasemapPackage.objects.filter(id_zone=id_zone)
     if style:
         qs = qs.filter(style=style)
     if package_format:
@@ -1158,7 +1385,7 @@ def _resolve_basemap_build_source_path():
         )
     if len(candidates) > 1:
         raise CommandError(
-            'Plusieurs sources basemap détectées. '
+            'Plusieurs sources basemap dÃ©tectÃ©es. '
             'Configurer BASEMAP_BUILD_SOURCE_PATH pour choisir explicitement la source.'
         )
     return candidates[0]
@@ -1185,7 +1412,7 @@ def _resolve_osm_extract_source_path():
     if not source_dir.exists():
         raise CommandError(
             f'Dossier source OSM introuvable: {source_dir}. '
-            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH ou déposer un extract .osm.'
+            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH ou dÃ©poser un extract .osm.'
         )
 
     candidates = sorted(
@@ -1199,7 +1426,7 @@ def _resolve_osm_extract_source_path():
         )
     if len(candidates) > 1:
         raise CommandError(
-            'Plusieurs extracts OSM détectés. '
+            'Plusieurs extracts OSM dÃ©tectÃ©s. '
             'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH pour choisir explicitement le bon fichier.'
         )
     return candidates[0]
@@ -1211,7 +1438,7 @@ def _resolve_pmtiles_source_spec():
         parsed = urlparse(explicit_url)
         if parsed.scheme not in {'http', 'https'}:
             raise CommandError(
-                'BASEMAP_BUILD_PMTILES_SOURCE_URL doit être une URL http(s) valide.'
+                'BASEMAP_BUILD_PMTILES_SOURCE_URL doit Ãªtre une URL http(s) valide.'
             )
         source_name = (
             getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or Path(parsed.path).name
@@ -1254,7 +1481,7 @@ def _resolve_pmtiles_source_spec():
         )
     if len(candidates) > 1:
         raise CommandError(
-            'Plusieurs sources PMTiles détectées. '
+            'Plusieurs sources PMTiles dÃ©tectÃ©es. '
             'Configurer BASEMAP_BUILD_PMTILES_SOURCE_PATH pour choisir explicitement la source.'
         )
 
@@ -1319,8 +1546,8 @@ def _resolve_basemap_script_python():
 
     checked_display = ', '.join(checked_candidates) or 'aucun candidat'
     raise CommandError(
-        'Aucun interpréteur Python basemap compatible trouvé '
-        f'(osgeo + PIL). Candidats testés: {checked_display}'
+        'Aucun interprÃ©teur Python basemap compatible trouvÃ© '
+        f'(osgeo + PIL). Candidats testÃ©s: {checked_display}'
     )
 
 
@@ -1335,8 +1562,8 @@ def _run_python_script(script_path, arguments):
         env=env,
     )
     if result.returncode != 0:
-        details = (result.stderr or result.stdout or '').strip() or 'aucun détail fourni'
-        raise CommandError(f'Échec script {script_path.name}: {details}')
+        details = (result.stderr or result.stdout or '').strip() or 'aucun dÃ©tail fourni'
+        raise CommandError(f'Ã‰chec script {script_path.name}: {details}')
 
 
 def _candidate_pmtiles_cli_paths():
@@ -1362,8 +1589,8 @@ def _resolve_pmtiles_cli_path():
     checked_display = ', '.join(checked_candidates) or 'aucun candidat'
     raise CommandError(
         'CLI pmtiles introuvable. Configurer BASEMAP_PMTILES_CLI_PATH '
-        'ou déposer pmtiles.exe dans API_GeoDjango/basemaps/tools/. '
-        f'Candidats testés: {checked_display}'
+        'ou dÃ©poser pmtiles.exe dans API_GeoDjango/basemaps/tools/. '
+        f'Candidats testÃ©s: {checked_display}'
     )
 
 
@@ -1388,8 +1615,8 @@ def _run_pmtiles_command(arguments):
         env=env,
     )
     if result.returncode != 0:
-        details = (result.stderr or result.stdout or '').strip() or 'aucun détail fourni'
-        raise CommandError(f'Échec pmtiles: {details}')
+        details = (result.stderr or result.stdout or '').strip() or 'aucun dÃ©tail fourni'
+        raise CommandError(f'Ã‰chec pmtiles: {details}')
     return result.stdout or ''
 
 
@@ -1399,7 +1626,7 @@ def _read_pmtiles_header(pmtiles_path):
         header_data = json.loads(header_text)
     except json.JSONDecodeError as exc:
         raise CommandError(
-            f'Réponse header PMTiles invalide pour {pmtiles_path}: {exc}'
+            f'RÃ©ponse header PMTiles invalide pour {pmtiles_path}: {exc}'
         ) from exc
     if not isinstance(header_data, dict):
         raise CommandError(f'Header PMTiles invalide pour {pmtiles_path}')
@@ -1412,7 +1639,7 @@ def _read_pmtiles_metadata(pmtiles_path):
         metadata_data = json.loads(metadata_text)
     except json.JSONDecodeError as exc:
         raise CommandError(
-            f'Réponse metadata PMTiles invalide pour {pmtiles_path}: {exc}'
+            f'RÃ©ponse metadata PMTiles invalide pour {pmtiles_path}: {exc}'
         ) from exc
     if not isinstance(metadata_data, dict):
         raise CommandError(f'Metadata PMTiles invalide pour {pmtiles_path}')
@@ -1474,7 +1701,7 @@ def _generate_zone_package_from_pmtiles(
         )
 
         package = BasemapPackage.objects.filter(
-            zone_id=zone.zone_id,
+            id_zone=zone.id_zone,
             style=style,
             version=package_version,
         ).first()
@@ -1560,23 +1787,23 @@ def _generate_zone_package_from_osm(*, zone, style, package_version, osm_source_
 
 
 # =====================================================================
-#  MIXIN : Upsert par UUID (re-synchronisation après édition)
+#  MIXIN : Upsert par UUID (re-synchronisation aprÃ¨s Ã©dition)
 # =====================================================================
 
 class UpsertByUuidMixin:
     """
-    Override de create() pour gérer la re-synchronisation mobile.
+    Override de create() pour gÃ©rer la re-synchronisation mobile.
 
-    Problème résolu :
-      Un objet créé localement est synchronisé (POST → créé en base).
-      L'agent le ré-édite (désactive toggle anomalie/incomplet).
-      L'objet repasse en synced=0 côté Flutter.
-      Flutter re-poste en POST → Django détecte l'UUID existant → UPDATE.
+    ProblÃ¨me rÃ©solu :
+      Un objet crÃ©Ã© localement est synchronisÃ© (POST â†’ crÃ©Ã© en base).
+      L'agent le rÃ©-Ã©dite (dÃ©sactive toggle anomalie/incomplet).
+      L'objet repasse en synced=0 cÃ´tÃ© Flutter.
+      Flutter re-poste en POST â†’ Django dÃ©tecte l'UUID existant â†’ UPDATE.
 
     Comportement :
-      - POST sans uuid ou uuid inconnu  → CREATE (comportement standard)
-      - POST avec uuid déjà en base     → UPDATE partiel (PATCH semantics)
-      - Modèle sans champ uuid          → CREATE (comportement standard)
+      - POST sans uuid ou uuid inconnu  â†’ CREATE (comportement standard)
+      - POST avec uuid dÃ©jÃ  en base     â†’ UPDATE partiel (PATCH semantics)
+      - ModÃ¨le sans champ uuid          â†’ CREATE (comportement standard)
     """
 
     @staticmethod
@@ -1654,7 +1881,7 @@ class UpsertByUuidMixin:
             return Response(
                 {
                     'error': (
-                        f'UUID ambigu détecté pour {qs.model.__name__}: {uuid_clean}'
+                        f'UUID ambigu dÃ©tectÃ© pour {qs.model.__name__}: {uuid_clean}'
                     )
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -1686,13 +1913,12 @@ class UpsertByUuidMixin:
 
 
 # =====================================================================
-#  MIXIN : Filtrage par projet et mission (réutilisé par tous les ViewSets)
+#  MIXIN : Filtrage commun des entites SRM
 # =====================================================================
 
-class ProjetMissionFilterMixin(UpsertByUuidMixin):
+class SrmEntityFilterMixin(UpsertByUuidMixin):
     """
-    Filtre automatiquement le queryset par id_projet et id_mission
-    si ces paramètres sont passés dans l'URL (?id_projet=1&id_mission=5).
+    Applique les filtres communs encore actifs sur les entites terrain.
     """
     def _parse_positive_int_param(self, name):
         raw_value = self.request.query_params.get(name)
@@ -1742,6 +1968,8 @@ class ProjetMissionFilterMixin(UpsertByUuidMixin):
             'id_agent_modif',
             'id_agent',
             'id_agent_crea',
+            'id_agent_incomplet',
+            'id_agent_completement',
             'id_agent_signal',
             'id_agent_retour',
             'id_user',
@@ -1769,29 +1997,45 @@ class ProjetMissionFilterMixin(UpsertByUuidMixin):
 
     def perform_create(self, serializer):
         with transaction.atomic():
-            _set_local_audit_user_id(self._extract_audit_user_id(serializer))
-            serializer.save()
+            audit_user_id = self._extract_audit_user_id(serializer)
+            _set_local_audit_context(
+                user_id=audit_user_id,
+                source=_history_source_for_request(self.request),
+                action='insert',
+            )
+            instance = serializer.save()
+            _upsert_intervention_anomalie_from_instance(instance, audit_user_id)
 
     def perform_update(self, serializer):
         with transaction.atomic():
-            _set_local_audit_user_id(self._extract_audit_user_id(serializer))
-            serializer.save()
+            audit_user_id = self._extract_audit_user_id(serializer)
+            history_source = _history_source_for_request(self.request)
+            _set_local_audit_context(
+                user_id=audit_user_id,
+                source=history_source,
+                action=_history_action_for_write(self.request, 'update'),
+            )
+            instance = serializer.save()
+            _set_local_audit_context(
+                user_id=audit_user_id,
+                source=history_source,
+                action='update',
+            )
+            _upsert_intervention_anomalie_from_instance(instance, audit_user_id)
 
     def perform_destroy(self, instance):
         with transaction.atomic():
-            _set_local_audit_user_id(self._extract_audit_user_id(instance=instance))
+            _set_local_audit_context(
+                user_id=self._extract_audit_user_id(instance=instance),
+                source=_history_source_for_request(self.request),
+                action='delete',
+            )
             instance.delete()
 
     def get_queryset(self):
         qs = super().get_queryset()
-        id_projet = self._parse_positive_int_param('id_projet')
-        id_mission = self._parse_positive_int_param('id_mission')
         id_agent = self._parse_positive_int_param('id_agent_crea')
         updated_after = self._parse_datetime_param('updated_after')
-        if id_projet is not None and self._has_model_field(qs, 'id_projet'):
-            qs = qs.filter(id_projet=id_projet)
-        if id_mission is not None and self._has_model_field(qs, 'id_mission'):
-            qs = qs.filter(id_mission=id_mission)
         if id_agent is not None and self._has_model_field(qs, 'id_agent_crea'):
             qs = qs.filter(id_agent_crea=id_agent)
         if updated_after is not None and self._has_model_field(qs, 'updated_at'):
@@ -1801,7 +2045,7 @@ class ProjetMissionFilterMixin(UpsertByUuidMixin):
         return qs
 
 
-class MetricFilterMixin(ProjetMissionFilterMixin):
+class MetricFilterMixin(SrmEntityFilterMixin):
     metric_text_filters = {
         'nom_schema': 'nom_schema',
         'nom_table': 'nom_table',
@@ -1827,19 +2071,11 @@ class MetricFilterMixin(ProjetMissionFilterMixin):
             if value not in (None, ''):
                 qs = qs.filter(**{field_name: value})
 
-        for param in ('id_agent', 'id_projet', 'id_mission'):
+        for param in ('id_agent',):
             value = self._parse_positive_int_param(param)
             if value is not None:
                 qs = qs.filter(**{param: value})
 
-        return qs
-
-
-class ProjectMetricFilterMixin(ProjetMissionFilterMixin):
-    def _apply_project_metric_filters(self, qs):
-        id_projet = self._parse_positive_int_param('id_projet')
-        if id_projet is not None:
-            qs = qs.filter(id_projet=id_projet)
         return qs
 
 
@@ -1853,13 +2089,13 @@ def login_view(request):
     """
     POST /api/login/
     Body: { "login": "username", "mot_de_passe": "password" }
-    Vérifie le mot de passe via les hashers Django configurés.
+    VÃ©rifie le mot de passe via les hashers Django configurÃ©s.
     Le backend ne modifie jamais automatiquement la base des mots de passe.
     """
     try:
         payload = json.loads(request.body)
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Corps de la requête invalide (JSON attendu)'}, status=400)
+        return JsonResponse({'error': 'Corps de la requÃªte invalide (JSON attendu)'}, status=400)
 
     serializer = LoginRequestSerializer(data=payload)
     if not serializer.is_valid():
@@ -1874,39 +2110,26 @@ def login_view(request):
         return JsonResponse({'error': 'Login ou mot de passe incorrect'}, status=401)
 
     if not user.actif:
-        return JsonResponse({'error': 'Compte désactivé. Contactez votre administrateur.'}, status=403)
+        return JsonResponse({'error': 'Compte dÃ©sactivÃ©. Contactez votre administrateur.'}, status=403)
 
-    if not user.mot_de_passe:
-        return JsonResponse({'error': 'Aucun mot de passe configuré pour ce compte'}, status=401)
+    if user.is_deleted:
+        return JsonResponse({'error': 'Compte supprimÃ©. Contactez votre administrateur.'}, status=403)
 
-    # Le mot de passe doit déjà être stocké hashé en base.
-    if not user.mot_de_passe.startswith(('argon2', 'pbkdf2', 'bcrypt')):
-        return JsonResponse({'error': 'Compte non configuré pour l’authentification sécurisée'}, status=401)
+    if not user.mot_de_passe_hash:
+        return JsonResponse({'error': 'Aucun mot de passe configurÃ© pour ce compte'}, status=401)
 
-    mot_de_passe_valide = check_password(mot_de_passe, user.mot_de_passe)
+    # Le mot de passe doit dÃ©jÃ  Ãªtre stockÃ© hashÃ© en base.
+    if not user.mot_de_passe_hash.startswith(('argon2', 'pbkdf2', 'bcrypt')):
+        return JsonResponse({'error': 'Compte non configurÃ© pour lâ€™authentification sÃ©curisÃ©e'}, status=401)
+
+    mot_de_passe_valide = check_password(mot_de_passe, user.mot_de_passe_hash)
 
     if not mot_de_passe_valide:
         return JsonResponse({'error': 'Login ou mot de passe incorrect'}, status=401)
 
-    roles_mobile = ['admin', 'project_manager', 'editeur_terrain', 'editeur_bureau']
+    roles_mobile = ['admin', 'project_manager', 'editeur_terrain', 'editeur_bureau', 'superadmin']
     if user.role not in roles_mobile:
-        return JsonResponse({'error': "Votre profil ne permet pas l'accès à l'application mobile"}, status=403)
-
-    projet_data = None
-    if user.id_projet_actif:
-        try:
-            projet = Projet.objects.get(id_projet=user.id_projet_actif)
-            projet_data = {
-                'id_projet': projet.id_projet,
-                'code_affaire': projet.code_affaire,
-                'nom': projet.nom,
-                'srm': projet.srm,
-                'region': projet.region,
-                'metier': projet.metier,
-                'statut': projet.statut,
-            }
-        except Projet.DoesNotExist:
-            pass
+        return JsonResponse({'error': "Votre profil ne permet pas l'accÃ¨s Ã  l'application mobile"}, status=403)
 
     user.dernier_login = timezone.now()
     user.save(update_fields=['dernier_login'])
@@ -1916,12 +2139,12 @@ def login_view(request):
         'user': {
             'id_user': user.id_user,
             'login': user.login,
-            'nom_prenom': user.nom_prenom,
+            'nom': user.nom,
+            'prenom': user.prenom,
+            'nom_complet': user.nom_complet,
             'role': user.role,
-            'id_projet_actif': user.id_projet_actif,
             'nb_objets_collectes_total': user.nb_objets_collectes_total,
         },
-        'projet_actif': projet_data,
     })
 
 
@@ -1930,12 +2153,13 @@ def basemap_catalog_view(request):
     city_slug = (request.query_params.get('city_slug') or '').strip()
     style = (request.query_params.get('style') or '').strip()
     active_only = request.query_params.get('active_only', 'true').lower() != 'false'
+    agent_id = _requested_basemap_agent_id(request)
     payload = _basemap_catalog_payload(
         request,
         city_slug=city_slug,
         style=style,
         active_only=active_only,
-        agent_id=None,
+        agent_id=agent_id,
     )
     return Response(payload, status=status.HTTP_200_OK)
 
@@ -1947,7 +2171,7 @@ def prepare_agent_basemap_packages_view(request):
     )
     if agent_id is None:
         return Response(
-            {'success': False, 'message': "id_user est obligatoire pour préparer les cartes offline."},
+            {'success': False, 'message': "id_user est obligatoire pour prÃ©parer les cartes offline."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -1962,7 +2186,7 @@ def prepare_agent_basemap_packages_view(request):
         city_slug=city_slug,
         style='',
         active_only=active_only,
-        agent_id=None,
+        agent_id=agent_id,
     )
     zones = list(zones_qs)
     if not zones:
@@ -1971,7 +2195,7 @@ def prepare_agent_basemap_packages_view(request):
             city_slug=city_slug,
             style=style,
             active_only=active_only,
-            agent_id=None,
+            agent_id=agent_id,
         )
         payload.update({
             'success': True,
@@ -2026,10 +2250,10 @@ def prepare_agent_basemap_packages_view(request):
             city_slug=city_slug,
             style=style,
             active_only=active_only,
-            agent_id=None,
+            agent_id=agent_id,
         )
         resolution_message = resolution_errors[0] if resolution_errors else (
-            "Aucune source basemap serveur n'est configurée."
+            "Aucune source basemap serveur n'est configurÃ©e."
         )
         payload.update({
             'success': False,
@@ -2046,7 +2270,7 @@ def prepare_agent_basemap_packages_view(request):
 
     for index, zone in enumerate(zones, start=1):
         existing_package = None if force_rebuild else _latest_ready_basemap_package(
-            zone_id=zone.zone_id,
+            id_zone=zone.id_zone,
             style=style,
             package_format=target_format,
         )
@@ -2100,29 +2324,29 @@ def prepare_agent_basemap_packages_view(request):
         city_slug=city_slug,
         style=style,
         active_only=active_only,
-        agent_id=None,
+        agent_id=agent_id,
     )
     success = failed_count == 0 and (generated_count > 0 or reused_count > 0)
     if generated_count > 0 and failed_count == 0:
         message = (
-            f'{generated_count} zone(s) préparée(s) et {reused_count} déjà disponible(s).'
+            f'{generated_count} zone(s) prÃ©parÃ©e(s) et {reused_count} dÃ©jÃ  disponible(s).'
             if reused_count > 0
-            else f'{generated_count} zone(s) préparée(s) avec succès.'
+            else f'{generated_count} zone(s) prÃ©parÃ©e(s) avec succÃ¨s.'
         )
     elif reused_count > 0 and failed_count == 0:
         message = (
-            'Les cartes de toutes les communes sont déjà disponibles.'
+            'Les cartes de toutes les communes sont dÃ©jÃ  disponibles.'
             if reused_count == len(zones)
-            else f'{reused_count} zone(s) déjà disponible(s).'
+            else f'{reused_count} zone(s) dÃ©jÃ  disponible(s).'
         )
     elif generated_count > 0 or reused_count > 0:
         message = (
-            f'{generated_count} zone(s) préparée(s), '
-            f'{reused_count} déjà disponible(s), '
-            f'{failed_count} en échec.'
+            f'{generated_count} zone(s) prÃ©parÃ©e(s), '
+            f'{reused_count} dÃ©jÃ  disponible(s), '
+            f'{failed_count} en Ã©chec.'
         )
     else:
-        message = "Aucune carte n'a pu être préparée pour les communes actives."
+        message = "Aucune carte n'a pu Ãªtre prÃ©parÃ©e pour les communes actives."
     if pipeline_mode == 'pmtiles':
         message = f'{message} Source: PMTiles serveur.'
     elif pipeline_mode == 'osm':
@@ -2172,16 +2396,12 @@ def sync_manifest_view(request):
 
     now = timezone.now()
     id_agent = _parse_positive_int_value(request.data.get('id_agent'))
-    id_projet = _parse_positive_int_value(request.data.get('id_projet'))
-    id_mission = _parse_positive_int_value(request.data.get('id_mission'))
 
     with transaction.atomic():
         session, created = SyncSession.objects.get_or_create(
             sync_uuid=sync_uuid,
             defaults={
                 'id_agent': id_agent,
-                'id_projet': id_projet,
-                'id_mission': id_mission,
                 'device_id': str(request.data.get('device_id') or '').strip() or None,
                 'app_version': str(request.data.get('app_version') or '').strip() or None,
                 'statut': 'manifest_received',
@@ -2193,8 +2413,6 @@ def sync_manifest_view(request):
         )
         if not created:
             session.id_agent = id_agent
-            session.id_projet = id_projet
-            session.id_mission = id_mission
             session.device_id = str(request.data.get('device_id') or '').strip() or None
             session.app_version = str(request.data.get('app_version') or '').strip() or None
             session.statut = 'manifest_received'
@@ -2205,8 +2423,6 @@ def sync_manifest_view(request):
             session.save(
                 update_fields=[
                     'id_agent',
-                    'id_projet',
-                    'id_mission',
                     'device_id',
                     'app_version',
                     'statut',
@@ -2406,14 +2622,6 @@ def photo_upload_view(request):
             status=status.HTTP_404_NOT_FOUND,
         )
 
-    field_name = f'photo_{photo_slot}'
-    model_fields = {field.name for field in model._meta.fields}
-    if field_name not in model_fields:
-        return Response(
-            {'error': f'Le champ {field_name} n’existe pas sur {schema_name}.{table_name}'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     safe_uuid = re.sub(r'[^A-Za-z0-9._-]+', '_', uuid_objet)
     extension = Path(uploaded_file.name).suffix.lower()
     file_name = f'{safe_uuid}_{photo_slot}{extension}'
@@ -2447,10 +2655,14 @@ def photo_upload_view(request):
     captured_at = _extract_photo_taken_at(final_path)
     uploaded_at = timezone.now()
     with transaction.atomic():
-        _set_local_audit_user_id(data.get('id_agent_crea'))
-        setattr(instance, field_name, relative_path)
-        instance.save(update_fields=[field_name])
-
+        _set_local_audit_context(
+            user_id=_parse_positive_int_value(data.get('id_agent_crea')),
+            source=_history_source_for_request(
+                request,
+                sync_session_uuid=sync_session_uuid,
+                default='mobile',
+            ),
+        )
         ObjetPhoto.objects.update_or_create(
             nom_schema=schema_name,
             nom_table=table_name,
@@ -2462,8 +2674,6 @@ def photo_upload_view(request):
                 'hash_sha256': sha256.hexdigest(),
                 'mime_type': getattr(uploaded_file, 'content_type', '') or None,
                 'taille_octets': getattr(uploaded_file, 'size', None),
-                'id_projet': data.get('id_projet'),
-                'id_mission': data.get('id_mission'),
                 'id_agent_crea': data.get('id_agent_crea'),
                 'date_prise_reelle': captured_at,
                 'date_upload': uploaded_at,
@@ -2488,7 +2698,8 @@ def photo_upload_view(request):
             'table_name': table_name,
             'uuid_objet': uuid_objet,
             'photo_slot': photo_slot,
-            'field_name': field_name,
+            'field_name': f'photo_{photo_slot}',
+            'storage_table': 'public.objet_photo',
             'relative_path': relative_path,
             'media_url': media_url,
             'date_prise_reelle': captured_at.isoformat() if captured_at else None,
@@ -2504,17 +2715,17 @@ def statistique_conduite_jour_view(request):
     raw_jour = (request.query_params.get('jour') or '').strip()
     metier_key, conduite_config = _conduite_config(
         request.query_params.get('metier'),
-        default='legacy',
+        default='ep',
     )
 
     if not raw_agent:
         return Response(
-            {'error': 'Paramètre id_agent requis.'},
+            {'error': 'ParamÃ¨tre id_agent requis.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
     if not raw_jour:
         return Response(
-            {'error': 'Paramètre jour requis.'},
+            {'error': 'ParamÃ¨tre jour requis.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -2522,14 +2733,14 @@ def statistique_conduite_jour_view(request):
         id_agent = int(raw_agent)
     except ValueError:
         return Response(
-            {'error': 'Paramètre id_agent invalide.'},
+            {'error': 'ParamÃ¨tre id_agent invalide.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     jour = parse_date(raw_jour)
     if jour is None:
         return Response(
-            {'error': 'Paramètre jour invalide (YYYY-MM-DD attendu).'},
+            {'error': 'ParamÃ¨tre jour invalide (YYYY-MM-DD attendu).'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -2563,7 +2774,7 @@ def statistique_conduite_validate_view(request):
     validated = serializer.validated_data
     metier_key, conduite_config = _conduite_config(
         validated.get('metier'),
-        default='legacy',
+        default='ep',
     )
     id_agent = validated['id_agent']
     jour = validated['jour']
@@ -2581,7 +2792,7 @@ def statistique_conduite_validate_view(request):
     ).first()
     if existing is not None:
         payload = _statistique_conduite_snapshot(existing, conduite_config, metier_key)
-        payload['error'] = 'La conduite de ce jour est déjà figée.'
+        payload['error'] = 'La conduite de ce jour est dÃ©jÃ  figÃ©e.'
         _mark_sync_item_received_for_table(
             sync_uuid=sync_session_uuid,
             nom_schema=conduite_config['sync_schema'],
@@ -2593,7 +2804,9 @@ def statistique_conduite_validate_view(request):
         return Response(payload, status=status.HTTP_409_CONFLICT)
 
     resolved_nodes = [
-        _resolve_conduite_regard_node(node, conduite_config)
+        None
+        if node.get('separator')
+        else _resolve_conduite_regard_node(node, conduite_config)
         for node in raw_nodes
     ]
     unique_segments = _build_unique_conduite_segments(resolved_nodes)
@@ -2601,7 +2814,7 @@ def statistique_conduite_validate_view(request):
         raise ValidationError(
             {
                 'nodes': [
-                    'Aucun segment unique exploitable à enregistrer pour cette conduite.'
+                    'Aucun segment unique exploitable Ã  enregistrer pour cette conduite.'
                 ]
             }
         )
@@ -2638,140 +2851,66 @@ def statistique_conduite_validate_view(request):
     )
 
 
-@api_view(['POST'])
-def mobile_history_upload_view(request):
-    serializer = MobileHistoryUploadSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    data = serializer.validated_data
-
-    attributes = data.get('attributes', [])
-    events = data.get('events', [])
-    created_count = 0
-    updated_count = 0
-
-    with transaction.atomic():
-        for item in attributes:
-            _, created = HistoriqueMobile.objects.update_or_create(
-                sync_uuid=item['sync_uuid'],
-                defaults={
-                    'type_entree': 'ATTRIBUT',
-                    'source_table_locale': 'historique_local_attribut',
-                    'source_id_local': item.get('id_historique_local'),
-                    'id_objet': item.get('id_objet'),
-                    'cle_ligne': item.get('cle_ligne'),
-                    'uuid_objet': item.get('uuid_objet'),
-                    'nom_schema': item.get('nom_schema'),
-                    'nom_table': item.get('nom_table'),
-                    'nom_classe': item.get('nom_classe'),
-                    'nom_attribut': item.get('nom_attribut'),
-                    'ancienne_valeur': item.get('ancienne_valeur'),
-                    'nouvelle_valeur': item.get('nouvelle_valeur'),
-                    'type_action': item.get('type_action'),
-                    'type_evenement': None,
-                    'payload_json': None,
-                    'date_action': item.get('date_action'),
-                    'date_reception': timezone.now(),
-                    'id_agent': item.get('id_agent'),
-                },
-            )
-            if created:
-                created_count += 1
-            else:
-                updated_count += 1
-
-        for item in events:
-            _, created = HistoriqueMobile.objects.update_or_create(
-                sync_uuid=item['sync_uuid'],
-                defaults={
-                    'type_entree': 'EVENEMENT',
-                    'source_table_locale': 'historique_local_evenement',
-                    'source_id_local': item.get('id_evenement_local'),
-                    'id_objet': item.get('id_objet'),
-                    'cle_ligne': item.get('cle_ligne'),
-                    'uuid_objet': item.get('uuid_objet'),
-                    'nom_schema': item.get('nom_schema'),
-                    'nom_table': item.get('nom_table'),
-                    'nom_classe': None,
-                    'nom_attribut': None,
-                    'ancienne_valeur': None,
-                    'nouvelle_valeur': None,
-                    'type_action': None,
-                    'type_evenement': item.get('type_evenement'),
-                    'payload_json': item.get('payload_json'),
-                    'date_action': item.get('date_action'),
-                    'date_reception': timezone.now(),
-                    'id_agent': item.get('id_agent'),
-                },
-            )
-            if created:
-                created_count += 1
-            else:
-                updated_count += 1
-
-    return Response(
-        {
-            'success': True,
-            'attributes_received': len(attributes),
-            'events_received': len(events),
-            'created_count': created_count,
-            'updated_count': updated_count,
-        },
-        status=status.HTTP_201_CREATED,
-    )
-
-
 # =====================================================================
 #  PUBLIC
 # =====================================================================
 
-class ProjetViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Projet.objects.all()
-    serializer_class = ProjetSerializer
-
-
-class MissionViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
-    queryset = Mission.objects.all()
-    serializer_class = MissionSerializer
-
-    def get_queryset(self):
-        qs = Mission.objects.all()
-        id_agent = self._parse_positive_int_param('id_agent')
-        id_projet = self._parse_positive_int_param('id_projet')
-        if id_agent is not None:
-            qs = qs.filter(id_agent=id_agent)
-        if id_projet is not None:
-            qs = qs.filter(id_projet=id_projet)
-        return qs.order_by('-id_mission')
-
-
 class CommuneViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Commune.objects.all().order_by('id_commune')
+    queryset = Commune.objects.all().order_by('fid')
     serializer_class = CommuneSerializer
 
 
-class HistoriqueAttributViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = HistoriqueAttribut.objects.all()
-    serializer_class = HistoriqueAttributSerializer
+class ZoneViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ZoneSerializer
 
     def get_queryset(self):
-        qs = HistoriqueAttribut.objects.all().order_by('-date_action', '-id_historique')
+        qs = Zone.objects.all().order_by('nom_zone', 'id_zone')
+        etat = self.request.query_params.get('etat')
+        if etat:
+            qs = qs.filter(etat=etat)
+        return qs
+
+
+class ZoneUtilisateurViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ZoneUtilisateurSerializer
+
+    def get_queryset(self):
+        qs = ZoneUtilisateur.objects.all().order_by('id_user', 'id_zone')
+        id_user = _parse_positive_int_value(self.request.query_params.get('id_user'))
+        id_zone = _parse_positive_int_value(self.request.query_params.get('id_zone'))
+        active_only = _parse_bool_value(
+            self.request.query_params.get('active_only'),
+            default=False,
+        )
+        if id_user is not None:
+            qs = qs.filter(id_user=id_user)
+        if id_zone is not None:
+            qs = qs.filter(id_zone=id_zone)
+        if active_only:
+            qs = qs.filter(actif=True)
+        return qs
+
+
+class HistoriqueActionViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = HistoriqueAction.objects.all()
+    serializer_class = HistoriqueActionSerializer
+
+    def get_queryset(self):
+        qs = HistoriqueAction.objects.all().order_by('-date_action', '-id')
         query_params = self.request.query_params
 
         text_filters = {
-            'nom_schema': 'nom_schema',
             'nom_table': 'nom_table',
-            'nom_classe': 'nom_classe',
-            'nom_attribut': 'nom_attribut',
-            'uuid_objet': 'uuid_objet',
-            'cle_ligne': 'cle_ligne',
-            'type_action': 'type_action',
+            'action': 'action',
+            'source': 'source',
+            'nom_user': 'nom_user',
         }
         for param, field_name in text_filters.items():
             value = query_params.get(param)
             if value not in (None, ''):
                 qs = qs.filter(**{field_name: value})
 
-        for param in ('id_objet', 'id_agent'):
+        for param in ('id_objet', 'id_user'):
             raw_value = query_params.get(param)
             if raw_value in (None, ''):
                 continue
@@ -2783,63 +2922,240 @@ class HistoriqueAttributViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class HistoriqueMobileViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = HistoriqueMobile.objects.all()
-    serializer_class = HistoriqueMobileSerializer
-
-    def get_queryset(self):
-        qs = HistoriqueMobile.objects.all().order_by('-date_action', '-id_historique_mobile')
-        query_params = self.request.query_params
-
-        text_filters = {
-            'type_entree': 'type_entree',
-            'type_evenement': 'type_evenement',
-            'type_action': 'type_action',
-            'nom_schema': 'nom_schema',
-            'nom_table': 'nom_table',
-            'nom_attribut': 'nom_attribut',
-            'uuid_objet': 'uuid_objet',
-            'cle_ligne': 'cle_ligne',
-            'source_table_locale': 'source_table_locale',
-            'sync_uuid': 'sync_uuid',
-        }
-        for param, field_name in text_filters.items():
-            value = query_params.get(param)
-            if value not in (None, ''):
-                qs = qs.filter(**{field_name: value})
-
-        for param in ('id_objet', 'id_agent', 'source_id_local'):
-            raw_value = query_params.get(param)
-            if raw_value in (None, ''):
-                continue
-            try:
-                qs = qs.filter(**{param: int(raw_value)})
-            except (TypeError, ValueError):
-                continue
-
-        return qs
-
-
-class ObjetIncompletViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
-    queryset = ObjetIncomplet.objects.all()
+class ObjetIncompletViewSet(viewsets.ModelViewSet):
+    queryset = ObjetIncomplet.objects.all().order_by('-date_signalement', '-id_incomplet')
     serializer_class = ObjetIncompletSerializer
 
+    def _extract_audit_user_id(self, serializer=None, instance=None):
+        validated_data = getattr(serializer, 'validated_data', None) or {}
+        request_data = getattr(self.request, 'data', None)
+        for source in (validated_data, request_data):
+            if not hasattr(source, 'get'):
+                continue
+            for key in ('id_agent_completement', 'id_agent_incomplet', 'id_agent', 'id_user'):
+                parsed = _parse_positive_int_value(source.get(key))
+                if parsed is not None:
+                    return parsed
 
-class FondDePlanViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = FondDePlan.objects.all()
-    serializer_class = FondDePlanSerializer
+        current_instance = instance or getattr(serializer, 'instance', None)
+        if current_instance is not None:
+            for key in ('id_agent_completement', 'id_agent_incomplet'):
+                parsed = _parse_positive_int_value(getattr(current_instance, key, None))
+                if parsed is not None:
+                    return parsed
+
+        return None
+
+    def perform_create(self, serializer):
+        sync_session_uuid, _ = _extract_sync_meta(self.request.data)
+        with transaction.atomic():
+            _set_local_audit_context(
+                user_id=self._extract_audit_user_id(serializer),
+                source=_history_source_for_request(
+                    self.request,
+                    sync_session_uuid=sync_session_uuid,
+                ),
+                action='insert',
+            )
+            serializer.save()
+
+    def perform_update(self, serializer):
+        sync_session_uuid, _ = _extract_sync_meta(self.request.data)
+        with transaction.atomic():
+            _set_local_audit_context(
+                user_id=self._extract_audit_user_id(serializer),
+                source=_history_source_for_request(
+                    self.request,
+                    sync_session_uuid=sync_session_uuid,
+                ),
+                action='update',
+            )
+            serializer.save()
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            _set_local_audit_context(
+                user_id=self._extract_audit_user_id(instance=instance),
+                source=_history_source_for_request(self.request),
+                action='delete',
+            )
+            instance.delete()
 
     def get_queryset(self):
-        qs = FondDePlan.objects.all()
-        id_projet = self._parse_positive_int_param('id_projet')
-        if id_projet is not None:
-            qs = qs.filter(id_projet=id_projet)
+        qs = ObjetIncomplet.objects.all().order_by('-date_signalement', '-id_incomplet')
+        query_params = self.request.query_params
+
+        for param in ('nom_table', 'statut'):
+            value = query_params.get(param)
+            if value not in (None, ''):
+                qs = qs.filter(**{param: value})
+
+        for param in ('id_objet', 'id_agent_incomplet', 'id_agent_completement'):
+            value = _parse_positive_int_value(query_params.get(param))
+            if value is not None:
+                qs = qs.filter(**{param: value})
+
+        open_only = _parse_bool_value(query_params.get('open_only'), default=False)
+        if open_only:
+            qs = qs.filter(statut='A_COMPLETER')
+
         return qs
 
+    def _find_existing_for_payload(self, serializer):
+        data = serializer.validated_data
+        raw_id = self.request.data.get('id_incomplet')
+        id_incomplet = _parse_positive_int_value(raw_id)
+        if id_incomplet is not None:
+            existing = ObjetIncomplet.objects.filter(
+                id_incomplet=id_incomplet,
+            ).first()
+            if existing is not None:
+                return existing
 
-class EvaluationAgentViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = EvaluationAgent.objects.all()
-    serializer_class = EvaluationAgentSerializer
+        nom_table = data.get('nom_table')
+        id_objet = data.get('id_objet')
+        if not nom_table or id_objet is None:
+            return None
+
+        qs = ObjetIncomplet.objects.filter(
+            nom_table=nom_table,
+            id_objet=id_objet,
+        )
+        statut = data.get('statut') or 'A_COMPLETER'
+        if statut == 'A_COMPLETER':
+            return qs.filter(statut='A_COMPLETER').order_by('-date_signalement', '-id_incomplet').first()
+
+        return qs.filter(statut='A_COMPLETER').order_by('-date_signalement', '-id_incomplet').first()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        existing = self._find_existing_for_payload(serializer)
+        if existing is not None:
+            update_serializer = self.get_serializer(
+                existing,
+                data=request.data,
+                partial=True,
+            )
+            update_serializer.is_valid(raise_exception=True)
+            self.perform_update(update_serializer)
+            update_serializer.instance.refresh_from_db()
+            output_serializer = self.get_serializer(update_serializer.instance)
+            return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+        self.perform_create(serializer)
+        serializer.instance.refresh_from_db()
+        output_serializer = self.get_serializer(serializer.instance)
+        headers = self.get_success_headers(output_serializer.data)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class InterventionAnomalieTerrainViewSet(viewsets.ModelViewSet):
+    queryset = InterventionAnomalie.objects.all()
+    serializer_class = InterventionAnomalieTerrainSerializer
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        qs = InterventionAnomalie.objects.all().order_by('-updated_at', '-id')
+        query_params = self.request.query_params
+
+        active_only = _parse_bool_value(
+            query_params.get('active_only'),
+            default=True,
+        )
+        terrain_only = _parse_bool_value(
+            query_params.get('terrain_only'),
+            default=True,
+        )
+        if active_only:
+            qs = qs.exclude(statut__in=('cloture', 'annule'))
+        if terrain_only:
+            qs = qs.filter(responsable_actuel='terrain')
+
+        for param in ('nom_table', 'uuid_objet', 'statut', 'etat_terrain'):
+            value = (query_params.get(param) or '').strip()
+            if value:
+                qs = qs.filter(**{param: value})
+
+        id_objet = _parse_positive_int_value(query_params.get('id_objet'))
+        if id_objet is not None:
+            qs = qs.filter(id_objet=id_objet)
+
+        id_user_terrain = _parse_positive_int_value(
+            query_params.get('id_user_terrain') or query_params.get('id_user')
+        )
+        if id_user_terrain is not None:
+            qs = qs.filter(id_user_terrain=id_user_terrain)
+
+        updated_after = query_params.get('updated_after')
+        if updated_after:
+            parsed_updated_after = parse_datetime(updated_after)
+            if parsed_updated_after is None:
+                raise ValidationError({'updated_after': 'Date ISO 8601 attendue'})
+            if timezone.is_naive(parsed_updated_after):
+                parsed_updated_after = timezone.make_aware(
+                    parsed_updated_after,
+                    timezone.get_current_timezone(),
+                )
+            qs = qs.filter(updated_at__gt=parsed_updated_after)
+
+        return qs
+
+    def partial_update(self, request, *args, **kwargs):
+        sync_session_uuid, sync_client_item_uuid = _extract_sync_meta(request.data)
+        instance = self.get_object()
+        data = _strip_sync_meta(request.data)
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        audit_user_id = _parse_positive_int_value(
+            serializer.validated_data.get('id_user_terrain')
+            or getattr(instance, 'id_user_terrain', None)
+        )
+        with transaction.atomic():
+            _set_local_audit_context(
+                user_id=audit_user_id,
+                source=_history_source_for_request(
+                    request,
+                    sync_session_uuid=sync_session_uuid,
+                    default='mobile',
+                ),
+                action='update',
+            )
+            serializer.save()
+            serializer.instance.refresh_from_db()
+            _mark_sync_item_received_for_table(
+                sync_uuid=sync_session_uuid,
+                nom_schema='public',
+                nom_table='intervention_anomalie',
+                uuid_objet=str(instance.id),
+                response_pk=instance.id,
+                client_item_uuid=sync_client_item_uuid,
+            )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ObjetPhotoViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ObjetPhoto.objects.all()
+    serializer_class = ObjetPhotoSerializer
+
+    def get_queryset(self):
+        qs = ObjetPhoto.objects.all().order_by(
+            'nom_schema',
+            'nom_table',
+            'uuid_objet',
+            'num_photo',
+        )
+        nom_schema = (self.request.query_params.get('nom_schema') or '').strip()
+        nom_table = (self.request.query_params.get('nom_table') or '').strip()
+        uuid_objet = (self.request.query_params.get('uuid_objet') or '').strip()
+
+        if nom_schema:
+            qs = qs.filter(nom_schema=nom_schema)
+        if nom_table:
+            qs = qs.filter(nom_table=nom_table)
+        if uuid_objet:
+            qs = qs.filter(uuid_objet=uuid_objet)
+        return qs
 
 
 class SrmFieldOptionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -2872,24 +3188,6 @@ class SrmFieldOptionViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class BasemapZoneViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = BasemapZone.objects.all()
-    serializer_class = BasemapZoneGeoSerializer
-
-    def get_queryset(self):
-        qs = BasemapZone.objects.all().order_by('city_slug', 'nom', 'zone_id')
-
-        city_slug = (self.request.query_params.get('city_slug') or '').strip()
-        if city_slug:
-            qs = qs.filter(city_slug=city_slug)
-
-        active_only = self.request.query_params.get('active_only', 'true').lower()
-        if active_only != 'false':
-            qs = qs.filter(actif=True)
-
-        return qs
-
-
 class BasemapPackageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BasemapPackage.objects.all()
     serializer_class = BasemapPackageSerializer
@@ -2902,20 +3200,23 @@ class BasemapPackageViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = BasemapPackage.objects.all().order_by(
             'city_slug',
-            'zone_id',
+            'id_zone',
             'style',
             'version',
         )
 
         city_slug = (self.request.query_params.get('city_slug') or '').strip()
         zone_id = (self.request.query_params.get('zone_id') or '').strip()
+        id_zone = _parse_positive_int_value(self.request.query_params.get('id_zone'))
         style = (self.request.query_params.get('style') or '').strip()
         package_format = (self.request.query_params.get('format') or '').strip()
 
         if city_slug:
             qs = qs.filter(city_slug=city_slug)
+        if id_zone is not None:
+            qs = qs.filter(id_zone=id_zone)
         if zone_id:
-            qs = qs.filter(zone_id=zone_id)
+            qs = qs.filter(id_zone=_id_zone_from_catalog_zone_id(zone_id))
         if style:
             qs = qs.filter(style=style)
         if package_format:
@@ -2996,6 +3297,82 @@ class MetricAgentMoisViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
         return qs
 
 
+class MetricCanonicalPeriodMixin(MetricFilterMixin):
+    allowed_grains = {'jour', 'semaine', 'mois'}
+
+    def _apply_period_filters(self, qs):
+        grain = (self.request.query_params.get('grain') or '').strip().lower()
+        if grain:
+            if grain not in self.allowed_grains:
+                raise ValidationError({'grain': 'Valeurs autorisees: jour, semaine, mois'})
+            qs = qs.filter(grain=grain)
+
+        periode_debut = self._parse_date_only_param('periode_debut')
+        date_from = self._parse_date_only_param('date_from')
+        date_to = self._parse_date_only_param('date_to')
+
+        if periode_debut is not None:
+            qs = qs.filter(periode_debut=periode_debut)
+        if date_from is not None:
+            qs = qs.filter(periode_debut__gte=date_from)
+        if date_to is not None:
+            qs = qs.filter(periode_debut__lte=date_to)
+
+        for param in ('annee', 'mois_numero', 'annee_iso', 'semaine_iso'):
+            value = self._parse_positive_int_param(param)
+            if value is not None:
+                qs = qs.filter(**{param: value})
+
+        value = self._parse_positive_int_param('id_agent')
+        if value is not None:
+            qs = qs.filter(id_agent=value)
+
+        return qs
+
+
+class MetricAgentTablePeriodViewSet(MetricCanonicalPeriodMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentTablePeriod.objects.all()
+    serializer_class = MetricAgentTablePeriodSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentTablePeriod.objects.all().order_by(
+            '-periode_debut',
+            'grain',
+            'id_agent',
+            'nom_schema',
+            'nom_table',
+        )
+        qs = self._apply_metric_common_filters(qs)
+        qs = self._apply_period_filters(qs)
+        return qs
+
+
+class MetricAgentPeriodViewSet(MetricCanonicalPeriodMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentPeriod.objects.all()
+    serializer_class = MetricAgentPeriodSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentPeriod.objects.all().order_by(
+            '-periode_debut',
+            'grain',
+            'id_agent',
+        )
+        qs = self._apply_period_filters(qs)
+        return qs
+
+
+class MetricAgentResumeViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = MetricAgentResume.objects.all()
+    serializer_class = MetricAgentResumeSerializer
+
+    def get_queryset(self):
+        qs = MetricAgentResume.objects.all().order_by('id_agent')
+        value = self._parse_positive_int_param('id_agent')
+        if value is not None:
+            qs = qs.filter(id_agent=value)
+        return qs
+
+
 class MetricAgentPublicJourViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
     queryset = MetricAgentPublicJour.objects.all()
     serializer_class = MetricAgentPublicJourSerializer
@@ -3069,202 +3446,124 @@ class MetricAgentPublicResumeViewSet(MetricFilterMixin, viewsets.ReadOnlyModelVi
     serializer_class = MetricAgentPublicResumeSerializer
 
     def get_queryset(self):
-        qs = MetricAgentPublicResume.objects.all().order_by('id_agent', 'id_projet')
-        for param in ('id_agent', 'id_projet'):
+        qs = MetricAgentPublicResume.objects.all().order_by('id_agent')
+        for param in ('id_agent',):
             value = self._parse_positive_int_param(param)
             if value is not None:
                 qs = qs.filter(**{param: value})
         return qs
 
 
-class MetricProjetJourViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = MetricProjetJour.objects.all()
-    serializer_class = MetricProjetJourSerializer
-
-    def get_queryset(self):
-        qs = MetricProjetJour.objects.all().order_by('-jour', 'id_projet')
-        qs = self._apply_project_metric_filters(qs)
-
-        jour = self._parse_date_only_param('jour')
-        date_from = self._parse_date_only_param('date_from')
-        date_to = self._parse_date_only_param('date_to')
-
-        if jour is not None:
-            qs = qs.filter(jour=jour)
-        if date_from is not None:
-            qs = qs.filter(jour__gte=date_from)
-        if date_to is not None:
-            qs = qs.filter(jour__lte=date_to)
-
-        return qs
-
-
-class MetricProjetSemaineViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = MetricProjetSemaine.objects.all()
-    serializer_class = MetricProjetSemaineSerializer
-
-    def get_queryset(self):
-        qs = MetricProjetSemaine.objects.all().order_by('-semaine_debut', 'id_projet')
-        qs = self._apply_project_metric_filters(qs)
-
-        semaine_debut = self._parse_date_only_param('semaine_debut')
-        annee_iso = self._parse_positive_int_param('annee_iso')
-        semaine_iso = self._parse_positive_int_param('semaine_iso')
-
-        if semaine_debut is not None:
-            qs = qs.filter(semaine_debut=semaine_debut)
-        if annee_iso is not None:
-            qs = qs.filter(annee_iso=annee_iso)
-        if semaine_iso is not None:
-            qs = qs.filter(semaine_iso=semaine_iso)
-
-        return qs
-
-
-class MetricProjetMoisViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = MetricProjetMois.objects.all()
-    serializer_class = MetricProjetMoisSerializer
-
-    def get_queryset(self):
-        qs = MetricProjetMois.objects.all().order_by('-mois', 'id_projet')
-        qs = self._apply_project_metric_filters(qs)
-
-        mois = self._parse_date_only_param('mois')
-        annee = self._parse_positive_int_param('annee')
-        mois_numero = self._parse_positive_int_param('mois_numero')
-
-        if mois is not None:
-            qs = qs.filter(mois=mois)
-        if annee is not None:
-            qs = qs.filter(annee=annee)
-        if mois_numero is not None:
-            if not 1 <= mois_numero <= 12:
-                raise ValidationError({'mois_numero': 'Valeur entre 1 et 12 attendue'})
-            qs = qs.filter(mois_numero=mois_numero)
-
-        return qs
-
-
-class MetricProjetResumeViewSet(ProjectMetricFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = MetricProjetResume.objects.all()
-    serializer_class = MetricProjetResumeSerializer
-
-    def get_queryset(self):
-        qs = MetricProjetResume.objects.all().order_by('id_projet')
-        qs = self._apply_project_metric_filters(qs)
-        return qs
-
-
 # =====================================================================
-#  EP — Eau Potable (27 ViewSets)
+#  EP â€” Eau Potable (27 ViewSets)
 # =====================================================================
 
-class EpVanneViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpVanneViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpVanne.objects.all()
     serializer_class = EpVanneSerializer
 
 
-class EpVanneDeVidangeViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpVanneDeVidangeViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpVanneDeVidange.objects.all()
     serializer_class = EpVanneDeVidangeSerializer
 
 
-class EpVentouseViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpVentouseViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpVentouse.objects.all()
     serializer_class = EpVentouseSerializer
 
 
-class EpHydrantViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpHydrantViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpHydrant.objects.all()
     serializer_class = EpHydrantSerializer
 
 
-class EpBorneFontaineViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpBorneFontaineViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpBorneFontaine.objects.all()
     serializer_class = EpBorneFontaineSerializer
 
 
-class EpBorneOnepViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpBorneOnepViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpBorneOnep.objects.all()
     serializer_class = EpBorneOnepSerializer
 
 
-class EpBoucheClesViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpBoucheClesViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpBoucheCles.objects.all()
     serializer_class = EpBoucheClesSerializer
 
 
-class EpBoucheDarrosageViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpBoucheDarrosageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpBoucheDarrosage.objects.all()
     serializer_class = EpBoucheDarrosageSerializer
 
 
-class EpCompteurAbonneViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpCompteurAbonneViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpCompteurAbonne.objects.all()
     serializer_class = EpCompteurAbonneSerializer
 
 
-class EpCompteurReseauViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpCompteurReseauViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpCompteurReseau.objects.all()
     serializer_class = EpCompteurReseauSerializer
 
 
-class EpConeDeReductionViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpConeDeReductionViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpConeDeReduction.objects.all()
     serializer_class = EpConeDeReductionSerializer
 
 
-class EpCentreTamponViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpCentreTamponViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpCentreTampon.objects.all()
     serializer_class = EpCentreTamponSerializer
 
 
-class EpNoeudViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpNoeudViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpNoeud.objects.all()
     serializer_class = EpNoeudSerializer
 
 
-class EpObturateurViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpObturateurViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpObturateur.objects.all()
     serializer_class = EpObturateurSerializer
 
 
-class EpReducteurDePressionViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpReducteurDePressionViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpReducteurDePression.objects.all()
     serializer_class = EpReducteurDePressionSerializer
 
 
-class EpForageViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpForageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpForage.objects.all()
     serializer_class = EpForageSerializer
 
 
-class EpPuitViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpPuitViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpPuit.objects.all()
     serializer_class = EpPuitSerializer
 
 
-class EpPompeViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpPompeViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpPompe.objects.all()
     serializer_class = EpPompeSerializer
 
 
-class EpReservoirViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpReservoirViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpReservoir.objects.all()
     serializer_class = EpReservoirSerializer
 
 
-class EpStationDePompageViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpStationDePompageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpStationDePompage.objects.all()
     serializer_class = EpStationDePompageSerializer
 
 
-class EpRegardViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpRegardViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpRegard.objects.all()
     serializer_class = EpRegardSerializer
 
 
-class EpRegardMiroirViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet):
+class EpRegardMiroirViewSet(SrmEntityFilterMixin, viewsets.ReadOnlyModelViewSet):
     queryset = EpRegardMiroir.objects.all()
     serializer_class = EpRegardMiroirSerializer
 
@@ -3297,139 +3596,139 @@ class EpRegardMiroirViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelView
         return super().list(request, *args, **kwargs)
 
 
-class EpAutreObjetViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpAutreObjetViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpAutreObjet.objects.all()
     serializer_class = EpAutreObjetSerializer
 
 
-class EpConduiteTerrainViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpConduiteTerrainViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpConduiteTerrain.objects.all()
     serializer_class = EpConduiteTerrainSerializer
 
 
-class EpConduiteBureauViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpConduiteBureauViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpConduiteBureau.objects.all()
     serializer_class = EpConduiteBureauSerializer
 
 
-class EpBranchementViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpBranchement.objects.all()
     serializer_class = EpBranchementSerializer
 
 
-class EpTraverseViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class EpTraverseViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpTraverse.objects.all()
     serializer_class = EpTraverseSerializer
 
 
-class EpPlancheViewSet(ProjetMissionFilterMixin, viewsets.ReadOnlyModelViewSet):
+class EpPlancheViewSet(SrmEntityFilterMixin, viewsets.ReadOnlyModelViewSet):
     queryset = EpPlanche.objects.all()
     serializer_class = EpPlancheSerializer
 
 
 # =====================================================================
-#  ASS — Assainissement (9 ViewSets)
+#  ASS â€” Assainissement (9 ViewSets)
 # =====================================================================
 
-class AssRegardViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssRegardViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssRegard.objects.all()
     serializer_class = AssRegardSerializer
 
 
-class AssRegardBranchementViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssRegardBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssRegardBranchement.objects.all()
     serializer_class = AssRegardBranchementSerializer
 
 
-class AssCanalisationViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssCanalisationViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssCanalisation.objects.all()
     serializer_class = AssCanalisationSerializer
 
 
-class AssCanalisationReutilisationViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssCanalisationReutilisationViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssCanalisationReutilisation.objects.all()
     serializer_class = AssCanalisationReutilisationSerializer
 
 
-class AssBranchementViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssBranchement.objects.all()
     serializer_class = AssBranchementSerializer
 
 
-class AssBassinViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssBassinViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssBassin.objects.all()
     serializer_class = AssBassinSerializer
 
 
-class AssOuvrageViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssOuvrageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssOuvrage.objects.all()
     serializer_class = AssOuvrageSerializer
 
 
-class AssEquipementViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssEquipementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssEquipement.objects.all()
     serializer_class = AssEquipementSerializer
 
 
-class AssStationViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class AssStationViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = AssStation.objects.all()
     serializer_class = AssStationSerializer
 
 
 # =====================================================================
-#  ELEC — Électricité (11 ViewSets)
+#  ELEC â€” Ã‰lectricitÃ© (11 ViewSets)
 # =====================================================================
 
-class ElecSupportViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecSupportViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecSupport.objects.all()
     serializer_class = ElecSupportSerializer
 
 
-class ElecPosteViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecPosteViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecPoste.objects.all()
     serializer_class = ElecPosteSerializer
 
 
-class ElecCoffretBtViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecCoffretBtViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecCoffretBt.objects.all()
     serializer_class = ElecCoffretBtSerializer
 
 
-class ElecNoeudRaccordViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecNoeudRaccordViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecNoeudRaccord.objects.all()
     serializer_class = ElecNoeudRaccordSerializer
 
 
-class ElecPointDesserteViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecPointDesserteViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecPointDesserte.objects.all()
     serializer_class = ElecPointDesserteSerializer
 
 
-class ElecTransformateurViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecTransformateurViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecTransformateur.objects.all()
     serializer_class = ElecTransformateurSerializer
 
 
-class ElecCelluleViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecCelluleViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecCellule.objects.all()
     serializer_class = ElecCelluleSerializer
 
 
-class ElecDepartBtViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecDepartBtViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecDepartBt.objects.all()
     serializer_class = ElecDepartBtSerializer
 
 
-class ElecDepartHtaViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecDepartHtaViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecDepartHta.objects.all()
     serializer_class = ElecDepartHtaSerializer
 
 
-class ElecTronconBtViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecTronconBtViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecTronconBt.objects.all()
     serializer_class = ElecTronconBtSerializer
 
 
-class ElecTronconHtaViewSet(ProjetMissionFilterMixin, viewsets.ModelViewSet):
+class ElecTronconHtaViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = ElecTronconHta.objects.all()
     serializer_class = ElecTronconHtaSerializer

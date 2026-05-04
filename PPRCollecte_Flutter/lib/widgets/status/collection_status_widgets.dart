@@ -21,15 +21,16 @@ class LigneStatusWidget extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.95),
+          color: Colors.white.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: collection.isActive ? const Color(0xFF1976D2) : Colors.orange,
+            color:
+                collection.isActive ? const Color(0xFF1976D2) : Colors.orange,
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               offset: const Offset(0, 2),
               blurRadius: 4,
             ),
@@ -41,9 +42,8 @@ class LigneStatusWidget extends StatelessWidget {
               collection.isActive
                   ? Icons.radio_button_checked
                   : Icons.pause_circle_filled,
-              color: collection.isActive
-                  ? const Color(0xFF1976D2)
-                  : Colors.orange,
+              color:
+                  collection.isActive ? const Color(0xFF1976D2) : Colors.orange,
               size: 16,
             ),
             const SizedBox(width: 8),
@@ -93,7 +93,7 @@ class SpecialStatusWidget extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.95),
+          color: Colors.white.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: const Color(0xFF9C27B0),
@@ -101,7 +101,7 @@ class SpecialStatusWidget extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               offset: const Offset(0, 2),
               blurRadius: 4,
             ),
@@ -163,11 +163,11 @@ class GlobalCountdownWidget extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.9),
+          color: color.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),

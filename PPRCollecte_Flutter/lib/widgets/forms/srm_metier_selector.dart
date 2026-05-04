@@ -118,9 +118,7 @@ class _MetierSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metiers = SrmConfig.getMetiers()
-        .where(_metierHasGeometry)
-        .toList();
+    final metiers = SrmConfig.getMetiers().where(_metierHasGeometry).toList();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
@@ -161,7 +159,7 @@ class _MetierSheet extends StatelessWidget {
 
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: color.withOpacity(0.15),
+                  backgroundColor: color.withValues(alpha: 0.15),
                   child: Icon(_iconData(iconName), color: color),
                 ),
                 title: Text(m,
@@ -196,8 +194,7 @@ class _MetierSheet extends StatelessWidget {
 class _EntitySheet extends StatelessWidget {
   final String metier;
   final String geometryFilter;
-  const _EntitySheet(
-      {required this.metier, required this.geometryFilter});
+  const _EntitySheet({required this.metier, required this.geometryFilter});
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +229,7 @@ class _EntitySheet extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                    backgroundColor: color.withOpacity(0.15),
+                    backgroundColor: color.withValues(alpha: 0.15),
                     child: Icon(Icons.list, color: color)),
                 const SizedBox(width: 12),
                 Column(
@@ -241,7 +238,8 @@ class _EntitySheet extends StatelessWidget {
                     Text(metier,
                         style: const TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('${entities.length} type${entities.length > 1 ? "s" : ""}',
+                    Text(
+                        '${entities.length} type${entities.length > 1 ? "s" : ""}',
                         style: TextStyle(
                             color: Colors.grey.shade600, fontSize: 13)),
                   ],
@@ -257,8 +255,7 @@ class _EntitySheet extends StatelessWidget {
               itemCount: entities.length,
               itemBuilder: (_, i) {
                 final entity = entities[i];
-                final config =
-                    SrmConfig.getEntityConfig(metier, entity);
+                final config = SrmConfig.getEntityConfig(metier, entity);
                 final table = config?['tableName'] ?? '';
                 final maxPhotos = config?['maxPhotos'] ?? 0;
                 final hasZ = config?['hasZ'] == true;
@@ -266,13 +263,12 @@ class _EntitySheet extends StatelessWidget {
                 return ListTile(
                   leading: CircleAvatar(
                     radius: 18,
-                    backgroundColor: color.withOpacity(0.1),
+                    backgroundColor: color.withValues(alpha: 0.1),
                     child: Icon(_geometryIcon(geometryFilter),
                         color: color, size: 18),
                   ),
                   title: Text(entity,
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w500)),
+                      style: const TextStyle(fontWeight: FontWeight.w500)),
                   subtitle: Text(
                     'Table: $table'
                     '${hasZ ? "  •  Z" : ""}'
