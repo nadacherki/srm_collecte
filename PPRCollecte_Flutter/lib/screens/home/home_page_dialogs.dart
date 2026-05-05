@@ -335,7 +335,6 @@ void _showDownloadResultImpl(
         final lower = error.toLowerCase();
         return lower.contains('connexion interrompue') ||
             lower.contains('erreur reseau') ||
-            lower.contains('erreur rã') ||
             lower.contains('erreur réseau') ||
             lower.contains('timeout') ||
             lower.contains('socketexception') ||

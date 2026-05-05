@@ -54,13 +54,11 @@ class _LegendWidgetState extends State<LegendWidget> {
   static const Map<String, Color> _metierColor = {
     'Eau Potable': Color(0xFF1565C0),
     'Assainissement': Color(0xFF2E7D32),
-    'Électricité': Color(0xFFE65100),
   };
 
   static const Map<String, IconData> _metierIcon = {
     'Eau Potable': Icons.water_drop,
     'Assainissement': Icons.waves,
-    'Électricité': Icons.bolt,
   };
 
   static String _vk(String tableName) => 'srm_$tableName';

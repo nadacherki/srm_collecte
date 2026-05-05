@@ -169,16 +169,12 @@ class DatabaseHelper {
       if (tableName == 'objet_incomplet' || tableName == 'raison_incomplet') {
         continue; // gérées séparément
       }
-      try {
-        final tables = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-          [tableName],
-        );
-        if (tables.isEmpty) continue;
-        await _ensureSrmFixedColumns(db, tableName);
-      } catch (e) {
-        debugPrint('⚠️ Migration SRM ignorée pour $tableName: $e');
-      }
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName],
+      );
+      if (tables.isEmpty) continue;
+      await _assertSrmTableStructure(db, tableName);
     }
   }
 
@@ -204,8 +200,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Migrer les colonnes manquantes si la table existait déjà sans elles
-    final colonnesMigration = {
+    final requiredColumns = {
       'id_incomplet': 'INTEGER',
       'nom_table': 'TEXT',
       'id_objet': 'INTEGER',
@@ -221,20 +216,11 @@ class DatabaseHelper {
       'date_sync': 'TEXT',
     };
 
-    final existing = await db.rawQuery('PRAGMA table_info(objet_incomplet)');
-    final existingCols = existing.map((r) => r['name'] as String).toSet();
-
-    for (final entry in colonnesMigration.entries) {
-      if (existingCols.contains(entry.key)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE objet_incomplet ADD COLUMN ${entry.key} ${entry.value}',
-        );
-        debugPrint('✅ Col ajoutée objet_incomplet.${entry.key}');
-      } catch (e) {
-        debugPrint('⚠️ objet_incomplet.${entry.key}: $e');
-      }
-    }
+    await _assertColumnsPresent(
+      db,
+      tableName: 'objet_incomplet',
+      columns: requiredColumns.keys,
+    );
 
     try {
       await db.execute('''
@@ -299,7 +285,7 @@ class DatabaseHelper {
       )
     ''');
 
-    final colonnesMigration = {
+    final requiredColumns = {
       'id_intervention': 'INTEGER',
       'id_objet': 'INTEGER',
       'nom_classe': 'TEXT',
@@ -323,21 +309,11 @@ class DatabaseHelper {
       'last_error': 'TEXT',
     };
 
-    final existing =
-        await db.rawQuery('PRAGMA table_info(intervention_anomalie)');
-    final existingCols = existing.map((r) => r['name'] as String).toSet();
-
-    for (final entry in colonnesMigration.entries) {
-      if (existingCols.contains(entry.key)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE intervention_anomalie ADD COLUMN ${entry.key} ${entry.value}',
-        );
-        debugPrint('âœ… Col ajoutÃ©e intervention_anomalie.${entry.key}');
-      } catch (e) {
-        debugPrint('âš ï¸ intervention_anomalie.${entry.key}: $e');
-      }
-    }
+    await _assertColumnsPresent(
+      db,
+      tableName: 'intervention_anomalie',
+      columns: requiredColumns.keys,
+    );
 
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_intervention_anomalie_statut
@@ -630,17 +606,33 @@ class DatabaseHelper {
     required String tableName,
     required Map<String, String> columns,
   }) async {
+    await _assertColumnsPresent(
+      db,
+      tableName: tableName,
+      columns: columns.keys,
+    );
+  }
+
+  Future<void> _assertColumnsPresent(
+    Database db, {
+    required String tableName,
+    required Iterable<String> columns,
+  }) async {
     final existing = await db.rawQuery('PRAGMA table_info($tableName)');
     if (existing.isEmpty) return;
 
     final existingCols = existing.map((r) => r['name'] as String).toSet();
-    for (final entry in columns.entries) {
-      if (existingCols.contains(entry.key)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
-        );
-      } catch (_) {}
+    final missing = columns
+        .map((column) => column.trim())
+        .where((column) => column.isNotEmpty && !existingCols.contains(column))
+        .toList()
+      ..sort();
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Structure SQLite locale incompatible pour $tableName. '
+        'Colonnes manquantes: ${missing.join(', ')}. '
+        'Reinitialisez les donnees locales puis relancez le telechargement.',
+      );
     }
   }
 
@@ -897,12 +889,13 @@ class DatabaseHelper {
     };
 
     for (final entry in requiredColumns.entries) {
-      if (existingCols.contains(entry.key)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
+      if (!existingCols.contains(entry.key)) {
+        throw StateError(
+          'Structure SQLite locale incompatible pour $tableName. '
+          'Colonne manquante: ${entry.key}. '
+          'Reinitialisez les donnees locales puis relancez le telechargement.',
         );
-      } catch (_) {}
+      }
     }
 
     final missingSyncRows = await db.query(
@@ -972,12 +965,13 @@ class DatabaseHelper {
     };
 
     for (final entry in requiredColumns.entries) {
-      if (existingCols.contains(entry.key)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE photo_sync_queue ADD COLUMN ${entry.key} ${entry.value}',
+      if (!existingCols.contains(entry.key)) {
+        throw StateError(
+          'Structure SQLite locale incompatible pour photo_sync_queue. '
+          'Colonne manquante: ${entry.key}. '
+          'Reinitialisez les donnees locales puis relancez le telechargement.',
         );
-      } catch (_) {}
+      }
     }
   }
 
@@ -993,8 +987,7 @@ class DatabaseHelper {
           fields,
         );
         await db.execute(sql);
-        await _ensureSrmFixedColumns(db, tableName);
-        await _ensureSrmEntityColumns(db, tableName, fields);
+        await _assertSrmTableStructure(db, tableName);
       }
     }
   }
@@ -1342,10 +1335,10 @@ class DatabaseHelper {
     final db = await database;
     await _assertSrmTableExists(db, tableName);
     final cleaned = _sanitizeSrmPayload(tableName, data);
-    await _ensureSrmEntityColumns(
+    await _assertColumnsPresent(
       db,
-      tableName,
-      cleaned.keys.toList(),
+      tableName: tableName,
+      columns: cleaned.keys,
     );
     final uuid = cleaned['uuid']?.toString().trim();
 
@@ -1415,7 +1408,7 @@ class DatabaseHelper {
   }
 
   // ══════════════════════════════════════════════════════
-  // ██ ENTITÉS SRM (EP / ASS / ELEC) — SPRINT 5
+  // ██ ENTITÉS SRM (EP / ASS) — SPRINT 5
   // ══════════════════════════════════════════════════════
 
   String _buildSrmCreateTableSql(String tableName, List<String> fields) {
@@ -1452,7 +1445,8 @@ class DatabaseHelper {
       downloaded INTEGER DEFAULT 0,
       synced INTEGER DEFAULT 0,
       date_collecte TEXT,
-      date_sync TEXT
+      date_sync TEXT,
+      objet_incomplet INTEGER DEFAULT 0
     ''';
 
     final dynamicCols = fields
@@ -1502,6 +1496,7 @@ class DatabaseHelper {
       'synced',
       'date_collecte',
       'date_sync',
+      'objet_incomplet',
     };
     return fixed.contains(col);
   }
@@ -2708,21 +2703,11 @@ class DatabaseHelper {
   }
 
   Future<void> _ensureSrmFixedColumns(Database db, String tableName) async {
-    final existing = await db.rawQuery('PRAGMA table_info($tableName)');
-    if (existing.isEmpty) return;
-
-    final existingCols = existing.map((r) => r['name'] as String).toSet();
-    for (final entry in _migratableFixedSrmColumns.entries) {
-      if (existingCols.contains(entry.key)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
-        );
-        debugPrint('✅ Colonne fixe ajoutée: $tableName.${entry.key}');
-      } catch (e) {
-        debugPrint('⚠️ Impossible d’ajouter $tableName.${entry.key}: $e');
-      }
-    }
+    await _assertColumnsPresent(
+      db,
+      tableName: tableName,
+      columns: ['id', ..._migratableFixedSrmColumns.keys],
+    );
   }
 
   Future<void> _ensureSrmEntityColumns(
@@ -2730,22 +2715,11 @@ class DatabaseHelper {
     String tableName,
     List<String> fields,
   ) async {
-    final existing = await db.rawQuery('PRAGMA table_info($tableName)');
-    if (existing.isEmpty) return;
-
-    final existingCols = existing.map((r) => r['name'] as String).toSet();
-    for (final field
-        in fields.where(_isAllowedSrmColumn).where((f) => !_isFixedCol(f))) {
-      if (existingCols.contains(field)) continue;
-      try {
-        await db.execute(
-          'ALTER TABLE $tableName ADD COLUMN $field ${_sqliteTypeForField(field)}',
-        );
-        debugPrint('✅ Colonne métier ajoutée: $tableName.$field');
-      } catch (e) {
-        debugPrint('⚠️ Impossible d’ajouter $tableName.$field: $e');
-      }
-    }
+    await _assertColumnsPresent(
+      db,
+      tableName: tableName,
+      columns: fields.where(_isAllowedSrmColumn).where((f) => !_isFixedCol(f)),
+    );
   }
 
   Future<void> _assertSrmTableExists(Database db, String tableName) async {
@@ -2753,22 +2727,21 @@ class DatabaseHelper {
       "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
       [tableName],
     );
+    final fields = _fieldsForTable(tableName);
     if (tables.isEmpty) {
-      // Créer la table automatiquement avec colonnes fixes
-      final cols = <String>['id INTEGER PRIMARY KEY AUTOINCREMENT'];
-      for (final entry in _migratableFixedSrmColumns.entries) {
-        cols.add('${entry.key} ${entry.value}');
+      if (fields.isEmpty) {
+        throw StateError(
+          'Table SQLite locale manquante pour $tableName. '
+          'Reinitialisez les donnees locales puis relancez le telechargement.',
+        );
       }
-      await db.execute(
-        'CREATE TABLE IF NOT EXISTS $tableName (${cols.join(', ')})',
-      );
-      debugPrint('✅ Table SRM créée automatiquement: $tableName');
-    } else {
-      // Table existe → migrer les colonnes manquantes
-      await _ensureSrmFixedColumns(db, tableName);
+      await db.execute(_buildSrmCreateTableSql(tableName, fields));
     }
 
-    // Table existe → migrer uniquement les colonnes fixes connues
+    await _assertSrmTableStructure(db, tableName);
+  }
+
+  Future<void> _assertSrmTableStructure(Database db, String tableName) async {
     await _ensureSrmFixedColumns(db, tableName);
     final fields = _fieldsForTable(tableName);
     if (fields.isNotEmpty) {

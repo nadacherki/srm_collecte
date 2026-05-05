@@ -41,7 +41,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   int _totalEP = 0;
   int _totalASS = 0;
-  int _totalELEC = 0;
   int _totalSynced = 0;
   int _totalUnsynced = 0;
   int _localPendingNew = 0;
@@ -106,7 +105,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
         _totalEP = inventory.totalEP;
         _totalASS = inventory.totalASS;
-        _totalELEC = inventory.totalELEC;
         _totalSynced = inventory.totalSynced;
         _totalUnsynced = inventory.totalUnsynced;
         _localPendingNew = inventory.pendingNewObjects;
@@ -170,7 +168,6 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<_LocalInventorySnapshot> _loadLocalInventorySnapshot() async {
     var epCount = 0;
     var assCount = 0;
-    var elecCount = 0;
     var synced = 0;
     var unsynced = 0;
     var pendingNewObjects = 0;
@@ -192,7 +189,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
           if (metier == 'Eau Potable') epCount += count;
           if (metier == 'Assainissement') assCount += count;
-          if (metier == 'Électricité') elecCount += count;
 
           for (final row in rows) {
             final isSynced = _isLocalFlagEnabled(row['synced']);
@@ -230,7 +226,6 @@ class _ProfilePageState extends State<ProfilePage> {
     return _LocalInventorySnapshot(
       totalEP: epCount,
       totalASS: assCount,
-      totalELEC: elecCount,
       totalSynced: synced,
       totalUnsynced: unsynced,
       pendingNewObjects: pendingNewObjects,
@@ -644,7 +639,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildLocalMetierSection() {
-    final total = _totalEP + _totalASS + _totalELEC;
+    final total = _totalEP + _totalASS;
 
     return _buildSection(
       title: 'Stock présent sur ce téléphone par métier',
@@ -662,13 +657,6 @@ class _ProfilePageState extends State<ProfilePage> {
           _totalASS,
           total,
           const Color(0xFF27AE60),
-        ),
-        const SizedBox(height: 8),
-        _buildMetierBar(
-          'Électricité',
-          _totalELEC,
-          total,
-          const Color(0xFFF39C12),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1543,7 +1531,6 @@ class _ProfilePageState extends State<ProfilePage> {
 class _LocalInventorySnapshot {
   final int totalEP;
   final int totalASS;
-  final int totalELEC;
   final int totalSynced;
   final int totalUnsynced;
   final int pendingNewObjects;
@@ -1558,7 +1545,6 @@ class _LocalInventorySnapshot {
   const _LocalInventorySnapshot({
     required this.totalEP,
     required this.totalASS,
-    required this.totalELEC,
     required this.totalSynced,
     required this.totalUnsynced,
     required this.pendingNewObjects,

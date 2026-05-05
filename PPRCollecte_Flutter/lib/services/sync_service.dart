@@ -1116,7 +1116,6 @@ class SyncService {
       'ep/ep_conduite_terrain': 'ep/conduites-terrain',
       'ep/branchement': 'ep/branchements',
       'ep/traverse': 'ep/traverses',
-      'ep/planche': 'ep/planches',
       'ass/asst_regard': 'ass/regards',
       'ass/asst_regard_branchement': 'ass/regards-branchement',
       'ass/asst_canalisation': 'ass/canalisations',
@@ -1126,13 +1125,6 @@ class SyncService {
       'ass/asst_ouvrage': 'ass/ouvrages',
       'ass/asst_equipement': 'ass/equipements',
       'ass/asst_station': 'ass/stations',
-      'elec/support': 'elec/supports',
-      'elec/poste': 'elec/postes',
-      'elec/coffret_bt': 'elec/coffrets-bt',
-      'elec/noeud_raccord': 'elec/noeuds-raccord',
-      'elec/point_desserte': 'elec/points-desserte',
-      'elec/troncon_bt': 'elec/troncons-bt',
-      'elec/troncon_hta': 'elec/troncons-hta',
     };
 
     return endpointMap['$schema/$table'];
@@ -1179,7 +1171,6 @@ class SyncService {
     return value.contains('connexion interrompue') ||
         value.contains('erreur reseau') ||
         value.contains('erreur réseau') ||
-        value.contains('erreur rã') ||
         value.contains('timeout') ||
         value.contains('socketexception') ||
         value.contains('clientexception') ||

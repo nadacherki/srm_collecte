@@ -399,25 +399,25 @@ extension _HomePageCollectionActions on _HomePageState {
 
   void _showTraceEditSnack(String message, Color color) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        duration: const Duration(milliseconds: 1100),
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: color,
+            duration: const Duration(milliseconds: 1100),
+          ),
+        );
+    });
   }
 
   void _addCurrentPointToActiveCollection() {
     final error = homeController.addCurrentPointToActiveCollection();
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showTraceEditSnack(error, Colors.orange);
       return;
     }
 
@@ -429,17 +429,7 @@ extension _HomePageCollectionActions on _HomePageState {
       _polygonRedoPoints.clear();
     }
 
-    final pointCount = homeController.ligneCollection?.points.length ??
-        homeController.specialCollection?.points.length ??
-        0;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Point ajouté au tracé ($pointCount total)'),
-        backgroundColor: const Color(0xFFF59E0B),
-        duration: const Duration(milliseconds: 900),
-      ),
-    );
+    _setStateFromPart(() {});
   }
 
   Future<void> _startLigneSrmCollectionImpl() async {

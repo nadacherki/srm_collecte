@@ -1,11 +1,12 @@
+import 'srm_status_flags.dart';
+
 class FormLockService {
   FormLockService._();
 
   static bool isLocked(Map<String, dynamic> item) {
-    final synced = _isTruthy(item['synced']);
-    final hasAnomalie =
-        _isTruthy(item['anomalie']) || _isTruthy(item['ep_anomalie']);
-    final hasIncomplet = _isTruthy(item['objet_incomplet']);
+    final synced = SrmStatusFlags.isTruthy(item['synced']);
+    final hasAnomalie = SrmStatusFlags.hasAnomalie(item);
+    final hasIncomplet = SrmStatusFlags.hasIncomplet(item);
 
     if (!synced) return false;
     if (hasAnomalie) return false;
@@ -18,17 +19,6 @@ class FormLockService {
 
   static String lockReason(Map<String, dynamic> item) {
     return 'Donn\u00e9e synchronis\u00e9e avec le serveur - modification impossible.';
-  }
-
-  static bool _isTruthy(dynamic value) {
-    if (value == null) return false;
-    if (value is bool) return value;
-    if (value is int) return value == 1;
-    if (value is String) {
-      final normalized = value.trim().toLowerCase();
-      return normalized == '1' || normalized == 'true' || normalized == 't';
-    }
-    return false;
   }
 
   static String statutLabel(String? statut) {

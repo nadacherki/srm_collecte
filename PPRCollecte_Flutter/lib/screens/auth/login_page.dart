@@ -666,7 +666,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            'EP  •  ASS  •  ELEC',
+                            'EP  •  ASS',
                             style: TextStyle(
                               color: Color(0xFFB0BEC5),
                               fontSize: 10,

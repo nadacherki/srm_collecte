@@ -138,7 +138,59 @@ class LineStorageHelper {
     );
 
     await db.transaction((txn) async {
-      await txn.execute('ALTER TABLE $_linesTable RENAME TO ${_linesTable}_v1');
+      const tmpLinesTable = '${_linesTable}_v2_tmp';
+      await txn.execute('DROP TABLE IF EXISTS $tmpLinesTable');
+      await txn.execute('''
+        CREATE TABLE $tmpLinesTable AS
+        SELECT
+          id,
+          api_id,
+          line_code,
+          user_login,
+          start_time,
+          end_time,
+          origin_name,
+          origin_x,
+          origin_y,
+          destination_name,
+          destination_x,
+          destination_y,
+          has_intersection,
+          intersection_count,
+          intersections_json,
+          completed_works,
+          work_date,
+          company,
+          platform,
+          relief,
+          vegetation,
+          work_start,
+          work_end,
+          funding,
+          points_json,
+          created_at,
+          updated_at,
+          sync_status,
+          login_id,
+          saved_by_user_id,
+          synced,
+          sync_date,
+          downloaded,
+          service_level,
+          functionality,
+          socio_administrative_interest,
+          served_population,
+          agricultural_potential,
+          investment_cost,
+          environmental_protection,
+          global_score,
+          region_name,
+          prefecture_name,
+          commune_name
+        FROM $_linesTable
+      ''');
+
+      await txn.execute('DROP TABLE $_linesTable');
       await _createLinesTable(txn);
       await _createDisplayedLinesTable(txn);
       await _createIndexes(txn);
@@ -235,10 +287,10 @@ class LineStorageHelper {
           region_name,
           prefecture_name,
           commune_name
-        FROM ${_linesTable}_v1
+        FROM $tmpLinesTable
       ''');
 
-      await txn.execute('DROP TABLE ${_linesTable}_v1');
+      await txn.execute('DROP TABLE $tmpLinesTable');
     });
   }
 

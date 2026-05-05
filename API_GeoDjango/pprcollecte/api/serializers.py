@@ -35,8 +35,8 @@ from .models import (
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
     EpRegard, EpRegardMiroir, EpRegardEp, EpAutreObjet,
-    # EP linéaires + surfacique
-    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
+    # EP linéaires
+    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse,
     # ASS
     AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
     AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
@@ -504,6 +504,8 @@ class CommuneSerializer(StrictGeoFeatureModelSerializer):
         return obj.nom
 
     def get_nom_province(self, obj):
+        if obj.code_provi == '02.381.':
+            return 'Province de Nador'
         if obj.code_provi == '02.411.':
             return "Préfecture d'Oujda-Angad"
         return None
@@ -1064,15 +1066,6 @@ class EpBranchementSerializer(StrictGeoFeatureModelSerializer):
 class EpTraverseSerializer(StrictGeoFeatureModelSerializer):
     class Meta:
         model = EpTraverse
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-# ---------- Surfacique ----------
-
-class EpPlancheSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpPlanche
         geo_field = 'geom'
         fields = '__all__'
 

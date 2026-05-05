@@ -1294,7 +1294,7 @@ class EpRegard(models.Model):
     echelon = models.CharField(max_length=400, null=True, blank=True)
     anomalie_tamp = models.CharField(max_length=400, null=True, blank=True)
     anomalie_regard = models.CharField(max_length=400, null=True, blank=True)
-    GENRATRICE_SUP = models.FloatField(db_column='GENRATRICE_SUP', null=True, blank=True)
+    generatrice_supp = models.FloatField(null=True, blank=True)
     ep_profondeur = models.FloatField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
     photo_2 = models.TextField(null=True, blank=True)
@@ -1349,7 +1349,7 @@ class EpRegardMiroir(models.Model):
     echelon = models.CharField(max_length=400, null=True, blank=True)
     anomalie_tamp = models.CharField(max_length=400, null=True, blank=True)
     anomalie_regard = models.CharField(max_length=400, null=True, blank=True)
-    GENRATRICE_SUP = models.FloatField(db_column='GENRATRICE_SUP', null=True, blank=True)
+    generatrice_supp = models.FloatField(null=True, blank=True)
     ep_profondeur = models.FloatField(null=True, blank=True)
     photo_1 = models.TextField(null=True, blank=True)
     photo_2 = models.TextField(null=True, blank=True)
@@ -1403,7 +1403,7 @@ class EpRegardEp(models.Model):
     echelon = models.CharField(max_length=400, null=True, blank=True)
     anomalie_tamp = models.CharField(max_length=400, null=True, blank=True)
     anomalie_regard = models.CharField(max_length=400, null=True, blank=True)
-    GENRATRICE_SUP = models.FloatField(db_column='GENRATRICE_SUP', null=True, blank=True)
+    generatrice_supp = models.FloatField(null=True, blank=True)
     ep_profondeur = models.FloatField(null=True, blank=True)
 
     class Meta:
@@ -1592,31 +1592,6 @@ class EpTraverse(SrmTrackedModel):
 
     def __str__(self):
         return f"TraversÃ©e EP {self.ep_num or self.fid}"
-
-
-# ---------- EP SURFACIQUE ----------
-
-class EpPlanche(SrmTrackedModel):
-    fid = models.AutoField(primary_key=True)
-    geom = models.PolygonField(srid=26191, dim=3,null=True, blank=True)
-    nom = models.CharField(max_length=254, null=True, blank=True)
-    code = models.CharField(max_length=254, null=True, blank=True)
-    observation = models.CharField(max_length=254, null=True, blank=True)
-    uuid = models.CharField(max_length=254, null=True, blank=True)
-    mode_localisation = models.CharField(max_length=100, default='gnss')
-    id_agent_crea = models.IntegerField(null=True, blank=True)
-    id_planche = models.IntegerField(null=True, blank=True)
-    id_commune = models.IntegerField(null=True, blank=True)
-    conformite_plan = models.CharField(max_length=254, null=True, blank=True)
-    anomalie = models.BooleanField(default=False)
-    type_anomalie = models.TextField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = '"ep"."planche"'
-
-    def __str__(self):
-        return f"Planche {self.nom or self.code or self.fid}"
 
 
 # =====================================================================

@@ -1,5 +1,5 @@
 name: srm_collecte
-description: "Application mobile de collecte de données géospatiales pour les réseaux EP, ASS et ELEC - SRM Maroc."
+description: "Application mobile de collecte de données géospatiales pour les réseaux EP et ASS - SRM Maroc."
 publish_to: "none"
 version: 1.0.0+1
 

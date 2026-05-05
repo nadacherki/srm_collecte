@@ -34,8 +34,6 @@ Organisation :
   /api/ep/conduites-bureau/             → Conduites bureau EP
   /api/ep/branchements/                 → Branchements EP
   /api/ep/traverses/                    → Traversées EP
-  /api/ep/planches/                     → Planches EP
-
   /api/ass/regards/                     → Regards ASS
   /api/ass/regards-branchement/         → Regards branchement ASS
   /api/ass/canalisations/               → Canalisations ASS
@@ -46,17 +44,6 @@ Organisation :
   /api/ass/equipements/                 → Équipements ASS
   /api/ass/stations/                    → Stations ASS
 
-  /api/elec/supports/                   → Supports ELEC
-  /api/elec/postes/                     → Postes ELEC
-  /api/elec/coffrets-bt/                → Coffrets BT ELEC
-  /api/elec/noeuds-raccord/             → Noeuds raccord ELEC
-  /api/elec/points-desserte/            → Points desserte ELEC
-  /api/elec/transformateurs/            → Transformateurs ELEC
-  /api/elec/cellules/                   → Cellules ELEC
-  /api/elec/departs-bt/                 → Départs BT ELEC
-  /api/elec/departs-hta/                → Départs HTA ELEC
-  /api/elec/troncons-bt/                → Tronçons BT ELEC
-  /api/elec/troncons-hta/               → Tronçons HTA ELEC
 """
 
 from django.urls import path, include
@@ -118,7 +105,6 @@ router.register(r'ep/conduites-terrain', views.EpConduiteTerrainViewSet, basenam
 router.register(r'ep/conduites-bureau', views.EpConduiteBureauViewSet, basename='ep-conduite-bureau')
 router.register(r'ep/branchements', views.EpBranchementViewSet, basename='ep-branchement')
 router.register(r'ep/traverses', views.EpTraverseViewSet, basename='ep-traverse')
-router.register(r'ep/planches', views.EpPlancheViewSet, basename='ep-planche')
 
 # =====================================================================
 #  ASS — Assainissement (9 endpoints)
@@ -134,23 +120,18 @@ router.register(r'ass/equipements', views.AssEquipementViewSet, basename='ass-eq
 router.register(r'ass/stations', views.AssStationViewSet, basename='ass-station')
 
 # =====================================================================
-#  ELEC — Électricité (11 endpoints)
-# =====================================================================
-router.register(r'elec/supports', views.ElecSupportViewSet, basename='elec-support')
-router.register(r'elec/postes', views.ElecPosteViewSet, basename='elec-poste')
-router.register(r'elec/coffrets-bt', views.ElecCoffretBtViewSet, basename='elec-coffret-bt')
-router.register(r'elec/noeuds-raccord', views.ElecNoeudRaccordViewSet, basename='elec-noeud-raccord')
-router.register(r'elec/points-desserte', views.ElecPointDesserteViewSet, basename='elec-point-desserte')
-router.register(r'elec/transformateurs', views.ElecTransformateurViewSet, basename='elec-transformateur')
-router.register(r'elec/cellules', views.ElecCelluleViewSet, basename='elec-cellule')
-router.register(r'elec/departs-bt', views.ElecDepartBtViewSet, basename='elec-depart-bt')
-router.register(r'elec/departs-hta', views.ElecDepartHtaViewSet, basename='elec-depart-hta')
-router.register(r'elec/troncons-bt', views.ElecTronconBtViewSet, basename='elec-troncon-bt')
-router.register(r'elec/troncons-hta', views.ElecTronconHtaViewSet, basename='elec-troncon-hta')
-
-# =====================================================================
 #  URL PATTERNS
 # =====================================================================
+mobile_srm_urlpatterns = [
+    path(
+        f'api/{endpoint}/',
+        views.mobile_srm_table_view,
+        {'endpoint': endpoint},
+        name=f"mobile-srm-{endpoint.replace('/', '-')}",
+    )
+    for endpoint in views.MOBILE_SRM_TABLE_ENDPOINTS
+]
+
 urlpatterns = [
     # Login (vue fonction, pas un ViewSet)
     path('api/login/', views.login_view, name='login'),
@@ -161,6 +142,9 @@ urlpatterns = [
     path('api/sync/manifest/', views.sync_manifest_view, name='sync-manifest'),
     path('api/sync/session/<str:sync_uuid>/', views.sync_session_status_view, name='sync-session-status'),
     path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),
+
+    # Routes metier mobiles branchees sur les tables SRM_bureau reelles.
+    *mobile_srm_urlpatterns,
 
     # Toutes les routes du router sous /api/
     path('api/', include(router.urls)),

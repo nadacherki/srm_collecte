@@ -413,8 +413,8 @@ class _DataListViewState extends State<DataListView> {
             // APRÈS
             if (widget.onView != null)
               IconButton(
-                tooltip: 'Voir sur la carte',
-                icon: Icon(Icons.remove_red_eye_outlined,
+                tooltip: 'Zoomer sur la carte',
+                icon: Icon(Icons.center_focus_strong,
                     color: Colors
                         .blue.shade700), // ⭐ Couleur BLEUE pour distinguer
                 onPressed: () {

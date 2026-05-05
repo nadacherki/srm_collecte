@@ -6,21 +6,15 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../../core/config/srm_config.dart';
-import '../../data/local/database_helper.dart';
+import '../core/config/srm_config.dart';
+import '../data/local/database_helper.dart';
+import 'srm_row_visibility_filter.dart';
+import 'srm_status_flags.dart';
 import '../data/remote/api_service.dart';
 import '../models/map_overlay_tap_data.dart';
 
 class SpecialLinesService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
-
-  bool _isTruthy(dynamic value) {
-    if (value == null) return false;
-    if (value is bool) return value;
-    if (value is int) return value == 1;
-    final text = value.toString().trim().toLowerCase();
-    return text == '1' || text == 'true' || text == 't';
-  }
 
   Future<List<Polyline>> getDisplayedSpecialLines({
     required void Function(Map<String, dynamic>) onTapDetails,
@@ -52,9 +46,8 @@ class SpecialLinesService {
             editableItem['source_entity'] = entityType;
             editableItem['geometry_type'] = 'LineString';
 
-            final hasAnomalie =
-                _isTruthy(row['anomalie']) || _isTruthy(row['ep_anomalie']);
-            final hasIncomplet = _isTruthy(row['objet_incomplet']);
+            final hasAnomalie = SrmStatusFlags.hasAnomalie(row);
+            final hasIncomplet = SrmStatusFlags.hasIncomplet(row);
             final lineStyle = _lineStyleForStatus(
               baseColor: _lineColorForMetier(metier),
               hasAnomalie: hasAnomalie,
@@ -120,24 +113,15 @@ class SpecialLinesService {
           .where((name) => name.isNotEmpty)
           .toSet();
 
-      final filters = <String>[];
-      final args = <dynamic>[];
-
-      if (loginId != null) {
-        for (final column in [
-          'id_agent_crea',
-          'saved_by_user_id',
-          'login_id',
-        ]) {
-          if (availableColumns.contains(column)) {
-            filters.add('$column = ?');
-            args.add(loginId);
-          }
-        }
-      }
-
-      final where = filters.isEmpty ? null : filters.join(' OR ');
-      return await db.query(tableName, where: where, whereArgs: args);
+      final filter = SrmRowVisibilityFilter.build(
+        availableColumns: availableColumns,
+        loginId: loginId,
+      );
+      return await db.query(
+        tableName,
+        where: filter.where,
+        whereArgs: filter.whereArgs,
+      );
     } catch (e) {
       debugPrint('Error reading line table $tableName: $e');
       return [];
@@ -214,9 +198,6 @@ class SpecialLinesService {
     }
     if (normalized.contains('assain')) {
       return const Color(0xFF2E7D32);
-    }
-    if (normalized.contains('lectric') || normalized.contains('electric')) {
-      return const Color(0xFFF57C00);
     }
     return Colors.blueGrey;
   }

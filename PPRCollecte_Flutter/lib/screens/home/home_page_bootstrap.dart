@@ -576,6 +576,20 @@ String _formatTimeHHmmImpl(DateTime dt) {
   return '$h:$m';
 }
 
+const Duration _focusOverlayVisibleDuration = Duration(seconds: 4);
+
+double _focusTargetZoomImpl(_HomePageState state) {
+  final rawMaxZoom = state._mapController?.camera.maxZoom ??
+      state._offlineBasemapMaxZoom ??
+      BasemapConstants.fallbackMaxZoom;
+  final maxZoom = rawMaxZoom.isFinite
+      ? rawMaxZoom.toDouble()
+      : BasemapConstants.fallbackMaxZoom;
+
+  if (maxZoom < 15.0) return maxZoom;
+  return maxZoom.clamp(15.0, BasemapConstants.fallbackMaxZoom).toDouble();
+}
+
 Future<void> _focusOnTargetImpl(
   _HomePageState state,
   MapFocusTarget target,
@@ -641,6 +655,8 @@ Future<void> _focusOnTargetImpl(
   }
 
   state._setStateFromPart(() {
+    state._focusOverlayPolylines.clear();
+    state._focusOverlayMarkers.clear();
     if (focusPolyline != null) state._focusOverlayPolylines.add(focusPolyline);
     if (focusMarker != null) state._focusOverlayMarkers.add(focusMarker);
   });
@@ -649,7 +665,7 @@ Future<void> _focusOnTargetImpl(
 
   if (state._mapController != null) {
     if (target.kind == 'point' && target.point != null) {
-      state._mapController!.move(target.point!, 15);
+      state._mapController!.move(target.point!, _focusTargetZoomImpl(state));
       state._lastCameraPosition = target.point;
     } else if (target.kind == 'polyline' &&
         target.polyline != null &&
@@ -662,7 +678,7 @@ Future<void> _focusOnTargetImpl(
     }
   }
 
-  Future.delayed(const Duration(seconds: 15), () {
+  Future.delayed(_focusOverlayVisibleDuration, () {
     if (!state.mounted) return;
     state._setStateFromPart(() {
       if (focusPolyline != null) {

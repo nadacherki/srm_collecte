@@ -1026,7 +1026,7 @@ class ApiService {
   }
 
   // ══════════════════════════════════════════════════════
-  // ██ ENDPOINTS SPÉCIFIQUES (EP / ASS / ELEC)
+  // ██ ENDPOINTS SPÉCIFIQUES (EP / ASS)
   // ══════════════════════════════════════════════════════
 
   // ── Eau Potable ──
@@ -1085,20 +1085,6 @@ class ApiService {
   static Future<List<dynamic>> fetchEquipementsASS() =>
       fetchData('ass/equipements');
   static Future<List<dynamic>> fetchStationsASS() => fetchData('ass/stations');
-
-  // ── Électricité ──
-  static Future<List<dynamic>> fetchSupports() => fetchData('elec/supports');
-  static Future<List<dynamic>> fetchPostes() => fetchData('elec/postes');
-  static Future<List<dynamic>> fetchCoffretsBT() =>
-      fetchData('elec/coffrets-bt');
-  static Future<List<dynamic>> fetchNoeudsRaccord() =>
-      fetchData('elec/noeuds-raccord');
-  static Future<List<dynamic>> fetchPointsDesserte() =>
-      fetchData('elec/points-desserte');
-  static Future<List<dynamic>> fetchTronconsBT() =>
-      fetchData('elec/troncons-bt');
-  static Future<List<dynamic>> fetchTronconsHTA() =>
-      fetchData('elec/troncons-hta');
 
   // ── Sync POST générique ──
   static Future<dynamic> syncEntity(

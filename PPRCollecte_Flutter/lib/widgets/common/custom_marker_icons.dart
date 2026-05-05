@@ -178,27 +178,6 @@ class CustomMarkerIcons {
       icon: Icons.factory,
       color: const Color(0xFF1B5E20),
     ),
-    // SRM Électricité
-    'support': MarkerIconConfig(
-      icon: Icons.bolt,
-      color: const Color(0xFFF57C00),
-    ),
-    'poste': MarkerIconConfig(
-      icon: Icons.electrical_services,
-      color: const Color(0xFFFB8C00),
-    ),
-    'coffret_bt': MarkerIconConfig(
-      icon: Icons.inventory_2,
-      color: const Color(0xFFFF9800),
-    ),
-    'noeud_raccord': MarkerIconConfig(
-      icon: Icons.hub,
-      color: const Color(0xFFFFB300),
-    ),
-    'point_desserte': MarkerIconConfig(
-      icon: Icons.flash_on,
-      color: const Color(0xFFFFA000),
-    ),
   };
 
   /// Retourne un Widget pour le marqueur (utilisé dans flutter_map)

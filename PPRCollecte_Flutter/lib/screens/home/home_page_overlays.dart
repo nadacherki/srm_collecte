@@ -148,6 +148,7 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
       state._displayedLineAnomalieByTable = anomalieByTable;
       state._displayedLineIncompletByTable = incompletByTable;
     });
+    await state._loadPointCountsByTable();
 
     debugPrint('[SRM-LINES] ${lines.length} ligne(s) speciale(s) affichee(s)');
   } catch (e) {
@@ -163,20 +164,12 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     final Map<String, List<Polygon>> anomalieByTable = {};
     final Map<String, List<Polygon>> incompletByTable = {};
 
-    bool isTruthy(dynamic value) {
-      if (value == null) return false;
-      if (value is bool) return value;
-      if (value is int) return value == 1;
-      final text = value.toString().trim().toLowerCase();
-      return text == '1' || text == 'true' || text == 't';
-    }
-
     bool hasRowAnomalie(Map<String, dynamic> row) {
-      return isTruthy(row['anomalie']) || isTruthy(row['ep_anomalie']);
+      return SrmStatusFlags.hasAnomalie(row);
     }
 
     bool hasRowIncomplet(Map<String, dynamic> row) {
-      return isTruthy(row['objet_incomplet']);
+      return SrmStatusFlags.hasIncomplet(row);
     }
 
     Polygon buildPolygon({
@@ -277,28 +270,15 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
               .where((name) => name.isNotEmpty)
               .toSet();
 
-          final filters = <String>[];
-          final args = <dynamic>[];
-          final userFilterColumns = [
-            'id_agent_crea',
-            'saved_by_user_id',
-            'login_id',
-            'id_user_creat',
-          ];
-
-          if (loginId != null) {
-            for (final column in userFilterColumns) {
-              if (availableColumns.contains(column)) {
-                filters.add('$column = ?');
-                args.add(loginId);
-              }
-            }
-          }
+          final filter = SrmRowVisibilityFilter.build(
+            availableColumns: availableColumns,
+            loginId: loginId,
+          );
 
           final rows = await db.query(
             tableName,
-            where: filters.isEmpty ? null : filters.join(' OR '),
-            whereArgs: args.isEmpty ? null : args,
+            where: filter.where,
+            whereArgs: filter.whereArgs,
           );
 
           for (final poly in rows) {
@@ -483,6 +463,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       debugPrint(
           '[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
     }
+    await state._loadPointCountsByTable();
   } catch (e) {
     debugPrint('[POLYGONE] Error loading polygons: $e');
   }
@@ -621,8 +602,6 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
     final Map<String, List<Marker>> callbackByTable = {};
     final Map<String, List<Marker>> anomalieByTable = {};
     final Map<String, List<Marker>> incompletByTable = {};
-    final Map<String, int> anomalieCounts = {};
-    final Map<String, int> incompletCounts = {};
     final markers = await state._pointsService.getDisplayedPointsMarkers(
       onTapDetails: (data) {
         state._suspendAutoCenterFor(const Duration(seconds: 10));
@@ -662,18 +641,6 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
         }
         if (hasIncomplet) {
           incompletByTable.putIfAbsent(tableName, () => []).add(marker);
-        }
-      },
-      onAnomalieDetected: (tableName, hasAnomalie) {
-        if (hasAnomalie) {
-          anomalieCounts.putIfAbsent(tableName, () => 0);
-          anomalieCounts[tableName] = (anomalieCounts[tableName] ?? 0) + 1;
-        }
-      },
-      onIncompletDetected: (tableName, hasIncomplet) {
-        if (hasIncomplet) {
-          incompletCounts.putIfAbsent(tableName, () => 0);
-          incompletCounts[tableName] = (incompletCounts[tableName] ?? 0) + 1;
         }
       },
     );
@@ -730,8 +697,6 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
       state._displayedPointsByTable = byTable;
       state._displayedAnomalieByTable = anomalieByTable;
       state._displayedIncompletByTable = incompletByTable;
-      state._anomalieCountsByTable = anomalieCounts;
-      state._incompletCountsByTable = incompletCounts;
     });
 
     await state._loadPointCountsByTable();
@@ -746,120 +711,28 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
 
 Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
   try {
-    final db = await DatabaseHelper().database;
-    final loginId = await DatabaseHelper().resolveLoginId();
     final Map<String, int> counts = {};
     final Map<String, int> anomalieCounts = {};
     final Map<String, int> incompletCounts = {};
-    final tables = <String>{};
 
-    for (final metier in SrmConfig.getMetiers()) {
-      for (final entity in SrmConfig.getPointEntities(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName != null && tableName.isNotEmpty) {
-          tables.add(tableName);
-        }
-      }
-      for (final entity in SrmConfig.getLineEntities(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName != null && tableName.isNotEmpty) {
-          tables.add(tableName);
-        }
-      }
-      for (final entity in SrmConfig.getPolygonEntities(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName != null && tableName.isNotEmpty) {
-          tables.add(tableName);
-        }
+    void addCounts<T>(
+      Map<String, List<T>> source,
+      Map<String, int> target,
+    ) {
+      for (final entry in source.entries) {
+        target[entry.key] = (target[entry.key] ?? 0) + entry.value.length;
       }
     }
 
-    for (final table in tables) {
-      try {
-        final columns = await db.rawQuery('PRAGMA table_info($table)');
-        final availableColumns = columns
-            .map((row) => (row['name'] ?? '').toString())
-            .where((name) => name.isNotEmpty)
-            .toSet();
-
-        final filters = <String>[];
-        final args = <dynamic>[];
-
-        if (loginId != null) {
-          for (final column in [
-            'id_agent_crea',
-            'saved_by_user_id',
-            'login_id',
-          ]) {
-            if (availableColumns.contains(column)) {
-              filters.add('$column = ?');
-              args.add(loginId);
-            }
-          }
-        }
-
-        final whereClause =
-            filters.isEmpty ? '' : ' WHERE ${filters.join(' OR ')}';
-        final anomalyExpr = availableColumns.contains('anomalie') &&
-                availableColumns.contains('ep_anomalie')
-            ? "SUM(CASE WHEN anomalie = 1 OR ep_anomalie = 1 THEN 1 ELSE 0 END)"
-            : availableColumns.contains('anomalie')
-                ? "SUM(CASE WHEN anomalie = 1 THEN 1 ELSE 0 END)"
-                : availableColumns.contains('ep_anomalie')
-                    ? "SUM(CASE WHEN ep_anomalie = 1 THEN 1 ELSE 0 END)"
-                    : "0";
-        final result = await db.rawQuery(
-          'SELECT '
-          'COUNT(*) as c, '
-          '$anomalyExpr as anomalies, '
-          '${availableColumns.contains('objet_incomplet') ? "SUM(CASE WHEN objet_incomplet = 1 THEN 1 ELSE 0 END)" : "0"} as incomplets '
-          'FROM $table$whereClause',
-          args,
-        );
-        final row = result.first;
-        counts[table] = (row['c'] as num?)?.toInt() ?? 0;
-        anomalieCounts[table] = (row['anomalies'] as num?)?.toInt() ?? 0;
-        incompletCounts[table] = (row['incomplets'] as num?)?.toInt() ?? 0;
-      } catch (_) {
-        counts[table] = 0;
-        anomalieCounts[table] = 0;
-        incompletCounts[table] = 0;
-      }
-    }
-
-    final dbHelper = DatabaseHelper();
-    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache();
-    final regardMiroirRows = <Map<String, dynamic>>[
-      ...cachedRegardMiroirRows,
-    ];
-    final cachedUuids = cachedRegardMiroirRows
-        .map((row) => row['uuid']?.toString().trim())
-        .whereType<String>()
-        .where((uuid) => uuid.isNotEmpty)
-        .toSet();
-    try {
-      final localRegards = await dbHelper.getEntities('regard');
-      for (final regard in localRegards) {
-        final uuid = regard['uuid']?.toString().trim();
-        if (uuid != null && uuid.isNotEmpty && cachedUuids.contains(uuid)) {
-          continue;
-        }
-        final miroir = _buildLocalRegardMiroirRowImpl(regard);
-        if (miroir != null) {
-          regardMiroirRows.add(miroir);
-        }
-      }
-    } catch (_) {}
-
-    counts[_epRegardMiroirOverlayTable] = regardMiroirRows.length;
-    anomalieCounts[_epRegardMiroirOverlayTable] = regardMiroirRows
-        .where((row) =>
-            _isTruthyCountImpl(row['anomalie']) ||
-            _isTruthyCountImpl(row['ep_anomalie']))
-        .length;
-    incompletCounts[_epRegardMiroirOverlayTable] = regardMiroirRows
-        .where((row) => _isTruthyCountImpl(row['objet_incomplet']))
-        .length;
+    addCounts(state._displayedPointsByTable, counts);
+    addCounts(state._displayedSrmLinesByTable, counts);
+    addCounts(state._displayedSrmPolygonsByTable, counts);
+    addCounts(state._displayedAnomalieByTable, anomalieCounts);
+    addCounts(state._displayedLineAnomalieByTable, anomalieCounts);
+    addCounts(state._displayedPolygonAnomalieByTable, anomalieCounts);
+    addCounts(state._displayedIncompletByTable, incompletCounts);
+    addCounts(state._displayedLineIncompletByTable, incompletCounts);
+    addCounts(state._displayedPolygonIncompletByTable, incompletCounts);
 
     if (state.mounted) {
       state._setStateFromPart(() {
@@ -868,18 +741,13 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
         state._incompletCountsByTable = incompletCounts;
       });
     }
-    debugPrint('[SRM-POINTS] compteurs par table: $counts');
+    debugPrint(
+      '[SRM-LEGENDE] compteurs carte: $counts; '
+      'anomalies: $anomalieCounts; incomplets: $incompletCounts',
+    );
   } catch (e) {
     debugPrint('[COUNTS] Error counting points: $e');
   }
-}
-
-bool _isTruthyCountImpl(dynamic value) {
-  if (value == null) return false;
-  if (value is bool) return value;
-  if (value is num) return value != 0;
-  final normalized = value.toString().trim().toLowerCase();
-  return normalized == '1' || normalized == 'true' || normalized == 't';
 }
 
 Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {

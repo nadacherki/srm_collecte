@@ -1,6 +1,6 @@
 // lib/widgets/forms/srm_point_form_widget.dart
 // ── SPRINT 5 : Formulaire dynamique SRM — entités ponctuelles ──
-// Fonctionne pour EP / ASS / ELEC selon srm_config.dart
+// Fonctionne pour EP / ASS selon srm_config.dart
 // Les photos photo_1..photo_4 restent locales avant upload; le serveur
 // centralise les references dans public.objet_photo.
 //
@@ -27,8 +27,8 @@ import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
 
 class SrmPointFormWidget extends StatefulWidget {
-  final String metier; // "Eau Potable" | "Assainissement" | "Électricité"
-  final String entityType; // ex: "Vanne", "Regard ASS", "Support"
+  final String metier; // "Eau Potable" | "Assainissement"
+  final String entityType; // ex: "Vanne", "Regard ASS"
   final double latitude;
   final double longitude;
   final double? altitude;
@@ -94,7 +94,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       ? 'EP'
       : widget.metier == 'Assainissement'
           ? 'ASS'
-          : 'ELEC';
+          : 'SRM';
 
   String get _tableName =>
       SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
@@ -166,14 +166,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'ep_coor_y': _merchichY.toStringAsFixed(3),
       'ass_coor_x': _merchichX.toStringAsFixed(3),
       'ass_coor_y': _merchichY.toStringAsFixed(3),
-      'elec_coor_x': _merchichX.toStringAsFixed(3),
-      'elec_coor_y': _merchichY.toStringAsFixed(3),
     };
     if (widget.altitude != null) {
       final zStr = widget.altitude!.toStringAsFixed(3);
       coordFields['ep_coor_z'] = zStr;
       coordFields['ass_coor_z'] = zStr;
-      coordFields['elec_coor_z'] = zStr;
     }
     for (final entry in coordFields.entries) {
       if (_controllers.containsKey(entry.key)) {
@@ -895,20 +892,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'ass_coor_x': 'X Merchich (m)', 'ass_coor_y': 'Y Merchich (m)',
       'ass_coor_z': 'Z Altitude (m)', 'centre': 'Centre',
       'commentaire': 'Commentaire',
-      // ELEC
-      'type_support': 'Type support', 'console': 'Console',
-      'etat_support': 'État support', 'materiel_supp': 'Matériel',
-      'type_assemblage': 'Type assemblage', 'type_armement': 'Type armement',
-      'type_protection': 'Type protection', 'status': 'Statut',
-      'mise_a_la_terre': 'Mise à la terre', 'type_isolateur': 'Type isolateur',
-      'code_support': 'Code support', 'lumineux': 'Lumineux',
-      'hauteur_supp': 'Hauteur (m)', 'type_mise_a_la_terre': 'Type MAT',
-      'type_balise': 'Type balise', 'elec_coor_x': 'X Merchich (m)',
-      'elec_coor_y': 'Y Merchich (m)', 'elec_coor_z': 'Z Altitude (m)',
-      'nom_poste': 'Nom poste', 'type_poste': 'Type poste',
-      'nature_poste': 'Nature', 'etat_service': 'État service',
-      'tension': 'Tension (kV)', 'code_poste': 'Code poste',
-      'type_coffret': 'Type coffret', 'num_coffret': 'N° coffret',
     };
     return labels[field] ?? configuredLabel;
   }

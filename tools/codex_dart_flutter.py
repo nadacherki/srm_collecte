@@ -22,6 +22,19 @@ DEFAULT_FLUTTER_ROOT = Path(r"C:\Users\AnasDahou\flutter")
 TIMEOUT_EXIT_CODE = 124
 
 
+def configure_console_encoding() -> None:
+    """Avoid Windows cp1252 crashes when Flutter prints Unicode diagnostics."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
 def _split_path(value: str) -> list[str]:
     return [part for part in value.split(os.pathsep) if part]
 
@@ -180,6 +193,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str]) -> int:
+    configure_console_encoding()
     args = parse_args(argv)
     return run_command(args.command, args.args, args.cwd, args.timeout)
 

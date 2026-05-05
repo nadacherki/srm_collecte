@@ -10,6 +10,7 @@ import '../../widgets/lists/data_list_view.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
 import '../forms/srm_ligne_form_page.dart';
 import '../forms/polygon_form_page.dart';
+import '../home/home_page.dart';
 
 class SrmDataStatusPage extends StatefulWidget {
   final String title;
@@ -41,56 +42,133 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
     try {
       final decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
-      if (decoded is! List) {
-        if (rawPoints is String) {
-          return RegExp(
-            r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
-          )
-              .allMatches(rawPoints)
-              .map((match) {
-                final lat = double.tryParse(match.group(1) ?? '');
-                final lon = double.tryParse(match.group(2) ?? '');
-                if (lat == null || lon == null) return null;
-                return LatLng(lat, lon);
-              })
-              .whereType<LatLng>()
-              .toList();
-        }
-        return const [];
+      final decodedPoints = _latLngsFromDecodedGeometry(decoded);
+      if (decodedPoints.isNotEmpty) return decodedPoints;
+    } catch (_) {
+      // La valeur peut etre du WKT ou une ancienne chaine "lat/lon".
+    }
+
+    if (rawPoints is! String) return const [];
+    final wktPoints = _decodeWktPoints(rawPoints);
+    if (wktPoints.isNotEmpty) return wktPoints;
+
+    return RegExp(r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)')
+        .allMatches(rawPoints)
+        .map((match) {
+          final lat = double.tryParse(match.group(1) ?? '');
+          final lon = double.tryParse(match.group(2) ?? '');
+          if (lat == null || lon == null) return null;
+          return LatLng(lat, lon);
+        })
+        .whereType<LatLng>()
+        .toList();
+  }
+
+  List<LatLng> _latLngsFromDecodedGeometry(dynamic decoded) {
+    if (decoded is Map) {
+      final geometry = decoded['geometry'];
+      if (geometry is Map) {
+        return _latLngsFromDecodedGeometry(geometry);
       }
 
+      final directPoint = _latLngFromCoordinate(decoded);
+      if (directPoint != null) return [directPoint];
+
+      final type = decoded['type']?.toString().toLowerCase();
+      final coordinates = decoded['coordinates'];
+      if (type == 'point') {
+        final point = _latLngFromCoordinate(coordinates);
+        return point == null ? const [] : [point];
+      }
+      if (type == 'linestring' || type == 'multipoint') {
+        return _latLngsFromDecodedGeometry(coordinates);
+      }
+      if (type == 'multilinestring' &&
+          coordinates is List &&
+          coordinates.isNotEmpty) {
+        return _latLngsFromDecodedGeometry(coordinates.first);
+      }
+      if (type == 'polygon' && coordinates is List && coordinates.isNotEmpty) {
+        return _latLngsFromDecodedGeometry(coordinates.first);
+      }
+      if (type == 'multipolygon' &&
+          coordinates is List &&
+          coordinates.isNotEmpty) {
+        final firstPolygon = coordinates.first;
+        if (firstPolygon is List && firstPolygon.isNotEmpty) {
+          return _latLngsFromDecodedGeometry(firstPolygon.first);
+        }
+      }
+      return const [];
+    }
+
+    if (decoded is List) {
       final points = <LatLng>[];
       for (final coord in decoded) {
-        if (coord is Map) {
-          final lat = coord['lat'] ?? coord['latitude'];
-          final lng = coord['lon'] ?? coord['lng'] ?? coord['longitude'];
-          if (lat is num && lng is num) {
-            points.add(LatLng(lat.toDouble(), lng.toDouble()));
-          }
-        } else if (coord is List && coord.length >= 2) {
-          final lng = coord[0];
-          final lat = coord[1];
-          if (lat is num && lng is num) {
-            points.add(LatLng(lat.toDouble(), lng.toDouble()));
-          }
+        final point = _latLngFromCoordinate(coord);
+        if (point != null) {
+          points.add(point);
         }
       }
       return points;
-    } catch (_) {
-      if (rawPoints is! String) return const [];
-      return RegExp(
-        r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
-      )
-          .allMatches(rawPoints)
-          .map((match) {
-            final lat = double.tryParse(match.group(1) ?? '');
-            final lon = double.tryParse(match.group(2) ?? '');
-            if (lat == null || lon == null) return null;
-            return LatLng(lat, lon);
-          })
-          .whereType<LatLng>()
-          .toList();
     }
+
+    return const [];
+  }
+
+  LatLng? _latLngFromCoordinate(dynamic coord) {
+    if (coord is Map) {
+      final lat = _toDouble(coord['lat'] ?? coord['latitude']);
+      final lng = _toDouble(coord['lon'] ?? coord['lng'] ?? coord['longitude']);
+      if (lat != null && lng != null) return LatLng(lat, lng);
+
+      final x = _toDouble(coord['x']);
+      final y = _toDouble(coord['y']);
+      if (x != null && y != null) {
+        return _toWgs84LatLng(x: x, y: y);
+      }
+    }
+
+    if (coord is List && coord.length >= 2) {
+      final x = _toDouble(coord[0]);
+      final y = _toDouble(coord[1]);
+      if (x == null || y == null) return null;
+      return _toWgs84LatLng(x: x, y: y);
+    }
+
+    return null;
+  }
+
+  List<LatLng> _decodeWktPoints(String value) {
+    final text = value.trim();
+    final upper = text.toUpperCase();
+    if (!upper.startsWith('POINT') &&
+        !upper.startsWith('LINESTRING') &&
+        !upper.startsWith('POLYGON') &&
+        !upper.startsWith('MULTILINESTRING') &&
+        !upper.startsWith('MULTIPOLYGON')) {
+      return const [];
+    }
+
+    return RegExp(r'(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)')
+        .allMatches(text)
+        .map((match) {
+          final x = double.tryParse(match.group(1) ?? '');
+          final y = double.tryParse(match.group(2) ?? '');
+          if (x == null || y == null) return null;
+          return _toWgs84LatLng(x: x, y: y);
+        })
+        .whereType<LatLng>()
+        .toList();
+  }
+
+  LatLng _toWgs84LatLng({required double x, required double y}) {
+    if (x.abs() <= 180 && y.abs() <= 90) {
+      return LatLng(y, x);
+    }
+
+    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+    return LatLng(projected.latitude, projected.longitude);
   }
 
   Future<void> _editItem(Map<String, dynamic> item) async {
@@ -228,25 +306,127 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       return LatLng(latitude, longitude);
     }
 
+    final directLat = _toDouble(item['lat'] ?? item['latitude']);
+    final directLng =
+        _toDouble(item['lon'] ?? item['lng'] ?? item['longitude']);
+    if (directLat != null && directLng != null) {
+      return LatLng(directLat, directLng);
+    }
+
     final schema = SrmConfig.getSchema(metier, entityType);
-    if (schema == null || schema.isEmpty) {
-      return null;
+    if (schema != null && schema.isNotEmpty) {
+      final x = _toDouble(item['${schema}_coor_x']);
+      final y = _toDouble(item['${schema}_coor_y']);
+      if (x != null && y != null) {
+        return _toWgs84LatLng(x: x, y: y);
+      }
     }
 
-    final x = _toDouble(item['${schema}_coor_x']);
-    final y = _toDouble(item['${schema}_coor_y']);
-    if (x == null || y == null) {
-      return null;
+    for (final key in ['points_json', 'geometry_geojson', 'geometry', 'geom']) {
+      final points = _decodeGeometryPoints(item[key]);
+      if (points.isNotEmpty) return points.first;
     }
 
-    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
-    return LatLng(projected.latitude, projected.longitude);
+    return null;
   }
 
   double? _toDouble(dynamic value) {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString().trim());
+  }
+
+  List<LatLng> _resolveStoredGeometryPoints(Map<String, dynamic> item) {
+    for (final key in ['points_json', 'geometry_geojson', 'geometry', 'geom']) {
+      final points = _decodeGeometryPoints(item[key]);
+      if (points.isNotEmpty) return points;
+    }
+    return const [];
+  }
+
+  List<LatLng> _resolveLineEndpointPoints(Map<String, dynamic> item) {
+    const endpointGroups = [
+      ['start_lng', 'start_lat', 'end_lng', 'end_lat'],
+      ['x_debut', 'y_debut', 'x_fin', 'y_fin'],
+      ['lon_debut', 'lat_debut', 'lon_fin', 'lat_fin'],
+      ['longitude_debut', 'latitude_debut', 'longitude_fin', 'latitude_fin'],
+    ];
+
+    for (final group in endpointGroups) {
+      final x1 = _toDouble(item[group[0]]);
+      final y1 = _toDouble(item[group[1]]);
+      final x2 = _toDouble(item[group[2]]);
+      final y2 = _toDouble(item[group[3]]);
+      if (x1 != null && y1 != null && x2 != null && y2 != null) {
+        return [
+          _toWgs84LatLng(x: x1, y: y1),
+          _toWgs84LatLng(x: x2, y: y2),
+        ];
+      }
+    }
+
+    return const [];
+  }
+
+  String _buildFocusLabel(Map<String, dynamic> item) {
+    final title = item['display_title']?.toString().trim();
+    if (title != null && title.isNotEmpty) return title;
+
+    final entity = item['source_entity']?.toString().trim();
+    if (entity != null && entity.isNotEmpty) return entity;
+
+    final table = item['source_table']?.toString().trim();
+    if (table != null && table.isNotEmpty) return table;
+
+    return 'Objet';
+  }
+
+  MapFocusTarget? _buildMapFocusTarget(Map<String, dynamic> item) {
+    final geoType = item['geometry_type']?.toString() ?? 'Point';
+    final label = _buildFocusLabel(item);
+
+    if (geoType == 'LineString') {
+      var points = _resolveStoredGeometryPoints(item);
+      if (points.length < 2) {
+        points = _resolveLineEndpointPoints(item);
+      }
+      if (points.length < 2) return null;
+      return MapFocusTarget.polyline(polyline: points, label: label);
+    }
+
+    if (geoType == 'Polygon') {
+      final points = [..._resolveStoredGeometryPoints(item)];
+      if (points.length < 3) return null;
+      if (points.first.latitude != points.last.latitude ||
+          points.first.longitude != points.last.longitude) {
+        points.add(points.first);
+      }
+      return MapFocusTarget.polyline(polyline: points, label: label);
+    }
+
+    final point = _resolveEditablePointLatLng(
+      item: item,
+      metier: item['source_metier']?.toString() ?? '',
+      entityType: item['source_entity']?.toString() ?? '',
+    );
+    if (point == null) return null;
+    return MapFocusTarget.point(point: point, label: label);
+  }
+
+  void _goToMapForItem(Map<String, dynamic> item) {
+    final target = _buildMapFocusTarget(item);
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucune geometrie exploitable pour cet objet'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    HomePage.pendingFocusTarget = target;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   // Filtres actifs
@@ -334,8 +514,6 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       'type_regard',
       'type_conduite',
       'type_station',
-      'type_poste',
-      'type_support',
       'type_bassin',
     ];
     for (final key in preferredKeys) {
@@ -592,7 +770,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                     dataFilter: widget.dataFilter,
                     onEdit: _editItem,
                     onDelete: null,
-                    onView: null,
+                    onView: _goToMapForItem,
                     tableName: null,
                   ),
           ),
@@ -719,7 +897,6 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     final metierColors = {
       'Eau Potable': const Color(0xFF1976D2),
       'Assainissement': const Color(0xFF27AE60),
-      'Électricité': const Color(0xFFF39C12),
     };
 
     return Column(

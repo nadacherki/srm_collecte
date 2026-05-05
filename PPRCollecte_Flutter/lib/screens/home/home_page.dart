@@ -65,6 +65,8 @@ import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
 import '../../services/nmea_bridge_service.dart';
 import '../../services/public_metrics_cache_service.dart';
+import '../../services/srm_row_visibility_filter.dart';
+import '../../services/srm_status_flags.dart';
 
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
@@ -982,7 +984,7 @@ class _HomePageState extends State<HomePage> {
 
   void _moveCameraIfNeeded() => _moveCameraIfNeededImpl(this);
 
-  // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
+// === SPRINT 5 : COLLECTE POINT SRM (EP / ASS) ===
   Future<void> addPointOfInterest() => _addPointOfInterestImpl();
 
   // === SPRINT 5 : COLLECTE LIGNE SRM ===

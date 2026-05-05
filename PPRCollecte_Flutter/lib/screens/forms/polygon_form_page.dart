@@ -100,7 +100,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       ? 'EP'
       : widget.metier == 'Assainissement'
           ? 'ASS'
-          : 'ELEC';
+          : 'SRM';
 
   String get _pageTitle => widget.entityType;
 

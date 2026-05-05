@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sqflite/sqflite.dart';
-import '../../core/config/srm_config.dart';
-import '../../data/local/database_helper.dart';
-import '../../services/projection_service.dart';
+import '../core/config/srm_config.dart';
+import '../data/local/database_helper.dart';
+import 'projection_service.dart';
+import 'srm_row_visibility_filter.dart';
+import 'srm_status_flags.dart';
 import '../widgets/common/custom_marker_icons.dart';
 import '../data/remote/api_service.dart';
 
@@ -59,13 +61,8 @@ class DisplayedPointsService {
               editableItem['longitude_gps'] = latLng.longitude;
             }
 
-            // Detecter l'anomalie stockee comme 1 / true en base.
-            final hasAnomalie = row['anomalie'] == 1 ||
-                row['anomalie'] == true ||
-                row['ep_anomalie'] == 1 ||
-                row['ep_anomalie'] == true;
-            final hasIncomplet =
-                row['objet_incomplet'] == 1 || row['objet_incomplet'] == true;
+            final hasAnomalie = SrmStatusFlags.hasAnomalie(row);
+            final hasIncomplet = SrmStatusFlags.hasIncomplet(row);
             final markerSize = _resolveMarkerSize(
               tableName,
               hasAnomalie: hasAnomalie,
@@ -161,24 +158,15 @@ class DisplayedPointsService {
           .where((name) => name.isNotEmpty)
           .toSet();
 
-      final filters = <String>[];
-      final args = <dynamic>[];
-
-      if (loginId != null) {
-        for (final column in [
-          'id_agent_crea',
-          'saved_by_user_id',
-          'login_id'
-        ]) {
-          if (availableColumns.contains(column)) {
-            filters.add('$column = ?');
-            args.add(loginId);
-          }
-        }
-      }
-
-      final where = filters.isEmpty ? null : filters.join(' OR ');
-      return await db.query(tableName, where: where, whereArgs: args);
+      final filter = SrmRowVisibilityFilter.build(
+        availableColumns: availableColumns,
+        loginId: loginId,
+      );
+      return await db.query(
+        tableName,
+        where: filter.where,
+        whereArgs: filter.whereArgs,
+      );
     } catch (e) {
       debugPrint('Error reading table $tableName: $e');
       return [];
@@ -217,12 +205,8 @@ class DisplayedPointsService {
         editableItem['source_entity'] = entityType;
         editableItem['geometry_type'] = 'Point';
 
-        final hasAnomalie = row['anomalie'] == 1 ||
-            row['anomalie'] == true ||
-            row['ep_anomalie'] == 1 ||
-            row['ep_anomalie'] == true;
-        final hasIncomplet =
-            row['objet_incomplet'] == 1 || row['objet_incomplet'] == true;
+        final hasAnomalie = SrmStatusFlags.hasAnomalie(row);
+        final hasIncomplet = SrmStatusFlags.hasIncomplet(row);
         final markerSize = _resolveMarkerSize(
           tableName,
           hasAnomalie: hasAnomalie,

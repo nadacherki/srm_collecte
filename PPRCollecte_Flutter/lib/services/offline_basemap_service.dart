@@ -631,7 +631,6 @@ class OfflineBasemapService {
     return value.contains('connexion interrompue') ||
         value.contains('erreur reseau') ||
         value.contains('erreur réseau') ||
-        value.contains('erreur rã') ||
         value.contains('timeout') ||
         value.contains('socketexception') ||
         value.contains('clientexception') ||

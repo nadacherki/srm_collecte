@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.gis.geos import LineString, Point
 from django.db import connection, transaction
 from django.http import JsonResponse
@@ -34,6 +35,7 @@ from rest_framework import status
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 import json
+from psycopg2 import sql as pg_sql
 try:
     from PIL import Image, ExifTags
 except ImportError:  # pragma: no cover - depends on runtime env
@@ -58,7 +60,7 @@ from .models import (
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
     EpRegard, EpRegardMiroir, EpRegardEp, EpAutreObjet,
-    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
+    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse,
     AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
     AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
     ElecSupport, ElecPoste, ElecCoffretBt, ElecNoeudRaccord, ElecPointDesserte,
@@ -87,7 +89,7 @@ from .serializers import (
     EpReservoirSerializer, EpStationDePompageSerializer,
     EpRegardSerializer, EpRegardMiroirSerializer, EpRegardEpSerializer, EpAutreObjetSerializer,
     EpConduiteTerrainSerializer, EpConduiteBureauSerializer,
-    EpBranchementSerializer, EpTraverseSerializer, EpPlancheSerializer,
+    EpBranchementSerializer, EpTraverseSerializer,
     AssRegardSerializer, AssRegardBranchementSerializer,
     AssCanalisationSerializer, AssCanalisationReutilisationSerializer,
     AssBranchementSerializer, AssBassinSerializer,
@@ -100,6 +102,353 @@ from .serializers import (
     LoginRequestSerializer, PhotoUploadSerializer,
     StatistiqueConduiteValidateSerializer,
 )
+
+
+MOBILE_SRM_TABLE_ENDPOINTS = {
+    # EP - mobile endpoints kept stable, physical tables follow SRM_bureau.
+    'ep/vannes': ('ep', 'ep_vanne'),
+    'ep/vannes-vidange': ('ep', 'ep_vidange'),
+    'ep/ventouses': ('ep', 'ep_ventouse'),
+    'ep/hydrants': ('ep', 'ep_hydrant'),
+    'ep/bornes-fontaine': ('ep', 'ep_bf'),
+    'ep/bornes-onep': ('ep', 'borne_onep'),
+    'ep/bouches-cles': ('ep', 'bouche_cles'),
+    'ep/bouches-arrosage': ('ep', 'ep_bouche_arro'),
+    'ep/compteurs-abonne': ('ep', 'ep_compteur_i'),
+    'ep/compteurs-reseau': None,
+    'ep/cones-reduction': ('ep', 'ep_cone_reduc'),
+    'ep/centres-tampon': ('ep', 'ep_centre_tampon'),
+    'ep/noeuds': ('ep', 'ep_noeud'),
+    'ep/obturateurs': ('ep', 'ep_obturateur'),
+    'ep/reducteurs-pression': ('ep', 'ep_reduc_pres'),
+    'ep/forages': ('ep', 'ep_forage'),
+    'ep/puits': ('ep', 'ep_puit'),
+    'ep/pompes': ('ep', 'ep_pompe'),
+    'ep/reservoirs': ('ep', 'ep_reservoir'),
+    'ep/stations-pompage': ('ep', 'ep_station_pompage'),
+    'ep/regards': ('ep', 'ep_regard'),
+    'ep/regards-miroir': ('ep', 'ep_regard_miroir'),
+    'ep/autres-objets': ('ep', 'autre_objet'),
+    'ep/conduites-terrain': ('ep', 'ep_conduite_terrain'),
+    'ep/conduites-bureau': ('ep', 'ep_conduite_bureau'),
+    'ep/branchements': ('ep', 'ep_branchement'),
+    'ep/traverses': ('ep', 'ep_traversee'),
+    # ASS - legacy mobile endpoints backed by the existing compatibility tables.
+    'ass/regards': ('ass', 'regard'),
+    'ass/regards-branchement': ('ass', 'regard_branchement'),
+    'ass/canalisations': ('ass', 'canalisation_terrain'),
+    'ass/canalisations-reutilisation': ('ass', 'canalisation_reutilisation'),
+    'ass/branchements': ('ass', 'branchement'),
+    'ass/bassins': ('ass', 'bassin'),
+    'ass/ouvrages': ('ass', 'ouvrage'),
+    'ass/equipements': ('ass', 'equipement'),
+    'ass/stations': ('ass', 'station'),
+}
+
+
+MOBILE_OUTPUT_ALIASES = {
+    'ep_ref_rue': 'ref_rue',
+    'ep_observation': 'observation',
+    'ep_conf_plan': 'conformite_plan',
+    'ep_anomalie': 'anomalie',
+    'ep_long_r': 'ep_longueur',
+    'ep_etat_s': 'ep_etat',
+    'id_user_creat': 'id_agent_crea',
+    'updated_at': 'date_sync',
+}
+
+
+MOBILE_INPUT_ALIASES = {
+    'ref_rue': 'ep_ref_rue',
+    'observation': 'ep_observation',
+    'conformite_plan': 'ep_conf_plan',
+    'anomalie': 'ep_anomalie',
+    'ep_longueur': 'ep_long_r',
+    'ep_etat': 'ep_etat_s',
+    'id_agent_crea': 'id_user_creat',
+}
+
+
+def _mobile_empty_page(request, page_size=500, page=1):
+    return JsonResponse(
+        {
+            'count': 0,
+            'next': None,
+            'previous': None,
+            'page': page,
+            'page_size': page_size,
+            'results': [],
+        },
+        encoder=DjangoJSONEncoder,
+    )
+
+
+def _mobile_table_columns(schema_name, table_name):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s
+            ORDER BY ordinal_position
+            """,
+            [schema_name, table_name],
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+
+def _mobile_pk_column(columns):
+    for candidate in ('fid', 'id', 'gid'):
+        if candidate in columns:
+            return candidate
+    return columns[0] if columns else None
+
+
+def _mobile_timestamp_filter_column(columns):
+    for candidate in (
+        'updated_at',
+        'date_sync',
+        'date_modif',
+        'date_leve',
+        'date_creation',
+        'created_at',
+    ):
+        if candidate in columns:
+            return candidate
+    return None
+
+
+def _mobile_apply_output_aliases(row):
+    for source, target in MOBILE_OUTPUT_ALIASES.items():
+        if source in row and target not in row:
+            row[target] = row[source]
+    return row
+
+
+def _mobile_apply_input_aliases(payload, columns):
+    values = dict(payload)
+    for source, target in MOBILE_INPUT_ALIASES.items():
+        if source in values and target in columns and target not in values:
+            values[target] = values[source]
+    return values
+
+
+def _mobile_select_parts(columns):
+    parts = []
+    for column in columns:
+        if column == 'geom':
+            parts.append(
+                pg_sql.SQL('ST_AsGeoJSON({}) AS {}').format(
+                    pg_sql.Identifier(column),
+                    pg_sql.Identifier('geometry_geojson'),
+                )
+            )
+        else:
+            parts.append(pg_sql.Identifier(column))
+    return parts
+
+
+def _mobile_next_previous_urls(request, count, page, page_size):
+    total_pages = (count + page_size - 1) // page_size if page_size else 1
+
+    def build_url(target_page):
+        query = request.GET.copy()
+        query['page'] = str(target_page)
+        query['page_size'] = str(page_size)
+        return request.build_absolute_uri(f'{request.path}?{query.urlencode()}')
+
+    next_url = build_url(page + 1) if page < total_pages else None
+    previous_url = build_url(page - 1) if page > 1 and total_pages else None
+    return next_url, previous_url
+
+
+def _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value):
+    qualified = pg_sql.SQL('{}.{}').format(
+        pg_sql.Identifier(schema_name),
+        pg_sql.Identifier(table_name),
+    )
+    query = pg_sql.SQL('SELECT {} FROM {} WHERE {} = %s LIMIT 1').format(
+        pg_sql.SQL(', ').join(_mobile_select_parts(columns)),
+        qualified,
+        pg_sql.Identifier(pk_column),
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(query, [pk_value])
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        names = [desc[0] for desc in cursor.description]
+    return _mobile_apply_output_aliases(dict(zip(names, row)))
+
+
+@api_view(['GET', 'POST'])
+def mobile_srm_table_view(request, endpoint):
+    table_ref = MOBILE_SRM_TABLE_ENDPOINTS.get(endpoint)
+    page_size = max(1, min(int(request.GET.get('page_size') or 500), 2000))
+    page = max(1, int(request.GET.get('page') or 1))
+
+    if table_ref is None:
+        if request.method == 'GET':
+            return _mobile_empty_page(request, page_size=page_size, page=page)
+        return Response(
+            {
+                'detail': (
+                    'Endpoint mobile sans table serveur active. '
+                    'Aucune donnee n a ete ecrite.'
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    schema_name, table_name = table_ref
+    columns = _mobile_table_columns(schema_name, table_name)
+    if not columns:
+        if request.method == 'GET':
+            return _mobile_empty_page(request, page_size=page_size, page=page)
+        return Response(
+            {'detail': f'Table serveur introuvable: {schema_name}.{table_name}'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    pk_column = _mobile_pk_column(columns)
+    qualified = pg_sql.SQL('{}.{}').format(
+        pg_sql.Identifier(schema_name),
+        pg_sql.Identifier(table_name),
+    )
+
+    if request.method == 'GET':
+        where_parts = []
+        params = []
+        updated_after = request.GET.get('updated_after') or request.GET.get('since')
+        filter_column = _mobile_timestamp_filter_column(columns)
+        parsed_updated_after = parse_datetime(updated_after) if updated_after else None
+        if parsed_updated_after is not None and filter_column:
+            where_parts.append(
+                pg_sql.SQL('{} >= %s').format(pg_sql.Identifier(filter_column))
+            )
+            params.append(parsed_updated_after)
+
+        where_sql = (
+            pg_sql.SQL(' WHERE ') + pg_sql.SQL(' AND ').join(where_parts)
+            if where_parts
+            else pg_sql.SQL('')
+        )
+        order_column = pg_sql.Identifier(pk_column) if pk_column else pg_sql.SQL('1')
+
+        with connection.cursor() as cursor:
+            count_query = pg_sql.SQL('SELECT COUNT(*) FROM {}{}').format(
+                qualified,
+                where_sql,
+            )
+            cursor.execute(count_query, params)
+            count = cursor.fetchone()[0]
+
+            offset = (page - 1) * page_size
+            select_query = pg_sql.SQL(
+                'SELECT {} FROM {}{} ORDER BY {} LIMIT %s OFFSET %s'
+            ).format(
+                pg_sql.SQL(', ').join(_mobile_select_parts(columns)),
+                qualified,
+                where_sql,
+                order_column,
+            )
+            cursor.execute(select_query, [*params, page_size, offset])
+            names = [desc[0] for desc in cursor.description]
+            results = [
+                _mobile_apply_output_aliases(dict(zip(names, row)))
+                for row in cursor.fetchall()
+            ]
+
+        next_url, previous_url = _mobile_next_previous_urls(request, count, page, page_size)
+        return JsonResponse(
+            {
+                'count': count,
+                'next': next_url,
+                'previous': previous_url,
+                'page': page,
+                'page_size': page_size,
+                'results': results,
+            },
+            encoder=DjangoJSONEncoder,
+        )
+
+    payload = _mobile_apply_input_aliases(request.data, columns)
+    if 'geometry_geojson' in payload and 'geom' in columns:
+        payload['geom'] = payload.get('geometry_geojson')
+
+    writable = {
+        key: value
+        for key, value in payload.items()
+        if key in columns and key not in {pk_column, 'geometry_geojson'}
+    }
+    if not writable:
+        return Response(
+            {'detail': 'Aucun champ compatible avec la table serveur.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    geometry_value = writable.pop('geom', None)
+    existing_pk = None
+    if payload.get('uuid') and 'uuid' in columns:
+        query = pg_sql.SQL('SELECT {} FROM {} WHERE uuid = %s LIMIT 1').format(
+            pg_sql.Identifier(pk_column),
+            qualified,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(query, [payload.get('uuid')])
+            existing = cursor.fetchone()
+            existing_pk = existing[0] if existing else None
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            if existing_pk is not None:
+                assignments = [
+                    pg_sql.SQL('{} = %s').format(pg_sql.Identifier(column))
+                    for column in writable
+                ]
+                params = list(writable.values())
+                if geometry_value is not None:
+                    assignments.append(
+                        pg_sql.SQL(
+                            '{} = ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)'
+                        ).format(pg_sql.Identifier('geom'))
+                    )
+                    params.append(geometry_value)
+                params.append(existing_pk)
+                update_query = pg_sql.SQL(
+                    'UPDATE {} SET {} WHERE {} = %s RETURNING {}'
+                ).format(
+                    qualified,
+                    pg_sql.SQL(', ').join(assignments),
+                    pg_sql.Identifier(pk_column),
+                    pg_sql.Identifier(pk_column),
+                )
+                cursor.execute(update_query, params)
+                pk_value = cursor.fetchone()[0]
+            else:
+                insert_columns = [pg_sql.Identifier(column) for column in writable]
+                placeholders = [pg_sql.SQL('%s') for _ in writable]
+                params = list(writable.values())
+                if geometry_value is not None:
+                    insert_columns.append(pg_sql.Identifier('geom'))
+                    placeholders.append(
+                        pg_sql.SQL('ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)')
+                    )
+                    params.append(geometry_value)
+
+                insert_query = pg_sql.SQL(
+                    'INSERT INTO {} ({}) VALUES ({}) RETURNING {}'
+                ).format(
+                    qualified,
+                    pg_sql.SQL(', ').join(insert_columns),
+                    pg_sql.SQL(', ').join(placeholders),
+                    pg_sql.Identifier(pk_column),
+                )
+                cursor.execute(insert_query, params)
+                pk_value = cursor.fetchone()[0]
+
+    row = _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value)
+    return Response(row or {'id': pk_value}, status=status.HTTP_201_CREATED)
 
 
 def _coerce_exif_text(value):
@@ -909,7 +1258,7 @@ _SRM_PHOTO_MODELS = [
     EpNoeud, EpObturateur, EpReducteurDePression,
     EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
     EpRegard, EpRegardEp, EpAutreObjet,
-    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
+    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse,
     AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
     AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
     ElecSupport, ElecPoste, ElecCoffretBt, ElecNoeudRaccord, ElecPointDesserte,
@@ -3619,11 +3968,6 @@ class EpBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
 class EpTraverseViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
     queryset = EpTraverse.objects.all()
     serializer_class = EpTraverseSerializer
-
-
-class EpPlancheViewSet(SrmEntityFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = EpPlanche.objects.all()
-    serializer_class = EpPlancheSerializer
 
 
 # =====================================================================

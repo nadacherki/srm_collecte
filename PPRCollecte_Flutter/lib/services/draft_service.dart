@@ -2,7 +2,7 @@
 // ── SPRINT 7 : Service de brouillon automatique des formulaires ──
 // Sauvegarde/restauration automatique des données de formulaire en SQLite.
 // Clé unique : formType + metier + entityType
-// Ex: "point__Électricité_Coffret BT", "srm_ligne__Eau Potable_Conduite EP"
+// Ex: "point__Eau Potable_Vanne", "srm_ligne__Eau Potable_Conduite EP"
 
 import 'dart:async';
 import 'dart:convert';
@@ -38,7 +38,7 @@ class DraftService {
   // ══════════════════════════════════════════════════════
 
   /// Génère la clé unique pour un brouillon.
-  /// Ex: "point__Électricité_Coffret BT"
+  /// Ex: "point__Eau Potable_Vanne"
   static String buildDraftKey({
     required String formType,
     required String metier,

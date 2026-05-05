@@ -77,7 +77,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       ? 'EP'
       : widget.metier == 'Assainissement'
           ? 'ASS'
-          : 'ELEC';
+          : 'SRM';
 
   bool _isTruthyFlag(dynamic value) {
     if (value == null) return false;
@@ -869,37 +869,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       'centre': 'Centre',
       'commentaire': 'Commentaire',
       'observation': 'Observation',
-      'techcable': 'Tech câble',
-      'type_liaison': 'Type liaison',
-      'section_conducteur': 'Section conducteur',
-      'mode_pose': 'Mode pose',
-      'status_troncon': 'Statut tronçon',
       'date_mise_service': 'Date mise en service',
-      'code_poste': 'Code poste',
-      'num_transfo': 'N° transfo',
-      'codedepart': 'Code départ',
-      'nbphases': 'Nb phases',
-      'section_neutre': 'Section neutre',
-      'nu': 'NU',
-      'section_phase': 'Section phase',
-      'arme': 'Armé',
-      'cable_unipolaire': 'Câble unipolaire',
-      'marque': 'Marque',
-      'type_troncon': 'Type tronçon',
-      'section_conduct': 'Section conduct',
-      'type_cable': 'Type câble',
-      'metal_conduct': 'Métal conducteur',
-      'phasage_segment': 'Phasage segment',
       'caracteristique': 'Caractéristique',
-      'technologie_utilisee': 'Technologie',
-      'neutre': 'Neutre',
-      'type_mise_terre': 'Type mise à la terre',
-      'section_mise_terre': 'Section MAT',
-      'tension': 'Tension (kV)',
-      'postesource': 'Poste source',
       'date_mise_en_service': 'Date MES',
-      'long_troncon': 'Longueur tronçon (m)',
-      'depart': 'Départ',
     };
     return labels[field] ?? field.replaceAll('_', ' ');
   }

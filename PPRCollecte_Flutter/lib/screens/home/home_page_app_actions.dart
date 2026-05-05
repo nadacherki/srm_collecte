@@ -77,7 +77,6 @@ extension _HomePageAppActions on _HomePageState {
                 return lower.contains('erreur reseau') ||
                     lower.contains('erreur réseau') ||
                     lower.contains('connexion interrompue') ||
-                    lower.contains('erreur rã') ||
                     lower.contains('timeout') ||
                     lower.contains('socketexception') ||
                     lower.contains('connection refused') ||
@@ -154,7 +153,6 @@ extension _HomePageAppActions on _HomePageState {
     final value = error.toString().toLowerCase();
     if (value.contains('connexion interrompue') ||
         value.contains('erreur reseau') ||
-        value.contains('erreur rã') ||
         value.contains('timeout') ||
         value.contains('socketexception') ||
         value.contains('clientexception') ||
