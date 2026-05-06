@@ -5,11 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
-import '../core/constants/basemap_constants.dart';
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
-import 'basemap_catalog_service.dart';
+import 'offline_basemap_service.dart';
 import 'photo_reference_service.dart';
 import 'projection_service.dart';
 
@@ -72,7 +71,7 @@ class SyncService {
   final DatabaseHelper dbHelper = DatabaseHelper();
   final Map<String, int> _serverIdsByLocalObjectKey = {};
   static const String _downloadInterruptedMessage =
-      'Connexion interrompue. Le telechargement a ete arrete. Verifiez Internet puis relancez pour reprendre.';
+      'Connexion interrompue. Vérifiez Internet puis relancez pour reprendre.';
 
   Future<SyncResult> downloadAllData({
     Function(double, String, int, int)? onProgress,
@@ -227,7 +226,7 @@ class SyncService {
           result.stopForInterruption(_downloadInterruptedMessage);
           onProgress?.call(
             (current - 1) / total,
-            'Telechargement arrete - connexion interrompue',
+            'Téléchargement arrêté - connexion interrompue',
             current - 1,
             total,
           );
@@ -279,43 +278,30 @@ class SyncService {
     );
 
     try {
-      final payload =
-          await BasemapCatalogService().ensureGlobalCoverageDownloaded(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
-      final failed = _asIntOrNull(payload['mobile_failed_count']) ?? 0;
-      final selected = _asIntOrNull(payload['mobile_selected_count']) ?? 0;
-      final downloaded = _asIntOrNull(payload['mobile_downloaded_count']) ?? 0;
-      final available =
-          _asIntOrNull(payload['mobile_already_available_count']) ?? 0;
-      if (failed > 0) {
-        final errors = payload['mobile_errors'];
-        if (errors is List &&
-            errors.any((error) => _isNetworkInterruption(error))) {
+      final downloadResult =
+          await OfflineBasemapService().ensureRegionalBasemapDownloaded();
+      if (downloadResult.success) {
+        result.warnings.add(
+          downloadResult.alreadyUpToDate
+              ? 'Carte régionale offline déjà à jour.'
+              : 'Carte régionale offline téléchargée.',
+        );
+      } else {
+        final errorText =
+            downloadResult.errorMessage ?? downloadResult.userMessage ?? '';
+        if (_isNetworkInterruption(errorText)) {
           result.failedCount++;
           result.stopForInterruption(_downloadInterruptedMessage);
           onProgress?.call(
             0,
-            'Telechargement arrete - connexion interrompue',
+            'Téléchargement arrêté - connexion interrompue',
             0,
             total,
           );
           return false;
         }
         result.warnings.add(
-          'Cartes offline partielles: $failed/$selected package(s) restent a telecharger.',
-        );
-        if (errors is List) {
-          for (final error in errors.take(3)) {
-            final text = error.toString().trim();
-            if (text.isNotEmpty) {
-              result.warnings.add('Carte offline: $text');
-            }
-          }
-        }
-      } else if (selected > 0) {
-        result.warnings.add(
-          'Cartes offline OK: $downloaded telecharge(s), $available deja present(s).',
+          'Carte offline non mise à jour : ${errorText.isNotEmpty ? errorText : "erreur inconnue"}',
         );
       }
     } catch (e) {
@@ -324,14 +310,14 @@ class SyncService {
         result.stopForInterruption(_downloadInterruptedMessage);
         onProgress?.call(
           0,
-          'Telechargement arrete - connexion interrompue',
+          'Téléchargement arrêté - connexion interrompue',
           0,
           total,
         );
         return false;
       }
       result.warnings.add(
-        'Cartes offline non mises a jour: ${_short(e)}',
+        'Carte offline non mise à jour : ${_short(e)}',
       );
     }
 
@@ -396,7 +382,7 @@ class SyncService {
         result.stopForInterruption(_downloadInterruptedMessage);
         onProgress?.call(
           (current - 1) / total,
-          'Telechargement arrete - connexion interrompue',
+          'Téléchargement arrêté - connexion interrompue',
           current - 1,
           total,
         );
@@ -1096,6 +1082,7 @@ class SyncService {
       'ep/hydrant': 'ep/hydrants',
       'ep/borne_fontaine': 'ep/bornes-fontaine',
       'ep/borne_onep': 'ep/bornes-onep',
+      'ep/bouche_a_cles': 'ep/bouches-cles',
       'ep/bouche_cles': 'ep/bouches-cles',
       'ep/bouche_darrosage': 'ep/bouches-arrosage',
       'ep/compteur_reseau': 'ep/compteurs-reseau',
@@ -1110,21 +1097,49 @@ class SyncService {
       'ep/pompe': 'ep/pompes',
       'ep/reservoir': 'ep/reservoirs',
       'ep/station_de_pompage': 'ep/stations-pompage',
+      'ep/ep_regard_point': 'ep/regards',
       'ep/regard': 'ep/regards',
       'ep/regard_ep': 'ep/regards',
       'ep/autre_objet': 'ep/autres-objets',
+      'ep/conduite_terrain': 'ep/conduites-terrain',
       'ep/ep_conduite_terrain': 'ep/conduites-terrain',
       'ep/branchement': 'ep/branchements',
       'ep/traverse': 'ep/traverses',
       'ass/asst_regard': 'ass/regards',
+      'asst/asst_regard': 'ass/regards',
+      'asst/ASS_REGARD': 'ass/regards',
       'ass/asst_regard_branchement': 'ass/regards-branchement',
+      'asst/asst_regard_branchement': 'ass/regards-branchement',
+      'asst/ASS_REGARD_FACADE': 'ass/regards-facade',
+      'asst/ASS_BORGNE': 'ass/regards-borgnes',
+      'asst/ASS_BOUCHE': 'ass/bouches',
+      'asst/ASS_DEVERSOIR': 'ass/deversoirs',
+      'asst/ASS__EXUTOIRE': 'ass/exutoires',
+      'asst/ASS_STA_POMP': 'ass/stations-pompage',
       'ass/asst_canalisation': 'ass/canalisations',
+      'asst/asst_canalisation': 'ass/canalisations',
+      'asst/ASS_COLLECTEUR': 'ass/collecteurs',
       'ass/asst_canalisation_reutilisation': 'ass/canalisations-reutilisation',
+      'asst/asst_canalisation_reutilisation': 'ass/canalisations-reutilisation',
+      'asst/ASS_REFOULEMENTR': 'ass/canalisations-reutilisation',
       'ass/asst_branchement': 'ass/branchements',
+      'asst/asst_branchement': 'ass/branchements',
+      'asst/ASS_BRANCHEMENT': 'ass/branchements',
+      'asst/ASS_CANIVEAU': 'ass/caniveaux',
+      'asst/ASS_CANIV_BRANCHE': 'ass/caniveaux-branchement',
+      'asst/ASS_COL_BOUCHE': 'ass/collecteurs-bouche',
       'ass/asst_bassin': 'ass/bassins',
+      'asst/asst_bassin': 'ass/bassins',
+      'asst/ASS_BASSIN_VERSANT': 'ass/bassins-versants',
       'ass/asst_ouvrage': 'ass/ouvrages',
+      'asst/asst_ouvrage': 'ass/ouvrages',
+      'asst/ASS_OUV_TRAVERSEE': 'ass/ouvrages',
       'ass/asst_equipement': 'ass/equipements',
+      'asst/asst_equipement': 'ass/equipements',
+      'asst/ASS_POMPE': 'ass/equipements',
       'ass/asst_station': 'ass/stations',
+      'asst/asst_station': 'ass/stations',
+      'asst/ASS_STA_EPUR': 'ass/stations-epuration',
     };
 
     return endpointMap['$schema/$table'];
@@ -1137,7 +1152,7 @@ class SyncService {
   String _conduiteStatSchemaForMetier(String metier) {
     final normalized = metier.trim().toLowerCase();
     if (normalized == 'asst' || normalized == 'ass') {
-      return 'ass';
+      return 'asst';
     }
     return 'ep';
   }
@@ -1284,11 +1299,26 @@ class SyncService {
       'date_sync': nowIso,
     };
 
+    final normalizedResponse = _normalizeSyncResponseItem(response);
+
     if (info.schema == 'public' && info.table == 'objet_incomplet') {
-      final normalizedResponse = _normalizeSyncResponseItem(response);
       final idIncomplet = _asIntOrNull(normalizedResponse?['id_incomplet']);
       if (idIncomplet != null) {
         patch['id_incomplet'] = idIncomplet;
+      }
+      return patch;
+    }
+
+    // Aligner les FK locales (id_commune, id_province) sur ce que le serveur
+    // a effectivement enregistre. Si la valeur locale ne pointait sur aucune
+    // ligne du referentiel serveur (commune_oriental.fid, ...), le backend
+    // l'a neutralisee a NULL : il faut refleter ce NULL en local pour que
+    // la prochaine edition n'envoie pas a nouveau l'id invalide.
+    if (normalizedResponse != null) {
+      for (final fkColumn in const ['id_commune', 'id_province']) {
+        if (normalizedResponse.containsKey(fkColumn)) {
+          patch[fkColumn] = normalizedResponse[fkColumn];
+        }
       }
     }
 
@@ -1426,6 +1456,10 @@ class SyncService {
         }
 
         debugPrint('[PHOTO] Upload $tableName uuid=$uuidObjet slot=$photoSlot');
+        // L'endpoint mobile (ex: 'ep/hydrants') sert au serveur a resoudre
+        // la table Postgres reelle (ex: ep_hydrant), car le mobile envoie
+        // le tableName local Flutter qui peut differer du db_table reel.
+        final endpoint = _resolveEndpoint(schemaName, tableName);
         final response = await ApiService.uploadPhoto(
           schemaName: schemaName,
           tableName: tableName,
@@ -1434,6 +1468,7 @@ class SyncService {
           localPath: localPath,
           idAgentCrea: _asIntOrNull(item['id_agent_crea']),
           syncSessionUuid: syncSessionUuid,
+          endpoint: endpoint,
         );
 
         final remotePath = response['relative_path']?.toString().trim() ?? '';
@@ -1788,7 +1823,7 @@ class SyncService {
       return;
     }
 
-    if (info.table == 'bouche_cles') {
+    if (info.table == 'bouche_a_cles' || info.table == 'bouche_cles') {
       const obsoleteKeys = <String>{
         'ep_num',
         'ep_type',

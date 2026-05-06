@@ -11,6 +11,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/config/srm_config.dart';
+import '../../core/config/srm_server_columns.dart';
 import '../remote/api_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/password_hash_service.dart';
@@ -73,7 +74,7 @@ class DatabaseHelper {
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         debugPrint('🔄 Migration $oldVersion → $newVersion');
-        await _createAllTables(db);
+        await _createAllTables(db, includeSrmEntityTables: false);
       },
       onOpen: (db) async {
         debugPrint('🔌 DB ouverte');
@@ -87,7 +88,10 @@ class DatabaseHelper {
   // ██ CRÉATION DES TABLES
   // ══════════════════════════════════════════════════════
 
-  Future<void> _createAllTables(Database db) async {
+  Future<void> _createAllTables(
+    Database db, {
+    bool includeSrmEntityTables = true,
+  }) async {
     // ── Session SRM ──
     await db.execute('''
       CREATE TABLE IF NOT EXISTS srm_session (
@@ -132,13 +136,15 @@ class DatabaseHelper {
     await _createConduiteSyncQueueTable(db);
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
-    await _createOfflineBasemapZoneTable(db);
-    await _createOfflineBasemapPackageTable(db);
+    await _createRegionalBasemapStateTable(db);
     await _createSrmFieldOptionLocalTable(db);
+    await _createAttributConfigMobileLocalTable(db);
     await _createCommuneLocalTable(db);
     await _createZoneLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
-    await _createAllSrmEntityTables(db);
+    if (includeSrmEntityTables) {
+      await _createAllSrmEntityTables(db);
+    }
 
     // ── SPRINT 7 : Table brouillons automatiques ──
     await DraftService.createTable(db);
@@ -149,33 +155,22 @@ class DatabaseHelper {
   Future<void> _migrateExistingSrmTables(Database db) async {
     await _ensureUtilisateurLocalColumns(db);
     await _ensureSrmFieldOptionLocalTable(db);
+    await _createAttributConfigMobileLocalTable(db);
     await _ensureCommuneLocalTable(db);
     await _migrateZoneLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
-    await _createAllSrmEntityTables(db);
     await _createPhotoSyncQueueTable(db);
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
-    await _createOfflineBasemapZoneTable(db);
-    await _createOfflineBasemapPackageTable(db);
+    await _createRegionalBasemapStateTable(db);
+    await _dropLegacyOfflineBasemapTables(db);
     // ── SPRINT 7 : S'assurer que la table brouillons existe ──
     await _migrateLocalHistoryTables(db);
-    await _migrateOfflineBasemapTables(db);
     await DraftService.createTable(db);
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
     await _migratePhotoSyncQueueTable(db);
-    for (final tableName in _allowedSrmTables()) {
-      if (tableName == 'objet_incomplet' || tableName == 'raison_incomplet') {
-        continue; // gérées séparément
-      }
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        [tableName],
-      );
-      if (tables.isEmpty) continue;
-      await _assertSrmTableStructure(db, tableName);
-    }
+    await _assertAllSrmEntityTablesPresentAndAligned(db);
   }
 
   /// Crée ou migre la table objet_incomplet avec les colonnes PostgreSQL exactes
@@ -222,7 +217,12 @@ class DatabaseHelper {
       columns: requiredColumns.keys,
     );
 
-    try {
+    // Migration legacy : ancienne colonne 'nom_classe' a copier vers 'nom_table'.
+    // Verifier d'abord la presence de la colonne pour eviter un log SQLite
+    // bruyant sur les installations neuves.
+    final pragma = await db.rawQuery('PRAGMA table_info(objet_incomplet)');
+    final hasNomClasse = pragma.any((row) => row['name'] == 'nom_classe');
+    if (hasNomClasse) {
       await db.execute('''
         UPDATE objet_incomplet
         SET nom_table = nom_classe
@@ -230,8 +230,6 @@ class DatabaseHelper {
           AND nom_classe IS NOT NULL
           AND trim(nom_classe) <> ''
       ''');
-    } catch (_) {
-      // nom_classe n'existe pas sur les installations neuves.
     }
     await _normalizeLocalObjetIncompletNomTable(db);
   }
@@ -477,128 +475,28 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<void> _createOfflineBasemapZoneTable(Database db) async {
+  Future<void> _createRegionalBasemapStateTable(Database db) async {
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS offline_basemap_zone (
-        zone_id TEXT PRIMARY KEY,
-        city_slug TEXT NOT NULL,
-        nom TEXT NOT NULL,
-        geometry_geojson TEXT,
-        bbox_west REAL NOT NULL,
-        bbox_south REAL NOT NULL,
-        bbox_east REAL NOT NULL,
-        bbox_north REAL NOT NULL,
-        center_latitude REAL NOT NULL,
-        center_longitude REAL NOT NULL,
-        min_zoom INTEGER DEFAULT 11,
-        max_zoom INTEGER DEFAULT 19,
-        actif INTEGER DEFAULT 1,
-        metadata_json TEXT,
+      CREATE TABLE IF NOT EXISTS regional_basemap_state (
+        id TEXT PRIMARY KEY,
+        sha256 TEXT NOT NULL,
+        version TEXT,
+        format TEXT NOT NULL DEFAULT 'pmtiles',
+        size_bytes INTEGER,
+        local_path TEXT,
+        download_url TEXT,
+        name TEXT,
+        attribution TEXT,
+        generated_at TEXT,
+        downloaded_at TEXT,
         updated_at TEXT
       )
     ''');
-
-    await db.execute('''
-      CREATE INDEX IF NOT EXISTS offline_basemap_zone_city_idx
-      ON offline_basemap_zone (city_slug, actif)
-    ''');
   }
 
-  Future<void> _createOfflineBasemapPackageTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS offline_basemap_package (
-        package_key TEXT PRIMARY KEY,
-        zone_id TEXT NOT NULL,
-        city_slug TEXT NOT NULL,
-        style TEXT NOT NULL,
-        format TEXT NOT NULL,
-        version TEXT NOT NULL,
-        file_name TEXT NOT NULL,
-        relative_path TEXT,
-        download_url TEXT,
-        local_path TEXT,
-        size_bytes INTEGER,
-        sha256 TEXT,
-        min_zoom INTEGER,
-        max_zoom INTEGER,
-        generated_at TEXT,
-        source_name TEXT,
-        attribution TEXT,
-        tile_count INTEGER DEFAULT 0,
-        metadata_json TEXT,
-        actif INTEGER DEFAULT 1,
-        requires_wifi INTEGER DEFAULT 1,
-        status TEXT DEFAULT 'not_downloaded',
-        downloaded_at TEXT,
-        last_checked_at TEXT,
-        last_error TEXT
-      )
-    ''');
-
-    await db.execute('''
-      CREATE INDEX IF NOT EXISTS offline_basemap_package_zone_style_idx
-      ON offline_basemap_package (zone_id, style, actif)
-    ''');
-    await db.execute('''
-      CREATE INDEX IF NOT EXISTS offline_basemap_package_status_idx
-      ON offline_basemap_package (status, city_slug)
-    ''');
-  }
-
-  Future<void> _migrateOfflineBasemapTables(Database db) async {
-    await _ensureColumns(
-      db,
-      tableName: 'offline_basemap_zone',
-      columns: const {
-        'zone_id': 'TEXT',
-        'city_slug': 'TEXT',
-        'nom': 'TEXT',
-        'geometry_geojson': 'TEXT',
-        'bbox_west': 'REAL',
-        'bbox_south': 'REAL',
-        'bbox_east': 'REAL',
-        'bbox_north': 'REAL',
-        'center_latitude': 'REAL',
-        'center_longitude': 'REAL',
-        'min_zoom': 'INTEGER DEFAULT 11',
-        'max_zoom': 'INTEGER DEFAULT 19',
-        'actif': 'INTEGER DEFAULT 1',
-        'metadata_json': 'TEXT',
-        'updated_at': 'TEXT',
-      },
-    );
-
-    await _ensureColumns(
-      db,
-      tableName: 'offline_basemap_package',
-      columns: const {
-        'package_key': 'TEXT',
-        'zone_id': 'TEXT',
-        'city_slug': 'TEXT',
-        'style': 'TEXT',
-        'format': 'TEXT',
-        'version': 'TEXT',
-        'file_name': 'TEXT',
-        'relative_path': 'TEXT',
-        'download_url': 'TEXT',
-        'local_path': 'TEXT',
-        'size_bytes': 'INTEGER',
-        'sha256': 'TEXT',
-        'min_zoom': 'INTEGER',
-        'max_zoom': 'INTEGER',
-        'generated_at': 'TEXT',
-        'source_name': 'TEXT',
-        'attribution': 'TEXT',
-        'tile_count': 'INTEGER DEFAULT 0',
-        'metadata_json': 'TEXT',
-        'actif': 'INTEGER DEFAULT 1',
-        'requires_wifi': 'INTEGER DEFAULT 1',
-        'status': "TEXT DEFAULT 'not_downloaded'",
-        'downloaded_at': 'TEXT',
-        'last_checked_at': 'TEXT',
-        'last_error': 'TEXT',
-      },
-    );
+  Future<void> _dropLegacyOfflineBasemapTables(Database db) async {
+    await db.execute('DROP TABLE IF EXISTS offline_basemap_package');
+    await db.execute('DROP TABLE IF EXISTS offline_basemap_zone');
   }
 
   Future<void> _ensureColumns(
@@ -617,6 +515,7 @@ class DatabaseHelper {
     Database db, {
     required String tableName,
     required Iterable<String> columns,
+    String sourceLabel = '',
   }) async {
     final existing = await db.rawQuery('PRAGMA table_info($tableName)');
     if (existing.isEmpty) return;
@@ -628,9 +527,10 @@ class DatabaseHelper {
         .toList()
       ..sort();
     if (missing.isNotEmpty) {
+      final source = sourceLabel.trim().isEmpty ? '' : ' ($sourceLabel)';
       throw StateError(
         'Structure SQLite locale incompatible pour $tableName. '
-        'Colonnes manquantes: ${missing.join(', ')}. '
+        'Colonnes manquantes$source: ${missing.join(', ')}. '
         'Reinitialisez les donnees locales puis relancez le telechargement.',
       );
     }
@@ -713,9 +613,40 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _createAttributConfigMobileLocalTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS attribut_config_mobile_local (
+        id INTEGER PRIMARY KEY,
+        nom_metier TEXT NOT NULL,
+        nom_table TEXT NOT NULL,
+        nom_champ TEXT NOT NULL,
+        type_champ TEXT,
+        primary_key INTEGER DEFAULT 0,
+        foreign_key INTEGER DEFAULT 0,
+        ordre INTEGER DEFAULT 0,
+        titre_app TEXT,
+        visible INTEGER DEFAULT 0,
+        contraintes TEXT,
+        nullable INTEGER DEFAULT 1,
+        valeur_par_defaut TEXT,
+        valeur_min TEXT,
+        valeur_max TEXT,
+        reference_fk TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS attribut_config_mobile_local_lookup_idx
+      ON attribut_config_mobile_local (nom_metier, nom_table, visible, ordre, id)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS attribut_config_mobile_local_field_idx
+      ON attribut_config_mobile_local (nom_metier, nom_table, nom_champ)
+    ''');
+  }
+
   Future<void> _createCommuneLocalTable(Database db) async {
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS commune_local (
+      CREATE TABLE IF NOT EXISTS commune_oriental_local (
         id_commune INTEGER PRIMARY KEY,
         id_province INTEGER,
         nom_commune TEXT,
@@ -726,13 +657,14 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE INDEX IF NOT EXISTS commune_local_name_idx
-      ON commune_local (nom_commune, nom_province)
+      CREATE INDEX IF NOT EXISTS commune_oriental_local_name_idx
+      ON commune_oriental_local (nom_commune, nom_province)
     ''');
   }
 
   Future<void> _ensureCommuneLocalTable(Database db) async {
-    final existing = await db.rawQuery('PRAGMA table_info(commune_local)');
+    final existing =
+        await db.rawQuery('PRAGMA table_info(commune_oriental_local)');
     if (existing.isEmpty) {
       await _createCommuneLocalTable(db);
       return;
@@ -752,7 +684,7 @@ class DatabaseHelper {
         .toSet();
 
     if (!requiredColumns.every(existingNames.contains)) {
-      await db.execute('DROP TABLE IF EXISTS commune_local');
+      await db.execute('DROP TABLE IF EXISTS commune_oriental_local');
       await _createCommuneLocalTable(db);
       return;
     }
@@ -995,6 +927,27 @@ class DatabaseHelper {
   // ══════════════════════════════════════════════════════
   // ██ UTILISATEUR SRM (login + mot_de_passe en clair)
   // ══════════════════════════════════════════════════════
+
+  Future<void> _assertAllSrmEntityTablesPresentAndAligned(Database db) async {
+    for (final tableName in _allowedSrmTables()) {
+      if (_supportTablesWithCustomSchema.contains(tableName)) {
+        continue;
+      }
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName],
+      );
+      if (tables.isEmpty) {
+        throw StateError(
+          'Table metier SQLite locale manquante: $tableName. '
+          'Le mobile ne cree plus les tables metier a chaud. '
+          'Reinitialisez les donnees locales pour recreer la structure depuis '
+          'attribut_config_mobile / srm_server_columns.',
+        );
+      }
+      await _assertSrmTableStructure(db, tableName);
+    }
+  }
 
   /// Insert ou update un utilisateur SRM
   Future<int> upsertUserSrm({
@@ -1335,11 +1288,10 @@ class DatabaseHelper {
     final db = await database;
     await _assertSrmTableExists(db, tableName);
     final cleaned = _sanitizeSrmPayload(tableName, data);
-    await _assertColumnsPresent(
-      db,
-      tableName: tableName,
-      columns: cleaned.keys,
-    );
+    // Le mobile ne modifie plus les tables metier a chaud. Toute colonne
+    // acceptee ici doit deja exister dans la structure locale generee depuis
+    // attribut_config_mobile / srm_server_columns.
+    await _ensurePayloadColumnsMigrated(db, tableName, cleaned.keys);
     final uuid = cleaned['uuid']?.toString().trim();
 
     if (uuid != null && uuid.isNotEmpty) {
@@ -1421,9 +1373,11 @@ class DatabaseHelper {
       id_agent_crea INTEGER,
       id_planche INTEGER,
       id_commune INTEGER,
+      id_province INTEGER,
       latitude_gps REAL,
       longitude_gps REAL,
       altitude_gps REAL,
+      altitude_z_moy REAL,
       x_debut REAL,
       y_debut REAL,
       x_fin REAL,
@@ -1449,12 +1403,27 @@ class DatabaseHelper {
       objet_incomplet INTEGER DEFAULT 0
     ''';
 
-    final dynamicCols = fields
-        .where(_isAllowedSrmColumn)
-        .where((f) => !_isFixedCol(f))
-        .map((f) => '  $f ${_sqliteTypeForField(f)}')
-        .join(',\n');
+    // Colonnes du formulaire SRM (saisies par l'agent).
+    final formColumns = <String>{};
+    final dynamicColLines = <String>[];
+    for (final field in fields) {
+      if (!_isAllowedSrmColumn(field) || _isFixedCol(field)) continue;
+      if (!formColumns.add(field)) continue;
+      dynamicColLines.add('  $field ${_sqliteTypeForField(field)}');
+    }
 
+    // Colonnes additionnelles exposees par le serveur (non saisies). Source :
+    // lib/core/config/srm_server_columns.dart, genere depuis
+    // public.attribut_config_mobile. Permet d'absorber le payload serveur avec
+    // une structure locale deja complete.
+    final serverColumns = srmServerColumnsByTable[tableName] ?? const {};
+    for (final entry in serverColumns.entries) {
+      final col = entry.key;
+      if (formColumns.contains(col) || _isFixedCol(col)) continue;
+      dynamicColLines.add('  $col ${entry.value}');
+    }
+
+    final dynamicCols = dynamicColLines.join(',\n');
     return '''
       CREATE TABLE IF NOT EXISTS $tableName (
         $fixedCols
@@ -1471,6 +1440,7 @@ class DatabaseHelper {
       'id_agent_crea',
       'id_planche',
       'id_commune',
+      'id_province',
       'latitude_gps',
       'longitude_gps',
       'altitude_gps',
@@ -1509,6 +1479,7 @@ class DatabaseHelper {
     await _assertSrmTableExists(db, tableName);
     // Nettoyer les valeurs null pour éviter les erreurs SQLite
     final cleaned = _sanitizeSrmPayload(tableName, data);
+    await _ensurePayloadColumnsMigrated(db, tableName, cleaned.keys);
 
     final id = await db.insert(
       tableName,
@@ -1535,6 +1506,7 @@ class DatabaseHelper {
     final db = await database;
     await _assertSrmTableExists(db, tableName);
     final cleaned = _sanitizeSrmPayload(tableName, data);
+    await _ensurePayloadColumnsMigrated(db, tableName, cleaned.keys);
     Map<String, dynamic>? beforeRow;
     if (recordHistory) {
       final existing = await db.query(
@@ -2571,6 +2543,9 @@ class DatabaseHelper {
         columns.addAll(SrmConfig.getFields(metier, entity));
       }
     }
+    for (final tableColumns in srmServerColumnsByTable.values) {
+      columns.addAll(tableColumns.keys);
+    }
     return columns;
   }
 
@@ -2587,7 +2562,7 @@ class DatabaseHelper {
 
   static const Set<String> _fixedSrmColumns = {
     'id', 'fid', 'uuid', 'id_agent_crea',
-    'id_planche', 'id_commune', 'latitude_gps', 'longitude_gps',
+    'id_planche', 'id_commune', 'id_province', 'latitude_gps', 'longitude_gps',
     'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
     'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
     'nb_points', 'distance_m', 'points_json', 'altitude_z_moy',
@@ -2608,9 +2583,11 @@ class DatabaseHelper {
     'id_agent_crea': 'INTEGER',
     'id_planche': 'INTEGER',
     'id_commune': 'INTEGER',
+    'id_province': 'INTEGER',
     'latitude_gps': 'REAL',
     'longitude_gps': 'REAL',
     'altitude_gps': 'REAL',
+    'altitude_z_moy': 'REAL',
     'x_debut': 'REAL',
     'y_debut': 'REAL',
     'x_fin': 'REAL',
@@ -2655,6 +2632,7 @@ class DatabaseHelper {
         case 'id_agent_crea':
         case 'id_planche':
         case 'id_commune':
+        case 'id_province':
         case 'nb_points':
         case 'anomalie':
         case 'downloaded':
@@ -2706,7 +2684,8 @@ class DatabaseHelper {
     await _assertColumnsPresent(
       db,
       tableName: tableName,
-      columns: ['id', ..._migratableFixedSrmColumns.keys],
+      columns: _migratableFixedSrmColumns.keys,
+      sourceLabel: 'colonnes fixes SRM',
     );
   }
 
@@ -2715,10 +2694,49 @@ class DatabaseHelper {
     String tableName,
     List<String> fields,
   ) async {
+    final entityColumns = <String, String>{};
+    for (final field in fields) {
+      if (!_isAllowedSrmColumn(field) || _isFixedCol(field)) continue;
+      entityColumns[field] = _sqliteTypeForField(field);
+    }
+    // Inclure aussi les colonnes serveur generees depuis attribut_config_mobile,
+    // pour verifier que les tables locales pre-existantes sont deja alignes.
+    final serverColumns = srmServerColumnsByTable[tableName];
+    if (serverColumns != null) {
+      for (final entry in serverColumns.entries) {
+        if (_isFixedCol(entry.key) || entityColumns.containsKey(entry.key)) {
+          continue;
+        }
+        entityColumns[entry.key] = entry.value;
+      }
+    }
+    if (entityColumns.isEmpty) return;
     await _assertColumnsPresent(
       db,
       tableName: tableName,
-      columns: fields.where(_isAllowedSrmColumn).where((f) => !_isFixedCol(f)),
+      columns: entityColumns.keys,
+      sourceLabel: 'attribut_config_mobile / srm_server_columns',
+    );
+  }
+
+  Future<void> _ensurePayloadColumnsMigrated(
+    Database db,
+    String tableName,
+    Iterable<String> payloadColumns,
+  ) async {
+    final payloadColumnsToCheck = <String>{};
+    for (final raw in payloadColumns) {
+      final column = raw.trim();
+      if (column.isEmpty) continue;
+      if (column == 'id') continue;
+      payloadColumnsToCheck.add(column);
+    }
+    if (payloadColumnsToCheck.isEmpty) return;
+    await _assertColumnsPresent(
+      db,
+      tableName: tableName,
+      columns: payloadColumnsToCheck,
+      sourceLabel: 'payload serveur',
     );
   }
 
@@ -2727,21 +2745,32 @@ class DatabaseHelper {
       "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
       [tableName],
     );
-    final fields = _fieldsForTable(tableName);
     if (tables.isEmpty) {
-      if (fields.isEmpty) {
-        throw StateError(
-          'Table SQLite locale manquante pour $tableName. '
-          'Reinitialisez les donnees locales puis relancez le telechargement.',
-        );
-      }
-      await db.execute(_buildSrmCreateTableSql(tableName, fields));
+      throw StateError(
+        'Table metier SQLite locale manquante pour $tableName. '
+        'Le mobile ne cree plus les tables metier a chaud. '
+        'Reinitialisez les donnees locales puis relancez le telechargement.',
+      );
     }
 
     await _assertSrmTableStructure(db, tableName);
   }
 
+  static const Set<String> _supportTablesWithCustomSchema = {
+    'objet_incomplet',
+    'raison_incomplet',
+    'intervention_anomalie',
+  };
+
   Future<void> _assertSrmTableStructure(Database db, String tableName) async {
+    // Les tables de support (objet_incomplet, intervention_anomalie...) ont
+    // leur propre schema strict gere par _ensureObjetIncompletTable /
+    // _ensureInterventionAnomalieTerrainTable. Elles n'ont pas les colonnes
+    // geometriques "fixes" des tables metier (latitude_gps, anomalie, etc.),
+    // donc on ne doit pas leur appliquer _ensureSrmFixedColumns.
+    if (_supportTablesWithCustomSchema.contains(tableName)) {
+      return;
+    }
     await _ensureSrmFixedColumns(db, tableName);
     final fields = _fieldsForTable(tableName);
     if (fields.isNotEmpty) {
@@ -2828,13 +2857,105 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> replaceAttributConfigMobile({
+    required List<Map<String, dynamic>> rows,
+    String? nomMetier,
+    String? nomTable,
+  }) async {
+    final db = await database;
+    await _createAttributConfigMobileLocalTable(db);
+
+    await db.transaction((txn) async {
+      if ((nomMetier ?? '').trim().isNotEmpty &&
+          (nomTable ?? '').trim().isNotEmpty) {
+        await txn.delete(
+          'attribut_config_mobile_local',
+          where: 'nom_metier = ? AND nom_table = ?',
+          whereArgs: [nomMetier!.trim(), nomTable!.trim()],
+        );
+      } else if ((nomMetier ?? '').trim().isNotEmpty) {
+        await txn.delete(
+          'attribut_config_mobile_local',
+          where: 'nom_metier = ?',
+          whereArgs: [nomMetier!.trim()],
+        );
+      } else {
+        await txn.delete('attribut_config_mobile_local');
+      }
+
+      for (final row in rows) {
+        final id = _asInt(row['id']);
+        final metier = (row['nom_metier'] ?? '').toString().trim();
+        final table = (row['nom_table'] ?? '').toString().trim();
+        final champ = (row['nom_champ'] ?? '').toString().trim();
+        if (id == null || metier.isEmpty || table.isEmpty || champ.isEmpty) {
+          continue;
+        }
+
+        await txn.insert(
+          'attribut_config_mobile_local',
+          {
+            'id': id,
+            'nom_metier': metier,
+            'nom_table': table,
+            'nom_champ': champ,
+            'type_champ': row['type_champ']?.toString(),
+            'primary_key': _toSqlBool(row['primary_key']),
+            'foreign_key': _toSqlBool(row['foreign_key']),
+            'ordre': _asInt(row['ordre']) ?? 0,
+            'titre_app': row['titre_app']?.toString(),
+            'visible': _toSqlBool(row['visible']),
+            'contraintes': row['contraintes']?.toString(),
+            'nullable': _toSqlBool(row['nullable'], defaultValue: true),
+            'valeur_par_defaut': row['valeur_par_defaut']?.toString(),
+            'valeur_min': row['valeur_min']?.toString(),
+            'valeur_max': row['valeur_max']?.toString(),
+            'reference_fk': row['reference_fk']?.toString(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAttributConfigMobile({
+    required String nomMetier,
+    required String nomTable,
+    bool visibleOnly = false,
+  }) async {
+    final db = await database;
+    await _createAttributConfigMobileLocalTable(db);
+
+    final where = StringBuffer('nom_metier = ? AND nom_table = ?');
+    final whereArgs = <Object?>[nomMetier, nomTable];
+    if (visibleOnly) {
+      where.write(' AND visible = 1');
+    }
+
+    return db.query(
+      'attribut_config_mobile_local',
+      where: where.toString(),
+      whereArgs: whereArgs,
+      orderBy: 'ordre ASC, id ASC',
+    );
+  }
+
+  int _toSqlBool(dynamic value, {bool defaultValue = false}) {
+    if (value == null) return defaultValue ? 1 : 0;
+    if (value is bool) return value ? 1 : 0;
+    if (value is num) return value == 0 ? 0 : 1;
+    final text = value.toString().trim().toLowerCase();
+    if (text.isEmpty) return defaultValue ? 1 : 0;
+    return ['1', 'true', 't', 'yes', 'oui'].contains(text) ? 1 : 0;
+  }
+
   Future<void> replaceCommunes({
     required List<Map<String, dynamic>> communes,
   }) async {
     final db = await database;
 
     await db.transaction((txn) async {
-      await txn.delete('commune_local');
+      await txn.delete('commune_oriental_local');
 
       for (final commune in communes) {
         final idCommune = _asInt(commune['id_commune'] ?? commune['fid']);
@@ -2851,7 +2972,7 @@ class DatabaseHelper {
         };
 
         await txn.insert(
-          'commune_local',
+          'commune_oriental_local',
           storedCommune,
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -2984,7 +3105,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getCommunesLocal() async {
     final db = await database;
     return db.query(
-      'commune_local',
+      'commune_oriental_local',
       orderBy: 'nom_commune ASC, nom_province ASC',
     );
   }
@@ -2995,7 +3116,7 @@ class DatabaseHelper {
   }) async {
     final db = await database;
     final rows = await db.query(
-      'commune_local',
+      'commune_oriental_local',
       where: 'geometry_geojson IS NOT NULL AND TRIM(geometry_geojson) <> ?',
       whereArgs: [''],
     );
@@ -3010,7 +3131,7 @@ class DatabaseHelper {
           return Map<String, dynamic>.from(row);
         }
       } catch (e) {
-        debugPrint('⚠️ commune_local geometry ignoree: $e');
+        debugPrint('⚠️ commune_oriental_local geometry ignoree: $e');
       }
     }
     return null;
@@ -3109,367 +3230,58 @@ class DatabaseHelper {
     );
   }
 
-  Future<void> replaceOfflineBasemapCatalog({
-    required List<Map<String, dynamic>> zones,
-    required List<Map<String, dynamic>> packages,
-  }) async {
-    final db = await database;
-
-    await db.transaction((txn) async {
-      await txn.delete('offline_basemap_zone');
-      final incomingPackageKeys = packages
-          .map((package) =>
-              '${package['zone_id']}:${package['style']}:${package['version']}')
-          .toSet();
-
-      final existingPackageRows = await txn.query(
-        'offline_basemap_package',
-        columns: ['package_key'],
-      );
-      for (final row in existingPackageRows) {
-        final packageKey = (row['package_key'] ?? '').toString();
-        if (packageKey.isEmpty || incomingPackageKeys.contains(packageKey)) {
-          continue;
-        }
-        await txn.delete(
-          'offline_basemap_package',
-          where: 'package_key = ?',
-          whereArgs: [packageKey],
-        );
-      }
-
-      for (final zone in zones) {
-        final bbox = (zone['bbox'] is Map<String, dynamic>)
-            ? Map<String, dynamic>.from(zone['bbox'] as Map)
-            : <String, dynamic>{};
-        final center = (zone['center'] is Map<String, dynamic>)
-            ? Map<String, dynamic>.from(zone['center'] as Map)
-            : <String, dynamic>{};
-
-        await txn.insert(
-          'offline_basemap_zone',
-          {
-            'zone_id': zone['zone_id'],
-            'city_slug': zone['city_slug'],
-            'nom': zone['nom'],
-            'geometry_geojson': _encodeJsonValue(zone['geometry']),
-            'bbox_west': _asDouble(bbox['west']) ?? 0,
-            'bbox_south': _asDouble(bbox['south']) ?? 0,
-            'bbox_east': _asDouble(bbox['east']) ?? 0,
-            'bbox_north': _asDouble(bbox['north']) ?? 0,
-            'center_latitude': _asDouble(center['latitude']) ?? 0,
-            'center_longitude': _asDouble(center['longitude']) ?? 0,
-            'min_zoom': _asInt(zone['min_zoom']) ?? 11,
-            'max_zoom': _asInt(zone['max_zoom']) ?? 19,
-            'actif': zone['actif'] == false ? 0 : 1,
-            'metadata_json': _encodeJsonValue(zone['metadata_json']),
-            'updated_at': (zone['updated_at'] ?? '').toString(),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-
-      for (final package in packages) {
-        final packageKey =
-            '${package['zone_id']}:${package['style']}:${package['version']}';
-        final existingRows = await txn.query(
-          'offline_basemap_package',
-          columns: ['local_path', 'status', 'downloaded_at', 'last_error'],
-          where: 'package_key = ?',
-          whereArgs: [packageKey],
-          limit: 1,
-        );
-
-        final existing = existingRows.isNotEmpty
-            ? Map<String, dynamic>.from(existingRows.first)
-            : const <String, dynamic>{};
-        final incomingSha256 = (package['sha256'] ?? '').toString();
-        final incomingSizeBytes = _asInt(package['size_bytes']);
-        final existingLocalPath = (existing['local_path'] ?? '').toString();
-        final existingStatus =
-            (existing['status'] ?? 'not_downloaded').toString();
-        final existingDownloadedAt = existing['downloaded_at'];
-        final existingLastError = existing['last_error'];
-
-        final existingPackageRows = await txn.query(
-          'offline_basemap_package',
-          columns: ['sha256', 'size_bytes'],
-          where: 'package_key = ?',
-          whereArgs: [packageKey],
-          limit: 1,
-        );
-        final existingPackageMeta = existingPackageRows.isNotEmpty
-            ? Map<String, dynamic>.from(existingPackageRows.first)
-            : const <String, dynamic>{};
-        final existingSha256 = (existingPackageMeta['sha256'] ?? '').toString();
-        final existingSizeBytes = _asInt(existingPackageMeta['size_bytes']);
-
-        final packageChanged = existingPackageMeta.isNotEmpty &&
-            ((incomingSha256.isNotEmpty && incomingSha256 != existingSha256) ||
-                (incomingSizeBytes != null &&
-                    existingSizeBytes != null &&
-                    incomingSizeBytes != existingSizeBytes));
-
-        final preservedStatus = packageChanged
-            ? (existingLocalPath.isNotEmpty
-                ? 'update_available'
-                : 'not_downloaded')
-            : existingStatus;
-
-        await txn.insert(
-          'offline_basemap_package',
-          {
-            'package_key': packageKey,
-            'zone_id': package['zone_id'],
-            'city_slug': package['city_slug'],
-            'style': package['style'],
-            'format': package['format'],
-            'version': package['version'],
-            'file_name': package['file_name'],
-            'relative_path': package['relative_path'],
-            'download_url': package['download_url'],
-            'local_path': existingLocalPath.isEmpty ? null : existingLocalPath,
-            'size_bytes': incomingSizeBytes,
-            'sha256': package['sha256'],
-            'min_zoom': _asInt(package['min_zoom']),
-            'max_zoom': _asInt(package['max_zoom']),
-            'generated_at': (package['generated_at'] ?? '').toString(),
-            'source_name': package['source_name'],
-            'attribution': package['attribution'],
-            'tile_count': _asInt(package['tile_count']) ?? 0,
-            'metadata_json': _encodeJsonValue(package['metadata_json']),
-            'actif': package['actif'] == false ? 0 : 1,
-            'requires_wifi': package['requires_wifi'] == false ? 0 : 1,
-            'status': preservedStatus,
-            'downloaded_at': existingDownloadedAt,
-            'last_checked_at': DateTime.now().toIso8601String(),
-            'last_error': packageChanged ? null : existingLastError,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> getOfflineBasemapZones({
-    String? citySlug,
-    String? zoneId,
-    int? agentId,
-    bool activeOnly = true,
-  }) async {
-    final db = await database;
-    final whereParts = <String>[];
-    final whereArgs = <Object?>[];
-
-    if (citySlug != null && citySlug.isNotEmpty) {
-      whereParts.add('city_slug = ?');
-      whereArgs.add(citySlug);
-    }
-    if (zoneId != null && zoneId.isNotEmpty) {
-      whereParts.add('zone_id = ?');
-      whereArgs.add(zoneId);
-    }
-    // Le catalogue téléchargé est déjà filtré côté serveur via zone_utilisateur.
-    if (activeOnly) {
-      whereParts.add('actif = 1');
-    }
-
-    return db.query(
-      'offline_basemap_zone',
-      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
-      whereArgs: whereArgs,
-      orderBy: 'city_slug, nom, zone_id',
-    );
-  }
-
-  Future<Map<String, dynamic>?> getOfflineBasemapZoneById(String zoneId) async {
-    final rows = await getOfflineBasemapZones(
-      zoneId: zoneId,
-      activeOnly: false,
-    );
-    if (rows.isEmpty) return null;
-    return Map<String, dynamic>.from(rows.first);
-  }
-
-  Future<List<Map<String, dynamic>>> getOfflineBasemapPackages({
-    String? citySlug,
-    String? zoneId,
-    String? style,
-    String? status,
-    int? agentId,
-    bool activeOnly = true,
-  }) async {
-    final db = await database;
-    final whereParts = <String>[];
-    final whereArgs = <Object?>[];
-
-    if (citySlug != null && citySlug.isNotEmpty) {
-      whereParts.add('city_slug = ?');
-      whereArgs.add(citySlug);
-    }
-    if (zoneId != null && zoneId.isNotEmpty) {
-      whereParts.add('zone_id = ?');
-      whereArgs.add(zoneId);
-    }
-    // Le catalogue téléchargé est déjà filtré côté serveur via zone_utilisateur.
-    if (style != null && style.isNotEmpty) {
-      whereParts.add('style = ?');
-      whereArgs.add(style);
-    }
-    if (status != null && status.isNotEmpty) {
-      whereParts.add('status = ?');
-      whereArgs.add(status);
-    }
-    if (activeOnly) {
-      whereParts.add('actif = 1');
-    }
-
-    return db.query(
-      'offline_basemap_package',
-      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
-      whereArgs: whereArgs,
-      orderBy: 'city_slug, zone_id, style, version',
-    );
-  }
-
-  Future<Map<String, dynamic>?> getOfflineBasemapPackageByKey(
-    String packageKey,
-  ) async {
+  Future<Map<String, dynamic>?> getRegionalBasemapState() async {
     final db = await database;
     final rows = await db.query(
-      'offline_basemap_package',
-      where: 'package_key = ?',
-      whereArgs: [packageKey],
+      'regional_basemap_state',
+      where: 'id = ?',
+      whereArgs: ['region'],
       limit: 1,
     );
     if (rows.isEmpty) return null;
     return Map<String, dynamic>.from(rows.first);
   }
 
-  Future<List<Map<String, dynamic>>> getReadyOfflineBasemapPackages({
-    String? citySlug,
-    String? zoneId,
-    String? style,
-    int? agentId,
-  }) {
-    return getOfflineBasemapPackages(
-      citySlug: citySlug,
-      zoneId: zoneId,
-      style: style,
-      agentId: agentId,
-      status: 'ready',
-      activeOnly: true,
-    );
-  }
-
-  String _activeOfflineBasemapPackageKeyMetadata(String style) {
-    final normalizedStyle = style.trim().toLowerCase();
-    return 'active_basemap_${normalizedStyle}_package_key';
-  }
-
-  Future<String?> getActiveOfflineBasemapPackageKey({
-    required String style,
-  }) {
-    return getAppMetadataValue(_activeOfflineBasemapPackageKeyMetadata(style));
-  }
-
-  Future<void> setActiveOfflineBasemapPackageKey({
-    required String style,
-    String? packageKey,
-    bool recordEvent = true,
-  }) async {
-    final metadataKey = _activeOfflineBasemapPackageKeyMetadata(style);
-
-    if (packageKey == null || packageKey.trim().isEmpty) {
-      await deleteAppMetadataValue(
-        metadataKey,
-        eventType: recordEvent ? 'CLEAR_ACTIVE_BASEMAP_PACKAGE' : null,
-        payload: recordEvent ? {'style': style} : null,
-      );
-      return;
-    }
-
-    await saveAppMetadataValue(
-      metadataKey,
-      packageKey.trim(),
-      eventType: recordEvent ? 'SET_ACTIVE_BASEMAP_PACKAGE' : null,
-      payload: recordEvent
-          ? {
-              'style': style,
-              'package_key': packageKey.trim(),
-            }
-          : null,
-    );
-  }
-
-  Future<Map<String, dynamic>?> getActiveOfflineBasemapPackage({
-    required String style,
-  }) async {
-    final packageKey = await getActiveOfflineBasemapPackageKey(style: style);
-    if (packageKey == null || packageKey.trim().isEmpty) {
-      return null;
-    }
-
-    final package = await getOfflineBasemapPackageByKey(packageKey.trim());
-    if (package == null) {
-      await setActiveOfflineBasemapPackageKey(
-        style: style,
-        packageKey: null,
-        recordEvent: false,
-      );
-      return null;
-    }
-
-    final status = (package['status'] ?? '').toString().trim().toLowerCase();
-    final localPath = (package['local_path'] ?? '').toString().trim();
-    if (status != 'ready' || localPath.isEmpty) {
-      await setActiveOfflineBasemapPackageKey(
-        style: style,
-        packageKey: null,
-        recordEvent: false,
-      );
-      return null;
-    }
-
-    return package;
-  }
-
-  Future<void> updateOfflineBasemapPackageDownloadState({
-    required String packageKey,
-    required String status,
+  Future<void> upsertRegionalBasemapState({
+    required String sha256,
+    required String version,
+    required String format,
+    int? sizeBytes,
     String? localPath,
+    String? downloadUrl,
+    String? name,
+    String? attribution,
+    String? generatedAt,
     String? downloadedAt,
-    String? lastError,
   }) async {
     final db = await database;
-    final payload = <String, Object?>{
-      'status': status,
-      'last_checked_at': DateTime.now().toIso8601String(),
-      'last_error': lastError,
-    };
-
-    if (localPath != null) {
-      payload['local_path'] = localPath;
-    }
-    if (downloadedAt != null) {
-      payload['downloaded_at'] = downloadedAt;
-    }
-
-    await db.update(
-      'offline_basemap_package',
-      payload,
-      where: 'package_key = ?',
-      whereArgs: [packageKey],
+    await db.insert(
+      'regional_basemap_state',
+      {
+        'id': 'region',
+        'sha256': sha256,
+        'version': version,
+        'format': format,
+        'size_bytes': sizeBytes,
+        'local_path': localPath,
+        'download_url': downloadUrl,
+        'name': name,
+        'attribution': attribution,
+        'generated_at': generatedAt,
+        'downloaded_at': downloadedAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  String? _encodeJsonValue(dynamic value) {
-    if (value == null) return null;
-    try {
-      return jsonEncode(value);
-    } catch (_) {
-      return value.toString();
-    }
+  Future<void> clearRegionalBasemapState() async {
+    final db = await database;
+    await db.delete(
+      'regional_basemap_state',
+      where: 'id = ?',
+      whereArgs: ['region'],
+    );
   }
 
   double? _asDouble(dynamic value) {
@@ -3542,7 +3354,7 @@ class DatabaseHelper {
     return res.first['value'] as String?;
   }
 
-  String _regardMiroirCacheKey() => 'ep_regard_miroir_cache';
+  String _regardMiroirCacheKey() => 'ep_regard_polygon_cache';
 
   Future<void> saveRegardMiroirCache(List<Map<String, dynamic>> items) async {
     await saveAppMetadataValue(

@@ -195,7 +195,7 @@ class SrmConfig {
           "requiredFields": ["conformite_plan"],
         },
         "Bouche à Clé": {
-          "tableName": "bouche_cles",
+          "tableName": "bouche_a_cles",
           "schema": "ep",
           "geometryType": "Point",
           "hasZ": true,
@@ -593,7 +593,7 @@ class SrmConfig {
           "requiredFields": ["ep_type", "ep_etat", "conformite_plan"],
         },
         "Regard": {
-          "tableName": "regard",
+          "tableName": "ep_regard_point",
           "schema": "ep",
           "geometryType": "Point",
           "hasZ": true,
@@ -698,7 +698,7 @@ class SrmConfig {
           },
         },
         "Conduite Terrain": {
-          "tableName": "ep_conduite_terrain",
+          "tableName": "conduite_terrain",
           "schema": "ep",
           "geometryType": "LineString",
           "hasZ": false,
@@ -819,10 +819,10 @@ class SrmConfig {
     "Assainissement": {
       "icon": "plumbing",
       "color": 0xFF4CAF50,
-      "schema": "ass",
+      "schema": "asst",
       "entities": {
         "Regard ASS": {
-          "tableName": "asst_regard", "schema": "ass",
+          "tableName": "asst_regard", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type_regard",
           "typeOptions": [
@@ -861,7 +861,7 @@ class SrmConfig {
           "requiredFields": ["etat", "type_regard", "conformite_plan"],
         },
         "Regard Branchement": {
-          "tableName": "asst_regard_branchement", "schema": "ass",
+          "tableName": "asst_regard_branchement", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type_tampon", "typeOptions": [],
           // uuid retiré
@@ -892,7 +892,7 @@ class SrmConfig {
           "requiredFields": ["etat", "conformite_plan"],
         },
         "Canalisation ASS": {
-          "tableName": "asst_canalisation", "schema": "ass",
+          "tableName": "asst_canalisation", "schema": "asst",
           "geometryType": "LineString", "hasZ": true, "isLine": true,
           "maxPhotos": 2,
           "typeField": "type_conduite",
@@ -930,7 +930,7 @@ class SrmConfig {
           ],
         },
         "Canalisation Réutilisation": {
-          "tableName": "asst_canalisation_reutilisation", "schema": "ass",
+          "tableName": "asst_canalisation_reutilisation", "schema": "asst",
           "geometryType": "LineString", "hasZ": true, "isLine": true,
           "maxPhotos": 4,
           "typeField": null, "typeOptions": [],
@@ -960,7 +960,7 @@ class SrmConfig {
           "requiredFields": ["etat", "diametre", "conformite_plan"],
         },
         "Branchement ASS": {
-          "tableName": "asst_branchement", "schema": "ass",
+          "tableName": "asst_branchement", "schema": "asst",
           "geometryType": "LineString", "hasZ": true, "isLine": true,
           "maxPhotos": 2,
           "typeField": "type_activite", "typeOptions": [],
@@ -985,7 +985,7 @@ class SrmConfig {
           "requiredFields": ["etat", "diametre", "conformite_plan"],
         },
         "Bassin": {
-          "tableName": "asst_bassin", "schema": "ass",
+          "tableName": "asst_bassin", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type_bassin", "typeOptions": [],
           // uuid retiré
@@ -1014,7 +1014,7 @@ class SrmConfig {
           "requiredFields": ["etat", "type_bassin", "conformite_plan"],
         },
         "Ouvrage ASS": {
-          "tableName": "asst_ouvrage", "schema": "ass",
+          "tableName": "asst_ouvrage", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type_ouvrage", "typeOptions": [],
           // uuid retiré
@@ -1040,7 +1040,7 @@ class SrmConfig {
           "requiredFields": ["etat", "type_ouvrage", "conformite_plan"],
         },
         "Équipement ASS": {
-          "tableName": "asst_equipement", "schema": "ass",
+          "tableName": "asst_equipement", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type", "typeOptions": [],
           // uuid retiré
@@ -1063,7 +1063,7 @@ class SrmConfig {
           "requiredFields": ["etat", "type", "conformite_plan"],
         },
         "Station ASS": {
-          "tableName": "asst_station", "schema": "ass",
+          "tableName": "asst_station", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
           "typeField": "type_station",
           "typeOptions": [

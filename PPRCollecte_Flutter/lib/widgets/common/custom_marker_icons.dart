@@ -93,6 +93,14 @@ class CustomMarkerIcons {
       icon: Icons.crop_square,
       color: const Color(0xFF2E7D32),
     ),
+    'ep_regard_point': MarkerIconConfig(
+      icon: Icons.crop_square,
+      color: const Color(0xFF2E7D32),
+    ),
+    'bouche_a_cles': MarkerIconConfig(
+      icon: Icons.vpn_key,
+      color: const Color(0xFF0288D1),
+    ),
     'bouche_cles': MarkerIconConfig(
       icon: Icons.vpn_key,
       color: const Color(0xFF0288D1),

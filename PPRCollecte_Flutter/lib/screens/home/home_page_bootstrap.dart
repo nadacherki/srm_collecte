@@ -111,132 +111,27 @@ void _restorePausedCollectionImpl(
 }
 
 Future<void> _hydrateOfflineBasemapStateImpl(_HomePageState state) async {
-  final offlineService = OfflineBasemapService();
-  final position = state.userPosition ?? state.homeController.userPosition;
-  final selectedPackage = await offlineService.selectReadyPackageForPosition(
-    position: position,
-    zoom: state._offlineBasemapDefaultZoom,
-    citySlug: BasemapConstants.catalogCitySlug,
-  );
-  final activePackage =
-      selectedPackage ?? await offlineService.getActivePackage();
-
-  await _applyOfflineBasemapPackageStateImpl(state, activePackage);
-}
-
-Future<void> _selectOfflineBasemapForCameraImpl(
-  _HomePageState state,
-  LatLng center,
-  double zoom,
-) async {
-  if (state._isSelectingOfflineBasemapForCamera) return;
-
-  state._isSelectingOfflineBasemapForCamera = true;
-  try {
-    final package = await OfflineBasemapService().selectReadyPackageForPosition(
-      position: center,
-      zoom: zoom,
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-    if (package == null) return;
-
-    final packageKey = package['package_key']?.toString().trim();
-    final localPath = package['local_path']?.toString().trim();
-    if (localPath == null || localPath.isEmpty) return;
-
-    if (packageKey != null &&
-        packageKey.isNotEmpty &&
-        packageKey == state._offlineBasemapPackageKey) {
-      return;
-    }
-    if ((packageKey == null || packageKey.isEmpty) &&
-        localPath == state._offlineBasemapPath) {
-      return;
-    }
-
-    await _applyOfflineBasemapPackageStateImpl(state, package);
-    if (packageKey != null && packageKey.isNotEmpty) {
-      debugPrint('[BASEMAP] Offline package switched by camera: $packageKey');
-    }
-  } finally {
-    state._isSelectingOfflineBasemapForCamera = false;
-  }
+  final activeBasemap = await OfflineBasemapService().getActiveBasemap();
+  await _applyOfflineBasemapPackageStateImpl(state, activeBasemap);
 }
 
 Future<void> _applyOfflineBasemapPackageStateImpl(
   _HomePageState state,
-  Map<String, dynamic>? package,
+  Map<String, dynamic>? basemap,
 ) async {
-  final db = DatabaseHelper();
-  final packagePath = package?['local_path']?.toString().trim();
-  final packageFormat = package?['format']?.toString().trim();
-  final packageKey = package?['package_key']?.toString().trim();
-  final activeZoneId = package?['zone_id']?.toString().trim();
-  final embeddedZone = package?['zone'];
-  final activeZone = embeddedZone is Map
-      ? Map<String, dynamic>.from(embeddedZone)
-      : activeZoneId == null || activeZoneId.isEmpty
-          ? null
-          : await db.getOfflineBasemapZoneById(activeZoneId);
-  final localPath =
-      (packagePath != null && packagePath.isNotEmpty) ? packagePath : null;
+  final localPath = basemap?['local_path']?.toString().trim();
+  final format = basemap?['format']?.toString().trim();
 
   if (!state.mounted) return;
 
   state._setStateFromPart(() {
     if (localPath != null && localPath.isNotEmpty) {
       state._offlineBasemapPath = localPath;
-      state._offlineBasemapFormat = packageFormat;
-      state._offlineBasemapPackageKey = packageKey;
+      state._offlineBasemapFormat = format;
       state._basemapUnavailableMessage = null;
     } else if (state._offlineBasemapPath == null ||
         state._offlineBasemapPath!.isEmpty) {
-      state._offlineBasemapPackageKey = null;
       state._basemapUnavailableMessage = BasemapConstants.unavailableMessage;
-    }
-
-    if (activeZone != null) {
-      final centerLat = _asDoubleOrNullImpl(activeZone['center_latitude']);
-      final centerLng = _asDoubleOrNullImpl(activeZone['center_longitude']);
-      final west = _asDoubleOrNullImpl(activeZone['bbox_west']);
-      final south = _asDoubleOrNullImpl(activeZone['bbox_south']);
-      final east = _asDoubleOrNullImpl(activeZone['bbox_east']);
-      final north = _asDoubleOrNullImpl(activeZone['bbox_north']);
-      final minZoom = _asDoubleOrNullImpl(activeZone['min_zoom']);
-      final maxZoom = _asDoubleOrNullImpl(activeZone['max_zoom']);
-
-      if (centerLat != null && centerLng != null) {
-        state._offlineBasemapCenter = LatLng(centerLat, centerLng);
-      }
-      if (west != null && south != null && east != null && north != null) {
-        state._offlineBasemapBounds = LatLngBounds(
-          LatLng(north, west),
-          LatLng(south, east),
-        );
-      }
-      if (minZoom != null) {
-        state._offlineBasemapMinZoom = minZoom;
-      }
-      if (maxZoom != null) {
-        state._offlineBasemapMaxZoom = maxZoom;
-      }
-      if (state._offlineBasemapMinZoom != null &&
-          state._offlineBasemapMaxZoom != null) {
-        state._offlineBasemapDefaultZoom =
-            (state._offlineBasemapMinZoom! + state._offlineBasemapMaxZoom!) / 2;
-      }
-    }
-
-    if (state._mapController != null &&
-        state._lastCameraPosition == null &&
-        state.userPosition == null &&
-        state._offlineBasemapCenter != null) {
-      state._mapController!.move(
-        state._offlineBasemapCenter!,
-        state._offlineBasemapDefaultZoom ??
-            BasemapConstants.fallbackDefaultZoom,
-      );
-      state._lastCameraPosition = state._offlineBasemapCenter;
     }
   });
 }

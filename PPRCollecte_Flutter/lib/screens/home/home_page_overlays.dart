@@ -1,6 +1,6 @@
 part of 'home_page.dart';
 
-const String _epRegardMiroirOverlayTable = 'regard_miroir';
+const String _epRegardMiroirOverlayTable = 'ep_regard';
 const double _regardMiroirLocalSquareSizeMeters = 24.0;
 
 Future<void> _loadDownloadedSpecialLinesImpl(_HomePageState state) async {

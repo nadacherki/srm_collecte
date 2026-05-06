@@ -6,15 +6,14 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
 import '../home/home_page.dart';
-import '../../core/constants/basemap_constants.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
-import '../../services/basemap_catalog_service.dart';
 import '../../services/password_hash_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/commune_sync_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 import '../../services/srm_field_option_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -35,11 +34,9 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _refreshBasemapCatalogSilently() async {
     try {
-      await BasemapCatalogService().ensureGlobalCoverageDownloaded(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
+      await OfflineBasemapService().ensureRegionalBasemapDownloaded();
     } catch (e) {
-      debugPrint('[BASEMAP-CATALOG] Couverture offline ignoree au login: $e');
+      debugPrint('[BASEMAP-REGIONAL] Telechargement ignore au login: $e');
     }
   }
 
@@ -48,6 +45,14 @@ class _LoginPageState extends State<LoginPage> {
       await SrmFieldOptionService().refreshOptions();
     } catch (e) {
       debugPrint('[SRM-FIELD-OPTIONS] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshAttributConfigMobileSilently() async {
+    try {
+      await AttributConfigMobileService().refreshConfig();
+    } catch (e) {
+      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Sync ignoree au login: $e');
     }
   }
 
@@ -130,12 +135,10 @@ class _LoginPageState extends State<LoginPage> {
 
       final fullName = ApiService.nomPrenom ?? 'Utilisateur Local';
       if (!mounted) return;
-      final activeBasemapPackage =
-          await OfflineBasemapService().getActivePackage();
+      final activeBasemap = await OfflineBasemapService().getActiveBasemap();
       final offlineBasemapPath =
-          activeBasemapPackage?['local_path']?.toString().trim();
-      final offlineBasemapFormat =
-          activeBasemapPackage?['format']?.toString().trim();
+          activeBasemap?['local_path']?.toString().trim();
+      final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
       if (!mounted) return;
       _navigateToHome(
         fullName,
@@ -200,6 +203,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       await _refreshBasemapCatalogSilently();
+      await _refreshAttributConfigMobileSilently();
       await _refreshSrmFieldOptionsSilently();
       await _refreshCommunesSilently();
       unawaited(
@@ -210,12 +214,10 @@ class _LoginPageState extends State<LoginPage> {
 
       final fullName = userData['nom_complet'] ?? 'Agent SRM';
       if (!mounted) return;
-      final activeBasemapPackage =
-          await OfflineBasemapService().getActivePackage();
+      final activeBasemap = await OfflineBasemapService().getActiveBasemap();
       final offlineBasemapPath =
-          activeBasemapPackage?['local_path']?.toString().trim();
-      final offlineBasemapFormat =
-          activeBasemapPackage?['format']?.toString().trim();
+          activeBasemap?['local_path']?.toString().trim();
+      final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
       if (!mounted) return;
       _navigateToHome(
         fullName,

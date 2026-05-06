@@ -19,6 +19,8 @@ import '../../services/photo_reference_service.dart';
 import '../../services/photo_storage_service.dart';
 import '../../services/photo_validation_service.dart';
 import '../../services/projection_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
+import '../../services/srm_field_option_service.dart';
 
 class SrmLigneFormPage extends StatefulWidget {
   final String metier;
@@ -61,7 +63,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   bool _isSaving = false;
   bool _isLocked = false;
 
-  late final List<String> _fields;
+  List<String> _fields = [];
+  List<String> _requiredFields = [];
+  Map<String, AttributConfigMobileField> _attributConfigByField = {};
+  Map<String, List<SrmFieldChoice>> _choicesByField = {};
   late final List<String> _typeOptions;
   late final String? _typeField;
   late final int _maxPhotos;
@@ -73,6 +78,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   late double _yFin;
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
+  String get _tableName =>
+      SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
   String get _metierCode => widget.metier == 'Eau Potable'
       ? 'EP'
       : widget.metier == 'Assainissement'
@@ -84,8 +91,41 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     if (value is bool) return value;
     if (value is int) return value == 1;
     final text = value.toString().trim().toLowerCase();
-    return text == '1' || text == 'true' || text == 't';
+    return text == '1' ||
+        text == 'true' ||
+        text == 't' ||
+        text == 'yes' ||
+        text == 'oui' ||
+        text == 'o';
   }
+
+  bool _isAnomalieFlagField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'anomalie' ||
+        normalized == 'ep_anomalie' ||
+        normalized == 'ass_anomalie';
+  }
+
+  bool _isAnomalieDetailField(String field) {
+    final normalized = field.toLowerCase();
+    if (_isAnomalieFlagField(normalized)) return false;
+    return normalized == 'type_anomalie' ||
+        normalized.startsWith('anomalie_') ||
+        normalized.endsWith('_anomalie');
+  }
+
+  bool _isAnomalieManagedField(String field) =>
+      _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+
+  bool _isObjetIncompletManagedField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'objet_incomplet' ||
+        normalized == 'raison_incomplet' ||
+        normalized == 'detail_raison';
+  }
+
+  bool _isWorkflowManagedField(String field) =>
+      _isAnomalieManagedField(field) || _isObjetIncompletManagedField(field);
 
   List<LatLng> _decodeExistingLinePoints(dynamic rawPoints) {
     if (rawPoints == null) return const [];
@@ -153,6 +193,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   void initState() {
     super.initState();
     _fields = SrmConfig.getFields(widget.metier, widget.entityType);
+    _requiredFields = SrmConfig.getRequiredFields(
+      widget.metier,
+      widget.entityType,
+    );
     _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
     _typeField = SrmConfig.getEntityConfig(
       widget.metier,
@@ -189,6 +233,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       final initial = widget.existingData?[field]?.toString() ?? '';
       _controllers[field] = TextEditingController(text: initial);
     }
+    _loadAttributConfigMobileFields();
     _prefillCoordinates();
 
     if (widget.existingData != null) {
@@ -213,6 +258,92 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       }
       _detailRaisonController.addListener(onFieldChanged);
       initDraft();
+    }
+  }
+
+  Future<void> _loadAttributConfigMobileFields() async {
+    try {
+      final configFields = await AttributConfigMobileService().getFormFields(
+        metier: widget.metier,
+        entityType: widget.entityType,
+      );
+      if (!mounted || configFields.isEmpty) return;
+
+      final formFields = <String>[];
+      final requiredFields = <String>[];
+      final byField = <String, AttributConfigMobileField>{};
+      final nomMetier =
+          AttributConfigMobileService.nomMetierForMobileMetier(widget.metier);
+      final nomTable = AttributConfigMobileService.configTableForMobileTable(
+        nomMetier,
+        _tableName,
+      );
+      for (final config in configFields) {
+        if (config.nomChamp.isEmpty ||
+            config.primaryKey ||
+            config.nomChamp.toLowerCase() == 'geom') {
+          continue;
+        }
+        byField[config.nomChamp] = config;
+        if (_isWorkflowManagedField(config.nomChamp)) {
+          continue;
+        }
+        if (!config.visible && !config.isAutoVisibleCoordinate) {
+          continue;
+        }
+        if (!formFields.contains(config.nomChamp)) {
+          formFields.add(config.nomChamp);
+        }
+        if (config.isRequired) {
+          requiredFields.add(config.nomChamp);
+        }
+      }
+
+      final choicesByField = await SrmFieldOptionService().getOptionsByField(
+        tableSchema: nomMetier,
+        tableName: nomTable,
+        fieldNames: byField.keys,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _attributConfigByField = byField;
+        _choicesByField = choicesByField;
+        _fields = formFields;
+        _requiredFields = requiredFields;
+        for (final field in _fields) {
+          if (!_controllers.containsKey(field)) {
+            final controller = TextEditingController(
+              text: widget.existingData?[field]?.toString() ??
+                  byField[field]?.valeurParDefaut ??
+                  '',
+            );
+            if (widget.existingData == null) {
+              controller.addListener(onFieldChanged);
+            }
+            _controllers[field] = controller;
+          }
+        }
+        for (final config in byField.values) {
+          if (!_isAnomalieDetailField(config.nomChamp)) continue;
+          _controllers.putIfAbsent(
+            config.nomChamp,
+            () {
+              final controller = TextEditingController(
+                text: widget.existingData?[config.nomChamp]?.toString() ??
+                    config.valeurParDefaut,
+              );
+              if (widget.existingData == null) {
+                controller.addListener(onFieldChanged);
+              }
+              return controller;
+            },
+          );
+        }
+        _prefillCoordinates();
+      });
+    } catch (e) {
+      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Form fallback $_tableName: $e');
     }
   }
 
@@ -531,10 +662,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         data['lon_fin'] = effectiveLinePoints.last.longitude;
       }
 
-      data['anomalie'] = _hasAnomalie ? 1 : 0;
-      if (_hasAnomalie && _typeAnomalie != null) {
-        data['type_anomalie'] = _typeAnomalie;
-      }
+      _applyAnomaliePayload(data);
       data['objet_incomplet'] = _isObjetIncomplet ? 1 : 0;
 
       for (int i = 1; i <= 2; i++) {
@@ -547,6 +675,28 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       data['date_collecte'] = DateTime.now().toIso8601String();
 
       final dbHelper = DatabaseHelper();
+
+      // Resoudre id_commune via le 1er point de la ligne (Merchich) afin que
+      // la sync serveur ait un id valide. Sinon le backend neutralisera la FK
+      // a NULL au moment du POST, mais autant le faire propre des le depart.
+      if ((data['id_commune'] == null) && _xDebut != 0.0 && _yDebut != 0.0) {
+        try {
+          final commune = await dbHelper.findCommuneLocalByPoint(
+            x: _xDebut,
+            y: _yDebut,
+          );
+          final idCommune = commune?['id_commune'];
+          if (idCommune != null) {
+            data['id_commune'] = idCommune;
+            final idProvince = commune?['id_province'];
+            if (idProvince != null && data['id_province'] == null) {
+              data['id_province'] = idProvince;
+            }
+          }
+        } catch (e) {
+          debugPrint('id_commune via geom ignore: $e');
+        }
+      }
       late final int localId;
       if (widget.existingData != null && widget.existingData!['id'] != null) {
         final existingId = widget.existingData!['id'] is int
@@ -617,24 +767,193 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
   }
 
+  List<String> _anomalieDetailFields() {
+    final configs = _attributConfigByField.values
+        .where((config) => _isAnomalieDetailField(config.nomChamp))
+        .toList()
+      ..sort((a, b) => a.ordre.compareTo(b.ordre));
+
+    final result = <String>[];
+    for (final config in configs) {
+      if (!result.contains(config.nomChamp)) {
+        result.add(config.nomChamp);
+      }
+    }
+    for (final field in _controllers.keys) {
+      if (_isAnomalieDetailField(field) && !result.contains(field)) {
+        result.add(field);
+      }
+    }
+    return result;
+  }
+
+  List<String> _anomalieExtraDetailFields() => _anomalieDetailFields()
+      .where((field) => field != 'type_anomalie')
+      .toList();
+
+  bool get _hasTypeAnomalieField =>
+      _attributConfigByField.containsKey('type_anomalie') ||
+      _controllers.containsKey('type_anomalie') ||
+      _choicesByField.containsKey('type_anomalie') ||
+      (widget.existingData?.containsKey('type_anomalie') ?? false);
+
+  List<DropdownMenuItem<String>> _choiceDropdownItemsForField(String field) {
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    final currentValue = (_controllers[field]?.text ?? '').trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[];
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem(value: choice.code, child: Text(choice.label)),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+          DropdownMenuItem(value: currentValue, child: Text(currentValue)));
+    }
+    return items;
+  }
+
+  Widget _buildTypeAnomalieField() {
+    const field = 'type_anomalie';
+    final controller = _controllers.putIfAbsent(
+      field,
+      () {
+        final controller = TextEditingController(
+          text: widget.existingData?[field]?.toString() ??
+              _attributConfigByField[field]?.valeurParDefaut ??
+              '',
+        );
+        if (widget.existingData == null) {
+          controller.addListener(onFieldChanged);
+        }
+        return controller;
+      },
+    );
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty) {
+      final value = (_typeAnomalie ?? controller.text).trim();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: DropdownButtonFormField<String>(
+          initialValue: value.isEmpty ? null : value,
+          decoration: _deco(_fieldLabel(field)),
+          hint: const Text('Selectionner'),
+          isExpanded: true,
+          items: _choiceDropdownItemsForField(field),
+          onChanged: _isLocked
+              ? null
+              : (value) => setState(() {
+                    _typeAnomalie = value;
+                    controller.text = value ?? '';
+                  }),
+        ),
+      );
+    }
+
+    final rule = _fieldRule(field);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: _deco(_fieldLabel(field)),
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        readOnly: _isLocked,
+        onChanged: (value) {
+          final normalized = value.trim();
+          _typeAnomalie = normalized.isEmpty ? null : normalized;
+        },
+        validator: _isLocked ? null : (value) => _validateField(field, value),
+      ),
+    );
+  }
+
+  bool _hasAnomalieColumn(String field) =>
+      _attributConfigByField.containsKey(field) ||
+      _controllers.containsKey(field) ||
+      _fields.contains(field) ||
+      (widget.existingData?.containsKey(field) ?? false);
+
+  dynamic _anomalieFlagValue(String field) {
+    if (field == 'anomalie') return _hasAnomalie ? 1 : 0;
+    final type = _attributConfigByField[field]?.typeChamp.toLowerCase() ?? '';
+    if (type.contains('bool') || type.contains('int')) {
+      return _hasAnomalie ? 1 : 0;
+    }
+    return _hasAnomalie ? 'Oui' : 'Non';
+  }
+
+  void _applyAnomaliePayload(Map<String, dynamic> data) {
+    data['anomalie'] = _hasAnomalie ? 1 : 0;
+
+    for (final field in const ['ep_anomalie', 'ass_anomalie']) {
+      if (_hasAnomalieColumn(field)) {
+        data[field] = _anomalieFlagValue(field);
+      }
+    }
+
+    final detailFields = _anomalieDetailFields();
+    for (final field in detailFields) {
+      if (!_hasAnomalie) {
+        data[field] = null;
+        continue;
+      }
+      if (field == 'type_anomalie') {
+        final value = (_typeAnomalie ?? _controllers[field]?.text ?? '').trim();
+        data[field] = value.isEmpty ? null : value;
+        continue;
+      }
+      final raw = _controllers[field]?.text.trim() ?? '';
+      data[field] = raw.isEmpty ? null : _normalizeFieldValue(field, raw);
+    }
+
+    if (!detailFields.contains('type_anomalie')) {
+      final value = (_typeAnomalie ?? '').trim();
+      data['type_anomalie'] = _hasAnomalie && value.isNotEmpty ? value : null;
+    }
+  }
+
   bool _isCoordField(String field) =>
       field.endsWith('_coor_x') ||
       field.endsWith('_coor_y') ||
       field.endsWith('_coor_z');
 
   Widget _buildField(String field) {
+    if (_isWorkflowManagedField(field)) {
+      return const SizedBox.shrink();
+    }
+
     final isCoordField = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
     final isDistanceField = field == 'longueur' ||
         field == 'ep_long_c' ||
         field == 'ep_long_r' ||
         field == 'long_troncon';
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
     final label = _fieldLabel(field);
     final controller = _controllers[field]!;
     final isDisabled = _isLocked || _isObjetIncomplet;
     final shouldFade = isDisabled && !isCoordField && !isDistanceField;
+    final isRequired = !isCoordField &&
+        !isDistanceField &&
+        (_requiredFields.contains(field) || rule.required);
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+
+    if (choices.isNotEmpty && !isCoordField && !isDistanceField) {
+      return _buildChoiceField(
+        field: field,
+        label: label,
+        controller: controller,
+        choices: choices,
+        isRequired: isRequired,
+        isDisabled: isDisabled,
+        shouldFade: shouldFade,
+      );
+    }
 
     if (isTypeField) {
       return Padding(
@@ -643,13 +962,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
           child: DropdownButtonFormField<String>(
             initialValue: controller.text.isEmpty ? null : controller.text,
-            decoration: _deco(label),
+            decoration: _deco(label, required: isRequired && !isDisabled),
             isExpanded: true,
             items: _typeOptions
                 .map((o) => DropdownMenuItem(value: o, child: Text(o)))
                 .toList(),
             onChanged: isDisabled ? null : (v) => controller.text = v ?? '',
-            validator: isDisabled
+            validator: isDisabled || !isRequired
                 ? null
                 : (v) => (v == null || v.isEmpty) ? 'Champ requis' : null,
           ),
@@ -680,7 +999,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
         child: TextFormField(
           controller: controller,
-          decoration: _deco(label).copyWith(
+          decoration:
+              _deco(label, required: isRequired && !isDisabled).copyWith(
             filled: isDisabled,
             fillColor: isDisabled ? Colors.grey.shade50 : null,
           ),
@@ -691,6 +1011,65 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           readOnly: isDisabled,
           validator:
               isDisabled ? null : (value) => _validateField(field, value),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoiceField({
+    required String field,
+    required String label,
+    required TextEditingController controller,
+    required List<SrmFieldChoice> choices,
+    required bool isRequired,
+    required bool isDisabled,
+    required bool shouldFade,
+  }) {
+    final currentValue = controller.text.trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[];
+
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem<String>(
+          value: choice.code,
+          child: Text(choice.label),
+        ),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+        DropdownMenuItem<String>(
+          value: currentValue,
+          child: Text(currentValue),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Opacity(
+        opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
+        child: DropdownButtonFormField<String>(
+          initialValue: currentValue.isEmpty ? null : currentValue,
+          decoration:
+              _deco(label, required: isRequired && !isDisabled).copyWith(
+            filled: isDisabled,
+            fillColor: isDisabled ? Colors.grey.shade50 : null,
+          ),
+          isExpanded: true,
+          items: items,
+          onChanged: isDisabled
+              ? null
+              : (value) {
+                  controller.text = value ?? '';
+                  if (widget.existingData == null) onFieldChanged();
+                },
+          validator: isDisabled || !isRequired
+              ? null
+              : (value) =>
+                  (value == null || value.isEmpty) ? 'Champ requis' : null,
         ),
       ),
     );
@@ -722,6 +1101,75 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         isDense: true,
       );
+
+  SrmFieldRule _fieldRule(String field) {
+    final fallback = SrmConfig.getFieldRule(
+      widget.metier,
+      widget.entityType,
+      field,
+    );
+    final config = _attributConfigByField[field];
+    if (config == null) return fallback;
+
+    final type = config.typeChamp.toLowerCase();
+    if (type.contains('int') || type.contains('serial')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.integer,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('double') ||
+        type.contains('numeric') ||
+        type.contains('decimal') ||
+        type.contains('real') ||
+        type.contains('float')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.decimal,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('date') || type.contains('timestamp')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.date,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('uuid')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.uuid,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('bool')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.booleanLike,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    return SrmFieldRule(
+      kind: fallback.kind,
+      maxLength: fallback.maxLength,
+      required: config.isRequired,
+      multiline: fallback.multiline,
+      readOnly: fallback.readOnly,
+      allowedValues: fallback.allowedValues,
+    );
+  }
 
   TextInputType _kbType(SrmFieldRule rule) {
     switch (rule.kind) {
@@ -756,11 +1204,12 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
 
     if (normalized.isEmpty) {
-      return rule.required ? 'Champ requis' : null;
+      return rule.required || _requiredFields.contains(field)
+          ? 'Champ requis'
+          : null;
     }
 
     if (rule.maxLength != null && normalized.length > rule.maxLength!) {
@@ -803,8 +1252,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   dynamic _normalizeFieldValue(String field, String value) {
     final normalized = value.trim();
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
 
     switch (rule.kind) {
       case SrmFieldKind.integer:
@@ -821,6 +1269,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   String _fieldLabel(String field) {
+    final dbLabel = _attributConfigByField[field]?.titreApp.trim() ?? '';
+    if (dbLabel.isNotEmpty) {
+      return dbLabel;
+    }
     const labels = {
       'ep_num': 'Numéro',
       'ep_type': 'Type conduite',
@@ -965,6 +1417,60 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     );
   }
 
+  Widget _buildAnomalieTextField(String field) {
+    final controller = _controllers.putIfAbsent(
+      field,
+      () {
+        final controller = TextEditingController(
+          text: widget.existingData?[field]?.toString() ??
+              _attributConfigByField[field]?.valeurParDefaut ??
+              '',
+        );
+        if (widget.existingData == null) {
+          controller.addListener(onFieldChanged);
+        }
+        return controller;
+      },
+    );
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty) {
+      return _buildChoiceField(
+        field: field,
+        label: _fieldLabel(field),
+        controller: controller,
+        choices: choices,
+        isRequired: _attributConfigByField[field]?.isRequired ?? false,
+        isDisabled: _isLocked,
+        shouldFade: _isLocked,
+      );
+    }
+    final rule = _fieldRule(field);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: _deco(_fieldLabel(field)),
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        readOnly: _isLocked,
+        validator: _isLocked
+            ? null
+            : (value) {
+                final config = _attributConfigByField[field];
+                if (_hasAnomalie &&
+                    config != null &&
+                    config.isRequired &&
+                    (value ?? '').trim().isEmpty) {
+                  return 'Champ requis';
+                }
+                return _validateField(field, value);
+              },
+      ),
+    );
+  }
+
   Widget _buildAnomalieSection() {
     final disabled = _isObjetIncomplet || _isLocked;
     return Opacity(
@@ -984,37 +1490,19 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                 ? null
                 : (v) => setState(() {
                       _hasAnomalie = v;
-                      if (!v) _typeAnomalie = null;
+                      if (!v) {
+                        _typeAnomalie = null;
+                        for (final field in _anomalieDetailFields()) {
+                          _controllers[field]?.clear();
+                        }
+                      }
                     }),
             contentPadding: EdgeInsets.zero,
           ),
+          if (_hasAnomalie && !_isObjetIncomplet && _hasTypeAnomalieField)
+            _buildTypeAnomalieField(),
           if (_hasAnomalie && !_isObjetIncomplet)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DropdownButtonFormField<String>(
-                initialValue: _typeAnomalie,
-                decoration: _deco('Type d\'anomalie'),
-                hint: const Text('Sélectionner'),
-                items: const [
-                  DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
-                  DropdownMenuItem(
-                    value: 'Corrosion',
-                    child: Text('Corrosion'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Obstruction',
-                    child: Text('Obstruction'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Dommage physique',
-                    child: Text('Dommage physique'),
-                  ),
-                  DropdownMenuItem(value: 'Autre', child: Text('Autre')),
-                ],
-                onChanged:
-                    _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
-              ),
-            ),
+            ..._anomalieExtraDetailFields().map(_buildAnomalieTextField),
         ],
       ),
     );
@@ -1072,6 +1560,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             if (v) {
               _hasAnomalie = false;
               _typeAnomalie = null;
+              for (final field in _anomalieDetailFields()) {
+                _controllers[field]?.clear();
+              }
             }
           }),
           contentPadding: EdgeInsets.zero,

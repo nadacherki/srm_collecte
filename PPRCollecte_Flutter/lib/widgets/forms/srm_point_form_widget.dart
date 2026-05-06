@@ -25,6 +25,8 @@ import '../../services/photo_storage_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
+import '../../services/srm_field_option_service.dart';
 
 class SrmPointFormWidget extends StatefulWidget {
   final String metier; // "Eau Potable" | "Assainissement"
@@ -74,8 +76,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   final Map<int, String?> _photoPaths = {1: null, 2: null, 3: null, 4: null};
 
   late final Map<String, dynamic>? _entityConfig;
-  late final List<String> _fields;
-  late final List<String> _requiredFields; // NOUVEAU
+  List<String> _fields = [];
+  List<String> _requiredFields = [];
+  Map<String, AttributConfigMobileField> _attributConfigByField = {};
+  Map<String, List<SrmFieldChoice>> _choicesByField = {};
   late final List<String> _typeOptions;
   late final String? _typeField;
   late final int _maxPhotos;
@@ -87,7 +91,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     if (value is bool) return value;
     if (value is int) return value == 1;
     final text = value.toString().trim().toLowerCase();
-    return text == '1' || text == 'true' || text == 't';
+    return text == '1' ||
+        text == 'true' ||
+        text == 't' ||
+        text == 'yes' ||
+        text == 'oui' ||
+        text == 'o';
   }
 
   String get _metierCode => widget.metier == 'Eau Potable'
@@ -124,6 +133,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final initial = widget.existingData?[field]?.toString() ?? '';
       _controllers[field] = TextEditingController(text: initial);
     }
+    _loadAttributConfigMobileFields();
     _prefillCoordinates();
     _applyEntitySpecificDefaults();
 
@@ -157,6 +167,93 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       }
       _detailRaisonController.addListener(onFieldChanged);
       initDraft();
+    }
+  }
+
+  Future<void> _loadAttributConfigMobileFields() async {
+    try {
+      final configFields = await AttributConfigMobileService().getFormFields(
+        metier: widget.metier,
+        entityType: widget.entityType,
+      );
+      if (!mounted || configFields.isEmpty) return;
+
+      final formFields = <String>[];
+      final requiredFields = <String>[];
+      final byField = <String, AttributConfigMobileField>{};
+      final nomMetier =
+          AttributConfigMobileService.nomMetierForMobileMetier(widget.metier);
+      final nomTable = AttributConfigMobileService.configTableForMobileTable(
+        nomMetier,
+        _tableName,
+      );
+      for (final config in configFields) {
+        if (config.nomChamp.isEmpty ||
+            config.primaryKey ||
+            config.nomChamp.toLowerCase() == 'geom') {
+          continue;
+        }
+        byField[config.nomChamp] = config;
+        if (_isWorkflowManagedField(config.nomChamp)) {
+          continue;
+        }
+        if (!config.visible && !config.isAutoVisibleCoordinate) {
+          continue;
+        }
+        if (!formFields.contains(config.nomChamp)) {
+          formFields.add(config.nomChamp);
+        }
+        if (config.isRequired) {
+          requiredFields.add(config.nomChamp);
+        }
+      }
+
+      final choicesByField = await SrmFieldOptionService().getOptionsByField(
+        tableSchema: nomMetier,
+        tableName: nomTable,
+        fieldNames: byField.keys,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _attributConfigByField = byField;
+        _choicesByField = choicesByField;
+        _fields = formFields;
+        _requiredFields = requiredFields;
+        for (final field in _fields) {
+          if (!_controllers.containsKey(field)) {
+            final controller = TextEditingController(
+              text: widget.existingData?[field]?.toString() ??
+                  byField[field]?.valeurParDefaut ??
+                  '',
+            );
+            if (widget.existingData == null) {
+              controller.addListener(onFieldChanged);
+            }
+            _controllers[field] = controller;
+          }
+        }
+        for (final config in byField.values) {
+          if (!_isAnomalieDetailField(config.nomChamp)) continue;
+          _controllers.putIfAbsent(
+            config.nomChamp,
+            () {
+              final controller = TextEditingController(
+                text: widget.existingData?[config.nomChamp]?.toString() ??
+                    config.valeurParDefaut,
+              );
+              if (widget.existingData == null) {
+                controller.addListener(onFieldChanged);
+              }
+              return controller;
+            },
+          );
+        }
+        _prefillCoordinates();
+        _applyEntitySpecificDefaults();
+      });
+    } catch (e) {
+      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Form fallback $_tableName: $e');
     }
   }
 
@@ -242,14 +339,35 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         .contains(field);
   }
 
-  bool _isHiddenField(String field) {
-    if (_isEpRegardPoint) {
-      return field == 'ep_anomalie' ||
-          field == 'anomalie_tamp' ||
-          field == 'anomalie_regard';
-    }
-    return false;
+  bool _isAnomalieFlagField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'anomalie' ||
+        normalized == 'ep_anomalie' ||
+        normalized == 'ass_anomalie';
   }
+
+  bool _isAnomalieDetailField(String field) {
+    final normalized = field.toLowerCase();
+    if (_isAnomalieFlagField(normalized)) return false;
+    return normalized == 'type_anomalie' ||
+        normalized.startsWith('anomalie_') ||
+        normalized.endsWith('_anomalie');
+  }
+
+  bool _isAnomalieManagedField(String field) =>
+      _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+
+  bool _isObjetIncompletManagedField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'objet_incomplet' ||
+        normalized == 'raison_incomplet' ||
+        normalized == 'detail_raison';
+  }
+
+  bool _isWorkflowManagedField(String field) =>
+      _isAnomalieManagedField(field) || _isObjetIncompletManagedField(field);
+
+  bool _isHiddenField(String field) => _isWorkflowManagedField(field);
 
   @override
   void dispose() {
@@ -484,15 +602,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       if (yField.isNotEmpty) data[yField] = _merchichY.toStringAsFixed(3);
 
       // Anomalie
-      data['anomalie'] = _hasAnomalie ? 1 : 0;
-      if (_hasAnomalie && _typeAnomalie != null) {
-        data['type_anomalie'] = _typeAnomalie;
-      } else {
-        data['type_anomalie'] = null;
-      }
+      _applyAnomaliePayload(data);
 
       if (_isEpRegardPoint) {
-        data['ep_anomalie'] = _hasAnomalie ? 1 : 0;
         data['mode_localisation'] =
             (_controllers['mode_localisation']?.text.trim().isNotEmpty ?? false)
                 ? _controllers['mode_localisation']!.text.trim()
@@ -503,14 +615,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           data['date_modif'] = DateTime.now().toIso8601String();
         } else {
           data['date_creation'] ??= DateTime.now().toIso8601String();
-        }
-        if (_hasAnomalie) {
-          data['anomalie_regard'] = _typeAnomalie?.trim().isEmpty ?? true
-              ? null
-              : _typeAnomalie?.trim();
-        } else {
-          data['anomalie_regard'] = null;
-          data['anomalie_tamp'] = null;
         }
       }
 
@@ -537,6 +641,29 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       data['date_collecte'] = DateTime.now().toIso8601String();
 
       final db = DatabaseHelper();
+
+      // Resoudre id_commune via la position Merchich pour eviter d'envoyer
+      // un id local invalide au serveur (FK commune_oriental.fid).
+      if (data['id_commune'] == null &&
+          _merchichX != 0.0 &&
+          _merchichY != 0.0) {
+        try {
+          final commune = await db.findCommuneLocalByPoint(
+            x: _merchichX,
+            y: _merchichY,
+          );
+          final idCommune = commune?['id_commune'];
+          if (idCommune != null) {
+            data['id_commune'] = idCommune;
+            final idProvince = commune?['id_province'];
+            if (idProvince != null && data['id_province'] == null) {
+              data['id_province'] = idProvince;
+            }
+          }
+        } catch (e) {
+          debugPrint('id_commune via geom ignore: $e');
+        }
+      }
 
       // ── INSERT ou UPDATE dans la table métier ──
       late final int localId;
@@ -602,6 +729,81 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  List<String> _anomalieDetailFields() {
+    final configs = _attributConfigByField.values
+        .where((config) => _isAnomalieDetailField(config.nomChamp))
+        .toList()
+      ..sort((a, b) => a.ordre.compareTo(b.ordre));
+
+    final result = <String>[];
+    for (final config in configs) {
+      if (!result.contains(config.nomChamp)) {
+        result.add(config.nomChamp);
+      }
+    }
+    for (final field in _controllers.keys) {
+      if (_isAnomalieDetailField(field) && !result.contains(field)) {
+        result.add(field);
+      }
+    }
+    return result;
+  }
+
+  bool _hasAnomalieColumn(String field) =>
+      _attributConfigByField.containsKey(field) ||
+      _controllers.containsKey(field) ||
+      _fields.contains(field) ||
+      (widget.existingData?.containsKey(field) ?? false);
+
+  dynamic _anomalieFlagValue(String field) {
+    if (field == 'anomalie') return _hasAnomalie ? 1 : 0;
+    final type = _attributConfigByField[field]?.typeChamp.toLowerCase() ?? '';
+    if (type.contains('bool') || type.contains('int')) {
+      return _hasAnomalie ? 1 : 0;
+    }
+    return _hasAnomalie ? 'Oui' : 'Non';
+  }
+
+  void _applyAnomaliePayload(Map<String, dynamic> data) {
+    data['anomalie'] = _hasAnomalie ? 1 : 0;
+
+    for (final field in const ['ep_anomalie', 'ass_anomalie']) {
+      if (_hasAnomalieColumn(field)) {
+        data[field] = _anomalieFlagValue(field);
+      }
+    }
+
+    final detailFields = _anomalieDetailFields();
+    for (final field in detailFields) {
+      if (!_hasAnomalie) {
+        data[field] = null;
+        continue;
+      }
+      if (field == 'type_anomalie') {
+        final value = (_typeAnomalie ?? _controllers[field]?.text ?? '').trim();
+        data[field] = value.isEmpty ? null : value;
+        continue;
+      }
+      final raw = _controllers[field]?.text.trim() ?? '';
+      data[field] = raw.isEmpty ? null : _normalizeFieldValue(field, raw);
+    }
+
+    if (!detailFields.contains('type_anomalie')) {
+      final value = (_typeAnomalie ?? '').trim();
+      data['type_anomalie'] = _hasAnomalie && value.isNotEmpty ? value : null;
+    }
+
+    if (_isEpRegardPoint && _hasAnomalie) {
+      final regardValue =
+          (data['anomalie_regard'] ?? _typeAnomalie ?? '').toString().trim();
+      data['anomalie_regard'] = regardValue.isEmpty ? null : regardValue;
+    }
+    if (_isEpRegardPoint && !_hasAnomalie) {
+      data['anomalie_regard'] = null;
+      data['anomalie_tamp'] = null;
+    }
+  }
+
   // Construction d'un champ
   bool _isCoordField(String field) =>
       field.endsWith('_coor_x') ||
@@ -615,18 +817,26 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
     final isCoord = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
     final isRequired =
         !isCoord && (_requiredFields.contains(field) || rule.required);
     final label = _fieldLabel(field);
     final controller = _controllers[field]!;
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
 
     // ── NOUVEAU : grisage si objet incomplet activé ──
     // Les coordonnées restent visibles mais désactivées de toute façon (readOnly)
     Widget fieldWidget;
 
-    if (isTypeField) {
+    if (choices.isNotEmpty && !isCoord) {
+      fieldWidget = _buildChoiceField(
+        field: field,
+        label: label,
+        controller: controller,
+        choices: choices,
+        isRequired: isRequired,
+      );
+    } else if (isTypeField) {
       fieldWidget = Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: DropdownButtonFormField<String>(
@@ -698,6 +908,65 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   // InputDecoration avec astérisque si requis
+  Widget _buildChoiceField({
+    required String field,
+    required String label,
+    required TextEditingController controller,
+    required List<SrmFieldChoice> choices,
+    required bool isRequired,
+  }) {
+    final currentValue = controller.text.trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[];
+
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem<String>(
+          value: choice.code,
+          child: Text(choice.label),
+        ),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+        DropdownMenuItem<String>(
+          value: currentValue,
+          child: Text(currentValue),
+        ),
+      );
+    }
+
+    final fieldIsReadOnly =
+        _isLocked || _isObjetIncomplet || _isConfiguredReadOnlyField(field);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: currentValue.isEmpty ? null : currentValue,
+        decoration: _deco(
+          label,
+          required: isRequired && !_isLocked && !_isObjetIncomplet,
+        ).copyWith(
+          filled: fieldIsReadOnly,
+          fillColor: fieldIsReadOnly ? Colors.grey.shade50 : null,
+        ),
+        isExpanded: true,
+        items: items,
+        onChanged: fieldIsReadOnly
+            ? null
+            : (value) {
+                controller.text = value ?? '';
+                if (widget.existingData == null) onFieldChanged();
+              },
+        validator: (_isObjetIncomplet || _isLocked || !isRequired)
+            ? null
+            : (value) =>
+                (value == null || value.isEmpty) ? 'Champ obligatoire *' : null,
+      ),
+    );
+  }
+
   InputDecoration _deco(String label, {bool required = false}) =>
       InputDecoration(
         // ── NOUVEAU : astérisque rouge sur les champs obligatoires ──
@@ -724,6 +993,75 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         isDense: true,
       );
+
+  SrmFieldRule _fieldRule(String field) {
+    final fallback = SrmConfig.getFieldRule(
+      widget.metier,
+      widget.entityType,
+      field,
+    );
+    final config = _attributConfigByField[field];
+    if (config == null) return fallback;
+
+    final type = config.typeChamp.toLowerCase();
+    if (type.contains('int') || type.contains('serial')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.integer,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('double') ||
+        type.contains('numeric') ||
+        type.contains('decimal') ||
+        type.contains('real') ||
+        type.contains('float')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.decimal,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('date') || type.contains('timestamp')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.date,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('uuid')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.uuid,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('bool')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.booleanLike,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    return SrmFieldRule(
+      kind: fallback.kind,
+      maxLength: fallback.maxLength,
+      required: config.isRequired,
+      multiline: fallback.multiline,
+      readOnly: fallback.readOnly,
+      allowedValues: fallback.allowedValues,
+    );
+  }
 
   TextInputType _kbType(SrmFieldRule rule) {
     switch (rule.kind) {
@@ -758,8 +1096,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
 
     if (normalized.isEmpty) {
       return rule.required || _requiredFields.contains(field)
@@ -807,8 +1144,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   dynamic _normalizeFieldValue(String field, String value) {
     final normalized = value.trim();
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
 
     switch (rule.kind) {
       case SrmFieldKind.integer:
@@ -825,6 +1161,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   String _fieldLabel(String field) {
+    final dbLabel = _attributConfigByField[field]?.titreApp.trim() ?? '';
+    if (dbLabel.isNotEmpty) {
+      return dbLabel;
+    }
     final configuredLabel = SrmConfig.getFieldLabel(
       widget.metier,
       widget.entityType,
@@ -971,6 +1311,143 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
+  List<String> _anomalieExtraDetailFields() => _anomalieDetailFields()
+      .where((field) => field != 'type_anomalie')
+      .toList();
+
+  bool get _hasTypeAnomalieField =>
+      _attributConfigByField.containsKey('type_anomalie') ||
+      _controllers.containsKey('type_anomalie') ||
+      _choicesByField.containsKey('type_anomalie') ||
+      (widget.existingData?.containsKey('type_anomalie') ?? false);
+
+  List<DropdownMenuItem<String>> _choiceDropdownItemsForField(String field) {
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    final currentValue = (_controllers[field]?.text ?? '').trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[];
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem(value: choice.code, child: Text(choice.label)),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+          DropdownMenuItem(value: currentValue, child: Text(currentValue)));
+    }
+    return items;
+  }
+
+  Widget _buildTypeAnomalieField() {
+    const field = 'type_anomalie';
+    final controller = _controllers.putIfAbsent(
+      field,
+      () {
+        final controller = TextEditingController(
+          text: widget.existingData?[field]?.toString() ??
+              _attributConfigByField[field]?.valeurParDefaut ??
+              '',
+        );
+        if (widget.existingData == null) {
+          controller.addListener(onFieldChanged);
+        }
+        return controller;
+      },
+    );
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty) {
+      final value = (_typeAnomalie ?? controller.text).trim();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: DropdownButtonFormField<String>(
+          initialValue: value.isEmpty ? null : value,
+          decoration: _deco(_fieldLabel(field)),
+          hint: const Text('Selectionner'),
+          isExpanded: true,
+          items: _choiceDropdownItemsForField(field),
+          onChanged: _isLocked
+              ? null
+              : (value) => setState(() {
+                    _typeAnomalie = value;
+                    controller.text = value ?? '';
+                  }),
+        ),
+      );
+    }
+
+    final rule = _fieldRule(field);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: _deco(_fieldLabel(field)),
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        readOnly: _isLocked,
+        onChanged: (value) {
+          final normalized = value.trim();
+          _typeAnomalie = normalized.isEmpty ? null : normalized;
+        },
+        validator: _isLocked ? null : (value) => _validateField(field, value),
+      ),
+    );
+  }
+
+  Widget _buildAnomalieTextField(String field) {
+    final controller = _controllers.putIfAbsent(
+      field,
+      () {
+        final controller = TextEditingController(
+          text: widget.existingData?[field]?.toString() ??
+              _attributConfigByField[field]?.valeurParDefaut ??
+              '',
+        );
+        if (widget.existingData == null) {
+          controller.addListener(onFieldChanged);
+        }
+        return controller;
+      },
+    );
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty) {
+      return _buildChoiceField(
+        field: field,
+        label: _fieldLabel(field),
+        controller: controller,
+        choices: choices,
+        isRequired: _attributConfigByField[field]?.isRequired ?? false,
+      );
+    }
+    final rule = _fieldRule(field);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: _deco(_fieldLabel(field)),
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        readOnly: _isLocked,
+        validator: _isLocked
+            ? null
+            : (value) {
+                final config = _attributConfigByField[field];
+                if (_hasAnomalie &&
+                    config != null &&
+                    config.isRequired &&
+                    (value ?? '').trim().isEmpty) {
+                  return 'Champ requis';
+                }
+                return _validateField(field, value);
+              },
+      ),
+    );
+  }
+
   // Section anomalie
   Widget _buildAnomalieSection() {
     final disabled = _isObjetIncomplet || _isLocked;
@@ -989,36 +1466,19 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 ? null
                 : (v) => setState(() {
                       _hasAnomalie = v;
-                      if (!v) _typeAnomalie = null;
+                      if (!v) {
+                        _typeAnomalie = null;
+                        for (final field in _anomalieDetailFields()) {
+                          _controllers[field]?.clear();
+                        }
+                      }
                     }),
             contentPadding: EdgeInsets.zero,
           ),
+          if (_hasAnomalie && !_isObjetIncomplet && _hasTypeAnomalieField)
+            _buildTypeAnomalieField(),
           if (_hasAnomalie && !_isObjetIncomplet)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DropdownButtonFormField<String>(
-                initialValue: _typeAnomalie,
-                decoration: _deco('Type d\'anomalie'),
-                hint: const Text('Sélectionner'),
-                items: const [
-                  DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
-                  DropdownMenuItem(
-                      value: 'Corrosion', child: Text('Corrosion')),
-                  DropdownMenuItem(
-                      value: 'Obstruction', child: Text('Obstruction')),
-                  DropdownMenuItem(
-                      value: 'Dommage physique',
-                      child: Text('Dommage physique')),
-                  DropdownMenuItem(
-                      value: 'Dysfonctionnement',
-                      child: Text('Dysfonctionnement')),
-                  DropdownMenuItem(value: 'Absent', child: Text('Absent')),
-                  DropdownMenuItem(value: 'Autre', child: Text('Autre')),
-                ],
-                onChanged:
-                    _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
-              ),
-            ),
+            ..._anomalieExtraDetailFields().map(_buildAnomalieTextField),
         ],
       ),
     );
@@ -1078,6 +1538,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             if (v) {
               _hasAnomalie = false;
               _typeAnomalie = null;
+              for (final field in _anomalieDetailFields()) {
+                _controllers[field]?.clear();
+              }
             }
           }),
           contentPadding: EdgeInsets.zero,

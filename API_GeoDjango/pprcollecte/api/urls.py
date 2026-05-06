@@ -55,6 +55,7 @@ router = DefaultRouter()
 # =====================================================================
 #  PUBLIC (8 endpoints)
 # =====================================================================
+router.register(r'communes-oriental', views.CommuneViewSet, basename='commune-oriental')
 router.register(r'communes', views.CommuneViewSet, basename='commune')
 router.register(r'zones', views.ZoneViewSet, basename='zone')
 router.register(r'zone-utilisateurs', views.ZoneUtilisateurViewSet, basename='zone-utilisateur')
@@ -63,7 +64,6 @@ router.register(r'objets-incomplets', views.ObjetIncompletViewSet, basename='obj
 router.register(r'objets-photos', views.ObjetPhotoViewSet, basename='objet-photo')
 router.register(r'interventions-anomalies-terrain', views.InterventionAnomalieTerrainViewSet, basename='intervention-anomalie-terrain')
 router.register(r'srm-field-options', views.SrmFieldOptionViewSet, basename='srm-field-option')
-router.register(r'basemap-packages', views.BasemapPackageViewSet, basename='basemap-package')
 router.register(r'metrics-agent-jour', views.MetricAgentJourViewSet, basename='metrics-agent-jour')
 router.register(r'metrics-agent-semaine', views.MetricAgentSemaineViewSet, basename='metrics-agent-semaine')
 router.register(r'metrics-agent-mois', views.MetricAgentMoisViewSet, basename='metrics-agent-mois')
@@ -135,10 +135,11 @@ mobile_srm_urlpatterns = [
 urlpatterns = [
     # Login (vue fonction, pas un ViewSet)
     path('api/login/', views.login_view, name='login'),
-    path('api/basemaps/catalog/', views.basemap_catalog_view, name='basemap-catalog'),
-    path('api/basemaps/prepare-agent/', views.prepare_agent_basemap_packages_view, name='basemap-prepare-agent'),
+    path('api/basemaps/region/manifest/', views.regional_basemap_manifest_view, name='basemap-regional-manifest'),
+    path('api/basemaps/region/download/', views.regional_basemap_download_view, name='basemap-regional-download'),
     path('api/statistiques-conduite/jour/', views.statistique_conduite_jour_view, name='statistique-conduite-jour'),
     path('api/statistiques-conduite/valider/', views.statistique_conduite_validate_view, name='statistique-conduite-valider'),
+    path('api/attribut-config-mobile/', views.attribut_config_mobile_view, name='attribut-config-mobile'),
     path('api/sync/manifest/', views.sync_manifest_view, name='sync-manifest'),
     path('api/sync/session/<str:sync_uuid>/', views.sync_session_status_view, name='sync-session-status'),
     path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),

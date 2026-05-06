@@ -218,14 +218,12 @@ class _HomePageState extends State<HomePage> {
   String? _lastSyncTimeText;
   String? _offlineBasemapPath;
   String? _offlineBasemapFormat;
-  String? _offlineBasemapPackageKey;
   String? _basemapUnavailableMessage;
   LatLng? _offlineBasemapCenter;
   LatLngBounds? _offlineBasemapBounds;
   double? _offlineBasemapDefaultZoom;
   double? _offlineBasemapMinZoom;
   double? _offlineBasemapMaxZoom;
-  bool _isSelectingOfflineBasemapForCamera = false;
   late bool _isOnlineDynamic;
   Timer? _onlineWatchTimer;
   Timer? _nmeaBridgeWatchTimer;
@@ -259,7 +257,7 @@ class _HomePageState extends State<HomePage> {
     'bac': true,
     'passage_submersible': true,
     'zone_plaine': true,
-    'srm_regard_miroir': true,
+    'srm_ep_regard_polygon': true,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -378,12 +376,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _hydrateOfflineBasemapState() =>
       _hydrateOfflineBasemapStateImpl(this);
-
-  Future<void> _selectOfflineBasemapForCamera(
-    LatLng center,
-    double zoom,
-  ) =>
-      _selectOfflineBasemapForCameraImpl(this, center, zoom);
 
   void _showInitialBasemapNoticeIfNeeded() =>
       _showInitialBasemapNoticeIfNeededImpl(this);
@@ -1144,7 +1136,7 @@ class _HomePageState extends State<HomePage> {
                       isSatellite: _isSatellite,
                       onPolylineTap: null,
                       onMapTap: _handleConduiteMapTap,
-                      onCameraIdle: _selectOfflineBasemapForCamera,
+                      onCameraIdle: null,
                       offlineBasemapPath: _offlineBasemapPath,
                       offlineBasemapFormat: _offlineBasemapFormat,
                       basemapUnavailableMessage: _basemapUnavailableMessage,
@@ -1291,7 +1283,7 @@ class _HomePageState extends State<HomePage> {
                     formMarkers: formMarkers,
                     isSatellite: _isSatellite,
                     onPolylineTap: _handlePolylineTap,
-                    onCameraIdle: _selectOfflineBasemapForCamera,
+                    onCameraIdle: null,
                     offlineBasemapPath: _offlineBasemapPath,
                     offlineBasemapFormat: _offlineBasemapFormat,
                     basemapUnavailableMessage: _basemapUnavailableMessage,

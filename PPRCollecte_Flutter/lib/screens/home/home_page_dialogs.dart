@@ -328,9 +328,7 @@ void _showDownloadResultImpl(
     context: state.context,
     builder: (ctx) {
       final errorsToShow = result.errors.take(10).toList();
-      final warningsToShow = result.warnings.take(5).toList();
       final remaining = result.errors.length - errorsToShow.length;
-      final remainingWarnings = result.warnings.length - warningsToShow.length;
       bool isLikelyNetworkFailure(String error) {
         final lower = error.toLowerCase();
         return lower.contains('connexion interrompue') ||
@@ -361,7 +359,7 @@ void _showDownloadResultImpl(
               : nothingAvailable
                   ? 'Aucune donnée disponible'
                   : result.interrupted
-                      ? 'Telechargement interrompu'
+                      ? 'Téléchargement interrompu'
                       : fullFailure
                           ? networkOnlyFailure
                               ? 'Connexion au serveur indisponible'
@@ -376,30 +374,16 @@ void _showDownloadResultImpl(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (alreadyDownloaded) ...[
-                const Text(
-                  'Les donnees du serveur sont deja telechargees ou deja a jour sur cet appareil.',
-                ),
-                const SizedBox(height: 8),
-                const Text('Toutes les données étaient déjà à jour.'),
+                const Text('Toutes les données sont déjà à jour.'),
               ],
               if (nothingAvailable) ...[
                 const Text(
-                  "Aucune donnée n'a été trouvée sur le serveur pour votre compte.",
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Causes possibles :\n- Aucune donnée n'est encore associée à votre zone\n- Vos permissions ne sont pas encore configurées\n- Les données n'ont pas encore été collectées dans votre zone",
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  "Aucune donnée n'a été trouvée pour votre compte.",
                 ),
               ],
               if (result.interrupted) ...[
-                Text(
-                  result.interruptionMessage ??
-                      'Connexion interrompue. Le telechargement a ete arrete.',
-                ),
-                const SizedBox(height: 8),
                 const Text(
-                  'Les donnees deja recues sont conservees. Relancez le telechargement quand la connexion revient pour reprendre.',
+                  'Connexion interrompue. Vérifiez Internet puis relancez pour reprendre.',
                 ),
                 const SizedBox(height: 8),
               ],
@@ -407,13 +391,7 @@ void _showDownloadResultImpl(
                 Text(
                   networkOnlyFailure
                       ? "Aucune donnée n'a pu être téléchargée pour le moment."
-                      : "Aucune donnée n'a pu être téléchargée sur cet appareil.",
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  networkOnlyFailure
-                      ? "L'application ne parvient pas à joindre le serveur SRM. Cela peut venir d'une connexion Internet absente, d'un réseau instable, ou d'un backend Django arrêté ou inaccessible."
-                      : 'Le téléchargement a échoué avant de pouvoir mettre à jour les données.',
+                      : "Aucune donnée n'a pu être téléchargée.",
                 ),
                 const SizedBox(height: 8),
               ],
@@ -427,45 +405,9 @@ void _showDownloadResultImpl(
               if (result.failedCount > 0)
                 Text(
                   networkOnlyFailure
-                      ? '${result.failedCount} types de données restent en attente.'
-                      : "${result.failedCount} types de données n'ont pas pu être mis à jour",
+                      ? '${result.failedCount} type(s) de données en attente.'
+                      : "${result.failedCount} type(s) de données n'ont pas pu être mis à jour.",
                 ),
-              if (result.failedCount > 0) ...[
-                const SizedBox(height: 8),
-                Text(
-                  networkOnlyFailure
-                      ? "Vérifiez le réseau de l'appareil, puis assurez-vous que le serveur Django est démarré et joignable avant de réessayer."
-                      : 'Corrigez les erreurs ci-dessous puis relancez le téléchargement.',
-                ),
-              ],
-              if (networkOnlyFailure && result.failedCount > 0) ...[
-                const SizedBox(height: 10),
-                Text(
-                  "Détails techniques : ${result.failedCount} appel(s) API n'ont pas répondu pendant cette tentative.",
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-              if (warningsToShow.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                const Text('Informations complementaires :'),
-                const SizedBox(height: 5),
-                ...warningsToShow.map(
-                  (warning) => Text(
-                    '- $warning',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-                if (remainingWarnings > 0) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    '- ... et $remainingWarnings autres informations.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ],
               if (errorsToShow.isNotEmpty && !networkOnlyFailure) ...[
                 const SizedBox(height: 10),
                 const Text('Détails des erreurs :'),

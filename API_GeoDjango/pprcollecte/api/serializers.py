@@ -24,7 +24,7 @@ from .models import (
     HistoriqueAction, ObjetIncomplet, ObjetPhoto,
     InterventionAnomalie,
     EpStatistiqueConduite, EpStatistiqueConduiteSegment,
-    SrmFieldOption, BasemapPackage,
+    SrmFieldOption,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
@@ -272,6 +272,13 @@ class PhotoUploadSerializer(serializers.Serializer):
     table_name = serializers.CharField(max_length=100, trim_whitespace=True)
     uuid_objet = serializers.CharField(max_length=254, trim_whitespace=True)
     photo_slot = serializers.IntegerField(min_value=1, max_value=4)
+    endpoint = serializers.CharField(
+        max_length=120,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
     sync_session_uuid = serializers.CharField(
         max_length=64,
         required=False,
@@ -625,156 +632,36 @@ class SrmFieldOptionSerializer(StrictModelSerializer):
         fields = '__all__'
 
 
-class ZoneBasemapCatalogSerializer(StrictModelSerializer):
-    zone_id = serializers.SerializerMethodField()
-    city_slug = serializers.SerializerMethodField()
-    nom = serializers.SerializerMethodField()
-    bbox = serializers.SerializerMethodField()
-    center = serializers.SerializerMethodField()
-    geometry = serializers.SerializerMethodField()
-    min_zoom = serializers.SerializerMethodField()
-    max_zoom = serializers.SerializerMethodField()
+class ListeChoixAsFieldOptionSerializer(serializers.Serializer):
+    """Projette une ligne public.liste_choix au format attendu par le mobile
+    (compatible avec l'ancien endpoint base sur public.srm_field_option).
+    """
+    id_option = serializers.IntegerField(source='id', read_only=True)
+    table_schema = serializers.CharField(source='nom_metier', read_only=True)
+    table_name = serializers.CharField(source='nom_table', read_only=True)
+    field_name = serializers.CharField(source='nom_champ', read_only=True)
+    code_value = serializers.CharField(source='liste_choix_valeur', read_only=True)
+    label_value = serializers.SerializerMethodField()
+    display_order = serializers.SerializerMethodField()
     actif = serializers.SerializerMethodField()
-    metadata_json = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
 
-    class Meta:
-        model = Zone
-        fields = (
-            'zone_id',
-            'city_slug',
-            'nom',
-            'bbox',
-            'center',
-            'geometry',
-            'min_zoom',
-            'max_zoom',
-            'actif',
-            'metadata_json',
-        )
+    def get_label_value(self, obj):
+        alias = (obj.liste_choix_alias or '').strip()
+        if alias:
+            return alias
+        # Fallback : la valeur brute, comme srm_field_option historique.
+        return (obj.liste_choix_valeur or '').strip()
 
-    def get_zone_id(self, obj):
-        return f'zone_{obj.id_zone}'
-
-    def get_city_slug(self, obj):
-        return 'oujda'
-
-    def get_nom(self, obj):
-        return obj.nom_zone
-
-    def _geom_4326(self, obj):
-        if obj.geom is None:
-            return None
-        geom = obj.geom
-        try:
-            geom = geom.clone()
-            geom.transform(4326)
-            return geom
-        except Exception:
-            return None
-
-    def get_bbox(self, obj):
-        geom = self._geom_4326(obj)
-        if geom is None:
-            return {'west': 0, 'south': 0, 'east': 0, 'north': 0}
-        extent = geom.extent
-        return {
-            'west': extent[0],
-            'south': extent[1],
-            'east': extent[2],
-            'north': extent[3],
-        }
-
-    def get_center(self, obj):
-        geom = self._geom_4326(obj)
-        if geom is None:
-            return {'latitude': 0, 'longitude': 0}
-        center = geom.point_on_surface
-        return {
-            'latitude': center.y,
-            'longitude': center.x,
-        }
-
-    def get_geometry(self, obj):
-        geom = self._geom_4326(obj)
-        if geom is None:
-            return None
-        try:
-            return json.loads(geom.json)
-        except AttributeError:
-            return None
-        except json.JSONDecodeError:
-            return None
-
-    def get_min_zoom(self, obj):
-        return 11
-
-    def get_max_zoom(self, obj):
-        return 19
+    def get_display_order(self, obj):
+        return obj.liste_choix_ordre or 0
 
     def get_actif(self, obj):
-        return (obj.etat or 'active') == 'active'
+        # liste_choix_actif peut etre NULL : on considere actif par defaut.
+        return obj.liste_choix_actif if obj.liste_choix_actif is not None else True
 
-    def get_metadata_json(self, obj):
-        return {
-            'source': 'public.zone',
-            'id_zone': obj.id_zone,
-            'nom_zone': obj.nom_zone,
-        }
-
-
-class BasemapPackageSerializer(StrictModelSerializer):
-    zone_id = serializers.SerializerMethodField()
-    download_url = serializers.SerializerMethodField()
-    file_available = serializers.SerializerMethodField()
-
-    class Meta:
-        model = BasemapPackage
-        fields = (
-            'id_package',
-            'id_zone',
-            'zone_id',
-            'city_slug',
-            'style',
-            'format',
-            'version',
-            'file_name',
-            'relative_path',
-            'size_bytes',
-            'sha256',
-            'min_zoom',
-            'max_zoom',
-            'generated_at',
-            'source_name',
-            'attribution',
-            'tile_count',
-            'metadata_json',
-            'actif',
-            'requires_wifi',
-            'created_at',
-            'updated_at',
-            'download_url',
-            'file_available',
-        )
-
-    def get_zone_id(self, obj):
-        return f'zone_{obj.id_zone}'
-
-    def get_download_url(self, obj):
-        request = self.context.get('request')
-        relative_path = (obj.relative_path or '').strip()
-        if not request or not relative_path:
-            return None
-
-        normalized_path = relative_path.lstrip('/')
-        media_url = str(settings.MEDIA_URL).rstrip('/')
-        return request.build_absolute_uri(f'{media_url}/{normalized_path}')
-
-    def get_file_available(self, obj):
-        media_root = self.context.get('media_root')
-        relative_path = (obj.relative_path or '').strip()
-        if not media_root or not relative_path:
-            return False
-        return (media_root / relative_path).exists()
+    def get_created_at(self, obj):
+        return None
 
 
 class MetricAgentJourSerializer(StrictModelSerializer):

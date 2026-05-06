@@ -76,7 +76,7 @@ class Commune(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'commune'
+        db_table = 'commune_oriental'
 
     def __str__(self):
         return self.nom or str(self.fid)
@@ -367,24 +367,6 @@ class SyncSessionAttachment(models.Model):
         )
 
 
-class EvaluationAgent(models.Model):
-    id_eval = models.AutoField(primary_key=True)
-    id_agent = models.IntegerField(null=True, blank=True)
-    periode = models.CharField(max_length=20, null=True, blank=True)
-    nb_objets_collectes = models.IntegerField(default=0)
-    nb_objets_corriges_bo = models.IntegerField(default=0)
-    nb_objets_incomplets = models.IntegerField(default=0)
-    taux_qualite = models.FloatField(null=True, blank=True)
-    taux_completion = models.FloatField(null=True, blank=True)
-    commentaire = models.TextField(null=True, blank=True)
-    id_evaluateur = models.IntegerField(null=True, blank=True)
-    date_evaluation = models.DateField(null=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'evaluation_agent'
-
-
 class EpStatistiqueConduite(models.Model):
     id_statistique_conduite = models.BigAutoField(primary_key=True)
     id_agent = models.IntegerField()
@@ -481,32 +463,26 @@ class SrmFieldOption(models.Model):
         db_table = 'srm_field_option'
 
 
-class BasemapPackage(models.Model):
-    id_package = models.BigAutoField(primary_key=True)
-    id_zone = models.IntegerField()
-    city_slug = models.CharField(max_length=100)
-    style = models.CharField(max_length=30)
-    format = models.CharField(max_length=20)
-    version = models.CharField(max_length=100)
-    file_name = models.CharField(max_length=255)
-    relative_path = models.TextField()
-    size_bytes = models.BigIntegerField(null=True, blank=True)
-    sha256 = models.CharField(max_length=64, null=True, blank=True)
-    min_zoom = models.IntegerField(null=True, blank=True)
-    max_zoom = models.IntegerField(null=True, blank=True)
-    generated_at = models.DateTimeField(null=True, blank=True)
-    source_name = models.CharField(max_length=255, null=True, blank=True)
-    attribution = models.TextField(null=True, blank=True)
-    tile_count = models.BigIntegerField(null=True, blank=True)
-    metadata_json = models.JSONField(null=True, blank=True)
-    actif = models.BooleanField(default=True)
-    requires_wifi = models.BooleanField(default=True)
-    created_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
+class ListeChoix(models.Model):
+    """Source de verite des listes de choix (enumeres) cote SRM.
+
+    L'endpoint /api/srm-field-options/ projette ces lignes au format attendu
+    par le mobile (cf. ListeChoixAsFieldOptionSerializer).
+    """
+    id = models.AutoField(primary_key=True)
+    attribut_config_mobile_id = models.IntegerField()
+    nom_metier = models.CharField(max_length=50)
+    nom_table = models.CharField(max_length=100)
+    nom_champ = models.CharField(max_length=100)
+    liste_choix_alias = models.CharField(max_length=255, null=True, blank=True)
+    liste_choix_valeur = models.CharField(max_length=255, null=True, blank=True)
+    liste_choix_ordre = models.IntegerField(null=True, blank=True)
+    liste_choix_actif = models.BooleanField(null=True, blank=True)
+    contraintes = models.TextField(null=True, blank=True)
 
     class Meta:
         managed = False
-        db_table = 'basemap_package'
+        db_table = 'liste_choix'
 
 
 # =====================================================================
@@ -555,7 +531,7 @@ class EpVanne(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."vanne"'
+        db_table = '"ep"."ep_vanne"'
 
     def __str__(self):
         return f"Vanne {self.ep_num or self.fid}"
@@ -597,7 +573,7 @@ class EpVanneDeVidange(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."vanne_de_vidange"'
+        db_table = '"ep"."ep_vidange"'
 
     def __str__(self):
         return f"Vanne de vidange {self.ep_num or self.fid}"
@@ -642,7 +618,7 @@ class EpVentouse(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."ventouse"'
+        db_table = '"ep"."ep_ventouse"'
 
     def __str__(self):
         return f"Ventouse {self.ep_num or self.fid}"
@@ -681,7 +657,7 @@ class EpHydrant(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."hydrant"'
+        db_table = '"ep"."ep_hydrant"'
 
     def __str__(self):
         return f"Hydrant {self.ep_num or self.fid}"
@@ -720,7 +696,7 @@ class EpBorneFontaine(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."borne_fontaine"'
+        db_table = '"ep"."ep_bf"'
 
     def __str__(self):
         return f"Borne fontaine {self.ep_num or self.fid}"
@@ -770,7 +746,7 @@ class EpBoucheCles(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."bouche_cles"'
+        db_table = '"ep"."bouche_a_cles"'
 
 
 class EpBoucheDarrosage(SrmTrackedModel):
@@ -807,7 +783,7 @@ class EpBoucheDarrosage(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."bouche_darrosage"'
+        db_table = '"ep"."ep_bouche_arro"'
 
 
 class EpCompteurAbonne(SrmTrackedModel):
@@ -856,7 +832,7 @@ class EpCompteurAbonne(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."compteur_abonne"'
+        db_table = '"ep"."ep_compteur_i"'
 
 
 class EpCompteurReseau(SrmTrackedModel):
@@ -940,7 +916,7 @@ class EpConeDeReduction(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."cone_de_reduction"'
+        db_table = '"ep"."ep_cone_reduc"'
 
 
 class EpCentreTampon(SrmTrackedModel):
@@ -1001,7 +977,7 @@ class EpNoeud(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."noeud"'
+        db_table = '"ep"."ep_noeud"'
 
 
 class EpObturateur(SrmTrackedModel):
@@ -1035,7 +1011,7 @@ class EpObturateur(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."obturateur"'
+        db_table = '"ep"."ep_obturateur"'
 
 
 class EpReducteurDePression(SrmTrackedModel):
@@ -1069,7 +1045,7 @@ class EpReducteurDePression(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."reducteur_de_pression"'
+        db_table = '"ep"."ep_reduc_pres"'
 
 # =====================================================================
 #  SCHÃ‰MA EP â€” Eau Potable : suite des PONCTUELS + LINÃ‰AIRES + SURFACIQUES
@@ -1105,7 +1081,7 @@ class EpForage(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."forage"'
+        db_table = '"ep"."ep_forage"'
 
     def __str__(self):
         return f"Forage {self.ep_num or self.fid}"
@@ -1140,7 +1116,7 @@ class EpPuit(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."puit"'
+        db_table = '"ep"."ep_puit"'
 
     def __str__(self):
         return f"Puits {self.ep_num or self.fid}"
@@ -1176,7 +1152,7 @@ class EpPompe(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."pompe"'
+        db_table = '"ep"."ep_pompe"'
 
     def __str__(self):
         return f"Pompe {self.ep_num or self.fid}"
@@ -1213,7 +1189,7 @@ class EpReservoir(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."reservoir"'
+        db_table = '"ep"."ep_reservoir"'
 
     def __str__(self):
         return f"RÃ©servoir {self.ep_num or self.fid}"
@@ -1249,7 +1225,7 @@ class EpStationDePompage(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."station_de_pompage"'
+        db_table = '"ep"."ep_station_pompage"'
 
     def __str__(self):
         return f"Station pompage {self.ep_num or self.fid}"
@@ -1303,7 +1279,7 @@ class EpRegard(models.Model):
 
     class Meta:
         managed = False
-        db_table = '"ep"."regard"'
+        db_table = '"ep"."ep_regard_point"'
 
     def __str__(self):
         return f"Regard EP point {self.uuid or self.fid}"
@@ -1358,7 +1334,7 @@ class EpRegardMiroir(models.Model):
 
     class Meta:
         managed = False
-        db_table = '"ep"."regard_miroir"'
+        db_table = '"ep"."ep_regard"'
 
     def __str__(self):
         return f"Regard EP miroir {self.uuid or self.fid}"
@@ -1484,7 +1460,7 @@ class EpConduiteTerrain(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."ep_conduite_terrain"'
+        db_table = '"ep"."conduite_terrain"'
 
     def __str__(self):
         return f"Conduite terrain {self.ep_num or self.fid}"
@@ -1528,7 +1504,7 @@ class EpConduiteBureau(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."ep_conduite_bureau"'
+        db_table = '"ep"."ep_conduite"'
 
     def __str__(self):
         return f"Conduite bureau {self.ep_num or self.fid}"
@@ -1559,7 +1535,7 @@ class EpBranchement(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."branchement"'
+        db_table = '"ep"."ep_branchement"'
 
     def __str__(self):
         return f"Branchement EP {self.ep_num or self.fid}"
@@ -1588,14 +1564,14 @@ class EpTraverse(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ep"."traverse"'
+        db_table = '"ep"."ep_traversee"'
 
     def __str__(self):
         return f"TraversÃ©e EP {self.ep_num or self.fid}"
 
 
 # =====================================================================
-#  SCHÃ‰MA ASS â€” Assainissement (9 tables)
+#  SCHÃ‰MA ASST â€” Assainissement VF legacy
 # =====================================================================
 
 class AssRegard(SrmTrackedModel):
@@ -1642,7 +1618,7 @@ class AssRegard(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_regard"'
+        db_table = '"asst"."ASS_REGARD"'
 
     def __str__(self):
         return f"Regard ASS {self.fid}"
@@ -1690,7 +1666,7 @@ class AssRegardBranchement(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_regard_branchement"'
+        db_table = '"asst"."ASS_REGARD_FACADE"'
 
     def __str__(self):
         return f"Regard branchement ASS {self.fid}"
@@ -1735,7 +1711,7 @@ class AssCanalisation(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_canalisation"'
+        db_table = '"asst"."ASS_COLLECTEUR"'
 
     def __str__(self):
         return f"Canalisation ASS {self.fid}"
@@ -1780,7 +1756,7 @@ class AssCanalisationReutilisation(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_canalisation_reutilisation"'
+        db_table = '"asst"."ASS_REFOULEMENTR"'
 
     def __str__(self):
         return f"Canalisation rÃ©utilisation ASS {self.fid}"
@@ -1820,7 +1796,7 @@ class AssBranchement(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_branchement"'
+        db_table = '"asst"."ASS_BRANCHEMENT"'
 
     def __str__(self):
         return f"Branchement ASS {self.fid}"
@@ -1866,7 +1842,7 @@ class AssBassin(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_bassin"'
+        db_table = '"asst"."ASS_BASSIN_VERSANT"'
 
     def __str__(self):
         return f"Bassin ASS {self.fid}"
@@ -1909,7 +1885,7 @@ class AssOuvrage(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_ouvrage"'
+        db_table = '"asst"."ASS_OUV_TRAVERSEE"'
 
     def __str__(self):
         return f"Ouvrage ASS {self.fid}"
@@ -1951,7 +1927,7 @@ class AssEquipement(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_equipement"'
+        db_table = '"asst"."ASS_POMPE"'
 
     def __str__(self):
         return f"Ã‰quipement ASS {self.fid}"
@@ -1995,7 +1971,7 @@ class AssStation(SrmTrackedModel):
 
     class Meta:
         managed = False
-        db_table = '"ass"."asst_station"'
+        db_table = '"asst"."ASS_STA_POMP"'
 
     def __str__(self):
         return f"Station ASS {self.nom or self.fid}"

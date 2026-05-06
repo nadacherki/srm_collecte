@@ -5,8 +5,8 @@ from django.db import connection
 
 class Command(BaseCommand):
     help = (
-        "Synchronise la taille du carré ep.regard_miroir depuis "
-        "REGARD_MIROIR_SQUARE_SIZE_METERS et recalcule les miroirs existants."
+        "Synchronise la taille du polygone ep.ep_regard depuis "
+        "REGARD_MIROIR_SQUARE_SIZE_METERS et recalcule les regards polygonaux."
     )
 
     def handle(self, *args, **options):
@@ -15,12 +15,12 @@ class Command(BaseCommand):
             size_m = float(raw_size)
         except (TypeError, ValueError) as exc:
             raise CommandError(
-                'REGARD_MIROIR_SQUARE_SIZE_METERS doit être numérique.'
+                'REGARD_MIROIR_SQUARE_SIZE_METERS doit etre numerique.'
             ) from exc
 
         if size_m <= 0:
             raise CommandError(
-                'REGARD_MIROIR_SQUARE_SIZE_METERS doit être strictement positif.'
+                'REGARD_MIROIR_SQUARE_SIZE_METERS doit etre strictement positif.'
             )
 
         size_literal = f'{size_m:.6f}'
@@ -44,14 +44,14 @@ class Command(BaseCommand):
                         SELECT 1
                         FROM information_schema.tables
                         WHERE table_schema = 'ep'
-                          AND table_name = 'regard_miroir'
+                          AND table_name = 'ep_regard'
                     ) AND EXISTS (
                         SELECT 1
                         FROM information_schema.tables
                         WHERE table_schema = 'ep'
-                          AND table_name = 'regard'
+                          AND table_name = 'ep_regard_point'
                     ) THEN
-                        UPDATE ep.regard
+                        UPDATE ep.ep_regard_point
                         SET geom = ST_SetSRID(
                             ST_MakePoint(
                                 ep_coor_x,
@@ -64,7 +64,7 @@ class Command(BaseCommand):
                           AND ep_coor_x IS NOT NULL
                           AND ep_coor_y IS NOT NULL;
 
-                        UPDATE ep.regard_miroir AS miroir
+                        UPDATE ep.ep_regard AS regard_poly
                         SET geom = public.build_regard_miroir_geom(
                             CASE
                                 WHEN source.geom IS NOT NULL
@@ -83,8 +83,8 @@ class Command(BaseCommand):
                                 ELSE NULL
                             END
                         )
-                        FROM ep.regard AS source
-                        WHERE miroir.fid_regard_source = source.fid;
+                        FROM ep.ep_regard_point AS source
+                        WHERE regard_poly.fid_regard_source = source.fid;
                     END IF;
                 END;
                 $$;
@@ -93,6 +93,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Taille regard_miroir synchronisée: {size_literal} m'
+                f'Taille regard polygonal synchronisee: {size_literal} m'
             )
         )

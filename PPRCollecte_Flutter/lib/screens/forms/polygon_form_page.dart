@@ -12,6 +12,7 @@ import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
 import '../../services/srm_field_option_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
 
 class PolygonFormPage extends StatefulWidget {
   final List<LatLng> polygonPoints;
@@ -69,7 +70,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   final _secteurAquaController = TextEditingController();
   final _observationController = TextEditingController();
   final Map<String, TextEditingController> _regardEpControllers = {};
-  final Map<String, List<Map<String, dynamic>>> _regardEpOptions = {};
+  final Map<String, AttributConfigMobileField> _regardEpConfigByField = {};
+  final Map<String, List<SrmFieldChoice>> _regardEpOptions = {};
+  final List<String> _regardEpVisibleFields = [];
+  final Set<String> _regardEpRequiredFields = {};
+  final Map<String, List<SrmFieldChoice>> _polygonStatusChoicesByField = {};
   String _regardEpCommuneName = '';
   String _regardEpProvinceName = '';
   String _regardEpUuid = '';
@@ -85,7 +90,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       widget.existingData != null && widget.existingData!['id'] != null;
 
   bool get _isRegardEp =>
-      widget.metier == 'Eau Potable' && widget.entityType == 'Regard EP';
+      widget.metier == 'Eau Potable' &&
+      (widget.entityType == 'Regard EP' || widget.entityType == 'Regard');
 
   bool _isTruthyFlag(dynamic value) {
     if (value == null) return false;
@@ -105,6 +111,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   String get _pageTitle => widget.entityType;
 
   String get _tableName {
+    if (_isRegardEp) return 'ep_regard';
     return SrmConfig.getTableName(widget.metier, widget.entityType) ??
         widget.entityType.toLowerCase();
   }
@@ -146,6 +153,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
   Future<void> _initializeData() async {
     _superficieHa = _calculateAreaHectares(widget.polygonPoints);
+    await _loadPolygonStatusChoices();
 
     _closedCoordinates =
         widget.polygonPoints.map((p) => [p.longitude, p.latitude]).toList();
@@ -214,12 +222,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   }
 
   Future<void> _initializeRegardEpForm() async {
-    await _loadRegardEpOptions();
+    await _loadRegardEpConfigAndOptions();
     if (!mounted) return;
     final existingUuid = widget.existingData?['uuid']?.toString().trim() ?? '';
     _regardEpUuid = existingUuid.isNotEmpty ? existingUuid : const Uuid().v4();
 
-    final fields = SrmConfig.getFields(widget.metier, widget.entityType);
+    final fields = _regardEpConfigByField.isNotEmpty
+        ? _regardEpConfigByField.keys.toList()
+        : SrmConfig.getFields(widget.metier, widget.entityType);
     final now = DateTime.now();
     for (final field in fields) {
       final initialValue = _resolveRegardEpInitialValue(field, now);
@@ -303,42 +313,79 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     return points;
   }
 
-  Future<void> _loadRegardEpOptions() async {
-    final db = DatabaseHelper();
-    var rows = await db.getSrmFieldOptions(
-      tableSchema: 'ep',
-      tableName: 'regard_ep',
+  Future<void> _loadRegardEpConfigAndOptions() async {
+    final configService = AttributConfigMobileService();
+    final nomMetier =
+        AttributConfigMobileService.nomMetierForMobileMetier(widget.metier);
+    final nomTable = AttributConfigMobileService.configTableForMobileTable(
+      nomMetier,
+      _tableName,
     );
 
-    if (rows.isEmpty) {
-      try {
-        await SrmFieldOptionService().refreshOptions(
-          tableSchema: 'ep',
-          tableName: 'regard_ep',
-        );
-        rows = await db.getSrmFieldOptions(
-          tableSchema: 'ep',
-          tableName: 'regard_ep',
-        );
-      } catch (e) {
-        debugPrint('Options Regard EP indisponibles: $e');
+    final configs = await configService.getFieldsForConfigTable(
+      nomMetier: nomMetier,
+      nomTable: nomTable,
+    );
+
+    _regardEpConfigByField.clear();
+    _regardEpVisibleFields.clear();
+    _regardEpRequiredFields.clear();
+
+    for (final config in configs) {
+      final field = config.nomChamp.trim();
+      if (field.isEmpty || config.primaryKey || field.toLowerCase() == 'geom') {
+        continue;
+      }
+      _regardEpConfigByField[field] = config;
+      if (config.visible || config.isAutoVisibleCoordinate) {
+        _regardEpVisibleFields.add(field);
+      }
+      if (config.isRequired) {
+        _regardEpRequiredFields.add(field);
       }
     }
 
-    _regardEpOptions
-      ..clear()
-      ..addEntries(
-        rows.fold<Map<String, List<Map<String, dynamic>>>>(
-          <String, List<Map<String, dynamic>>>{},
-          (grouped, row) {
-            final fieldName = (row['field_name'] ?? '').toString();
-            if (fieldName.isEmpty) return grouped;
-            grouped.putIfAbsent(fieldName, () => <Map<String, dynamic>>[]);
-            grouped[fieldName]!.add(Map<String, dynamic>.from(row));
-            return grouped;
-          },
-        ).entries,
+    _regardEpVisibleFields.sort((a, b) {
+      final aOrder = _regardEpConfigByField[a]?.ordre ?? 0;
+      final bOrder = _regardEpConfigByField[b]?.ordre ?? 0;
+      return aOrder.compareTo(bOrder);
+    });
+
+    try {
+      final choices = await SrmFieldOptionService().getOptionsByField(
+        tableSchema: nomMetier,
+        tableName: nomTable,
+        fieldNames: _regardEpConfigByField.keys,
       );
+      _regardEpOptions
+        ..clear()
+        ..addAll(choices);
+    } catch (e) {
+      debugPrint('Options Regard EP indisponibles: $e');
+    }
+  }
+
+  Future<void> _loadPolygonStatusChoices() async {
+    final nomMetier =
+        AttributConfigMobileService.nomMetierForMobileMetier(widget.metier);
+    final nomTable = AttributConfigMobileService.configTableForMobileTable(
+      nomMetier,
+      _tableName,
+    );
+    if (nomMetier.isEmpty || nomTable.isEmpty) return;
+
+    try {
+      final choices = await SrmFieldOptionService().getOptionsByField(
+        tableSchema: nomMetier,
+        tableName: nomTable,
+        fieldNames: const ['type_anomalie'],
+      );
+      _polygonStatusChoicesByField
+        ..clear()
+        ..addAll(choices);
+    } catch (e) {
+      debugPrint('Options statut polygone indisponibles: $e');
+    }
   }
 
   Future<void> _populateRegardEpSpatialContext() async {
@@ -422,6 +469,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return _stringifyRegardEpValue(field, existing);
     }
 
+    final configDefault = _regardEpConfigByField[field]?.valeurParDefaut ?? '';
+    if (configDefault.trim().isNotEmpty) {
+      return configDefault.trim();
+    }
+
     switch (field) {
       case 'ep_agent':
       case 'ep_agent_crea':
@@ -467,6 +519,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   }
 
   bool _isRegardEpBooleanField(String field) {
+    final type = _regardEpConfigByField[field]?.typeChamp.toLowerCase() ?? '';
+    if (type.contains('bool')) return true;
     return field == 'ep_anomalie' ||
         field == 'is_deleted' ||
         field == 'is_validated';
@@ -513,7 +567,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     String? preferredLabel,
     Iterable<String> preferredLabels = const <String>[],
   }) {
-    final options = _regardEpOptions[field] ?? const <Map<String, dynamic>>[];
+    final options = _regardEpOptions[field] ?? const <SrmFieldChoice>[];
     if (options.isEmpty) return null;
 
     final requestedLabels = <String>[
@@ -531,17 +585,14 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           .toSet();
 
       for (final option in options) {
-        final label = _normalizeRegardEpLookupText(
-          (option['label_value'] ?? '').toString(),
-        );
-        final code = (option['code_value'] ?? '').toString().trim();
-        if (normalizedTargets.contains(label) && code.isNotEmpty) {
-          return code;
+        final label = _normalizeRegardEpLookupText(option.label);
+        if (normalizedTargets.contains(label) && option.code.isNotEmpty) {
+          return option.code;
         }
       }
     }
 
-    final firstCode = (options.first['code_value'] ?? '').toString().trim();
+    final firstCode = options.first.code.trim();
     return firstCode.isEmpty ? null : firstCode;
   }
 
@@ -556,10 +607,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   }
 
   String _resolveRegardEpOptionLabel(String field, String code) {
-    final options = _regardEpOptions[field] ?? const <Map<String, dynamic>>[];
+    final options = _regardEpOptions[field] ?? const <SrmFieldChoice>[];
     for (final option in options) {
-      if ((option['code_value'] ?? '').toString() == code) {
-        final label = (option['label_value'] ?? '').toString().trim();
+      if (option.code == code) {
+        final label = option.label.trim();
         return label.isEmpty ? code : label;
       }
     }
@@ -742,7 +793,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         final modeLocalisationCode = currentModeLocalisation.isNotEmpty
             ? currentModeLocalisation
             : _defaultModeLocalisationCode();
-        final fields = SrmConfig.getFields(widget.metier, widget.entityType);
+        final fields = _regardEpConfigByField.isNotEmpty
+            ? _regardEpConfigByField.keys.toList()
+            : SrmConfig.getFields(widget.metier, widget.entityType);
 
         final data = <String, dynamic>{
           'uuid': _regardEpUuid,
@@ -1330,10 +1383,13 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   List<Widget> _buildRegardEpSections() {
     final communeId = _regardEpControllers['id_commune']?.text.trim() ?? '';
     final provinceId = _regardEpControllers['id_province']?.text.trim() ?? '';
+    final visibleFields = _regardEpVisibleFields.isNotEmpty
+        ? _regardEpVisibleFields
+        : SrmConfig.getFields(widget.metier, widget.entityType);
 
     return [
       _buildFormSection(
-        title: 'Zone',
+        title: 'Contexte spatial',
         children: [
           _buildRegardEpStaticField(
             'Commune',
@@ -1346,57 +1402,39 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             helperText:
                 provinceId.isNotEmpty ? 'ID province: $provinceId' : null,
           ),
-          _buildRegardEpField('ep_sect_com'),
-          _buildRegardEpField('ep_adresse'),
-          _buildRegardEpField('sec_com'),
-          _buildRegardEpField('sect_hydr'),
-          _buildRegardEpField('zone'),
-        ],
-      ),
-      _buildFormSection(
-        title: 'Agent',
-        children: [
-          _buildRegardEpField('ep_agent_crea'),
-          _buildRegardEpField('ep_agent'),
-          _buildRegardEpField('id_user_creat'),
-          _buildRegardEpField('date_creation'),
-          _buildRegardEpField('id_user_modif'),
-          _buildRegardEpField('date_modif'),
         ],
       ),
       _buildFormSection(
         title: 'G\u00E9om\u00E9trie',
         children: [
-          _buildRegardEpField('z_radier'),
-          _buildRegardEpField('z_surf'),
-          _buildRegardEpField('ep_coor_x'),
-          _buildRegardEpField('ep_coor_y'),
-          _buildRegardEpField('ep_coor_z'),
           _buildRegardEpGeometrySummaryField(),
         ],
       ),
       _buildFormSection(
         title: 'Attributs',
         children: [
-          _buildRegardEpField('mode_localisation'),
-          _buildRegardEpField('ep_statut'),
-          _buildRegardEpField('GENRATRICE_SUP'),
-          _buildRegardEpField('ep_profondeur'),
-          _buildRegardEpField('emplacement'),
-          _buildRegardEpField('ep_ref_rue'),
-          _buildRegardEpField('ep_section'),
-          _buildRegardEpField('ep_tampon'),
-          _buildRegardEpField('echelon'),
-          _buildRegardEpField('ep_conf_plan'),
-          _buildRegardEpField('ep_anomalie'),
-          if (_isRegardEpAnomalieActive()) ...[
-            _buildRegardEpField('anomalie_tamp'),
-            _buildRegardEpField('anomalie_regard'),
-          ],
-          _buildRegardEpField('ep_observation'),
+          for (final field in visibleFields)
+            if (_shouldRenderRegardEpField(field)) _buildRegardEpField(field),
         ],
       ),
     ];
+  }
+
+  bool _shouldRenderRegardEpField(String field) {
+    if (!_regardEpControllers.containsKey(field)) return false;
+    if (field == 'geom' || field == 'uuid' || field == 'points_json') {
+      return false;
+    }
+    if (field == 'id_commune' || field == 'id_province') {
+      return false;
+    }
+    if (!_isRegardEpAnomalieActive() &&
+        (field == 'anomalie_tamp' ||
+            field == 'anomalie_regard' ||
+            field == 'type_anomalie')) {
+      return false;
+    }
+    return true;
   }
 
   Widget _buildRegardEpStaticField(
@@ -1539,14 +1577,22 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     );
   }
 
+  String _labelForRegardEpField(String field) {
+    final config = _regardEpConfigByField[field];
+    if (config != null && config.label.trim().isNotEmpty) {
+      return config.label.trim();
+    }
+    return SrmConfig.getFieldLabel(widget.metier, widget.entityType, field);
+  }
+
   Widget _buildRegardEpField(String field) {
     final controller = _regardEpControllers[field];
     if (controller == null) return const SizedBox.shrink();
 
-    final label =
-        SrmConfig.getFieldLabel(widget.metier, widget.entityType, field);
-    final options = _regardEpOptions[field] ?? const <Map<String, dynamic>>[];
+    final label = _labelForRegardEpField(field);
+    final options = _regardEpOptions[field] ?? const <SrmFieldChoice>[];
     final isReadOnly = _isRegardEpReadOnlyField(field);
+    final isRequired = _regardEpRequiredFields.contains(field);
     final rule =
         SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
@@ -1625,9 +1671,25 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       }
 
       final currentValue = controller.text.trim();
-      final hasCurrentValue = currentValue.isNotEmpty &&
-          options.any((option) =>
-              (option['code_value'] ?? '').toString() == currentValue);
+      final seenValues = <String>{};
+      final items = <DropdownMenuItem<String>>[];
+      for (final option in options) {
+        if (!seenValues.add(option.code)) continue;
+        items.add(
+          DropdownMenuItem<String>(
+            value: option.code,
+            child: Text(option.label),
+          ),
+        );
+      }
+      if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+        items.add(
+          DropdownMenuItem<String>(
+            value: currentValue,
+            child: Text(currentValue),
+          ),
+        );
+      }
 
       return Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -1644,8 +1706,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: hasCurrentValue ? currentValue : null,
+              initialValue: currentValue.isEmpty ? null : currentValue,
               decoration: InputDecoration(
+                labelText: isRequired ? '$label *' : null,
                 filled: true,
                 fillColor: const Color(0xFFF9FAFB),
                 border: OutlineInputBorder(
@@ -1661,18 +1724,15 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                   borderSide: const BorderSide(color: Color(0xFF1976D2)),
                 ),
               ),
-              items: options
-                  .map(
-                    (option) => DropdownMenuItem<String>(
-                      value: (option['code_value'] ?? '').toString(),
-                      child: Text((option['label_value'] ?? '').toString()),
-                    ),
-                  )
-                  .toList(),
+              items: items,
               onChanged: (value) {
                 controller.text = value ?? '';
                 onFieldChanged();
               },
+              validator: isRequired
+                  ? (value) =>
+                      value == null || value.isEmpty ? 'Champ requis' : null
+                  : null,
             ),
           ],
         ),
@@ -1708,7 +1768,12 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             inputFormatters: _inputFormattersForRegardEpRule(rule),
             maxLength: rule.maxLength,
             maxLines: rule.multiline ? 3 : 1,
+            validator: isRequired
+                ? (value) =>
+                    (value ?? '').trim().isEmpty ? 'Champ requis' : null
+                : null,
             decoration: InputDecoration(
+              labelText: isRequired ? '$label *' : null,
               hintText: _hintForRegardEpField(field),
               hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
               filled: true,
@@ -2058,6 +2123,55 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     );
   }
 
+  Widget _buildPolygonTypeAnomalieField() {
+    final choices = _polygonStatusChoicesByField['type_anomalie'] ??
+        const <SrmFieldChoice>[];
+    if (choices.isEmpty) {
+      return TextFormField(
+        initialValue: _typeAnomalie,
+        decoration: _statusDecoration('Type d\'anomalie'),
+        maxLength: 254,
+        onChanged: _isLocked
+            ? null
+            : (value) {
+                final text = value.trim();
+                _typeAnomalie = text.isEmpty ? null : text;
+              },
+      );
+    }
+
+    final currentValue = (_typeAnomalie ?? '').trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[];
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem<String>(
+          value: choice.code,
+          child: Text(choice.label),
+        ),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+        DropdownMenuItem<String>(
+          value: currentValue,
+          child: Text(currentValue),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      initialValue: currentValue.isEmpty ? null : currentValue,
+      decoration: _statusDecoration('Type d\'anomalie'),
+      hint: const Text('Selectionner'),
+      isExpanded: true,
+      items: items,
+      onChanged:
+          _isLocked ? null : (value) => setState(() => _typeAnomalie = value),
+    );
+  }
+
   Widget _buildAnomalieStatusSection() {
     return _buildFormSection(
       title: 'Statut de l\'objet',
@@ -2106,30 +2220,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         if (_hasAnomalie && !_isObjetIncomplet)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: DropdownButtonFormField<String>(
-              initialValue: _typeAnomalie,
-              decoration: _statusDecoration('Type d\'anomalie'),
-              hint: const Text('Sélectionner'),
-              items: const [
-                DropdownMenuItem(value: 'Fuite', child: Text('Fuite')),
-                DropdownMenuItem(
-                  value: 'Corrosion',
-                  child: Text('Corrosion'),
-                ),
-                DropdownMenuItem(
-                  value: 'Obstruction',
-                  child: Text('Obstruction'),
-                ),
-                DropdownMenuItem(
-                  value: 'Dommage physique',
-                  child: Text('Dommage physique'),
-                ),
-                DropdownMenuItem(value: 'Autre', child: Text('Autre')),
-              ],
-              onChanged: _isLocked
-                  ? null
-                  : (value) => setState(() => _typeAnomalie = value),
-            ),
+            child: _buildPolygonTypeAnomalieField(),
           ),
         if (!_isLocked) ...[
           SwitchListTile(

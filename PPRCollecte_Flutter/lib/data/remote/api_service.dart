@@ -145,86 +145,24 @@ class ApiService {
   // ██ PROJETS
   // ══════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>> fetchBasemapCatalog({
-    String? citySlug,
-    String? style,
-    bool activeOnly = true,
-  }) async {
-    final queryParameters = <String, String>{
-      'active_only': activeOnly ? 'true' : 'false',
-    };
-    if (userId != null) {
-      queryParameters['id_user'] = userId.toString();
-    }
-    if (citySlug != null && citySlug.isNotEmpty) {
-      queryParameters['city_slug'] = citySlug;
-    }
-    if (style != null && style.isNotEmpty) {
-      queryParameters['style'] = style;
-    }
-
-    final url = Uri.parse('$baseUrl/api/basemaps/catalog/').replace(
-      queryParameters: queryParameters,
-    );
+  /// GET /api/basemaps/region/manifest/
+  /// Retour: { success, name, attribution, format, version, sha256,
+  ///           size_bytes, generated_at, download_url }
+  static Future<Map<String, dynamic>> fetchRegionalBasemapManifest() async {
+    final url = Uri.parse('$baseUrl/api/basemaps/region/manifest/');
     final response = await http
         .get(url, headers: _headers())
         .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
-      throw Exception('Erreur GET basemap catalog: ${response.statusCode}');
-    }
-
-    final data = jsonDecode(utf8.decode(response.bodyBytes));
-    if (data is! Map<String, dynamic>) {
-      throw Exception('Réponse basemap catalog invalide');
-    }
-    return data;
-  }
-
-  static Future<Map<String, dynamic>> prepareAssignedBasemapCatalog({
-    String? citySlug,
-    String? style,
-    bool activeOnly = true,
-    bool force = false,
-  }) async {
-    if (userId == null) {
       throw Exception(
-          'Utilisateur non connecté pour préparer les cartes offline');
-    }
-
-    final url = Uri.parse('$baseUrl/api/basemaps/prepare-agent/');
-    final payload = <String, dynamic>{
-      'id_user': userId,
-      'active_only': activeOnly,
-      'force': force,
-    };
-    if (citySlug != null && citySlug.isNotEmpty) {
-      payload['city_slug'] = citySlug;
-    }
-    if (style != null && style.isNotEmpty) {
-      payload['style'] = style;
-    }
-
-    final response = await http
-        .post(url, headers: _headers(), body: jsonEncode(payload))
-        .timeout(const Duration(minutes: 5));
-
-    if (response.statusCode != 200) {
-      try {
-        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        throw Exception(
-          decoded['message'] ??
-              decoded['error'] ??
-              'Erreur préparation basemap ${response.statusCode}',
-        );
-      } catch (_) {
-        throw Exception('Erreur préparation basemap ${response.statusCode}');
-      }
+        'Erreur GET basemap manifest: ${response.statusCode}',
+      );
     }
 
     final data = jsonDecode(utf8.decode(response.bodyBytes));
     if (data is! Map<String, dynamic>) {
-      throw Exception('Réponse préparation basemap invalide');
+      throw Exception('Reponse manifest basemap invalide');
     }
     return data;
   }
@@ -269,14 +207,56 @@ class ApiService {
         .toList();
   }
 
-  static Future<List<Map<String, dynamic>>> fetchCommunes() async {
-    final url = Uri.parse('$baseUrl/api/communes/');
+  static Future<List<Map<String, dynamic>>> fetchAttributConfigMobile({
+    String? nomMetier,
+    String? nomTable,
+    String? nomChamp,
+    bool visibleOnly = false,
+  }) async {
+    final queryParameters = <String, String>{
+      if (visibleOnly) 'visible_only': 'true',
+    };
+    if (nomMetier != null && nomMetier.isNotEmpty) {
+      queryParameters['nom_metier'] = nomMetier;
+    }
+    if (nomTable != null && nomTable.isNotEmpty) {
+      queryParameters['nom_table'] = nomTable;
+    }
+    if (nomChamp != null && nomChamp.isNotEmpty) {
+      queryParameters['nom_champ'] = nomChamp;
+    }
+
+    final url = Uri.parse('$baseUrl/api/attribut-config-mobile/').replace(
+      queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
+    );
     final response = await http
         .get(url, headers: _headers())
         .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
-      throw Exception('Erreur GET communes: ${response.statusCode}');
+      throw Exception(
+        'Erreur GET attribut-config-mobile: ${response.statusCode}',
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    final List items =
+        data is List ? data : (data['results'] ?? data['features'] ?? const []);
+
+    return items
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchCommunesOriental() async {
+    final url = Uri.parse('$baseUrl/api/communes-oriental/');
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Erreur GET communes-oriental: ${response.statusCode}');
     }
 
     final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -315,6 +295,10 @@ class ApiService {
       }
       return properties;
     }).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchCommunes() {
+    return fetchCommunesOriental();
   }
 
   static Future<List<Map<String, dynamic>>> fetchZones() async {
@@ -613,6 +597,7 @@ class ApiService {
     required String localPath,
     int? idAgentCrea,
     String? syncSessionUuid,
+    String? endpoint,
   }) async {
     final uri = Uri.parse('$baseUrl/api/photos/upload/');
     final request = http.MultipartRequest('POST', uri);
@@ -625,6 +610,10 @@ class ApiService {
     request.fields['table_name'] = tableName;
     request.fields['uuid_objet'] = uuidObjet;
     request.fields['photo_slot'] = photoSlot.toString();
+    final cleanEndpoint = endpoint?.trim() ?? '';
+    if (cleanEndpoint.isNotEmpty) {
+      request.fields['endpoint'] = cleanEndpoint;
+    }
     final cleanSyncUuid = syncSessionUuid?.trim() ?? '';
     if (cleanSyncUuid.isNotEmpty) {
       request.fields['sync_session_uuid'] = cleanSyncUuid;

@@ -119,31 +119,23 @@ USE_TZ = True
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-BASEMAP_BUILD_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_SOURCE_PATH", "").strip()
-BASEMAP_BUILD_SOURCE_DIR = os.environ.get("BASEMAP_BUILD_SOURCE_DIR", "").strip()
-BASEMAP_BUILD_DEFAULT_STYLE = (
-    os.environ.get("BASEMAP_BUILD_DEFAULT_STYLE", "standard").strip() or "standard"
+
+# Basemap regional unique : un seul fichier .pmtiles vectoriel OSM-like
+# couvrant toute la zone d'intervention (Oriental). Le mobile telecharge
+# ce fichier en un seul GET au login puis le rejoue offline.
+BASEMAP_REGIONAL_PMTILES_PATH = os.environ.get(
+    "BASEMAP_REGIONAL_PMTILES_PATH", ""
+).strip()
+BASEMAP_REGIONAL_NAME = (
+    os.environ.get("BASEMAP_REGIONAL_NAME", "SRM Oriental").strip()
+    or "SRM Oriental"
 )
-BASEMAP_BUILD_SOURCE_NAME = os.environ.get("BASEMAP_BUILD_SOURCE_NAME", "").strip()
-BASEMAP_SCRIPT_PYTHON = os.environ.get("BASEMAP_SCRIPT_PYTHON", "").strip()
-BASEMAP_PMTILES_CLI_PATH = os.environ.get("BASEMAP_PMTILES_CLI_PATH", "").strip()
-BASEMAP_BUILD_PMTILES_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_PATH", "").strip()
-BASEMAP_BUILD_PMTILES_SOURCE_URL = os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_URL", "").strip()
-BASEMAP_BUILD_PMTILES_SOURCE_NAME = (
-    os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_NAME", "Protomaps basemap").strip()
-    or "Protomaps basemap"
-)
-BASEMAP_BUILD_PMTILES_ATTRIBUTION = (
+BASEMAP_REGIONAL_ATTRIBUTION = (
     os.environ.get(
-        "BASEMAP_BUILD_PMTILES_ATTRIBUTION",
+        "BASEMAP_REGIONAL_ATTRIBUTION",
         "© Protomaps © OpenStreetMap contributors",
     ).strip()
     or "© Protomaps © OpenStreetMap contributors"
-)
-BASEMAP_BUILD_OSM_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_OSM_SOURCE_PATH", "").strip()
-BASEMAP_BUILD_OSM_SOURCE_NAME = (
-    os.environ.get("BASEMAP_BUILD_OSM_SOURCE_NAME", "OpenStreetMap contributors").strip()
-    or "OpenStreetMap contributors"
 )
 REGARD_MIROIR_SQUARE_SIZE_METERS = float(
     os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "24.0")

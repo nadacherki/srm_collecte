@@ -43,7 +43,7 @@ class LegendWidget extends StatefulWidget {
 }
 
 class _LegendWidgetState extends State<LegendWidget> {
-  static const String _readOnlyRegardMiroirTable = 'regard_miroir';
+  static const String _readOnlyRegardMiroirTable = 'ep_regard';
   late Map<String, bool> _visibility;
   bool _isExpanded = false;
   bool _anomalieFilterActive = false;

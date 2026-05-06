@@ -9,21 +9,14 @@ import datetime
 import hashlib
 import os
 import re
-import shutil
-import subprocess
-import sys
-import tempfile
-from io import StringIO
 from pathlib import Path
-from urllib.parse import urlparse
 
 from django.conf import settings
-from django.core.management import call_command
-from django.core.management.base import CommandError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.gis.geos import LineString, Point
 from django.db import connection, transaction
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import check_password
 from rest_framework import viewsets
@@ -49,8 +42,7 @@ from .models import (
     SyncSession, SyncSessionItem, SyncSessionAttachment,
     EpStatistiqueConduite, EpStatistiqueConduiteSegment,
     AssStatistiqueConduite, AssStatistiqueConduiteSegment,
-    SrmFieldOption,
-    BasemapPackage,
+    SrmFieldOption, ListeChoix,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
@@ -73,8 +65,7 @@ from .serializers import (
     HistoriqueActionSerializer,
     ObjetIncompletSerializer,
     InterventionAnomalieTerrainSerializer,
-    SrmFieldOptionSerializer, ObjetPhotoSerializer,
-    ZoneBasemapCatalogSerializer, BasemapPackageSerializer,
+    SrmFieldOptionSerializer, ListeChoixAsFieldOptionSerializer, ObjetPhotoSerializer,
     MetricAgentJourSerializer, MetricAgentSemaineSerializer, MetricAgentMoisSerializer,
     MetricAgentTablePeriodSerializer, MetricAgentPeriodSerializer, MetricAgentResumeSerializer,
     MetricAgentPublicJourSerializer, MetricAgentPublicSemaineSerializer,
@@ -112,12 +103,12 @@ MOBILE_SRM_TABLE_ENDPOINTS = {
     'ep/hydrants': ('ep', 'ep_hydrant'),
     'ep/bornes-fontaine': ('ep', 'ep_bf'),
     'ep/bornes-onep': ('ep', 'borne_onep'),
-    'ep/bouches-cles': ('ep', 'bouche_cles'),
+    'ep/bouches-cles': ('ep', 'bouche_a_cles'),
     'ep/bouches-arrosage': ('ep', 'ep_bouche_arro'),
     'ep/compteurs-abonne': ('ep', 'ep_compteur_i'),
     'ep/compteurs-reseau': None,
     'ep/cones-reduction': ('ep', 'ep_cone_reduc'),
-    'ep/centres-tampon': ('ep', 'ep_centre_tampon'),
+    'ep/centres-tampon': ('ep', 'centre_tampon'),
     'ep/noeuds': ('ep', 'ep_noeud'),
     'ep/obturateurs': ('ep', 'ep_obturateur'),
     'ep/reducteurs-pression': ('ep', 'ep_reduc_pres'),
@@ -126,23 +117,35 @@ MOBILE_SRM_TABLE_ENDPOINTS = {
     'ep/pompes': ('ep', 'ep_pompe'),
     'ep/reservoirs': ('ep', 'ep_reservoir'),
     'ep/stations-pompage': ('ep', 'ep_station_pompage'),
-    'ep/regards': ('ep', 'ep_regard'),
-    'ep/regards-miroir': ('ep', 'ep_regard_miroir'),
+    'ep/regards': ('ep', 'ep_regard_point'),
+    'ep/regards-miroir': ('ep', 'ep_regard'),
     'ep/autres-objets': ('ep', 'autre_objet'),
-    'ep/conduites-terrain': ('ep', 'ep_conduite_terrain'),
-    'ep/conduites-bureau': ('ep', 'ep_conduite_bureau'),
+    'ep/conduites-terrain': ('ep', 'conduite_terrain'),
+    'ep/conduites-bureau': ('ep', 'ep_conduite'),
     'ep/branchements': ('ep', 'ep_branchement'),
     'ep/traverses': ('ep', 'ep_traversee'),
-    # ASS - legacy mobile endpoints backed by the existing compatibility tables.
-    'ass/regards': ('ass', 'regard'),
-    'ass/regards-branchement': ('ass', 'regard_branchement'),
-    'ass/canalisations': ('ass', 'canalisation_terrain'),
-    'ass/canalisations-reutilisation': ('ass', 'canalisation_reutilisation'),
-    'ass/branchements': ('ass', 'branchement'),
-    'ass/bassins': ('ass', 'bassin'),
-    'ass/ouvrages': ('ass', 'ouvrage'),
-    'ass/equipements': ('ass', 'equipement'),
-    'ass/stations': ('ass', 'station'),
+    # ASS - endpoints kept stable, physical schema/table names follow VF legacy.
+    'ass/regards': ('asst', 'ASS_REGARD'),
+    'ass/regards-facade': ('asst', 'ASS_REGARD_FACADE'),
+    'ass/regards-borgnes': ('asst', 'ASS_BORGNE'),
+    'ass/regards-branchement': ('asst', 'ASS_REGARD_FACADE'),
+    'ass/bouches': ('asst', 'ASS_BOUCHE'),
+    'ass/deversoirs': ('asst', 'ASS_DEVERSOIR'),
+    'ass/exutoires': ('asst', 'ASS__EXUTOIRE'),
+    'ass/stations-pompage': ('asst', 'ASS_STA_POMP'),
+    'ass/collecteurs': ('asst', 'ASS_COLLECTEUR'),
+    'ass/canalisations': ('asst', 'ASS_COLLECTEUR'),
+    'ass/canalisations-reutilisation': ('asst', 'ASS_REFOULEMENTR'),
+    'ass/branchements': ('asst', 'ASS_BRANCHEMENT'),
+    'ass/caniveaux': ('asst', 'ASS_CANIVEAU'),
+    'ass/caniveaux-branchement': ('asst', 'ASS_CANIV_BRANCHE'),
+    'ass/collecteurs-bouche': ('asst', 'ASS_COL_BOUCHE'),
+    'ass/bassins-versants': ('asst', 'ASS_BASSIN_VERSANT'),
+    'ass/bassins': ('asst', 'ASS_BASSIN_VERSANT'),
+    'ass/stations-epuration': ('asst', 'ASS_STA_EPUR'),
+    'ass/ouvrages': ('asst', 'ASS_OUV_TRAVERSEE'),
+    'ass/equipements': ('asst', 'ASS_POMPE'),
+    'ass/stations': ('asst', 'ASS_STA_POMP'),
 }
 
 
@@ -155,17 +158,45 @@ MOBILE_OUTPUT_ALIASES = {
     'ep_etat_s': 'ep_etat',
     'id_user_creat': 'id_agent_crea',
     'updated_at': 'date_sync',
+    'ASS_CONF_PLAN': 'conformite_plan',
+    'ASS_OBSERV': 'observation',
+    'ASS_ANOMALIE': 'anomalie',
+    'ASS_DATE_INTERV': 'date_leve',
+    'ASS_AGENT_CREA': 'id_agent_crea',
+    'MODE_LOCALISATION': 'mode_localisation',
+    'ASS_COOR_X': 'ass_coor_x',
+    'ASS_COOR_Y': 'ass_coor_y',
+    'ASS_COOR_Z': 'ass_coor_z',
+    'ASS_TYPE_RESEAU': 'typereseau',
+    'ASS_STATUT': 'etat',
+    'ASS_DIAM': 'diametre',
+    'ASS_MAT': 'nature',
+    'ASS_LONG_R': 'longueur',
 }
 
 
 MOBILE_INPUT_ALIASES = {
     'ref_rue': 'ep_ref_rue',
-    'observation': 'ep_observation',
-    'conformite_plan': 'ep_conf_plan',
-    'anomalie': 'ep_anomalie',
+    'observation': ('ep_observation', 'ASS_OBSERV'),
+    'conformite_plan': ('ep_conf_plan', 'ASS_CONF_PLAN'),
+    'anomalie': ('ep_anomalie', 'ASS_ANOMALIE'),
     'ep_longueur': 'ep_long_r',
     'ep_etat': 'ep_etat_s',
-    'id_agent_crea': 'id_user_creat',
+    'id_agent_crea': ('id_user_creat', 'ASS_AGENT_CREA'),
+    'mode_localisation': 'MODE_LOCALISATION',
+    'ass_coor_x': 'ASS_COOR_X',
+    'ass_coor_y': 'ASS_COOR_Y',
+    'ass_coor_z': 'ASS_COOR_Z',
+    'etat': 'ASS_STATUT',
+    'type_regard': 'ASS_TYPE',
+    'type_tampon': 'ASS_TAMPON',
+    'type_conduite': 'ASS_TYPE',
+    'typereseau': 'ASS_TYPE_RESEAU',
+    'emplacement': 'EMPLACEMENT',
+    'diametre': 'ASS_DIAM',
+    'nature': 'ASS_MAT',
+    'longueur': 'ASS_LONG_R',
+    'reference': 'ASS_REFERENCE',
 }
 
 
@@ -227,10 +258,79 @@ def _mobile_apply_output_aliases(row):
 
 def _mobile_apply_input_aliases(payload, columns):
     values = dict(payload)
-    for source, target in MOBILE_INPUT_ALIASES.items():
-        if source in values and target in columns and target not in values:
-            values[target] = values[source]
+    for source, targets in MOBILE_INPUT_ALIASES.items():
+        if not isinstance(targets, (list, tuple)):
+            targets = (targets,)
+        for target in targets:
+            if source in values and target in columns and target not in values:
+                values[target] = values[source]
     return values
+
+
+def _table_foreign_keys(schema_name, table_name):
+    """Liste les FK de la table cible : (col_locale, schema_ref, table_ref, col_ref)."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                kcu.column_name,
+                ccu.table_schema,
+                ccu.table_name,
+                ccu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_schema = kcu.constraint_schema
+               AND tc.constraint_name = kcu.constraint_name
+            JOIN information_schema.constraint_column_usage ccu
+                ON tc.constraint_schema = ccu.constraint_schema
+               AND tc.constraint_name = ccu.constraint_name
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND tc.table_schema = %s
+              AND tc.table_name = %s
+            """,
+            [schema_name, table_name],
+        )
+        return cursor.fetchall()
+
+
+def _neutralize_invalid_fk_values(*, schema_name, table_name, writable):
+    """Met a NULL toute valeur FK qui ne correspond plus a aucune ligne cible.
+
+    Retourne la liste des colonnes neutralisees (pour traçage). Le serveur
+    reste tolerant aux desynchros entre l'id local du mobile et les
+    referentiels (commune_oriental, planche, agent...) sans planter en 500.
+    """
+    neutralized = []
+    fks = _table_foreign_keys(schema_name, table_name)
+    if not fks:
+        return neutralized
+
+    with connection.cursor() as cursor:
+        for local_col, ref_schema, ref_table, ref_col in fks:
+            if local_col not in writable:
+                continue
+            value = writable.get(local_col)
+            if value in (None, ''):
+                continue
+            check_query = pg_sql.SQL(
+                'SELECT 1 FROM {}.{} WHERE {} = %s LIMIT 1'
+            ).format(
+                pg_sql.Identifier(ref_schema),
+                pg_sql.Identifier(ref_table),
+                pg_sql.Identifier(ref_col),
+            )
+            try:
+                cursor.execute(check_query, [value])
+            except Exception:
+                # Type mismatch (ex: int vs uuid) : on neutralise par securite.
+                writable[local_col] = None
+                neutralized.append(local_col)
+                continue
+            if cursor.fetchone() is None:
+                writable[local_col] = None
+                neutralized.append(local_col)
+
+    return neutralized
 
 
 def _mobile_select_parts(columns):
@@ -328,6 +428,13 @@ def mobile_srm_table_view(request, endpoint):
             )
             params.append(parsed_updated_after)
 
+        # Exclure les objets sans geometrie : ils sont inutilisables cote
+        # mobile (impossibles a placer sur la carte) et viennent surtout
+        # d'anciennes syncs cassees ou il manquait le geometry_geojson.
+        # Les lignes restent en BDD pour analyse admin.
+        if 'geom' in columns:
+            where_parts.append(pg_sql.SQL('geom IS NOT NULL'))
+
         where_sql = (
             pg_sql.SQL(' WHERE ') + pg_sql.SQL(' AND ').join(where_parts)
             if where_parts
@@ -388,6 +495,17 @@ def mobile_srm_table_view(request, endpoint):
         )
 
     geometry_value = writable.pop('geom', None)
+
+    # Defense FK : un id local (commune, planche, agent...) qui n'existe pas
+    # dans la table referencee fait planter l'INSERT avec IntegrityError.
+    # Plutot que de retourner 500, on neutralise la valeur (NULL) et on
+    # poursuit. Le mobile recommencera la sync apres avoir resyncronise
+    # les referentiels (commune_oriental, etc.).
+    fk_columns_neutralized = _neutralize_invalid_fk_values(
+        schema_name=schema_name,
+        table_name=table_name,
+        writable=writable,
+    )
     existing_pk = None
     if payload.get('uuid') and 'uuid' in columns:
         query = pg_sql.SQL('SELECT {} FROM {} WHERE uuid = %s LIMIT 1').format(
@@ -774,13 +892,13 @@ _CONDUITE_METIER_CONFIG = {
         'regard_model': AssRegard,
         'stat_model': AssStatistiqueConduite,
         'segment_model': AssStatistiqueConduiteSegment,
-        'schema': 'ass',
+        'schema': 'asst',
         'stat_table': 'statistique_conduite',
         'segment_table': 'statistique_conduite_segment',
         'coord_fields': ('ass_coor_x', 'ass_coor_y', 'ass_coor_z'),
-        'sync_schema': 'ass',
+        'sync_schema': 'asst',
         'sync_table': 'statistique_conduite',
-        'ensure_tables': True,
+        'ensure_tables': False,
     },
 }
 
@@ -1272,15 +1390,50 @@ _SRM_MODEL_BY_SCHEMA_TABLE = {
 }
 
 
-def _media_root_path():
-    return Path(settings.MEDIA_ROOT)
+def _resolve_srm_photo_model(*, schema_name, table_name, endpoint_hint=''):
+    """Resout le model SRM pour un upload photo en tolerant les noms locaux mobile.
 
+    Le mobile envoie souvent le `tableName` Flutter (ex: 'hydrant') alors que
+    Postgres heberge la table sous un autre nom (ex: 'ep_hydrant', voire
+    'ep_bf' pour les bornes-fontaine). On essaie dans l'ordre :
+      1. (schema, table) tel quel (cas direct).
+      2. Si endpoint mobile fourni (ex: 'ep/hydrants'), on resout via
+         MOBILE_SRM_TABLE_ENDPOINTS.
+      3. Prefixe schema : `<schema>_<table>` (couvre la majorite des cas EP).
+      4. Match approximatif : 1 seule table dont le nom Postgres se termine
+         par `_<table>` ou par `<table>` dans le bon schema.
 
-def _package_serializer_context(request):
-    return {
-        'request': request,
-        'media_root': _media_root_path(),
-    }
+    Retourne (model, real_table_name) ou (None, table_name).
+    """
+    direct = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, table_name))
+    if direct is not None:
+        return direct, table_name
+
+    if endpoint_hint:
+        target = MOBILE_SRM_TABLE_ENDPOINTS.get(endpoint_hint)
+        if target is not None:
+            mapped_schema, mapped_table = target
+            mapped = _SRM_MODEL_BY_SCHEMA_TABLE.get((mapped_schema, mapped_table))
+            if mapped is not None:
+                return mapped, mapped_table
+
+    prefixed_table = f"{schema_name}_{table_name}"
+    prefixed = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, prefixed_table))
+    if prefixed is not None:
+        return prefixed, prefixed_table
+
+    suffix_underscore = f"_{table_name}"
+    suffix_matches = [
+        (real_table, model)
+        for (schema, real_table), model in _SRM_MODEL_BY_SCHEMA_TABLE.items()
+        if schema == schema_name
+        and (real_table.endswith(suffix_underscore) or real_table == table_name)
+    ]
+    if len(suffix_matches) == 1:
+        real_table, model = suffix_matches[0]
+        return model, real_table
+
+    return None, table_name
 
 
 def _parse_positive_int_value(raw_value):
@@ -1603,26 +1756,6 @@ def _mark_sync_attachment_received(*, sync_uuid, schema_name, table_name, uuid_o
     _refresh_sync_session_counters(session)
 
 
-def _assigned_id_zones_for_agent(agent_id):
-    return ZoneUtilisateur.objects.filter(
-        id_user=agent_id,
-        actif=True,
-    ).values_list('id_zone', flat=True)
-
-
-def _requested_basemap_agent_id(request):
-    return _parse_positive_int_value(
-        request.query_params.get('id_user') or request.query_params.get('id_agent')
-    )
-
-
-def _id_zone_from_catalog_zone_id(zone_id):
-    raw = str(zone_id or '').strip()
-    if raw.startswith('zone_'):
-        raw = raw[5:]
-    return _parse_positive_int_value(raw)
-
-
 def _parse_bool_value(raw_value, default=False):
     if raw_value in (None, ''):
         return default
@@ -1637,502 +1770,54 @@ def _request_param(request, name):
     return request.query_params.get(name)
 
 
-def _filtered_basemap_querysets(*, city_slug='', style='', active_only=True, agent_id=None):
-    zones_qs = Zone.objects.all().order_by('nom_zone', 'id_zone')
-    packages_qs = BasemapPackage.objects.all().order_by(
-        'city_slug',
-        'id_zone',
-        'style',
-        'version',
+# =====================================================================
+#  BASEMAP REGIONAL OFFLINE
+#  Un unique fichier .pmtiles vectoriel OSM-like par region.
+#  Le mobile telecharge ce fichier en un seul GET au login.
+# =====================================================================
+
+def _resolve_regional_basemap_path():
+    configured = (settings.BASEMAP_REGIONAL_PMTILES_PATH or '').strip()
+    if configured:
+        candidate = Path(configured).expanduser()
+        if not candidate.is_absolute():
+            candidate = (Path(settings.BASE_DIR) / candidate).resolve()
+        return candidate
+
+    media_default = Path(settings.MEDIA_ROOT) / 'basemaps' / 'region.pmtiles'
+    if media_default.exists():
+        return media_default
+
+    demo_fallback = (
+        Path(settings.BASE_DIR).parent
+        / 'basemaps'
+        / 'build'
+        / 'oujda_centre_demo_vector.pmtiles'
     )
-
-    if agent_id is not None:
-        assigned_id_zones = _assigned_id_zones_for_agent(agent_id)
-        zones_qs = zones_qs.filter(id_zone__in=assigned_id_zones)
-        packages_qs = packages_qs.filter(id_zone__in=assigned_id_zones)
-
-    if city_slug:
-        packages_qs = packages_qs.filter(city_slug=city_slug)
-    if style:
-        packages_qs = packages_qs.filter(style=style)
-    if active_only:
-        zones_qs = zones_qs.filter(etat='active')
-        packages_qs = packages_qs.filter(actif=True)
-
-    return zones_qs, packages_qs
+    return demo_fallback
 
 
-def _basemap_catalog_payload(request, *, city_slug='', style='', active_only=True, agent_id=None):
-    zones_qs, packages_qs = _filtered_basemap_querysets(
-        city_slug=city_slug,
-        style=style,
-        active_only=active_only,
-        agent_id=agent_id,
-    )
-    zones_payload = ZoneBasemapCatalogSerializer(zones_qs, many=True).data
-    packages_payload = BasemapPackageSerializer(
-        packages_qs,
-        many=True,
-        context=_package_serializer_context(request),
-    ).data
+def _regional_basemap_manifest():
+    pmtiles_path = _resolve_regional_basemap_path()
+    if not pmtiles_path.exists() or not pmtiles_path.is_file():
+        return None
+
+    stat = pmtiles_path.stat()
+    sha256 = hashlib.sha256()
+    with pmtiles_path.open('rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            sha256.update(chunk)
+
     return {
-        'city_slug': city_slug or None,
-        'id_user': agent_id,
-        'active_only': active_only,
-        'zones': zones_payload,
-        'packages': packages_payload,
+        'path': pmtiles_path,
+        'size_bytes': stat.st_size,
+        'sha256': sha256.hexdigest(),
+        'version': datetime.datetime.utcfromtimestamp(stat.st_mtime).strftime('%Y%m%d%H%M%S'),
+        'mtime_iso': datetime.datetime.utcfromtimestamp(stat.st_mtime).isoformat() + 'Z',
+        'name': settings.BASEMAP_REGIONAL_NAME,
+        'attribution': settings.BASEMAP_REGIONAL_ATTRIBUTION,
+        'format': 'pmtiles',
     }
-
-
-def _package_file_exists(package):
-    relative_path = (package.relative_path or '').strip().lstrip('/')
-    if not relative_path:
-        return False
-    return (Path(settings.MEDIA_ROOT) / relative_path).exists()
-
-
-def _latest_ready_basemap_package(*, id_zone, style='', package_format=''):
-    qs = BasemapPackage.objects.filter(id_zone=id_zone)
-    if style:
-        qs = qs.filter(style=style)
-    if package_format:
-        qs = qs.filter(format=package_format)
-    qs = qs.filter(actif=True).order_by('-generated_at', '-version')
-    for package in qs:
-        if _package_file_exists(package):
-            return package
-    return None
-
-
-def _resolve_basemap_build_source_path():
-    explicit_path = Path(settings.BASEMAP_BUILD_SOURCE_PATH).expanduser() if settings.BASEMAP_BUILD_SOURCE_PATH else None
-    if explicit_path is not None:
-        resolved = explicit_path.resolve()
-        if not resolved.exists():
-            raise CommandError(f'Source basemap introuvable: {resolved}')
-        return resolved
-
-    source_dir = (
-        Path(settings.BASEMAP_BUILD_SOURCE_DIR).expanduser().resolve()
-        if settings.BASEMAP_BUILD_SOURCE_DIR
-        else (Path(settings.BASE_DIR).parent / 'basemaps' / 'source').resolve()
-    )
-    if not source_dir.exists():
-        raise CommandError(
-            f'Dossier source basemap introuvable: {source_dir}. '
-            'Configurer BASEMAP_BUILD_SOURCE_PATH ou BASEMAP_BUILD_SOURCE_DIR.'
-        )
-
-    candidates = sorted(
-        path for path in source_dir.iterdir()
-        if path.is_file() and path.suffix.lower() in {'.tif', '.tiff', '.vrt', '.mbtiles'}
-    )
-    if not candidates:
-        raise CommandError(
-            f'Aucune source basemap exploitable trouvee dans {source_dir}. '
-            'Attendu: .tif, .tiff, .vrt ou .mbtiles.'
-        )
-    if len(candidates) > 1:
-        raise CommandError(
-            'Plusieurs sources basemap dÃ©tectÃ©es. '
-            'Configurer BASEMAP_BUILD_SOURCE_PATH pour choisir explicitement la source.'
-        )
-    return candidates[0]
-
-
-def _resolve_osm_extract_source_path():
-    explicit_path = Path(settings.BASEMAP_BUILD_OSM_SOURCE_PATH).expanduser() if settings.BASEMAP_BUILD_OSM_SOURCE_PATH else None
-    if explicit_path is not None:
-        resolved = explicit_path.resolve()
-        if not resolved.exists():
-            raise CommandError(f'Extract OSM introuvable: {resolved}')
-        if resolved.suffix.lower() != '.osm':
-            raise CommandError(
-                f'Format OSM non supporte pour le moment: {resolved.name}. '
-                'Attendu: fichier .osm XML.'
-            )
-        return resolved
-
-    source_dir = (
-        Path(settings.BASEMAP_BUILD_SOURCE_DIR).expanduser().resolve()
-        if settings.BASEMAP_BUILD_SOURCE_DIR
-        else (Path(settings.BASE_DIR).parent / 'basemaps' / 'source').resolve()
-    )
-    if not source_dir.exists():
-        raise CommandError(
-            f'Dossier source OSM introuvable: {source_dir}. '
-            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH ou dÃ©poser un extract .osm.'
-        )
-
-    candidates = sorted(
-        path for path in source_dir.iterdir()
-        if path.is_file() and path.suffix.lower() == '.osm'
-    )
-    if not candidates:
-        raise CommandError(
-            f'Aucun extract OSM exploitable trouve dans {source_dir}. '
-            'Attendu: fichier .osm XML.'
-        )
-    if len(candidates) > 1:
-        raise CommandError(
-            'Plusieurs extracts OSM dÃ©tectÃ©s. '
-            'Configurer BASEMAP_BUILD_OSM_SOURCE_PATH pour choisir explicitement le bon fichier.'
-        )
-    return candidates[0]
-
-
-def _resolve_pmtiles_source_spec():
-    explicit_url = (getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_URL', '') or '').strip()
-    if explicit_url:
-        parsed = urlparse(explicit_url)
-        if parsed.scheme not in {'http', 'https'}:
-            raise CommandError(
-                'BASEMAP_BUILD_PMTILES_SOURCE_URL doit Ãªtre une URL http(s) valide.'
-            )
-        source_name = (
-            getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or Path(parsed.path).name
-        )
-        return explicit_url, source_name
-
-    explicit_path_raw = (getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_PATH', '') or '').strip()
-    if explicit_path_raw:
-        explicit_path = Path(explicit_path_raw).expanduser().resolve()
-        if not explicit_path.exists():
-            raise CommandError(f'Source PMTiles introuvable: {explicit_path}')
-        if explicit_path.suffix.lower() != '.pmtiles':
-            raise CommandError(
-                f'Format PMTiles attendu pour la source: {explicit_path.name}'
-            )
-        source_name = (
-            getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or explicit_path.name
-        )
-        return str(explicit_path), source_name
-
-    source_dir = (
-        Path(settings.BASEMAP_BUILD_SOURCE_DIR).expanduser().resolve()
-        if settings.BASEMAP_BUILD_SOURCE_DIR
-        else (Path(settings.BASE_DIR).parent / 'basemaps' / 'source').resolve()
-    )
-    if not source_dir.exists():
-        raise CommandError(
-            f'Dossier source PMTiles introuvable: {source_dir}. '
-            'Configurer BASEMAP_BUILD_PMTILES_SOURCE_PATH ou BASEMAP_BUILD_PMTILES_SOURCE_URL.'
-        )
-
-    candidates = sorted(
-        path for path in source_dir.iterdir()
-        if path.is_file() and path.suffix.lower() == '.pmtiles'
-    )
-    if not candidates:
-        raise CommandError(
-            f'Aucune source PMTiles exploitable trouvee dans {source_dir}. '
-            'Attendu: fichier .pmtiles ou BASEMAP_BUILD_PMTILES_SOURCE_URL.'
-        )
-    if len(candidates) > 1:
-        raise CommandError(
-            'Plusieurs sources PMTiles dÃ©tectÃ©es. '
-            'Configurer BASEMAP_BUILD_PMTILES_SOURCE_PATH pour choisir explicitement la source.'
-        )
-
-    source_path = candidates[0]
-    source_name = (
-        getattr(settings, 'BASEMAP_BUILD_PMTILES_SOURCE_NAME', '') or source_path.name
-    )
-    return str(source_path), source_name
-
-
-def _candidate_basemap_script_pythons():
-    configured = (getattr(settings, 'BASEMAP_SCRIPT_PYTHON', '') or '').strip()
-    if configured:
-        yield Path(configured).expanduser().resolve()
-
-    yield Path(sys.executable).resolve()
-
-    for candidate in [
-        Path(r"C:\Program Files\QGIS 3.40.14\apps\Python312\python.exe"),
-        Path(r"C:\Program Files\QGIS 3.34.12\apps\Python39\python.exe"),
-        Path(r"C:\OSGeo4W\bin\python3.exe"),
-    ]:
-        yield candidate
-
-
-def _script_runtime_env(python_path: Path):
-    env = dict(os.environ)
-    python_parent = python_path.parent
-    qgis_root = python_parent.parents[1] if len(python_parent.parents) >= 2 else None
-    if qgis_root is not None and qgis_root.exists():
-        qgis_bin = qgis_root / 'bin'
-        qgis_proj = qgis_root / 'share' / 'proj'
-        qgis_gdal = qgis_root / 'share' / 'gdal'
-
-        if qgis_bin.exists():
-            env['PATH'] = str(qgis_bin) + os.pathsep + env.get('PATH', '')
-        if qgis_proj.exists():
-            env['PROJ_LIB'] = str(qgis_proj)
-        if qgis_gdal.exists():
-            env['GDAL_DATA'] = str(qgis_gdal)
-    return env
-
-
-def _resolve_basemap_script_python():
-    import_check = 'from osgeo import gdal; from PIL import Image; print("ok")'
-
-    checked_candidates = []
-    for candidate in _candidate_basemap_script_pythons():
-        if not candidate.exists():
-            continue
-        checked_candidates.append(str(candidate))
-        env = _script_runtime_env(candidate)
-        probe = subprocess.run(
-            [str(candidate), '-c', import_check],
-            capture_output=True,
-            text=True,
-            cwd=str(Path(settings.BASE_DIR).parent),
-            env=env,
-        )
-        if probe.returncode == 0 and 'ok' in (probe.stdout or ''):
-            return candidate, env
-
-    checked_display = ', '.join(checked_candidates) or 'aucun candidat'
-    raise CommandError(
-        'Aucun interprÃ©teur Python basemap compatible trouvÃ© '
-        f'(osgeo + PIL). Candidats testÃ©s: {checked_display}'
-    )
-
-
-def _run_python_script(script_path, arguments):
-    python_path, env = _resolve_basemap_script_python()
-    command = [str(python_path), str(script_path), *[str(argument) for argument in arguments]]
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        cwd=str(Path(settings.BASE_DIR).parent),
-        env=env,
-    )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout or '').strip() or 'aucun dÃ©tail fourni'
-        raise CommandError(f'Ã‰chec script {script_path.name}: {details}')
-
-
-def _candidate_pmtiles_cli_paths():
-    configured = (getattr(settings, 'BASEMAP_PMTILES_CLI_PATH', '') or '').strip()
-    if configured:
-        yield Path(configured).expanduser().resolve()
-
-    bundled = (Path(settings.BASE_DIR).parent / 'basemaps' / 'tools' / 'pmtiles.exe').resolve()
-    yield bundled
-
-    which_match = shutil.which('pmtiles')
-    if which_match:
-        yield Path(which_match).resolve()
-
-
-def _resolve_pmtiles_cli_path():
-    checked_candidates = []
-    for candidate in _candidate_pmtiles_cli_paths():
-        checked_candidates.append(str(candidate))
-        if candidate.exists():
-            return candidate
-
-    checked_display = ', '.join(checked_candidates) or 'aucun candidat'
-    raise CommandError(
-        'CLI pmtiles introuvable. Configurer BASEMAP_PMTILES_CLI_PATH '
-        'ou dÃ©poser pmtiles.exe dans API_GeoDjango/basemaps/tools/. '
-        f'Candidats testÃ©s: {checked_display}'
-    )
-
-
-def _run_pmtiles_command(arguments):
-    executable = _resolve_pmtiles_cli_path()
-    command = [str(executable), *[str(argument) for argument in arguments]]
-    env = os.environ.copy()
-    for proxy_name in (
-        'HTTP_PROXY',
-        'HTTPS_PROXY',
-        'ALL_PROXY',
-        'http_proxy',
-        'https_proxy',
-        'all_proxy',
-    ):
-        env.pop(proxy_name, None)
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        cwd=str(Path(settings.BASE_DIR).parent),
-        env=env,
-    )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout or '').strip() or 'aucun dÃ©tail fourni'
-        raise CommandError(f'Ã‰chec pmtiles: {details}')
-    return result.stdout or ''
-
-
-def _read_pmtiles_header(pmtiles_path):
-    header_text = _run_pmtiles_command(['show', str(pmtiles_path), '--header-json'])
-    try:
-        header_data = json.loads(header_text)
-    except json.JSONDecodeError as exc:
-        raise CommandError(
-            f'RÃ©ponse header PMTiles invalide pour {pmtiles_path}: {exc}'
-        ) from exc
-    if not isinstance(header_data, dict):
-        raise CommandError(f'Header PMTiles invalide pour {pmtiles_path}')
-    return header_data
-
-
-def _read_pmtiles_metadata(pmtiles_path):
-    metadata_text = _run_pmtiles_command(['show', str(pmtiles_path), '--metadata'])
-    try:
-        metadata_data = json.loads(metadata_text)
-    except json.JSONDecodeError as exc:
-        raise CommandError(
-            f'RÃ©ponse metadata PMTiles invalide pour {pmtiles_path}: {exc}'
-        ) from exc
-    if not isinstance(metadata_data, dict):
-        raise CommandError(f'Metadata PMTiles invalide pour {pmtiles_path}')
-    return metadata_data
-
-
-def _generate_zone_package_from_pmtiles(
-    *,
-    zone,
-    style,
-    package_version,
-    pmtiles_source_spec,
-    source_name,
-):
-    basemap_root = Path(settings.BASE_DIR).parent / 'basemaps'
-    work_dir = Path(
-        tempfile.mkdtemp(
-            prefix=f'{zone.zone_id}_pmtiles_',
-            dir=str((basemap_root / 'build').resolve()),
-        )
-    )
-    output_pmtiles = work_dir / 'package.pmtiles'
-    bbox = f'{zone.bbox_west},{zone.bbox_south},{zone.bbox_east},{zone.bbox_north}'
-    try:
-        _run_pmtiles_command([
-            'extract',
-            str(pmtiles_source_spec),
-            str(output_pmtiles),
-            f'--bbox={bbox}',
-        ])
-
-        header_data = _read_pmtiles_header(output_pmtiles)
-        metadata_data = _read_pmtiles_metadata(output_pmtiles)
-        try:
-            min_zoom = int(header_data.get('min_zoom'))
-        except (TypeError, ValueError):
-            min_zoom = None
-        try:
-            max_zoom = int(header_data.get('max_zoom'))
-        except (TypeError, ValueError):
-            max_zoom = None
-
-        stdout = StringIO()
-        stderr = StringIO()
-        call_command(
-            'register_basemap_package',
-            zone_id=zone.zone_id,
-            style=style,
-            format='pmtiles',
-            file=str(output_pmtiles),
-            package_version=package_version,
-            copy_to_media=True,
-            source_name=source_name,
-            attribution=getattr(settings, 'BASEMAP_BUILD_PMTILES_ATTRIBUTION', ''),
-            min_zoom=min_zoom,
-            max_zoom=max_zoom,
-            stdout=stdout,
-            stderr=stderr,
-        )
-
-        package = BasemapPackage.objects.filter(
-            id_zone=zone.id_zone,
-            style=style,
-            version=package_version,
-        ).first()
-        if package is not None:
-            package.metadata_json = metadata_data
-            package.save(update_fields=['metadata_json'])
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
-
-
-def _render_public_osm_raster_for_zone(*, zone, osm_source_path):
-    basemap_root = Path(settings.BASE_DIR).parent / 'basemaps'
-    scripts_dir = basemap_root / 'scripts'
-    render_script = scripts_dir / 'render_public_osm_basemap.py'
-    label_script = scripts_dir / 'label_public_osm_basemap.py'
-    if not render_script.exists():
-        raise CommandError(f'Script de rendu introuvable: {render_script}')
-    if not label_script.exists():
-        raise CommandError(f'Script de libelles introuvable: {label_script}')
-
-    work_dir = Path(
-        tempfile.mkdtemp(
-            prefix=f'{zone.zone_id}_osm_',
-            dir=str((basemap_root / 'build').resolve()),
-        )
-    )
-    raw_raster = work_dir / 'public_osm.tif'
-    labeled_raster = work_dir / 'public_osm_labeled.tif'
-    try:
-        common_bounds_args = [
-            '--west', zone.bbox_west,
-            '--south', zone.bbox_south,
-            '--east', zone.bbox_east,
-            '--north', zone.bbox_north,
-        ]
-        _run_python_script(
-            render_script,
-            [
-                '--osm', osm_source_path,
-                '--output', raw_raster,
-                *common_bounds_args,
-                '--width', 4096,
-                '--height', 4096,
-            ],
-        )
-        _run_python_script(
-            label_script,
-            [
-                '--osm', osm_source_path,
-                '--input-raster', raw_raster,
-                '--output-raster', labeled_raster,
-                *common_bounds_args,
-            ],
-        )
-        return labeled_raster, work_dir
-    except Exception:
-        shutil.rmtree(work_dir, ignore_errors=True)
-        raise
-
-
-def _generate_zone_package_from_osm(*, zone, style, package_version, osm_source_path, source_name):
-    labeled_raster, work_dir = _render_public_osm_raster_for_zone(
-        zone=zone,
-        osm_source_path=osm_source_path,
-    )
-    try:
-        stdout = StringIO()
-        stderr = StringIO()
-        call_command(
-            'build_basemap_zone_package',
-            zone_id=zone.zone_id,
-            source=str(labeled_raster),
-            package_version=package_version,
-            style=style,
-            source_name=source_name,
-            skip_zoom_validation=True,
-            stdout=stdout,
-            stderr=stderr,
-        )
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
-
 
 
 # =====================================================================
@@ -2498,221 +2183,111 @@ def login_view(request):
 
 
 @api_view(['GET'])
-def basemap_catalog_view(request):
-    city_slug = (request.query_params.get('city_slug') or '').strip()
-    style = (request.query_params.get('style') or '').strip()
-    active_only = request.query_params.get('active_only', 'true').lower() != 'false'
-    agent_id = _requested_basemap_agent_id(request)
-    payload = _basemap_catalog_payload(
-        request,
-        city_slug=city_slug,
-        style=style,
-        active_only=active_only,
-        agent_id=agent_id,
-    )
-    return Response(payload, status=status.HTTP_200_OK)
-
-
-@api_view(['POST'])
-def prepare_agent_basemap_packages_view(request):
-    agent_id = _parse_positive_int_value(
-        _request_param(request, 'id_user') or _request_param(request, 'id_agent')
-    )
-    if agent_id is None:
+def regional_basemap_manifest_view(request):
+    """Manifest du fichier .pmtiles regional unique a telecharger par le mobile."""
+    manifest = _regional_basemap_manifest()
+    if manifest is None:
         return Response(
-            {'success': False, 'message': "id_user est obligatoire pour prÃ©parer les cartes offline."},
-            status=status.HTTP_400_BAD_REQUEST,
+            {
+                'success': False,
+                'message': (
+                    "Aucun fichier basemap regional n'est disponible cote serveur. "
+                    "Configurer BASEMAP_REGIONAL_PMTILES_PATH ou deposer "
+                    "media/basemaps/region.pmtiles."
+                ),
+            },
+            status=status.HTTP_404_NOT_FOUND,
         )
 
-    city_slug = str(_request_param(request, 'city_slug') or '').strip()
-    style = str(
-        _request_param(request, 'style') or settings.BASEMAP_BUILD_DEFAULT_STYLE or 'standard'
-    ).strip()
-    active_only = _parse_bool_value(_request_param(request, 'active_only'), default=True)
-    force_rebuild = _parse_bool_value(_request_param(request, 'force'), default=False)
-
-    zones_qs, _ = _filtered_basemap_querysets(
-        city_slug=city_slug,
-        style='',
-        active_only=active_only,
-        agent_id=agent_id,
+    download_url = request.build_absolute_uri(
+        reverse('basemap-regional-download')
     )
-    zones = list(zones_qs)
-    if not zones:
-        payload = _basemap_catalog_payload(
-            request,
-            city_slug=city_slug,
-            style=style,
-            active_only=active_only,
-            agent_id=agent_id,
-        )
-        payload.update({
+    return Response(
+        {
             'success': True,
-            'message': "Aucune zone basemap active n'est disponible.",
-            'generated_count': 0,
-            'reused_count': 0,
-            'failed_count': 0,
-            'errors': [],
-        })
-        return Response(payload, status=status.HTTP_200_OK)
-
-    generated_count = 0
-    reused_count = 0
-    failed_count = 0
-    errors = []
-
-    pmtiles_source_spec = None
-    osm_source_path = None
-    raster_source_path = None
-    pipeline_mode = None
-    pipeline_source_name = None
-    resolution_errors = []
-
-    try:
-        pmtiles_source_spec, pmtiles_source_name = _resolve_pmtiles_source_spec()
-        _resolve_pmtiles_cli_path()
-        pmtiles_source_spec = str(pmtiles_source_spec)
-        pipeline_mode = 'pmtiles'
-        pipeline_source_name = pmtiles_source_name
-    except CommandError as exc:
-        resolution_errors.append(str(exc))
-
-    if pipeline_mode is None:
-        try:
-            osm_source_path = _resolve_osm_extract_source_path()
-            pipeline_mode = 'osm'
-            pipeline_source_name = settings.BASEMAP_BUILD_OSM_SOURCE_NAME or osm_source_path.name
-        except CommandError as exc:
-            resolution_errors.append(str(exc))
-
-    if pipeline_mode is None:
-        try:
-            raster_source_path = _resolve_basemap_build_source_path()
-            pipeline_mode = 'raster'
-            pipeline_source_name = settings.BASEMAP_BUILD_SOURCE_NAME or raster_source_path.name
-        except CommandError as exc:
-            resolution_errors.append(str(exc))
-
-    if pipeline_mode is None:
-        payload = _basemap_catalog_payload(
-            request,
-            city_slug=city_slug,
-            style=style,
-            active_only=active_only,
-            agent_id=agent_id,
-        )
-        resolution_message = resolution_errors[0] if resolution_errors else (
-            "Aucune source basemap serveur n'est configurÃ©e."
-        )
-        payload.update({
-            'success': False,
-            'message': resolution_message,
-            'generated_count': 0,
-            'reused_count': 0,
-            'failed_count': len(zones),
-            'errors': [{'zone_id': zone.zone_id, 'error': resolution_message} for zone in zones],
-        })
-        return Response(payload, status=status.HTTP_200_OK)
-
-    timestamp_prefix = timezone.now().strftime('auto-%Y%m%d%H%M%S')
-    target_format = 'pmtiles' if pipeline_mode == 'pmtiles' else 'mbtiles'
-
-    for index, zone in enumerate(zones, start=1):
-        existing_package = None if force_rebuild else _latest_ready_basemap_package(
-            id_zone=zone.id_zone,
-            style=style,
-            package_format=target_format,
-        )
-        if existing_package is not None:
-            reused_count += 1
-            continue
-
-        try:
-            package_version = f'{timestamp_prefix}-{index}'
-            if pipeline_mode == 'pmtiles':
-                _generate_zone_package_from_pmtiles(
-                    zone=zone,
-                    style=style,
-                    package_version=package_version,
-                    pmtiles_source_spec=pmtiles_source_spec,
-                    source_name=pipeline_source_name,
-                )
-            elif pipeline_mode == 'osm':
-                _generate_zone_package_from_osm(
-                    zone=zone,
-                    style=style,
-                    package_version=package_version,
-                    osm_source_path=osm_source_path,
-                    source_name=pipeline_source_name,
-                )
-            else:
-                stdout = StringIO()
-                stderr = StringIO()
-                call_command(
-                    'build_basemap_zone_package',
-                    zone_id=zone.zone_id,
-                    source=str(raster_source_path),
-                    package_version=package_version,
-                    style=style,
-                    source_name=pipeline_source_name,
-                    skip_zoom_validation=True,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
-            generated_count += 1
-        except Exception as exc:
-            failed_count += 1
-            errors.append({
-                'zone_id': zone.zone_id,
-                'zone_name': zone.nom,
-                'error': str(exc),
-            })
-
-    payload = _basemap_catalog_payload(
-        request,
-        city_slug=city_slug,
-        style=style,
-        active_only=active_only,
-        agent_id=agent_id,
+            'name': manifest['name'],
+            'attribution': manifest['attribution'],
+            'format': manifest['format'],
+            'version': manifest['version'],
+            'sha256': manifest['sha256'],
+            'size_bytes': manifest['size_bytes'],
+            'generated_at': manifest['mtime_iso'],
+            'download_url': download_url,
+        },
+        status=status.HTTP_200_OK,
     )
-    success = failed_count == 0 and (generated_count > 0 or reused_count > 0)
-    if generated_count > 0 and failed_count == 0:
-        message = (
-            f'{generated_count} zone(s) prÃ©parÃ©e(s) et {reused_count} dÃ©jÃ  disponible(s).'
-            if reused_count > 0
-            else f'{generated_count} zone(s) prÃ©parÃ©e(s) avec succÃ¨s.'
-        )
-    elif reused_count > 0 and failed_count == 0:
-        message = (
-            'Les cartes de toutes les communes sont dÃ©jÃ  disponibles.'
-            if reused_count == len(zones)
-            else f'{reused_count} zone(s) dÃ©jÃ  disponible(s).'
-        )
-    elif generated_count > 0 or reused_count > 0:
-        message = (
-            f'{generated_count} zone(s) prÃ©parÃ©e(s), '
-            f'{reused_count} dÃ©jÃ  disponible(s), '
-            f'{failed_count} en Ã©chec.'
-        )
-    else:
-        message = "Aucune carte n'a pu Ãªtre prÃ©parÃ©e pour les communes actives."
-    if pipeline_mode == 'pmtiles':
-        message = f'{message} Source: PMTiles serveur.'
-    elif pipeline_mode == 'osm':
-        message = f'{message} Source: extract OSM serveur.'
-    elif pipeline_mode == 'raster':
-        message = f'{message} Source: raster serveur.'
 
-    payload.update({
-        'success': success,
-        'message': message,
-        'pipeline_mode': pipeline_mode,
-        'generated_count': generated_count,
-        'reused_count': reused_count,
-        'failed_count': failed_count,
-        'errors': errors,
-    })
-    return Response(payload, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def regional_basemap_download_view(request):
+    """Stream du fichier .pmtiles regional, avec support Range pour reprise."""
+    manifest = _regional_basemap_manifest()
+    if manifest is None:
+        return Response(
+            {
+                'success': False,
+                'message': "Aucun fichier basemap regional configure.",
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    pmtiles_path = manifest['path']
+    file_size = manifest['size_bytes']
+    range_header = request.META.get('HTTP_RANGE', '').strip()
+
+    start = 0
+    end = file_size - 1
+    status_code = 200
+    headers_extra = {}
+
+    if range_header.startswith('bytes='):
+        spec = range_header[len('bytes='):].split(',')[0].strip()
+        if '-' in spec:
+            raw_start, raw_end = spec.split('-', 1)
+            try:
+                if raw_start:
+                    start = int(raw_start)
+                if raw_end:
+                    end = int(raw_end)
+            except ValueError:
+                start = 0
+                end = file_size - 1
+        if start < 0 or start >= file_size:
+            response = HttpResponse(status=416)
+            response['Content-Range'] = f'bytes */{file_size}'
+            return response
+        if end >= file_size:
+            end = file_size - 1
+        status_code = 206
+        headers_extra['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+
+    length = end - start + 1
+
+    def file_iterator(chunk_size=1024 * 256):
+        with pmtiles_path.open('rb') as handle:
+            handle.seek(start)
+            remaining = length
+            while remaining > 0:
+                data = handle.read(min(chunk_size, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    response = StreamingHttpResponse(
+        file_iterator(),
+        status=status_code,
+        content_type='application/octet-stream',
+    )
+    response['Content-Length'] = str(length)
+    response['Accept-Ranges'] = 'bytes'
+    response['ETag'] = f'"{manifest["sha256"]}"'
+    response['Content-Disposition'] = (
+        f'attachment; filename="{pmtiles_path.name}"'
+    )
+    for key, value in headers_extra.items():
+        response[key] = value
+    return response
 
 
 @api_view(['POST'])
@@ -2954,22 +2529,40 @@ def photo_upload_view(request):
     table_name = data['table_name'].strip().lower()
     uuid_objet = data['uuid_objet'].strip()
     photo_slot = data['photo_slot']
+    endpoint_hint = (data.get('endpoint') or '').strip().strip('/').lower()
     sync_session_uuid = (data.get('sync_session_uuid') or '').strip()
     uploaded_file = data['file']
 
-    model = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, table_name))
+    model, resolved_table = _resolve_srm_photo_model(
+        schema_name=schema_name,
+        table_name=table_name,
+        endpoint_hint=endpoint_hint,
+    )
     if model is None:
         return Response(
             {'error': f'Objet SRM inconnu: {schema_name}.{table_name}'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    table_name = resolved_table
 
-    instance = model.objects.filter(uuid=uuid_objet).first()
-    if instance is None:
-        return Response(
-            {'error': f'Objet introuvable pour uuid={uuid_objet}'},
-            status=status.HTTP_404_NOT_FOUND,
+    # Verifier l'existence via raw SQL (et non model.objects.filter) car
+    # certains modeles Django ont des colonnes desynchronisees avec la table
+    # Postgres reelle (ex: EpHydrant declare 'ref_rue' alors que la table
+    # n'a que 'ep_ref_rue'). Un SELECT minimal evite ces mismatches.
+    qualified = pg_sql.SQL('{}.{}').format(
+        pg_sql.Identifier(schema_name),
+        pg_sql.Identifier(table_name),
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            pg_sql.SQL('SELECT 1 FROM {} WHERE uuid = %s LIMIT 1').format(qualified),
+            [uuid_objet],
         )
+        if cursor.fetchone() is None:
+            return Response(
+                {'error': f'Objet introuvable pour uuid={uuid_objet}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
     safe_uuid = re.sub(r'[^A-Za-z0-9._-]+', '_', uuid_objet)
     extension = Path(uploaded_file.name).suffix.lower()
@@ -3508,16 +3101,23 @@ class ObjetPhotoViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SrmFieldOptionViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = SrmFieldOption.objects.all()
-    serializer_class = SrmFieldOptionSerializer
+    """Field options exposees au mobile, lues depuis public.liste_choix.
+
+    Source de verite : `public.liste_choix` (gere conjointement avec
+    public.attribut_config_mobile). Le format de reponse reste compatible
+    avec l'ancienne implementation basee sur srm_field_option, pour ne pas
+    casser le mobile (ApiService.fetchSrmFieldOptions).
+    """
+    queryset = ListeChoix.objects.all()
+    serializer_class = ListeChoixAsFieldOptionSerializer
 
     def get_queryset(self):
-        qs = SrmFieldOption.objects.all().order_by(
-            'table_schema',
-            'table_name',
-            'field_name',
-            'display_order',
-            'code_value',
+        qs = ListeChoix.objects.all().order_by(
+            'nom_metier',
+            'nom_table',
+            'nom_champ',
+            'liste_choix_ordre',
+            'liste_choix_valeur',
         )
 
         table_schema = (self.request.query_params.get('table_schema') or '').strip()
@@ -3526,56 +3126,105 @@ class SrmFieldOptionViewSet(viewsets.ReadOnlyModelViewSet):
         active_only = self.request.query_params.get('active_only', 'true').lower()
 
         if table_schema:
-            qs = qs.filter(table_schema=table_schema)
+            qs = qs.filter(nom_metier__iexact=table_schema)
         if table_name:
-            qs = qs.filter(table_name=table_name)
+            qs = qs.filter(nom_table__iexact=table_name)
         if field_name:
-            qs = qs.filter(field_name=field_name)
+            qs = qs.filter(nom_champ__iexact=field_name)
         if active_only != 'false':
-            qs = qs.filter(actif=True)
+            # liste_choix_actif peut etre NULL : on traite NULL comme actif.
+            from django.db.models import Q
+            qs = qs.filter(Q(liste_choix_actif=True) | Q(liste_choix_actif__isnull=True))
 
         return qs
 
 
-class BasemapPackageViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = BasemapPackage.objects.all()
-    serializer_class = BasemapPackageSerializer
+@api_view(['GET'])
+def attribut_config_mobile_view(request):
+    """Expose public.attribut_config_mobile as the mobile form structure source.
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context.update(_package_serializer_context(self.request))
-        return context
+    This endpoint is intentionally separate from /api/srm-field-options/:
+    attribut_config_mobile drives order/visibility/labels/types, while
+    srm-field-options remains the choice-list compatibility endpoint.
+    """
+    filters = []
+    params = []
 
-    def get_queryset(self):
-        qs = BasemapPackage.objects.all().order_by(
-            'city_slug',
-            'id_zone',
-            'style',
-            'version',
-        )
+    nom_metier = (
+        request.query_params.get('nom_metier')
+        or request.query_params.get('table_schema')
+    )
+    nom_table = (
+        request.query_params.get('nom_table')
+        or request.query_params.get('table_name')
+    )
+    nom_champ = (
+        request.query_params.get('nom_champ')
+        or request.query_params.get('field_name')
+    )
+    visible_only = (
+        request.query_params.get('visible_only')
+        or request.query_params.get('active_only')
+        or ''
+    ).strip().lower() in {'1', 'true', 'yes', 'oui'}
 
-        city_slug = (self.request.query_params.get('city_slug') or '').strip()
-        zone_id = (self.request.query_params.get('zone_id') or '').strip()
-        id_zone = _parse_positive_int_value(self.request.query_params.get('id_zone'))
-        style = (self.request.query_params.get('style') or '').strip()
-        package_format = (self.request.query_params.get('format') or '').strip()
+    if nom_metier:
+        filters.append('nom_metier ILIKE %s')
+        params.append(nom_metier.strip())
+    if nom_table:
+        filters.append('nom_table ILIKE %s')
+        params.append(nom_table.strip())
+    if nom_champ:
+        filters.append('nom_champ ILIKE %s')
+        params.append(nom_champ.strip())
+    if visible_only:
+        filters.append('COALESCE(visible, false) = true')
 
-        if city_slug:
-            qs = qs.filter(city_slug=city_slug)
-        if id_zone is not None:
-            qs = qs.filter(id_zone=id_zone)
-        if zone_id:
-            qs = qs.filter(id_zone=_id_zone_from_catalog_zone_id(zone_id))
-        if style:
-            qs = qs.filter(style=style)
-        if package_format:
-            qs = qs.filter(format=package_format)
-
-        active_only = self.request.query_params.get('active_only', 'true').lower()
-        if active_only != 'false':
-            qs = qs.filter(actif=True)
-
-        return qs
+    where_sql = f"WHERE {' AND '.join(filters)}" if filters else ''
+    query = f"""
+        SELECT
+            id,
+            nom_metier,
+            nom_table,
+            nom_champ,
+            type_champ,
+            COALESCE(primary_key, false) AS primary_key,
+            COALESCE(foreign_key, false) AS foreign_key,
+            ordre,
+            titre_app,
+            COALESCE(visible, false) AS visible,
+            contraintes,
+            COALESCE(nullable, true) AS nullable,
+            valeur_par_defaut,
+            valeur_min,
+            valeur_max,
+            reference_fk
+        FROM public.attribut_config_mobile
+        {where_sql}
+        ORDER BY nom_metier, nom_table, COALESCE(ordre, 999999), id
+    """
+    columns = [
+        'id',
+        'nom_metier',
+        'nom_table',
+        'nom_champ',
+        'type_champ',
+        'primary_key',
+        'foreign_key',
+        'ordre',
+        'titre_app',
+        'visible',
+        'contraintes',
+        'nullable',
+        'valeur_par_defaut',
+        'valeur_min',
+        'valeur_max',
+        'reference_fk',
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    return Response(rows)
 
 
 class MetricAgentJourViewSet(MetricFilterMixin, viewsets.ReadOnlyModelViewSet):
@@ -3918,7 +3567,7 @@ class EpRegardMiroirViewSet(SrmEntityFilterMixin, viewsets.ReadOnlyModelViewSet)
 
     def _table_exists(self):
         with connection.cursor() as cursor:
-            cursor.execute("SELECT to_regclass(%s)", ['ep.regard_miroir'])
+            cursor.execute("SELECT to_regclass(%s)", ['ep.ep_regard'])
             row = cursor.fetchone()
         return bool(row and row[0])
 
@@ -3936,9 +3585,8 @@ class EpRegardMiroirViewSet(SrmEntityFilterMixin, viewsets.ReadOnlyModelViewSet)
                     'previous': None,
                     'results': [],
                     'warning': (
-                        'La table ep.regard_miroir n existe pas encore. '
-                        'Executer le script SQL 2026-04-23_ep_regard_miroir.sql '
-                        'pour activer les carres miroir des regards.'
+                        'La table polygonale ep.ep_regard n existe pas encore. '
+                        'Elle doit etre generee depuis ep.ep_regard_point.'
                     ),
                 }
             )

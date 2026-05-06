@@ -95,7 +95,7 @@ extension _HomePageAppActions on _HomePageState {
               ? 'Aucune donnée disponible pour votre compte'
               : result.interrupted
                   ? (result.interruptionMessage ??
-                      'Connexion interrompue. Telechargement arrete.')
+                      'Connexion interrompue. Téléchargement arrêté.')
                   : fullFailure
                       ? networkFailure
                           ? 'Serveur SRM injoignable. Vérifiez la connexion.'
@@ -160,7 +160,7 @@ extension _HomePageAppActions on _HomePageState {
         value.contains('connection refused') ||
         value.contains('connection reset') ||
         value.contains('network is unreachable')) {
-      return 'Connexion interrompue. Le telechargement a ete arrete. Verifiez Internet puis relancez pour reprendre.';
+      return 'Connexion interrompue. Vérifiez Internet puis relancez pour reprendre.';
     }
 
     var message = error.toString().trim();
@@ -170,9 +170,9 @@ extension _HomePageAppActions on _HomePageState {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (message.isEmpty || message.toLowerCase().contains('flutter')) {
-      return 'Telechargement impossible. Verifiez la connexion puis reessayez.';
+      return 'Téléchargement impossible. Vérifiez la connexion puis réessayez.';
     }
-    return 'Telechargement impossible: $message';
+    return 'Téléchargement impossible : $message';
   }
 
   void handleMenuPress() {
