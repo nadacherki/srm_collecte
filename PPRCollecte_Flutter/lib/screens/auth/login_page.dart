@@ -32,11 +32,22 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePwd = true;
   bool _isLoading = false;
 
-  Future<void> _refreshBasemapCatalogSilently() async {
+  Future<String?> _refreshBasemapCatalogSilently() async {
     try {
-      await OfflineBasemapService().ensureRegionalBasemapDownloaded();
+      final result =
+          await OfflineBasemapService().ensureRegionalBasemapDownloaded();
+      if (!result.success) {
+        final reason = result.errorMessage ?? result.userMessage ?? '';
+        debugPrint('[BASEMAP-REGIONAL] Echec telechargement : $reason');
+        return reason.isNotEmpty
+            ? 'Carte hors ligne non téléchargée : $reason'
+            : 'Carte hors ligne non téléchargée.';
+      }
+      return null;
     } catch (e) {
-      debugPrint('[BASEMAP-REGIONAL] Telechargement ignore au login: $e');
+      final reason = e.toString();
+      debugPrint('[BASEMAP-REGIONAL] Exception telechargement : $reason');
+      return 'Carte hors ligne indisponible : $reason';
     }
   }
 
@@ -202,7 +213,7 @@ class _LoginPageState extends State<LoginPage> {
         },
       );
 
-      await _refreshBasemapCatalogSilently();
+      final basemapError = await _refreshBasemapCatalogSilently();
       await _refreshAttributConfigMobileSilently();
       await _refreshSrmFieldOptionsSilently();
       await _refreshCommunesSilently();
@@ -219,14 +230,19 @@ class _LoginPageState extends State<LoginPage> {
           activeBasemap?['local_path']?.toString().trim();
       final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
       if (!mounted) return;
+      // Si la carte n'a pas pu etre telechargee, on remonte la cause exacte
+      // (au lieu d'avaler silencieusement). Permet de diagnostiquer les
+      // problemes reseau / endpoint indisponible / fichier serveur manquant.
+      final basemapNotice = basemapError ??
+          ((offlineBasemapPath == null || offlineBasemapPath.isEmpty)
+              ? "Aucune carte offline active n'a encore été téléchargée."
+              : null);
       _navigateToHome(
         fullName,
         isOnline: true,
         offlineBasemapPath: offlineBasemapPath,
         offlineBasemapFormat: offlineBasemapFormat,
-        basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
-            ? "Aucune carte offline active n'a encore été téléchargée."
-            : null,
+        basemapNotice: basemapNotice,
       );
     } on TimeoutException catch (_) {
       await _loginOffline(login, password);

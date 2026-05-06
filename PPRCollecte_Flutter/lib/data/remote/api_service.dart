@@ -173,38 +173,52 @@ class ApiService {
     String? fieldName,
     bool activeOnly = true,
   }) async {
-    final queryParameters = <String, String>{
-      'active_only': activeOnly ? 'true' : 'false',
-    };
-    if (tableSchema != null && tableSchema.isNotEmpty) {
-      queryParameters['table_schema'] = tableSchema;
-    }
-    if (tableName != null && tableName.isNotEmpty) {
-      queryParameters['table_name'] = tableName;
-    }
-    if (fieldName != null && fieldName.isNotEmpty) {
-      queryParameters['field_name'] = fieldName;
+    final items = <Map<String, dynamic>>[];
+    var page = 1;
+    final visitedPages = <int>{};
+
+    while (visitedPages.add(page)) {
+      final queryParameters = <String, String>{
+        'active_only': activeOnly ? 'true' : 'false',
+        if (page > 1) 'page': page.toString(),
+      };
+      if (tableSchema != null && tableSchema.isNotEmpty) {
+        queryParameters['table_schema'] = tableSchema;
+      }
+      if (tableName != null && tableName.isNotEmpty) {
+        queryParameters['table_name'] = tableName;
+      }
+      if (fieldName != null && fieldName.isNotEmpty) {
+        queryParameters['field_name'] = fieldName;
+      }
+
+      final url = Uri.parse('$baseUrl/api/srm-field-options/').replace(
+        queryParameters: queryParameters,
+      );
+      final response = await http
+          .get(url, headers: _headers())
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        throw Exception('Erreur GET srm-field-options: ${response.statusCode}');
+      }
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      final pageResult = _parsePagedDataResponse(data, currentPage: page);
+      items.addAll(
+        pageResult.items
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item)),
+      );
+
+      final nextPage = pageResult.nextPage;
+      if (nextPage == null || nextPage <= 0) {
+        break;
+      }
+      page = nextPage;
     }
 
-    final url = Uri.parse('$baseUrl/api/srm-field-options/').replace(
-      queryParameters: queryParameters,
-    );
-    final response = await http
-        .get(url, headers: _headers())
-        .timeout(const Duration(seconds: 30));
-
-    if (response.statusCode != 200) {
-      throw Exception('Erreur GET srm-field-options: ${response.statusCode}');
-    }
-
-    final data = jsonDecode(utf8.decode(response.bodyBytes));
-    final List items =
-        data is List ? data : (data['results'] ?? data['features'] ?? const []);
-
-    return items
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
+    return items;
   }
 
   static Future<List<Map<String, dynamic>>> fetchAttributConfigMobile({
