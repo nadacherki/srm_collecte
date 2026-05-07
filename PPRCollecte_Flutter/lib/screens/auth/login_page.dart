@@ -222,16 +222,38 @@ class _LoginPageState extends State<LoginPage> {
         },
       );
 
-      final basemapError = await _refreshBasemapCatalogSilently();
-      await _refreshAttributConfigMobileSilently();
-      await _refreshFormulaireConfigMobileSilently();
-      await _refreshSrmFieldOptionsSilently();
-      await _refreshCommunesSilently();
+      // Optimisation login : on parallelise tous les refreshes au lieu de
+      // les enchainer en serie (avant ~10-15s d'attente). Tout part en
+      // background -> l'agent atterrit sur la HomePage en quelques
+      // centaines de ms.
+      //
+      // Le basemap est un cas particulier : si deja en cache local et
+      // sha256 OK, ensureRegionalBasemapDownloaded() retourne en ~50ms;
+      // sinon il peut prendre 10-15s pour telecharger 19 Mo. On lui
+      // accorde une courte fenetre (3s) pour le cas "deja a jour", puis
+      // on bascule en background sans bloquer l'UI.
+      final basemapFuture = _refreshBasemapCatalogSilently();
+      unawaited(_refreshAttributConfigMobileSilently());
+      unawaited(_refreshFormulaireConfigMobileSilently());
+      unawaited(_refreshSrmFieldOptionsSilently());
+      unawaited(_refreshCommunesSilently());
       unawaited(
         PublicMetricsCacheService()
             .prefetchForCurrentSession()
             .catchError((_) {}),
       );
+
+      String? basemapError;
+      try {
+        basemapError =
+            await basemapFuture.timeout(const Duration(seconds: 3));
+      } on TimeoutException {
+        // Le download continue en arriere-plan : le mobile affichera la
+        // carte des qu'elle est prete via _hydrateOfflineBasemapState.
+        basemapError = null;
+      } catch (_) {
+        basemapError = null;
+      }
 
       final fullName = userData['nom_complet'] ?? 'Agent SRM';
       if (!mounted) return;
