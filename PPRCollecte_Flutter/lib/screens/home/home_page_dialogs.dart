@@ -498,61 +498,83 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: hostContext,
       builder: (dialogContext) {
+        final media = MediaQuery.of(dialogContext);
+        final availableHeight = media.size.height -
+            media.viewInsets.vertical -
+            media.padding.vertical;
+        final maxContentHeight =
+            (availableHeight * 0.48).clamp(170.0, 320.0).toDouble();
+
         return AlertDialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           title: const Text('Position GPS mock'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: latitudeController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Latitude',
-                  hintText: 'Ex: 33.573110',
-                ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxContentHeight),
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: latitudeController,
+                    scrollPadding: const EdgeInsets.only(bottom: 96),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Latitude',
+                      hintText: 'Ex: 33.573110',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: longitudeController,
+                    scrollPadding: const EdgeInsets.only(bottom: 96),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Longitude',
+                      hintText: 'Ex: -7.589843',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: altitudeController,
+                    scrollPadding: const EdgeInsets.only(bottom: 120),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Z / altitude (m)',
+                      hintText: 'Ex: 500.000',
+                      isDense: true,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: longitudeController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Longitude',
-                  hintText: 'Ex: -7.589843',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: altitudeController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Z / altitude (m)',
-                  hintText: 'Ex: 500.000',
-                ),
-              ),
-            ],
+            ),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
           actions: [
             TextButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop({
                 'action': 'read_gnss',
               }),
-              icon: const Icon(Icons.gps_fixed),
+              icon: const Icon(Icons.gps_fixed, size: 18),
               label: const Text('Lire GPS/GNSS'),
             ),
             TextButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop({
                 'action': 'nmea_bridge',
               }),
-              icon: const Icon(Icons.settings_input_antenna),
+              icon: const Icon(Icons.settings_input_antenna, size: 18),
               label: const Text('Pont NMEA'),
             ),
             if (state.homeController.isMockLocationEnabled)
@@ -560,7 +582,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
                 onPressed: () => Navigator.of(dialogContext).pop({
                   'action': 'clear',
                 }),
-                child: const Text('Revenir au GPS réel'),
+                child: const Text('Revenir au GPS reel'),
               ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -633,8 +655,8 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
           messenger?.showSnackBar(
             SnackBar(
               content: const Text(
-                'Pont NMEA actif mais aucun fix GNSS externe reçu. '
-                'Aucune position téléphone utilisée.',
+                'Pont NMEA actif mais aucun fix GNSS externe recu. '
+                'Aucune position telephone utilisee.',
               ),
               backgroundColor: Colors.orange.shade800,
             ),
@@ -642,7 +664,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
           return;
         }
       } catch (_) {
-        // Si aucun pont NMEA n'est actif, on conserve la lecture téléphone.
+        // Fallback to phone GNSS when the NMEA bridge is unavailable.
       }
 
       final enriched = await state.homeController.refreshFromDeviceGps();
@@ -695,7 +717,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         }
         messenger?.showSnackBar(
           const SnackBar(
-            content: Text('Mock GPS désactivé'),
+            content: Text('Mock GPS desactive'),
             backgroundColor: Colors.blueGrey,
           ),
         );
