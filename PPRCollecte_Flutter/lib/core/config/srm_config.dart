@@ -139,14 +139,19 @@ class SrmConfig {
             "ref_rue",
             "ep_entreprise",
             "ep_ref_marche",
+            "conform",
             "ep_statut",
             "observation",
             "ep_coor_x",
             "ep_coor_y",
             "ep_coor_z",
-            "conformite_plan"
+            "ep_conf_plan"
           ],
-          "requiredFields": ["ep_type", "ep_etat", "conformite_plan"],
+          "requiredFields": ["ep_type", "ep_etat"],
+          "fieldLabels": {
+            "conform": "Conformité",
+            "ep_conf_plan": "Conformité des plans",
+          },
         },
         "Borne Fontaine": {
           "tableName": "borne_fontaine",

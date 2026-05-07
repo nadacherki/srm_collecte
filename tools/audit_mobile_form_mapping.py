@@ -56,6 +56,85 @@ def _parse_endpoint_map(text: str) -> set[str]:
     }
 
 
+def _decode_dart_string(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    quote = value[0]
+    if quote not in {"'", '"'}:
+        return value
+    end = value.rfind(quote)
+    inner = value[1:end] if end > 0 else value[1:]
+    if "\\" not in inner:
+        return inner
+    return inner.encode("utf-8").decode("unicode_escape")
+
+
+def _parse_fallback_formulaires(text: str) -> dict[tuple[str, str], dict[str, object]]:
+    result: dict[tuple[str, str], dict[str, object]] = {}
+    for block in re.findall(r"FormulaireConfigMobileItem\((.*?)\),", text, re.S):
+        values: dict[str, str] = {}
+        for name in ("nomMetier", "nomTable", "titreApp", "ordre", "visible"):
+            match = re.search(
+                rf"{name}:\s*(.*?)(?:,\n|,\r\n|\n\s*\))",
+                block,
+                re.S,
+            )
+            if match:
+                values[name] = match.group(1).strip()
+        if "nomMetier" not in values or "nomTable" not in values:
+            continue
+        nom_metier = _decode_dart_string(values["nomMetier"])
+        nom_table = _decode_dart_string(values["nomTable"])
+        result[(nom_metier, nom_table)] = {
+            "titre_app": _decode_dart_string(values.get("titreApp", "")),
+            "ordre": int(values["ordre"]) if values.get("ordre", "").isdigit() else None,
+            "visible": values.get("visible", "").lower() == "true",
+        }
+    return result
+
+
+def _matching_brace_end(text: str, start: int) -> int:
+    depth = 0
+    in_string: str | None = None
+    escaped = False
+    for pos in range(start, len(text)):
+        char = text[pos]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            continue
+        if char in {"'", '"'}:
+            in_string = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return pos
+    return -1
+
+
+def _parse_srm_config_fields(text: str) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    for match in re.finditer(r'"tableName"\s*:\s*"([^"]+)"', text):
+        table_name = match.group(1)
+        start = text.rfind("{", 0, match.start())
+        end = _matching_brace_end(text, start)
+        if start < 0 or end < 0:
+            continue
+        block = text[start:end]
+        fields_match = re.search(r'"fields"\s*:\s*\[(.*?)\]', block, re.S)
+        if not fields_match:
+            continue
+        result[table_name] = re.findall(r'"([^"]+)"', fields_match.group(1))
+    return result
+
+
 def _mobile_table_for_config_table(
     nom_metier: str,
     nom_table: str,
@@ -80,12 +159,18 @@ def main() -> int:
     mapping_service = _read(
         FLUTTER_ROOT / "lib" / "services" / "attribut_config_mobile_service.dart"
     )
+    formulaire_service = _read(
+        FLUTTER_ROOT / "lib" / "services" / "formulaire_config_mobile_service.dart"
+    )
     sync_service = _read(FLUTTER_ROOT / "lib" / "services" / "sync_service.dart")
 
     srm_config_tables = set(re.findall(r'"tableName"\s*:\s*"([^"]+)"', srm_config))
     ep_mobile_map = _parse_dart_map(mapping_service, "_epMobileTableByConfigTable")
     asst_mobile_map = _parse_dart_map(mapping_service, "_asstMobileTableByConfigTable")
     sync_endpoint_keys = _parse_endpoint_map(sync_service)
+    fallback_formulaires = _parse_fallback_formulaires(formulaire_service)
+    srm_config_fields = _parse_srm_config_fields(srm_config)
+    has_error = False
 
     form_counts = _fetchall(
         """
@@ -200,6 +285,79 @@ def main() -> int:
     for row in form_counts:
         print(f"  {row[0]}: total={row[1]} visible={row[2]} hidden={row[3]}")
 
+    db_formulaires = {
+        (nom_metier, nom_table): {
+            "titre_app": titre,
+            "ordre": ordre,
+            "visible": visible,
+        }
+        for nom_metier, nom_table, titre, ordre, visible, *_rest in form_rows
+    }
+    print("\nFORMULAIRE_FALLBACK_CHECK")
+    fallback_keys = {
+        key for key in fallback_formulaires if key[0] in {"ep", "asst"}
+    }
+    missing = sorted(set(db_formulaires) - fallback_keys)
+    extra = sorted(fallback_keys - set(db_formulaires))
+    for key in missing:
+        has_error = True
+        print(f"  missing fallback row: {key[0]}.{key[1]}")
+    for key in extra:
+        has_error = True
+        print(f"  extra fallback row: {key[0]}.{key[1]}")
+    for key in sorted(set(db_formulaires) & fallback_keys):
+        db_row = db_formulaires[key]
+        fallback_row = fallback_formulaires[key]
+        diffs = [
+            f"{field}=db:{db_row[field]!r}/fallback:{fallback_row[field]!r}"
+            for field in ("titre_app", "ordre", "visible")
+            if db_row[field] != fallback_row[field]
+        ]
+        if diffs:
+            has_error = True
+            print(f"  mismatch {key[0]}.{key[1]} | " + "; ".join(diffs))
+    if not missing and not extra and not has_error:
+        print("  formulaire_config_mobile fallback matches DB rows.")
+
+    print("\nSRM_CONFIG_FALLBACK_REGRESSIONS")
+    regression_errors: list[str] = []
+    exact_fields = {
+        "borne_onep": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
+        "bouche_a_cles": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
+        "autre_objet": ["ep_coor_x", "ep_coor_y", "ep_coor_z", "observation"],
+        "conduite_terrain": ["ep_diam", "ep_mat"],
+    }
+    for table_name, expected_fields in exact_fields.items():
+        actual_fields = srm_config_fields.get(table_name)
+        if actual_fields != expected_fields:
+            regression_errors.append(
+                f"{table_name} fields=db:{expected_fields!r}/fallback:{actual_fields!r}"
+            )
+    hydrant_fields = set(srm_config_fields.get("hydrant", []))
+    hidden_hydrant_conform = {
+        "ep_conform",
+        "conformite_plan",
+    }
+    leaked_fields = sorted(hydrant_fields & hidden_hydrant_conform)
+    if leaked_fields:
+        regression_errors.append(
+            "hydrant fallback leaks hidden conformity fields: "
+            + ", ".join(leaked_fields)
+        )
+    required_hydrant_fields = {"conform", "ep_conf_plan"}
+    missing_hydrant_fields = sorted(required_hydrant_fields - hydrant_fields)
+    if missing_hydrant_fields:
+        regression_errors.append(
+            "hydrant fallback misses visible conformity fields: "
+            + ", ".join(missing_hydrant_fields)
+        )
+    if regression_errors:
+        has_error = True
+        for error in regression_errors:
+            print(f"  {error}")
+    else:
+        print("  targeted SrmConfig fallbacks match current mobile rules.")
+
     print("\nLISTE_CHOIX_COUNTS")
     for row in choice_counts:
         print(f"  {row[0]}: total={row[1]} active={row[2]} tables={row[3]} fields={row[4]}")
@@ -248,7 +406,7 @@ def main() -> int:
     labels = {alias for _value, alias, _order in hydrant_vanne}
     if labels != {"Oui", "Non"} or len(hydrant_vanne) != 2:
         print("ERROR: ep.ep_hydrant.vanne must expose exactly Oui and Non.")
-        return 1
+        has_error = True
 
     print("\nCROSS_METIER_COORD_FIELDS")
     if not cross_metier_hidden_coords:
@@ -257,7 +415,7 @@ def main() -> int:
         visibility = "visible" if visible else "hidden"
         print(f"  {nom_metier}.{nom_table}.{nom_champ} | {visibility} | ordre={ordre}")
 
-    return 0
+    return 1 if has_error else 0
 
 
 if __name__ == "__main__":

@@ -922,7 +922,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'ref_rue': 'TEXT',
     'date_leve': 'TEXT',
     'conformite_plan': 'TEXT',
-    'updated_at': 'TEXT',
   },
   'borne_fontaine': {
     'ep_type_bf': 'TEXT',
@@ -968,7 +967,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_etat_s': 'TEXT',
-    'updated_at': 'TEXT',
     'diamcond': 'TEXT',
     'existence_compteur_global': 'TEXT',
     'existence_compteurs_prives': 'TEXT',
@@ -991,7 +989,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'observation': 'TEXT',
     'date_leve': 'TEXT',
     'conformite_plan': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'bouche_a_cles': {
@@ -1000,7 +997,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_compteur_abonne': 'INTEGER',
     'id_conduite': 'INTEGER',
     'conformite_plan': 'TEXT',
-    'updated_at': 'TEXT',
     'id_province': 'INTEGER',
     'id_zone': 'INTEGER',
     'id_user_creat': 'INTEGER',
@@ -1080,7 +1076,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'centre_tampon': {
@@ -1095,7 +1090,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'source': 'TEXT',
     'ep_anomalie': 'TEXT',
-    'updated_at': 'TEXT',
     'date_leve': 'TEXT',
     'id_zone': 'INTEGER',
     'id_mission': 'INTEGER',
@@ -1127,7 +1121,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_ref_rue': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'compteur_reseau': {
@@ -1163,7 +1156,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'conduite_terrain': {
@@ -1192,7 +1184,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'ep_detail': 'TEXT',
     'ep_lien': 'TEXT',
     'conformite_plan': 'TEXT',
-    'updated_at': 'TEXT',
     'id_province': 'INTEGER',
     'id_user_creat': 'INTEGER',
     'id_user_modif': 'INTEGER',
@@ -1240,7 +1231,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'ep_regard_point': {
@@ -1319,7 +1309,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'hydrant': {
@@ -1368,7 +1357,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_etat_s': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'noeud': {
@@ -1402,7 +1390,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_anomalie': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'obturateur': {
@@ -1431,7 +1418,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'pompe': {
@@ -1469,7 +1455,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'puit': {
@@ -1544,7 +1529,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_ref_rue': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'reservoir': {
@@ -1597,7 +1581,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'station_de_pompage': {
@@ -1644,7 +1627,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'traverse': {
@@ -1693,7 +1675,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'ep_long_c': 'REAL',
     'id_mission': 'INTEGER',
   },
@@ -1730,7 +1711,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_etat_s': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'vanne_de_vidange': {
@@ -1768,7 +1748,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'id_zone': 'INTEGER',
     'source': 'TEXT',
     'ep_etat_s': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
   'ventouse': {
@@ -1803,7 +1782,6 @@ const Map<String, Map<String, String>> srmServerColumnsByTable = {
     'date_validation': 'TEXT',
     'id_zone': 'INTEGER',
     'source': 'TEXT',
-    'updated_at': 'TEXT',
     'id_mission': 'INTEGER',
   },
 };

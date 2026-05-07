@@ -30,8 +30,6 @@ from .metrics_models import (
 
 
 class SrmTrackedModel(models.Model):
-    updated_at = models.DateTimeField(null=True, blank=True)
-
     class Meta:
         abstract = True
 
@@ -374,7 +372,6 @@ class EpStatistiqueConduite(models.Model):
     geom = models.MultiLineStringField(srid=26191, dim=3, null=True, blank=True)
     longueur_conduite_m = models.FloatField(default=0.0)
     created_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         managed = False
@@ -394,7 +391,6 @@ class EpStatistiqueConduiteSegment(models.Model):
     geom = models.LineStringField(srid=26191, dim=3)
     longueur_segment_m = models.FloatField(default=0.0)
     created_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         managed = False

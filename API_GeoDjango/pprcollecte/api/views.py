@@ -948,7 +948,6 @@ def _ensure_conduite_stat_tables(config):
                 geom geometry(MultiLineStringZ,26191),
                 longueur_conduite_m DOUBLE PRECISION NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 CONSTRAINT {stat_table}_agent_jour_key UNIQUE (id_agent, jour),
                 CONSTRAINT {stat_table}_longueur_chk CHECK (longueur_conduite_m >= 0)
             )
@@ -972,7 +971,6 @@ def _ensure_conduite_stat_tables(config):
                 geom geometry(LineStringZ,26191) NOT NULL,
                 longueur_segment_m DOUBLE PRECISION NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 CONSTRAINT {segment_table}_no_loop_chk CHECK (fid_regard_a <> fid_regard_b),
                 CONSTRAINT {segment_table}_longueur_chk CHECK (longueur_segment_m >= 0),
                 CONSTRAINT {segment_table}_unique_pair_key UNIQUE (
@@ -1136,7 +1134,6 @@ def _insert_statistique_conduite_segments(
             segment['geom'].ewkt,
             0.0,
             now,
-            now,
         )
         for segment in unique_segments
     ]
@@ -1153,15 +1150,13 @@ def _insert_statistique_conduite_segments(
                 fid_regard_b,
                 geom,
                 longueur_segment_m,
-                created_at,
-                updated_at
+                created_at
             )
             VALUES (
                 %s,
                 %s,
                 %s,
                 ST_GeomFromEWKT(%s),
-                %s,
                 %s,
                 %s
             )
@@ -1171,18 +1166,16 @@ def _insert_statistique_conduite_segments(
         cursor.execute(
             f"""
             UPDATE {schema}.{segment_table}
-               SET longueur_segment_m = ST_Length(geom),
-                   updated_at = %s
+               SET longueur_segment_m = ST_Length(geom)
              WHERE id_statistique_conduite = %s
             """,
-            [now, id_statistique_conduite],
+            [id_statistique_conduite],
         )
         cursor.execute(
             f"""
             UPDATE {schema}.{stat_table}
                SET geom = sub.geom,
-                   longueur_conduite_m = sub.longueur,
-                   updated_at = %s
+                   longueur_conduite_m = sub.longueur
               FROM (
                     SELECT
                         ST_Multi(ST_Collect(geom))::geometry(MultiLineStringZ,26191) AS geom,
@@ -1192,7 +1185,7 @@ def _insert_statistique_conduite_segments(
               ) AS sub
              WHERE id_statistique_conduite = %s
             """,
-            [now, id_statistique_conduite, id_statistique_conduite],
+            [id_statistique_conduite, id_statistique_conduite],
         )
 
 
@@ -2778,7 +2771,6 @@ def statistique_conduite_validate_view(request):
             geom=None,
             longueur_conduite_m=0.0,
             created_at=now,
-            updated_at=now,
         )
         _insert_statistique_conduite_segments(
             conduite_config,
