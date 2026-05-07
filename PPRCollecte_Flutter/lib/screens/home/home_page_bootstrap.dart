@@ -6,6 +6,14 @@ Future<void> _checkPausedCollectionDraftImpl(_HomePageState state) async {
 
   final type = draft['collectionType'] as String? ?? '?';
   final nbPoints = (draft['points'] as List?)?.length ?? 0;
+
+  // Brouillon vide (0 point) -> rien a reprendre. On purge silencieusement
+  // pour ne pas reproposer le dialog au prochain demarrage.
+  if (nbPoints < 1) {
+    await state.homeController.collectionManager.clearPausedDraft();
+    return;
+  }
+
   final pausedAt = draft['pausedAt'] as String?;
   final timeAgo =
       pausedAt != null ? CollectionManager.pauseTimeAgo(pausedAt) : '?';

@@ -281,10 +281,9 @@ class OfflineBasemapService {
     }
 
     if (expectedSha256 != null && expectedSha256.isNotEmpty) {
-      final actualSha256 =
-          (await crypto.sha256.bind(tempFile.openRead()).first)
-              .toString()
-              .toLowerCase();
+      final actualSha256 = (await crypto.sha256.bind(tempFile.openRead()).first)
+          .toString()
+          .toLowerCase();
       if (actualSha256 != expectedSha256.toLowerCase()) {
         await tempFile.delete();
         throw Exception(

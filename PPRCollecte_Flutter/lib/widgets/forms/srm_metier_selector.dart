@@ -297,8 +297,7 @@ class _EntitySheetState extends State<_EntitySheet> {
                       controller: scroll,
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       itemCount: entities.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 6),
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
                       itemBuilder: (_, i) {
                         final entity = entities[i];
 

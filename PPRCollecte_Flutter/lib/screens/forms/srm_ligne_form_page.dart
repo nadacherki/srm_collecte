@@ -69,6 +69,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   List<String> _requiredFields = [];
   Map<String, AttributConfigMobileField> _attributConfigByField = {};
   Map<String, List<SrmFieldChoice>> _choicesByField = {};
+  // True tant que la config dynamique des champs n'est pas chargee :
+  // evite le flash entre les SrmConfig en dur et la config serveur.
+  bool _isLoadingFields = true;
   late final List<String> _typeOptions;
   late final String? _typeField;
   late final int _maxPhotos;
@@ -349,6 +352,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       });
     } catch (e) {
       debugPrint('[ATTRIBUT-CONFIG-MOBILE] Form fallback $_tableName: $e');
+    } finally {
+      // Quoi qu'il arrive : debloquer l'affichage du formulaire pour
+      // eviter le flash entre les SrmConfig en dur et la config serveur.
+      if (mounted && _isLoadingFields) {
+        setState(() {
+          _isLoadingFields = false;
+        });
+      }
     }
   }
 
@@ -1119,6 +1130,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     if (config == null) return fallback;
 
     final type = config.typeChamp.toLowerCase();
+    final configuredMaxLength = _configuredTextMaxLength(type);
     if (type.contains('int') || type.contains('serial')) {
       return SrmFieldRule(
         kind: SrmFieldKind.integer,
@@ -1168,14 +1180,32 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         readOnly: fallback.readOnly,
       );
     }
+    if (type.contains('char') || type.contains('text')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: configuredMaxLength ?? fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+        allowedValues: fallback.allowedValues,
+      );
+    }
     return SrmFieldRule(
       kind: fallback.kind,
-      maxLength: fallback.maxLength,
+      maxLength: configuredMaxLength ?? fallback.maxLength,
       required: config.isRequired,
       multiline: fallback.multiline,
       readOnly: fallback.readOnly,
       allowedValues: fallback.allowedValues,
     );
+  }
+
+  int? _configuredTextMaxLength(String type) {
+    final match = RegExp(
+      r'(?:character varying|varchar|character)\s*\((\d+)\)',
+    ).firstMatch(type);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
   }
 
   TextInputType _kbType(SrmFieldRule rule) {
@@ -1700,124 +1730,140 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
               ),
           ],
         ),
-        body: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: _metierColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _metierColor.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
+        body: _isLoadingFields
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.timeline, color: _metierColor),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    CircularProgressIndicator(color: _metierColor),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Préparation du formulaire...',
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              )
+            : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: _metierColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _metierColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          Text(
-                            '${widget.linePoints.length} points  •  $distKm km  •  '
-                            '${_distanceTotaleM.toStringAsFixed(1)} m',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _metierColor,
-                            ),
-                          ),
-                          Text(
-                            'Début: X ${_xDebut.toStringAsFixed(1)} / '
-                            'Y ${_yDebut.toStringAsFixed(1)}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                          Text(
-                            'Fin:    X ${_xFin.toStringAsFixed(1)} / '
-                            'Y ${_yFin.toStringAsFixed(1)}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'monospace',
+                          Icon(Icons.timeline, color: _metierColor),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${widget.linePoints.length} points  •  $distKm km  •  '
+                                  '${_distanceTotaleM.toStringAsFixed(1)} m',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _metierColor,
+                                  ),
+                                ),
+                                Text(
+                                  'Début: X ${_xDebut.toStringAsFixed(1)} / '
+                                  'Y ${_yDebut.toStringAsFixed(1)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                Text(
+                                  'Fin:    X ${_xFin.toStringAsFixed(1)} / '
+                                  'Y ${_yFin.toStringAsFixed(1)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
+                    ..._fields.map(_buildField),
+                    _buildAnomalieSection(),
+                    if (!_isLocked) _buildObjetIncompletSection(),
+                    _buildPhotoSection(),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Fermer'),
+                          ),
+                        ),
+                        if (_isLocked) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.lock_outline),
+                              label: const Text('Verrouillé'),
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: _isSaving ? null : _save,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isObjetIncomplet
+                                    ? Colors.orange
+                                    : _metierColor,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              icon: _isSaving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _isObjetIncomplet
+                                          ? Icons.warning_amber_rounded
+                                          : Icons.save,
+                                    ),
+                              label: Text(
+                                _isSaving
+                                    ? 'Enregistrement...'
+                                    : _isObjetIncomplet
+                                        ? 'Signaler incomplet'
+                                        : 'Enregistrer',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
-              ..._fields.map(_buildField),
-              _buildAnomalieSection(),
-              if (!_isLocked) _buildObjetIncompletSection(),
-              _buildPhotoSection(),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Fermer'),
-                    ),
-                  ),
-                  if (_isLocked) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.lock_outline),
-                        label: const Text('Verrouillé'),
-                      ),
-                    ),
-                  ] else ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _save,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _isObjetIncomplet ? Colors.orange : _metierColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: _isSaving
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                _isObjetIncomplet
-                                    ? Icons.warning_amber_rounded
-                                    : Icons.save,
-                              ),
-                        label: Text(
-                          _isSaving
-                              ? 'Enregistrement...'
-                              : _isObjetIncomplet
-                                  ? 'Signaler incomplet'
-                                  : 'Enregistrer',
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
       ),
     );
   }

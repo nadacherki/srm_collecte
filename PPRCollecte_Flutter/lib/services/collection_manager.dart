@@ -499,6 +499,13 @@ class CollectionManager extends ChangeNotifier {
       final data = <String, dynamic>{};
 
       if (_ligneCollection?.isPaused ?? false) {
+        // Ne pas sauvegarder un brouillon vide : sans points, il n'y a rien
+        // a reprendre et le dialog "Voulez-vous reprendre ?" reapparaitrait
+        // a chaque ouverture de l'app sans utilite.
+        if (_ligneCollection!.points.isEmpty) {
+          await _clearPausedDraft();
+          return;
+        }
         data['collectionType'] = 'ligne';
         data['id'] = _ligneCollection!.id;
         data['lineCode'] = _ligneCollection!.lineCode;
@@ -510,6 +517,10 @@ class CollectionManager extends ChangeNotifier {
             _ligneCollection!.lastPointTime?.toIso8601String();
         data['totalDistance'] = _ligneCollection!.totalDistance;
       } else if (_specialCollection?.isPaused ?? false) {
+        if (_specialCollection!.points.isEmpty) {
+          await _clearPausedDraft();
+          return;
+        }
         data['collectionType'] = 'special';
         data['id'] = _specialCollection!.id;
         data['specialType'] = _specialCollection!.specialType;

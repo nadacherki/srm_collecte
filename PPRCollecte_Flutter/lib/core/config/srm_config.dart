@@ -162,6 +162,7 @@ class SrmConfig {
             "marque",
             "ep_etat",
             "ep_diam",
+            "mat_brts",
             "ep_ref",
             "ref_rue",
             "emplacement",
@@ -175,6 +176,9 @@ class SrmConfig {
             "conformite_plan"
           ],
           "requiredFields": ["ep_etat", "conformite_plan"],
+          "fieldLabels": {
+            "mat_brts": "Matériau branchement",
+          },
         },
         "Borne ONEP": {
           "tableName": "borne_onep",
@@ -184,15 +188,13 @@ class SrmConfig {
           "maxPhotos": 0,
           "typeField": null,
           "typeOptions": [],
-          "fields": [
-            "observation",
-            "date_leve",
-            "ep_coor_x",
-            "ep_coor_y",
-            "ep_coor_z",
-            "conformite_plan"
-          ],
-          "requiredFields": ["conformite_plan"],
+          "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
+          "requiredFields": [],
+          "fieldLabels": {
+            "ep_coor_x": "X",
+            "ep_coor_y": "Y",
+            "ep_coor_z": "Z",
+          },
         },
         "Bouche à Clé": {
           "tableName": "bouche_a_cles",
@@ -202,13 +204,13 @@ class SrmConfig {
           "maxPhotos": 0,
           "typeField": null,
           "typeOptions": [],
-          "fields": [
-            "date_leve",
-            "observation",
-            "ep_coor_z",
-            "conformite_plan"
-          ],
-          "requiredFields": ["conformite_plan"],
+          "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
+          "requiredFields": [],
+          "fieldLabels": {
+            "ep_coor_x": "X",
+            "ep_coor_y": "Y",
+            "ep_coor_z": "Z",
+          },
         },
         "Bouche d'Arrosage": {
           "tableName": "bouche_darrosage",
@@ -703,34 +705,11 @@ class SrmConfig {
           "geometryType": "LineString",
           "hasZ": false,
           "isLine": true,
-          "maxPhotos": 2,
-          "typeField": "ep_type",
-          "typeOptions": ["Adduction", "Distribution", "Branchement"],
-          "fields": [
-            "ep_num",
-            "ep_type",
-            "ep_diam",
-            "ep_mat",
-            "ep_long_c",
-            "ep_long_r",
-            "ep_profondeur",
-            "ep_classe_conduite",
-            "emplacement",
-            "zamont",
-            "zaval",
-            "pente",
-            "zalerte",
-            "ref_rue",
-            "ep_entreprise",
-            "ep_ref_marche",
-            "ep_sect_hydro",
-            "ep_etage_p",
-            "etage_aqua",
-            "secteur_aqua",
-            "ep_statut",
-            "conformite_plan"
-          ],
-          "requiredFields": ["ep_type", "ep_diam", "ep_mat", "conformite_plan"],
+          "maxPhotos": 0,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": ["ep_diam", "ep_mat"],
+          "requiredFields": ["ep_diam", "ep_mat"],
         },
         "Branchement EP": {
           "tableName": "branchement",
@@ -799,19 +778,17 @@ class SrmConfig {
           "schema": "ep",
           "geometryType": "Point",
           "hasZ": true,
-          "maxPhotos": 4,
-          "typeField": "type_objet",
+          "maxPhotos": 0,
+          "typeField": null,
           "typeOptions": [],
-          "fields": [
-            "type_objet",
-            "ep_diam",
-            "ref_rue",
-            "date_leve",
-            "observation",
-            "ep_coor_z",
-            "conformite_plan"
-          ],
-          "requiredFields": ["type_objet", "conformite_plan"],
+          "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z", "observation"],
+          "requiredFields": [],
+          "fieldLabels": {
+            "ep_coor_x": "X",
+            "ep_coor_y": "Y",
+            "ep_coor_z": "Z",
+            "observation": "Commentaire",
+          },
         },
       },
     },
@@ -1437,6 +1414,10 @@ class SrmConfig {
     'zone',
   };
 
+  static const Set<String> _varchar400Fields = {
+    'mat_brts',
+  };
+
   static const Set<String> _uuidFields = {
     'uuid',
   };
@@ -1545,6 +1526,13 @@ class SrmConfig {
       return const SrmFieldRule(
         kind: SrmFieldKind.text,
         maxLength: 150,
+      );
+    }
+
+    if (_varchar400Fields.contains(field)) {
+      return const SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: 400,
       );
     }
 

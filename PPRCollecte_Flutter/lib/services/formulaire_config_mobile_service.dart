@@ -648,7 +648,7 @@ class FormulaireConfigMobileService {
       nomTable: 'ep_conduite',
       titreApp: 'Conduite bureau',
       ordre: 3,
-      visible: true,
+      visible: false,
       createdAt: '',
       updatedAt: '',
     ),
