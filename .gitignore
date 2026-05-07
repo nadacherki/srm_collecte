@@ -46,8 +46,13 @@ srmenv/
 *.sql
 !API_GeoDjango/sql/*.sql
 
-# Django uploaded media
-API_GeoDjango/pprcollecte/media/
+# Django uploaded media (uploads users, photos collecte, etc.)
+# On exclut tout le contenu mais on whitelist le basemap regional
+# partage (~19 Mo) qui doit etre disponible au demarrage du serveur.
+# Pour le regenerer : python API_GeoDjango/basemaps/scripts/extract_region_pmtiles.py
+API_GeoDjango/pprcollecte/media/**
+!API_GeoDjango/pprcollecte/media/basemaps/
+!API_GeoDjango/pprcollecte/media/basemaps/region.pmtiles
 
 # Local basemap scratch / downloads
 bbbike_extract_page.html
@@ -56,6 +61,8 @@ backups/
 *.pbf
 *.mbtiles
 *.pmtiles
+# ... mais on whitelist le basemap regional partage (servi au mobile).
+!API_GeoDjango/pprcollecte/media/basemaps/region.pmtiles
 
 # Mobile build artifacts
 *.apk
