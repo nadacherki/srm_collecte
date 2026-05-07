@@ -44,7 +44,7 @@ class AttributConfigMobileField {
       id: _toInt(row['id']) ?? 0,
       nomMetier: row['nom_metier']?.toString().trim() ?? '',
       nomTable: row['nom_table']?.toString().trim() ?? '',
-      nomChamp: row['nom_champ']?.toString().trim() ?? '',
+      nomChamp: row['nom_champ']?.toString().trim().toLowerCase() ?? '',
       typeChamp: row['type_champ']?.toString().trim() ?? '',
       primaryKey: _toBool(row['primary_key']),
       foreignKey: _toBool(row['foreign_key']),
@@ -66,10 +66,25 @@ class AttributConfigMobileField {
   bool get isRequired =>
       visible && !nullable && !primaryKey && nomChamp.toLowerCase() != 'geom';
 
-  bool get isAutoVisibleCoordinate =>
-      nomChamp.endsWith('_coor_x') ||
-      nomChamp.endsWith('_coor_y') ||
-      nomChamp.endsWith('_coor_z');
+  bool get isAutoVisibleCoordinate {
+    final prefix = _coordinatePrefixForMetier(nomMetier);
+    if (prefix.isEmpty) return false;
+    final normalizedChamp = nomChamp.trim().toLowerCase();
+    return normalizedChamp == '${prefix}_coor_x' ||
+        normalizedChamp == '${prefix}_coor_y' ||
+        normalizedChamp == '${prefix}_coor_z';
+  }
+
+  static String _coordinatePrefixForMetier(String nomMetier) {
+    final normalized = nomMetier.trim().toLowerCase();
+    if (normalized == 'ep' || normalized == 'eau potable') return 'ep';
+    if (normalized == 'asst' ||
+        normalized == 'ass' ||
+        normalized == 'assainissement') {
+      return 'ass';
+    }
+    return '';
+  }
 
   static int? _toInt(dynamic value) {
     if (value == null) return null;
@@ -185,6 +200,17 @@ class AttributConfigMobileService {
     return table;
   }
 
+  static String mobileTableForConfigTable(String nomMetier, String nomTable) {
+    final table = nomTable.trim();
+    if (nomMetier == 'ep') {
+      return _epMobileTableByConfigTable[table] ?? table;
+    }
+    if (nomMetier == 'asst') {
+      return _asstMobileTableByConfigTable[table] ?? table;
+    }
+    return table;
+  }
+
   static const Map<String, String> _epConfigTableByMobileTable = {
     'vanne': 'ep_vanne',
     'vanne_de_vidange': 'ep_vidange',
@@ -195,7 +221,8 @@ class AttributConfigMobileService {
     'bouche_a_cles': 'bouche_a_cles',
     'bouche_cles': 'bouche_a_cles',
     'bouche_darrosage': 'ep_bouche_arro',
-    'compteur_abonne': 'ep_compteur_i',
+    'compteur_reseau': 'ep_compteur_i',
+    'compteur_abonne': 'ep_brc_pt',
     'cone_de_reduction': 'ep_cone_reduc',
     'centre_tampon': 'centre_tampon',
     'noeud': 'ep_noeud',
@@ -214,6 +241,35 @@ class AttributConfigMobileService {
     'traverse': 'ep_traversee',
   };
 
+  static const Map<String, String> _epMobileTableByConfigTable = {
+    'ep_vanne': 'vanne',
+    'ep_vidange': 'vanne_de_vidange',
+    'ep_ventouse': 'ventouse',
+    'ep_hydrant': 'hydrant',
+    'ep_bf': 'borne_fontaine',
+    'borne_onep': 'borne_onep',
+    'bouche_a_cles': 'bouche_a_cles',
+    'ep_bouche_arro': 'bouche_darrosage',
+    'ep_compteur_i': 'compteur_reseau',
+    'ep_brc_pt': 'compteur_abonne',
+    'ep_cone_reduc': 'cone_de_reduction',
+    'centre_tampon': 'centre_tampon',
+    'ep_obturateur': 'obturateur',
+    'ep_reduc_pres': 'reducteur_de_pression',
+    'ep_noeud': 'noeud',
+    'ep_reservoir': 'reservoir',
+    'ep_station_pompage': 'station_de_pompage',
+    'ep_forage': 'forage',
+    'ep_puit': 'puit',
+    'ep_pompe': 'pompe',
+    'ep_regard_point': 'ep_regard_point',
+    'ep_regard': 'ep_regard',
+    'conduite_terrain': 'conduite_terrain',
+    'ep_branchement': 'branchement',
+    'ep_traversee': 'traverse',
+    'autre_objet': 'autre_objet',
+  };
+
   static const Map<String, String> _asstConfigTableByMobileTable = {
     'asst_regard': 'ASS_REGARD',
     'asst_regard_branchement': 'ASS_REGARD_FACADE',
@@ -223,11 +279,39 @@ class AttributConfigMobileService {
     'asst_bassin': 'ASS_BASSIN_VERSANT',
     'asst_ouvrage': 'ASS_OUV_TRAVERSEE',
     'asst_equipement': 'ASS_POMPE',
-    'asst_station': 'ASS_STA_EPUR',
+    'asst_station': 'ASS_STA_POMP',
+    'ASS_BORGNE': 'ASS_BORGNE',
+    'ASS_BOUCHE': 'ASS_BOUCHE',
+    'ASS_DEVERSOIR': 'ASS_DEVERSOIR',
+    'ASS__EXUTOIRE': 'ASS__EXUTOIRE',
+    'ASS_STA_POMP': 'ASS_STA_POMP',
+    'ASS_CANIVEAU': 'ASS_CANIVEAU',
+    'ASS_CANIV_BRANCHE': 'ASS_CANIV_BRANCHE',
+    'ASS_COL_BOUCHE': 'ASS_COL_BOUCHE',
+    'ASS_STA_EPUR': 'ASS_STA_EPUR',
     'ASS_REGARD': 'ASS_REGARD',
     'ASS_REGARD_FACADE': 'ASS_REGARD_FACADE',
     'ASS_COLLECTEUR': 'ASS_COLLECTEUR',
     'ASS_BRANCHEMENT': 'ASS_BRANCHEMENT',
+  };
+
+  static const Map<String, String> _asstMobileTableByConfigTable = {
+    'ASS_REGARD': 'asst_regard',
+    'ASS_REGARD_FACADE': 'asst_regard_branchement',
+    'ASS_BORGNE': 'ASS_BORGNE',
+    'ASS_BOUCHE': 'ASS_BOUCHE',
+    'ASS_DEVERSOIR': 'ASS_DEVERSOIR',
+    'ASS__EXUTOIRE': 'ASS__EXUTOIRE',
+    'ASS_STA_POMP': 'asst_station',
+    'ASS_COLLECTEUR': 'asst_canalisation',
+    'ASS_REFOULEMENTR': 'asst_canalisation_reutilisation',
+    'ASS_BRANCHEMENT': 'asst_branchement',
+    'ASS_CANIVEAU': 'ASS_CANIVEAU',
+    'ASS_CANIV_BRANCHE': 'ASS_CANIV_BRANCHE',
+    'ASS_COL_BOUCHE': 'ASS_COL_BOUCHE',
+    'ASS_BASSIN_VERSANT': 'asst_bassin',
+    'ASS_OUV_TRAVERSEE': 'asst_ouvrage',
+    'ASS_POMPE': 'asst_equipement',
     'ASS_STA_EPUR': 'ASS_STA_EPUR',
   };
 }

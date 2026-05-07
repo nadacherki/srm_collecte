@@ -891,6 +891,82 @@ class SrmConfig {
           ],
           "requiredFields": ["etat", "conformite_plan"],
         },
+        "Regards Borgnes": {
+          "tableName": "ASS_BORGNE",
+          "schema": "asst",
+          "geometryType": "Point",
+          "hasZ": true,
+          "maxPhotos": 4,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "ass_coor_x",
+            "ass_coor_y",
+            "ass_coor_z",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
+        "Bouches d'égout": {
+          "tableName": "ASS_BOUCHE",
+          "schema": "asst",
+          "geometryType": "Point",
+          "hasZ": true,
+          "maxPhotos": 4,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "ass_coor_x",
+            "ass_coor_y",
+            "ass_coor_z",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
+        "Déversoirs d'orage": {
+          "tableName": "ASS_DEVERSOIR",
+          "schema": "asst",
+          "geometryType": "Point",
+          "hasZ": true,
+          "maxPhotos": 4,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "ass_coor_x",
+            "ass_coor_y",
+            "ass_coor_z",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
+        "Exutoires": {
+          "tableName": "ASS__EXUTOIRE",
+          "schema": "asst",
+          "geometryType": "Point",
+          "hasZ": true,
+          "maxPhotos": 4,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "ass_coor_x",
+            "ass_coor_y",
+            "ass_coor_z",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
         "Canalisation ASS": {
           "tableName": "asst_canalisation", "schema": "asst",
           "geometryType": "LineString", "hasZ": true, "isLine": true,
@@ -984,6 +1060,69 @@ class SrmConfig {
           ],
           "requiredFields": ["etat", "diametre", "conformite_plan"],
         },
+        "Caniveaux": {
+          "tableName": "ASS_CANIVEAU",
+          "schema": "asst",
+          "geometryType": "LineString",
+          "hasZ": true,
+          "isLine": true,
+          "maxPhotos": 2,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "longueur",
+            "nature",
+            "reference",
+            "emplacement",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
+        "Caniveau branchement": {
+          "tableName": "ASS_CANIV_BRANCHE",
+          "schema": "asst",
+          "geometryType": "LineString",
+          "hasZ": true,
+          "isLine": true,
+          "maxPhotos": 2,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "longueur",
+            "nature",
+            "reference",
+            "emplacement",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
+        "Collecteur bouche d'égout": {
+          "tableName": "ASS_COL_BOUCHE",
+          "schema": "asst",
+          "geometryType": "LineString",
+          "hasZ": true,
+          "isLine": true,
+          "maxPhotos": 2,
+          "typeField": null,
+          "typeOptions": [],
+          "fields": [
+            "conformite_plan",
+            "etat",
+            "longueur",
+            "nature",
+            "reference",
+            "emplacement",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["conformite_plan"],
+        },
         "Bassin": {
           "tableName": "asst_bassin", "schema": "asst",
           "geometryType": "Point", "hasZ": true, "maxPhotos": 4,
@@ -1073,6 +1212,36 @@ class SrmConfig {
             "Autre"
           ],
           // uuid retiré
+          "fields": [
+            "conformite_plan",
+            "nom",
+            "etat",
+            "type_station",
+            "capacite",
+            "debit_nominal",
+            "date_construction",
+            "longueur",
+            "largeur",
+            "nombre_pompes",
+            "cote_arrivee",
+            "pretraitement",
+            "sortie",
+            "ass_coor_x",
+            "ass_coor_y",
+            "ass_coor_z",
+            "centre",
+            "commentaire"
+          ],
+          "requiredFields": ["etat", "type_station", "conformite_plan"],
+        },
+        "Stations d'épuration": {
+          "tableName": "ASS_STA_EPUR",
+          "schema": "asst",
+          "geometryType": "Point",
+          "hasZ": true,
+          "maxPhotos": 4,
+          "typeField": "type_station",
+          "typeOptions": ["Station d'épuration"],
           "fields": [
             "conformite_plan",
             "nom",
@@ -1399,14 +1568,15 @@ class SrmConfig {
   }
 
   static bool _isDoubleField(String field) {
-    if (field.endsWith('_coor_x') ||
-        field.endsWith('_coor_y') ||
-        field.endsWith('_coor_z') ||
-        field.startsWith('x_') ||
-        field.startsWith('y_') ||
-        field.startsWith('z_') ||
-        field.startsWith('lat_') ||
-        field.startsWith('lon_')) {
+    final normalizedField = field.toLowerCase();
+    if (normalizedField.endsWith('_coor_x') ||
+        normalizedField.endsWith('_coor_y') ||
+        normalizedField.endsWith('_coor_z') ||
+        normalizedField.startsWith('x_') ||
+        normalizedField.startsWith('y_') ||
+        normalizedField.startsWith('z_') ||
+        normalizedField.startsWith('lat_') ||
+        normalizedField.startsWith('lon_')) {
       return true;
     }
     return _hasAnyHint(field, _doubleFieldHints);

@@ -25,6 +25,7 @@ class PolygonFormPage extends StatefulWidget {
   // Ces champs sont requis par le flux actuel.
   final String metier;
   final String entityType;
+  final String? displayTitle;
 
   const PolygonFormPage({
     super.key,
@@ -35,6 +36,7 @@ class PolygonFormPage extends StatefulWidget {
     this.existingData,
     required this.metier,
     required this.entityType,
+    this.displayTitle,
   });
 
   @override
@@ -108,7 +110,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           ? 'ASS'
           : 'SRM';
 
-  String get _pageTitle => widget.entityType;
+  String get _pageTitle => (widget.displayTitle?.trim().isNotEmpty == true)
+      ? widget.displayTitle!.trim()
+      : widget.entityType;
 
   String get _tableName {
     if (_isRegardEp) return 'ep_regard';
@@ -895,7 +899,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '${widget.entityType} enregistré localement (${_superficieHa.toStringAsFixed(4)} ha)',
+                '$_pageTitle enregistré localement (${_superficieHa.toStringAsFixed(4)} ha)',
               ),
               backgroundColor: _categoryColor,
             ),
@@ -1014,7 +1018,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${widget.entityType} enregistré avec succès (${_superficieHa.toStringAsFixed(4)} ha)',
+              '$_pageTitle enregistré avec succès (${_superficieHa.toStringAsFixed(4)} ha)',
             ),
             backgroundColor: _categoryColor,
           ),
@@ -1133,7 +1137,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         ..._buildRegardEpSections()
       else ...[
         _buildFormSection(
-          title: 'Attributs ${widget.entityType}',
+          title: 'Attributs $_pageTitle',
           children: [
             Container(
               padding: const EdgeInsets.all(10),

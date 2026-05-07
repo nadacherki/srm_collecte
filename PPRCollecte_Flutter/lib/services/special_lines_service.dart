@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
+import 'formulaire_config_mobile_service.dart';
 import 'srm_row_visibility_filter.dart';
 import 'srm_status_flags.dart';
 import '../data/remote/api_service.dart';
@@ -25,11 +26,18 @@ class SpecialLinesService {
       final db = await _dbHelper.database;
       final loginId = await _dbHelper.resolveLoginId();
       final polylines = <Polyline>[];
+      final formulaireConfigService = FormulaireConfigMobileService();
 
       for (final metier in SrmConfig.getMetiers()) {
+        final titleByTable =
+            await formulaireConfigService.getTitleByMobileTable(
+          mobileMetier: metier,
+          refreshIfEmpty: false,
+        );
         for (final entityType in SrmConfig.getLineEntities(metier)) {
           final tableName = SrmConfig.getTableName(metier, entityType);
           if (tableName == null || tableName.isEmpty) continue;
+          final entityTitle = titleByTable[tableName] ?? entityType;
 
           final rows = await _fetchVisibleRows(
             db: db,
@@ -44,6 +52,7 @@ class SpecialLinesService {
             editableItem['source_table'] = tableName;
             editableItem['source_metier'] = metier;
             editableItem['source_entity'] = entityType;
+            editableItem['source_title'] = entityTitle;
             editableItem['geometry_type'] = 'LineString';
 
             final hasAnomalie = SrmStatusFlags.hasAnomalie(row);
@@ -62,7 +71,7 @@ class SpecialLinesService {
               hitValue: PolylineTapData(
                 type: 'special_local',
                 data: {
-                  'special_type': entityType,
+                  'special_type': entityTitle,
                   'table_name': tableName,
                   'metier': metier,
                   'anomalie': hasAnomalie,

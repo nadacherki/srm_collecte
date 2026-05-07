@@ -64,6 +64,7 @@ void _restorePausedCollectionImpl(
           'id': draft['id'],
           'source_metier': srmMeta['srmMetier'],
           'source_entity': srmMeta['srmEntityType'],
+          'source_title': srmMeta['srmTitleApp'],
           'source_table': srmMeta['srmTableName'],
           'geometry_type': 'LineString',
         };
@@ -73,6 +74,7 @@ void _restorePausedCollectionImpl(
           entityType: srmMeta['srmEntityType'] as String? ?? '',
           tableName: srmMeta['srmTableName'] as String? ?? '',
           schema: srmMeta['srmSchema'] as String? ?? '',
+          titleApp: srmMeta['srmTitleApp'] as String? ?? '',
           isLine: true,
         );
       }
@@ -88,6 +90,7 @@ void _restorePausedCollectionImpl(
         state._pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
         state._pendingSrmPolygoneEntityType =
             srmMeta['srmEntityType'] as String?;
+        state._pendingSrmPolygoneTitleApp = srmMeta['srmTitleApp'] as String?;
         state._isPolygonCollection = srmMeta['isPolygonCollection'] == true;
         state._isSpecialCollection = srmMeta['isSpecialCollection'] == true;
         state._specialCollectionType =

@@ -105,8 +105,8 @@ MOBILE_SRM_TABLE_ENDPOINTS = {
     'ep/bornes-onep': ('ep', 'borne_onep'),
     'ep/bouches-cles': ('ep', 'bouche_a_cles'),
     'ep/bouches-arrosage': ('ep', 'ep_bouche_arro'),
-    'ep/compteurs-abonne': ('ep', 'ep_compteur_i'),
-    'ep/compteurs-reseau': None,
+    'ep/compteurs-abonne': ('ep', 'ep_brc_pt'),
+    'ep/compteurs-reseau': ('ep', 'ep_compteur_i'),
     'ep/cones-reduction': ('ep', 'ep_cone_reduc'),
     'ep/centres-tampon': ('ep', 'centre_tampon'),
     'ep/noeuds': ('ep', 'ep_noeud'),
@@ -253,11 +253,20 @@ def _mobile_apply_output_aliases(row):
     for source, target in MOBILE_OUTPUT_ALIASES.items():
         if source in row and target not in row:
             row[target] = row[source]
+    for source, value in list(row.items()):
+        lowered = str(source).lower()
+        if lowered != source and lowered not in row:
+            row[lowered] = value
     return row
 
 
 def _mobile_apply_input_aliases(payload, columns):
     values = dict(payload)
+    columns_by_lower = {str(column).lower(): column for column in columns}
+    for source, value in list(values.items()):
+        target = columns_by_lower.get(str(source).lower())
+        if target and target not in values:
+            values[target] = value
     for source, targets in MOBILE_INPUT_ALIASES.items():
         if not isinstance(targets, (list, tuple)):
             targets = (targets,)
@@ -3220,6 +3229,70 @@ def attribut_config_mobile_view(request):
         'valeur_min',
         'valeur_max',
         'reference_fk',
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    return Response(rows)
+
+
+@api_view(['GET'])
+def formulaire_config_mobile_view(request):
+    """Expose public.formulaire_config_mobile as the mobile form list source.
+
+    This table controls object/form labels, order and visibility. It does not
+    describe fields; field details remain in public.attribut_config_mobile.
+    """
+    filters = []
+    params = []
+
+    nom_metier = (
+        request.query_params.get('nom_metier')
+        or request.query_params.get('table_schema')
+    )
+    nom_table = (
+        request.query_params.get('nom_table')
+        or request.query_params.get('table_name')
+    )
+    visible_only = (
+        request.query_params.get('visible_only')
+        or request.query_params.get('active_only')
+        or ''
+    ).strip().lower() in {'1', 'true', 'yes', 'oui'}
+
+    if nom_metier:
+        filters.append('nom_metier ILIKE %s')
+        params.append(nom_metier.strip())
+    if nom_table:
+        filters.append('nom_table ILIKE %s')
+        params.append(nom_table.strip())
+    if visible_only:
+        filters.append('COALESCE(visible, false) = true')
+
+    where_sql = f"WHERE {' AND '.join(filters)}" if filters else ''
+    query = f"""
+        SELECT
+            id,
+            nom_metier,
+            nom_table,
+            titre_app,
+            ordre,
+            COALESCE(visible, false) AS visible,
+            created_at,
+            updated_at
+        FROM public.formulaire_config_mobile
+        {where_sql}
+        ORDER BY nom_metier, COALESCE(ordre, 999999), id
+    """
+    columns = [
+        'id',
+        'nom_metier',
+        'nom_table',
+        'titre_app',
+        'ordre',
+        'visible',
+        'created_at',
+        'updated_at',
     ]
     with connection.cursor() as cursor:
         cursor.execute(query, params)

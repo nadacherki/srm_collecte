@@ -301,7 +301,7 @@ class CollectionManager extends ChangeNotifier {
   /// Ajoute un point manuellement sur la position courante.
   /// Retourne false si la collecte n'est pas active ou si le point duplique
   /// exactement le dernier point déjà capturé.
-  bool addManualPoint(CollectionType type, LatLng point) {
+  bool addManualPoint(CollectionType type, LatLng point, {double? altitude}) {
     CollectionBase? collection;
 
     if (type == CollectionType.ligne) {
@@ -327,7 +327,11 @@ class CollectionManager extends ChangeNotifier {
       }
     }
 
-    _collectionService.recordCurrentAltitudeForManualPoint();
+    if (altitude != null) {
+      _collectionService.recordAltitudeForManualPoint(altitude);
+    } else {
+      _collectionService.recordCurrentAltitudeForManualPoint();
+    }
     _addPointToCollection(type, point, segmentDistance);
     return true;
   }

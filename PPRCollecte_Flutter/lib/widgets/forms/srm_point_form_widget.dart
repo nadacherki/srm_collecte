@@ -31,6 +31,7 @@ import '../../services/srm_field_option_service.dart';
 class SrmPointFormWidget extends StatefulWidget {
   final String metier; // "Eau Potable" | "Assainissement"
   final String entityType; // ex: "Vanne", "Regard ASS"
+  final String? displayTitle;
   final double latitude;
   final double longitude;
   final double? altitude;
@@ -43,6 +44,7 @@ class SrmPointFormWidget extends StatefulWidget {
     super.key,
     required this.metier,
     required this.entityType,
+    this.displayTitle,
     required this.latitude,
     required this.longitude,
     this.altitude,
@@ -107,9 +109,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   String get _tableName =>
       SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+  String get _displayTitle => (widget.displayTitle?.trim().isNotEmpty == true)
+      ? widget.displayTitle!.trim()
+      : widget.entityType;
 
   bool get _isEpRegardPoint =>
-      widget.metier == 'Eau Potable' && _tableName == 'regard';
+      widget.metier == 'Eau Potable' && _tableName == 'ep_regard_point';
 
   @override
   void initState() {
@@ -269,9 +274,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       coordFields['ep_coor_z'] = zStr;
       coordFields['ass_coor_z'] = zStr;
     }
-    for (final entry in coordFields.entries) {
-      if (_controllers.containsKey(entry.key)) {
-        _controllers[entry.key]!.text = entry.value;
+    for (final entry in _controllers.entries) {
+      final value = coordFields[entry.key.toLowerCase()];
+      if (value != null) {
+        entry.value.text = value;
       }
     }
   }
@@ -594,12 +600,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
       // ── Coordonnées Merchich (toujours sauvegardées) ──
       // même si objet incomplet, on garde la position approximative
-      final xField =
-          _fields.firstWhere((f) => f.endsWith('_coor_x'), orElse: () => '');
-      final yField =
-          _fields.firstWhere((f) => f.endsWith('_coor_y'), orElse: () => '');
+      final xField = _fields.firstWhere((f) => _isCoordSuffix(f, '_coor_x'),
+          orElse: () => '');
+      final yField = _fields.firstWhere((f) => _isCoordSuffix(f, '_coor_y'),
+          orElse: () => '');
+      final zField = _fields.firstWhere((f) => _isCoordSuffix(f, '_coor_z'),
+          orElse: () => '');
       if (xField.isNotEmpty) data[xField] = _merchichX.toStringAsFixed(3);
       if (yField.isNotEmpty) data[yField] = _merchichY.toStringAsFixed(3);
+      if (zField.isNotEmpty && widget.altitude != null) {
+        data[zField] = widget.altitude!.toStringAsFixed(3);
+      }
 
       // Anomalie
       _applyAnomaliePayload(data);
@@ -709,8 +720,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         await clearDraftAfterSave();
         if (!mounted) return;
         final label = _isObjetIncomplet
-            ? '⚠️ ${widget.entityType} signalé incomplet'
-            : '✅ ${widget.entityType} enregistré';
+            ? '⚠️ $_displayTitle signalé incomplet'
+            : '✅ $_displayTitle enregistré';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(label),
           backgroundColor: _isObjetIncomplet ? Colors.orange : Colors.green,
@@ -805,10 +816,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   // Construction d'un champ
+  bool _isCoordSuffix(String field, String suffix) =>
+      field.toLowerCase().endsWith(suffix);
+
   bool _isCoordField(String field) =>
-      field.endsWith('_coor_x') ||
-      field.endsWith('_coor_y') ||
-      field.endsWith('_coor_z');
+      _isCoordSuffix(field, '_coor_x') ||
+      _isCoordSuffix(field, '_coor_y') ||
+      _isCoordSuffix(field, '_coor_z');
 
   Widget _buildField(String field) {
     if (_isHiddenField(field)) {
@@ -1233,7 +1247,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'ass_coor_z': 'Z Altitude (m)', 'centre': 'Centre',
       'commentaire': 'Commentaire',
     };
-    return labels[field] ?? configuredLabel;
+    return labels[field.toLowerCase()] ?? configuredLabel;
   }
 
   // Section photos
@@ -1617,7 +1631,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             children: [
               Row(
                 children: [
-                  Text(widget.entityType,
+                  Text(_displayTitle,
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold)),
                   if (_isLocked) ...[

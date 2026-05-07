@@ -138,6 +138,9 @@ class LocationService {
       'speed': speed,
       'time': DateTime.now().millisecondsSinceEpoch.toDouble(),
     });
+    if (!_locationStreamController.isClosed) {
+      _locationStreamController.add(_lastMockLocation!);
+    }
   }
 
   Future<void> clearMockLocation() async {

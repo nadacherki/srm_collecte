@@ -2,7 +2,7 @@
 // ── SPRINT 3 : DatabaseHelper SRM ──
 // Tables SQLite miroirs de PostgreSQL :
 //   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom, prenom, role)
-// Version DB: 18
+// Version DB: 21
 
 import 'dart:io';
 import 'dart:convert';
@@ -67,7 +67,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 18,
+      version: 21,
       onCreate: (db, version) async {
         debugPrint('🆕 Création tables v$version');
         await _createAllTables(db);
@@ -139,6 +139,7 @@ class DatabaseHelper {
     await _createRegionalBasemapStateTable(db);
     await _createSrmFieldOptionLocalTable(db);
     await _createAttributConfigMobileLocalTable(db);
+    await _createFormulaireConfigMobileLocalTable(db);
     await _createCommuneLocalTable(db);
     await _createZoneLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
@@ -156,6 +157,7 @@ class DatabaseHelper {
     await _ensureUtilisateurLocalColumns(db);
     await _ensureSrmFieldOptionLocalTable(db);
     await _createAttributConfigMobileLocalTable(db);
+    await _createFormulaireConfigMobileLocalTable(db);
     await _ensureCommuneLocalTable(db);
     await _migrateZoneLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
@@ -170,6 +172,7 @@ class DatabaseHelper {
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
     await _migratePhotoSyncQueueTable(db);
+    await _createAllSrmEntityTables(db);
     await _assertAllSrmEntityTablesPresentAndAligned(db);
   }
 
@@ -504,11 +507,35 @@ class DatabaseHelper {
     required String tableName,
     required Map<String, String> columns,
   }) async {
-    await _assertColumnsPresent(
-      db,
-      tableName: tableName,
-      columns: columns.keys,
+    final existing = await db.rawQuery(
+      'PRAGMA table_info(${_quoteSqlIdentifier(tableName)})',
     );
+    if (existing.isEmpty) return;
+
+    final existingCols = existing
+        .map((row) => row['name']?.toString().toLowerCase())
+        .whereType<String>()
+        .toSet();
+
+    final missing = columns.entries
+        .where((entry) => entry.key.trim().isNotEmpty)
+        .where((entry) => !existingCols.contains(entry.key.toLowerCase()))
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    for (final entry in missing) {
+      final column = entry.key.trim();
+      final type = entry.value.trim().isEmpty ? 'TEXT' : entry.value.trim();
+      await db.execute(
+        'ALTER TABLE ${_quoteSqlIdentifier(tableName)} '
+        'ADD COLUMN ${_quoteSqlIdentifier(column)} $type',
+      );
+      debugPrint('[SRM-SQLITE] Colonne ajoutee: $tableName.$column');
+    }
+  }
+
+  String _quoteSqlIdentifier(String identifier) {
+    return '"${identifier.replaceAll('"', '""')}"';
   }
 
   Future<void> _assertColumnsPresent(
@@ -641,6 +668,29 @@ class DatabaseHelper {
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS attribut_config_mobile_local_field_idx
       ON attribut_config_mobile_local (nom_metier, nom_table, nom_champ)
+    ''');
+  }
+
+  Future<void> _createFormulaireConfigMobileLocalTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS formulaire_config_mobile_local (
+        id INTEGER PRIMARY KEY,
+        nom_metier TEXT NOT NULL,
+        nom_table TEXT NOT NULL,
+        titre_app TEXT NOT NULL,
+        ordre INTEGER DEFAULT 0,
+        visible INTEGER DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS formulaire_config_mobile_local_lookup_idx
+      ON formulaire_config_mobile_local (nom_metier, visible, ordre, id)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS formulaire_config_mobile_local_table_idx
+      ON formulaire_config_mobile_local (nom_metier, nom_table)
     ''');
   }
 
@@ -2681,11 +2731,10 @@ class DatabaseHelper {
   }
 
   Future<void> _ensureSrmFixedColumns(Database db, String tableName) async {
-    await _assertColumnsPresent(
+    await _ensureColumns(
       db,
       tableName: tableName,
-      columns: _migratableFixedSrmColumns.keys,
-      sourceLabel: 'colonnes fixes SRM',
+      columns: _migratableFixedSrmColumns,
     );
   }
 
@@ -2711,11 +2760,10 @@ class DatabaseHelper {
       }
     }
     if (entityColumns.isEmpty) return;
-    await _assertColumnsPresent(
+    await _ensureColumns(
       db,
       tableName: tableName,
-      columns: entityColumns.keys,
-      sourceLabel: 'attribut_config_mobile / srm_server_columns',
+      columns: entityColumns,
     );
   }
 
@@ -2937,6 +2985,89 @@ class DatabaseHelper {
       where: where.toString(),
       whereArgs: whereArgs,
       orderBy: 'ordre ASC, id ASC',
+    );
+  }
+
+  Future<void> replaceFormulaireConfigMobile({
+    required List<Map<String, dynamic>> rows,
+    String? nomMetier,
+    String? nomTable,
+  }) async {
+    final db = await database;
+    await _createFormulaireConfigMobileLocalTable(db);
+
+    await db.transaction((txn) async {
+      if ((nomMetier ?? '').trim().isNotEmpty &&
+          (nomTable ?? '').trim().isNotEmpty) {
+        await txn.delete(
+          'formulaire_config_mobile_local',
+          where: 'nom_metier = ? AND nom_table = ?',
+          whereArgs: [nomMetier!.trim(), nomTable!.trim()],
+        );
+      } else if ((nomMetier ?? '').trim().isNotEmpty) {
+        await txn.delete(
+          'formulaire_config_mobile_local',
+          where: 'nom_metier = ?',
+          whereArgs: [nomMetier!.trim()],
+        );
+      } else {
+        await txn.delete('formulaire_config_mobile_local');
+      }
+
+      for (final row in rows) {
+        final id = _asInt(row['id']);
+        final metier = (row['nom_metier'] ?? '').toString().trim();
+        final table = (row['nom_table'] ?? '').toString().trim();
+        final titre = (row['titre_app'] ?? '').toString().trim();
+        if (id == null || metier.isEmpty || table.isEmpty || titre.isEmpty) {
+          continue;
+        }
+
+        await txn.insert(
+          'formulaire_config_mobile_local',
+          {
+            'id': id,
+            'nom_metier': metier,
+            'nom_table': table,
+            'titre_app': titre,
+            'ordre': _asInt(row['ordre']) ?? 0,
+            'visible': _toSqlBool(row['visible'], defaultValue: true),
+            'created_at': row['created_at']?.toString(),
+            'updated_at': row['updated_at']?.toString(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getFormulaireConfigMobile({
+    String? nomMetier,
+    String? nomTable,
+    bool visibleOnly = false,
+  }) async {
+    final db = await database;
+    await _createFormulaireConfigMobileLocalTable(db);
+
+    final whereParts = <String>[];
+    final whereArgs = <Object?>[];
+    if ((nomMetier ?? '').trim().isNotEmpty) {
+      whereParts.add('nom_metier = ?');
+      whereArgs.add(nomMetier!.trim());
+    }
+    if ((nomTable ?? '').trim().isNotEmpty) {
+      whereParts.add('nom_table = ?');
+      whereArgs.add(nomTable!.trim());
+    }
+    if (visibleOnly) {
+      whereParts.add('visible = 1');
+    }
+
+    return db.query(
+      'formulaire_config_mobile_local',
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
+      orderBy: 'nom_metier ASC, ordre ASC, id ASC',
     );
   }
 

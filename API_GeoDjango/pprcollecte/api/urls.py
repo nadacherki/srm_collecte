@@ -140,6 +140,7 @@ urlpatterns = [
     path('api/statistiques-conduite/jour/', views.statistique_conduite_jour_view, name='statistique-conduite-jour'),
     path('api/statistiques-conduite/valider/', views.statistique_conduite_validate_view, name='statistique-conduite-valider'),
     path('api/attribut-config-mobile/', views.attribut_config_mobile_view, name='attribut-config-mobile'),
+    path('api/formulaire-config-mobile/', views.formulaire_config_mobile_view, name='formulaire-config-mobile'),
     path('api/sync/manifest/', views.sync_manifest_view, name='sync-manifest'),
     path('api/sync/session/<str:sync_uuid>/', views.sync_session_status_view, name='sync-session-status'),
     path('api/photos/upload/', views.photo_upload_view, name='photo-upload'),

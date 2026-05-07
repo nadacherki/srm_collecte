@@ -9,6 +9,7 @@ import '../data/local/database_helper.dart';
 import 'projection_service.dart';
 import 'srm_row_visibility_filter.dart';
 import 'srm_status_flags.dart';
+import 'formulaire_config_mobile_service.dart';
 import '../widgets/common/custom_marker_icons.dart';
 import '../data/remote/api_service.dart';
 
@@ -34,11 +35,18 @@ class DisplayedPointsService {
       final db = await _dbHelper.database;
       final loginId = await _dbHelper.resolveLoginId();
       final List<Marker> markers = [];
+      final formulaireConfigService = FormulaireConfigMobileService();
 
       for (final metier in SrmConfig.getMetiers()) {
+        final titleByTable =
+            await formulaireConfigService.getTitleByMobileTable(
+          mobileMetier: metier,
+          refreshIfEmpty: false,
+        );
         for (final entityType in SrmConfig.getPointEntities(metier)) {
           final tableName = SrmConfig.getTableName(metier, entityType);
           if (tableName == null || tableName.isEmpty) continue;
+          final entityTitle = titleByTable[tableName] ?? entityType;
 
           final rows = await _fetchVisibleRows(
             db: db,
@@ -53,6 +61,7 @@ class DisplayedPointsService {
             editableItem['source_table'] = tableName;
             editableItem['source_metier'] = metier;
             editableItem['source_entity'] = entityType;
+            editableItem['source_title'] = entityTitle;
             editableItem['geometry_type'] = 'Point';
             if (editableItem['latitude_gps'] == null) {
               editableItem['latitude_gps'] = latLng.latitude;
@@ -77,7 +86,7 @@ class DisplayedPointsService {
               child: GestureDetector(
                 onTap: () {
                   onTapDetails({
-                    'type': entityType,
+                    'type': entityTitle,
                     'name': _resolvePointName(row, entityType),
                     'metier': metier,
                     'table_name': tableName,

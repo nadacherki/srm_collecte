@@ -81,7 +81,7 @@ def main() -> int:
     cfg_text = (REPO / 'PPRCollecte_Flutter' / 'lib' / 'core' / 'config' /
                 'srm_config.dart').read_text(encoding='utf-8-sig')
     ent_blocks = re.findall(
-        r'"tableName":\s*"([^"]+)",\s*\n\s*"schema":\s*"([^"]+)"'
+        r'"tableName":\s*"([^"]+)",\s*"schema":\s*"([^"]+)"'
         r'(?:[^{}]|\{[^{}]*\})*?"fields":\s*\[([^\]]*)\]',
         cfg_text, re.S,
     )

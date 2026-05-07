@@ -85,6 +85,7 @@ extension _HomePageCollectionActions on _HomePageState {
 
       final polygonMetier = _pendingSrmPolygoneMetier;
       final polygonEntityType = _pendingSrmPolygoneEntityType;
+      final polygonTitleApp = _pendingSrmPolygoneTitleApp;
       if (polygonMetier == null || polygonEntityType == null) {
         _setStateFromPart(() {
           _isSpecialCollection = false;
@@ -94,6 +95,7 @@ extension _HomePageCollectionActions on _HomePageState {
         });
         _pendingSrmPolygoneMetier = null;
         _pendingSrmPolygoneEntityType = null;
+        _pendingSrmPolygoneTitleApp = null;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Contexte du polygone introuvable.'),
@@ -113,11 +115,13 @@ extension _HomePageCollectionActions on _HomePageState {
             agentName: widget.agentName,
             metier: polygonMetier,
             entityType: polygonEntityType,
+            displayTitle: polygonTitleApp,
           ),
         ),
       );
       _pendingSrmPolygoneMetier = null;
       _pendingSrmPolygoneEntityType = null;
+      _pendingSrmPolygoneTitleApp = null;
 
       if (!mounted) return;
       _refreshAfterNavigation();
@@ -132,11 +136,14 @@ extension _HomePageCollectionActions on _HomePageState {
       });
 
       if (formResult != null) {
+        final savedTitle = (polygonTitleApp?.trim().isNotEmpty == true)
+            ? polygonTitleApp!.trim()
+            : polygonEntityType;
         await _loadDisplayedPolygons();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('$polygonEntityType enregistré avec succès'),
+              content: Text('$savedTitle enregistré avec succès'),
               backgroundColor: Colors.green,
             ),
           );
@@ -251,6 +258,7 @@ extension _HomePageCollectionActions on _HomePageState {
       _pendingPolygonPreviewPoints = null;
       _pendingSrmPolygoneMetier = null;
       _pendingSrmPolygoneEntityType = null;
+      _pendingSrmPolygoneTitleApp = null;
       homeController.collectedPolylines.clear();
       collectedPolylines.clear();
     });
@@ -283,9 +291,10 @@ extension _HomePageCollectionActions on _HomePageState {
         builder: (_) => SrmPointFormWidget(
           metier: selection.metier,
           entityType: selection.entityType,
+          displayTitle: selection.titleApp,
           latitude: current.latitude,
           longitude: current.longitude,
-          altitude: homeController.collectionManager.currentAltitude,
+          altitude: homeController.currentAltitude,
           agentName: widget.agentName,
           onSaved: () {
             if (!mounted) return;
@@ -466,7 +475,7 @@ extension _HomePageCollectionActions on _HomePageState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Tracé ${selection.entityType} démarré, ajoutez les points avec le bouton jaune',
+            'Tracé ${selection.titleApp} démarré, ajoutez les points avec le bouton jaune',
           ),
           backgroundColor: Color(SrmConfig.getMetierColor(selection.metier)),
           duration: const Duration(seconds: 3),
@@ -507,16 +516,19 @@ extension _HomePageCollectionActions on _HomePageState {
 
     var m = metier;
     var e = entityType;
+    String? titleApp;
     if (m == null || e == null) {
       if (!mounted) return;
       final sel = await showSrmPolygoneSelector(context);
       if (!mounted || sel == null) return;
       m = sel.metier;
       e = sel.entityType;
+      titleApp = sel.titleApp;
     }
 
     _pendingSrmPolygoneMetier = m;
     _pendingSrmPolygoneEntityType = e;
+    _pendingSrmPolygoneTitleApp = titleApp ?? e;
 
     try {
       await homeController.startSpecialCollection(e);
@@ -532,8 +544,9 @@ extension _HomePageCollectionActions on _HomePageState {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Tracé $e démarré. Ajoutez les points avec le bouton jaune'),
+          content: Text(
+            'Tracé ${_pendingSrmPolygoneTitleApp ?? e} démarré. Ajoutez les points avec le bouton jaune',
+          ),
           backgroundColor: _pendingSrmPolygoneMetier != null
               ? Color(SrmConfig.getMetierColor(_pendingSrmPolygoneMetier!))
               : const Color(0xFF1B5E20),
@@ -557,6 +570,7 @@ extension _HomePageCollectionActions on _HomePageState {
         homeController.collectionManager.setSrmMetadata({
           'srmMetier': _pendingSrmPolygoneMetier,
           'srmEntityType': _pendingSrmPolygoneEntityType,
+          'srmTitleApp': _pendingSrmPolygoneTitleApp,
           'isPolygonCollection': _isPolygonCollection,
           'isSpecialCollection': _isSpecialCollection,
           'specialCollectionType': _specialCollectionType,
@@ -581,6 +595,7 @@ extension _HomePageCollectionActions on _HomePageState {
         homeController.collectionManager.setSrmMetadata({
           'srmMetier': sel?.metier,
           'srmEntityType': sel?.entityType,
+          'srmTitleApp': sel?.titleApp,
           'srmTableName': sel?.tableName,
           'srmSchema': sel?.schema,
         });
@@ -661,6 +676,7 @@ extension _HomePageCollectionActions on _HomePageState {
     final srmMetadata = {
       'srmMetier': effectiveSel.metier,
       'srmEntityType': effectiveSel.entityType,
+      'srmTitleApp': effectiveSel.titleApp,
       'srmTableName': effectiveSel.tableName,
       'srmSchema': effectiveSel.schema,
     };
@@ -690,6 +706,7 @@ extension _HomePageCollectionActions on _HomePageState {
         builder: (_) => SrmLigneFormPage(
           metier: effectiveSel.metier,
           entityType: effectiveSel.entityType,
+          displayTitle: effectiveSel.titleApp,
           linePoints: points,
           startTime: startTime,
           endTime: endTime,
@@ -844,6 +861,7 @@ extension _HomePageCollectionActions on _HomePageState {
         srmMetadata: {
           'srmMetier': geometryEditItem['source_metier'],
           'srmEntityType': geometryEditItem['source_entity'],
+          'srmTitleApp': geometryEditItem['source_title'],
           'srmTableName': tableName,
           'geometryEdit': true,
         },

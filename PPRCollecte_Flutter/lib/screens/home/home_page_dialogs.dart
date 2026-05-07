@@ -488,6 +488,11 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
   final longitudeController = TextEditingController(
     text: initialPosition.longitude.toStringAsFixed(6),
   );
+  final initialAltitude =
+      state.homeController.mockAltitude ?? state.homeController.currentAltitude;
+  final altitudeController = TextEditingController(
+    text: (initialAltitude ?? 0.0).toStringAsFixed(3),
+  );
 
   try {
     final result = await showDialog<Map<String, dynamic>>(
@@ -519,6 +524,18 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
                 decoration: const InputDecoration(
                   labelText: 'Longitude',
                   hintText: 'Ex: -7.589843',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: altitudeController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Z / altitude (m)',
+                  hintText: 'Ex: 500.000',
                 ),
               ),
             ],
@@ -558,6 +575,9 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
                   ),
                   'lon': double.tryParse(
                     longitudeController.text.trim().replaceAll(',', '.'),
+                  ),
+                  'altitude': double.tryParse(
+                    altitudeController.text.trim().replaceAll(',', '.'),
                   ),
                 });
               },
@@ -685,11 +705,12 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
 
     final lat = result['lat'] as double?;
     final lon = result['lon'] as double?;
+    final altitude = result['altitude'] as double?;
 
-    if (lat == null || lon == null) {
+    if (lat == null || lon == null || altitude == null) {
       messenger?.showSnackBar(
         const SnackBar(
-          content: Text('Latitude ou longitude invalide'),
+          content: Text('Latitude, longitude ou Z invalide'),
           backgroundColor: Colors.red,
         ),
       );
@@ -703,6 +724,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         state.homeController.setMockPosition(
           latitude: lat,
           longitude: lon,
+          altitude: altitude,
         );
         final mockPosition = LatLng(lat, lon);
         if (state._mapController != null) {
@@ -712,7 +734,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         messenger?.showSnackBar(
           SnackBar(
             content: Text(
-              'Mock GPS applique: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
+              'Mock GPS applique: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}, Z=${altitude.toStringAsFixed(3)} m',
             ),
             backgroundColor: Colors.teal,
           ),
@@ -730,6 +752,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
   } finally {
     latitudeController.dispose();
     longitudeController.dispose();
+    altitudeController.dispose();
   }
 }
 

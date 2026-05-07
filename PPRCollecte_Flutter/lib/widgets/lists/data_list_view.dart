@@ -63,6 +63,8 @@ class _DataListViewState extends State<DataListView> {
               item['display_title']?.toString().toLowerCase() ?? '';
           final sourceEntity =
               item['source_entity']?.toString().toLowerCase() ?? '';
+          final sourceTitle =
+              item['source_title']?.toString().toLowerCase() ?? '';
           final sourceMetier =
               item['source_metier']?.toString().toLowerCase() ?? '';
           final sourceTable =
@@ -72,6 +74,7 @@ class _DataListViewState extends State<DataListView> {
               lineCode.contains(query) ||
               displayTitle.contains(query) ||
               sourceEntity.contains(query) ||
+              sourceTitle.contains(query) ||
               sourceMetier.contains(query) ||
               sourceTable.contains(query);
         }).toList();

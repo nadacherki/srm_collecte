@@ -263,6 +263,44 @@ class ApiService {
         .toList();
   }
 
+  static Future<List<Map<String, dynamic>>> fetchFormulaireConfigMobile({
+    String? nomMetier,
+    String? nomTable,
+    bool visibleOnly = false,
+  }) async {
+    final queryParameters = <String, String>{
+      if (visibleOnly) 'visible_only': 'true',
+    };
+    if (nomMetier != null && nomMetier.isNotEmpty) {
+      queryParameters['nom_metier'] = nomMetier;
+    }
+    if (nomTable != null && nomTable.isNotEmpty) {
+      queryParameters['nom_table'] = nomTable;
+    }
+
+    final url = Uri.parse('$baseUrl/api/formulaire-config-mobile/').replace(
+      queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
+    );
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erreur GET formulaire-config-mobile: ${response.statusCode}',
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    final List items =
+        data is List ? data : (data['results'] ?? data['features'] ?? const []);
+
+    return items
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   static Future<List<Map<String, dynamic>>> fetchCommunesOriental() async {
     final url = Uri.parse('$baseUrl/api/communes-oriental/');
     final response = await http

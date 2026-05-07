@@ -14,6 +14,7 @@ import '../../services/commune_sync_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 import '../../services/srm_field_option_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
+import '../../services/formulaire_config_mobile_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -64,6 +65,14 @@ class _LoginPageState extends State<LoginPage> {
       await AttributConfigMobileService().refreshConfig();
     } catch (e) {
       debugPrint('[ATTRIBUT-CONFIG-MOBILE] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshFormulaireConfigMobileSilently() async {
+    try {
+      await FormulaireConfigMobileService().refreshConfig();
+    } catch (e) {
+      debugPrint('[FORMULAIRE-CONFIG-MOBILE] Sync ignoree au login: $e');
     }
   }
 
@@ -215,6 +224,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final basemapError = await _refreshBasemapCatalogSilently();
       await _refreshAttributConfigMobileSilently();
+      await _refreshFormulaireConfigMobileSilently();
       await _refreshSrmFieldOptionsSilently();
       await _refreshCommunesSilently();
       unawaited(

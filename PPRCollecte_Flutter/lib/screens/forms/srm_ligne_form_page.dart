@@ -25,6 +25,7 @@ import '../../services/srm_field_option_service.dart';
 class SrmLigneFormPage extends StatefulWidget {
   final String metier;
   final String entityType;
+  final String? displayTitle;
   final List<LatLng> linePoints;
   final DateTime? startTime;
   final DateTime? endTime;
@@ -36,6 +37,7 @@ class SrmLigneFormPage extends StatefulWidget {
     super.key,
     required this.metier,
     required this.entityType,
+    this.displayTitle,
     required this.linePoints,
     this.startTime,
     this.endTime,
@@ -80,6 +82,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
   String get _tableName =>
       SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+  String get _displayTitle => (widget.displayTitle?.trim().isNotEmpty == true)
+      ? widget.displayTitle!.trim()
+      : widget.entityType;
   String get _metierCode => widget.metier == 'Eau Potable'
       ? 'EP'
       : widget.metier == 'Assainissement'
@@ -739,8 +744,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         await clearDraftAfterSave();
         if (!mounted) return;
         final label = _isObjetIncomplet
-            ? '${widget.entityType} signalé incomplet'
-            : '${widget.entityType} enregistré '
+            ? '$_displayTitle signalé incomplet'
+            : '$_displayTitle enregistré '
                 '(${_distanceTotaleM.toStringAsFixed(1)} m, '
                 '${widget.linePoints.length} pts)';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -917,10 +922,12 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
   }
 
-  bool _isCoordField(String field) =>
-      field.endsWith('_coor_x') ||
-      field.endsWith('_coor_y') ||
-      field.endsWith('_coor_z');
+  bool _isCoordField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized.endsWith('_coor_x') ||
+        normalized.endsWith('_coor_y') ||
+        normalized.endsWith('_coor_z');
+  }
 
   Widget _buildField(String field) {
     if (_isWorkflowManagedField(field)) {
@@ -1325,7 +1332,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       'caracteristique': 'Caractéristique',
       'date_mise_en_service': 'Date MES',
     };
-    return labels[field] ?? field.replaceAll('_', ' ');
+    return labels[field.toLowerCase()] ?? field.replaceAll('_', ' ');
   }
 
   Widget _buildPhotoSection() {
@@ -1638,7 +1645,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
               Row(
                 children: [
                   Text(
-                    widget.entityType,
+                    _displayTitle,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

@@ -257,11 +257,17 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     }
 
     final Map<String, List<Polygon>> srmPolygonsByTable = {};
+    final formulaireConfigService = FormulaireConfigMobileService();
 
     for (final metier in SrmConfig.getMetiers()) {
+      final titleByTable = await formulaireConfigService.getTitleByMobileTable(
+        mobileMetier: metier,
+        refreshIfEmpty: false,
+      );
       for (final entity in SrmConfig.getPolygonEntities(metier)) {
         final tableName = SrmConfig.getTableName(metier, entity);
         if (tableName == null || tableName.isEmpty) continue;
+        final entityTitle = titleByTable[tableName] ?? entity;
 
         try {
           final columns = await db.rawQuery('PRAGMA table_info($tableName)');
@@ -290,6 +296,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             editableItem['source_table'] = tableName;
             editableItem['source_metier'] = metier;
             editableItem['source_entity'] = entity;
+            editableItem['source_title'] = entityTitle;
             editableItem['geometry_type'] = 'Polygon';
 
             final polygon = buildPolygon(
@@ -306,7 +313,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
                     poly['line_code']?.toString() ??
                     poly['ep_num']?.toString() ??
                     '----',
-                entityType: entity,
+                entityType: entityTitle,
                 metier: metier,
                 superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
                     (poly['superficie_en_ha'] as num?)?.toDouble() ??

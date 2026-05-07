@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
+import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/projection_service.dart';
 import '../../widgets/lists/data_list_view.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
@@ -196,6 +197,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
           builder: (_) => SrmLigneFormPage(
             metier: metier,
             entityType: entityType,
+            displayTitle: item['source_title']?.toString(),
             linePoints: points,
             agentName: widget.agentName,
             existingData: item,
@@ -257,6 +259,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             existingData: item,
             metier: metier,
             entityType: entityType,
+            displayTitle: item['source_title']?.toString(),
           ),
         ),
       );
@@ -274,6 +277,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             body: SrmPointFormWidget(
               metier: metier,
               entityType: entityType,
+              displayTitle: item['source_title']?.toString(),
               latitude: latLng?.latitude ?? 0.0,
               longitude: latLng?.longitude ?? 0.0,
               altitude: (item['altitude_gps'] as num?)?.toDouble(),
@@ -439,6 +443,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   // Listes pour les dropdowns
   List<String> _metiers = [];
   List<String> _entitesDisponibles = [];
+  Map<String, String> _entityTitlesByEntity = {};
 
   @override
   void initState() {
@@ -531,11 +536,24 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     try {
       final loginId = await _dbHelper.resolveLoginId();
       final items = <Map<String, dynamic>>[];
+      final entityTitlesByEntity = <String, String>{};
+      final titleByMetier = <String, Map<String, String>>{};
+      final formulaireConfigService = FormulaireConfigMobileService();
 
       for (final metier in SrmConfig.getMetiers()) {
+        var titleByTable = titleByMetier[metier];
+        if (titleByTable == null) {
+          titleByTable = await formulaireConfigService.getTitleByMobileTable(
+            mobileMetier: metier,
+            refreshIfEmpty: false,
+          );
+          titleByMetier[metier] = titleByTable;
+        }
         for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
           final tableName = SrmConfig.getTableName(metier, entity);
           if (tableName == null || tableName.isEmpty) continue;
+          final entityTitle = titleByTable[tableName] ?? entity;
+          entityTitlesByEntity[entity] = entityTitle;
 
           final rows = await _dbHelper.getEntitiesSrm(tableName);
           for (final row in rows) {
@@ -545,7 +563,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             item['source_table'] = tableName;
             item['source_metier'] = metier;
             item['source_entity'] = entity;
-            item['display_title'] = _buildDisplayTitle(entity, item);
+            item['source_title'] = entityTitle;
+            item['display_title'] = _buildDisplayTitle(entityTitle, item);
 
             // Geometrie depuis config
             final config = SrmConfig.getEntityConfig(metier, entity);
@@ -570,6 +589,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       if (!mounted) return;
       setState(() {
         _allData = items;
+        _entityTitlesByEntity = entityTitlesByEntity;
         _applyFilters();
         _isLoading = false;
       });
@@ -1069,7 +1089,10 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                 ),
                 ..._entitesDisponibles.map((e) => DropdownMenuItem<String>(
                       value: e,
-                      child: Text(e, style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        _entityTitlesByEntity[e] ?? e,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     )),
               ],
               onChanged: (val) {

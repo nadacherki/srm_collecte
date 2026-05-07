@@ -654,6 +654,7 @@ Future<void> _editMapItemImpl(
         builder: (_) => SrmLigneFormPage(
           metier: metier,
           entityType: entityType,
+          displayTitle: item['source_title']?.toString(),
           linePoints: points,
           agentName: state.widget.agentName,
           existingData: item,
@@ -692,6 +693,7 @@ Future<void> _editMapItemImpl(
           existingData: item,
           metier: metier,
           entityType: entityType,
+          displayTitle: item['source_title']?.toString(),
         ),
       ),
     );
@@ -709,6 +711,7 @@ Future<void> _editMapItemImpl(
           body: SrmPointFormWidget(
             metier: metier,
             entityType: entityType,
+            displayTitle: item['source_title']?.toString(),
             latitude: latLng?.latitude ?? 0.0,
             longitude: latLng?.longitude ?? 0.0,
             altitude: (item['altitude_gps'] as num?)?.toDouble(),
@@ -807,19 +810,19 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
     );
     final fields = SrmConfig.getFields(metier, entityType);
     final xField = fields.firstWhere(
-      (field) => field.endsWith('_coor_x'),
+      (field) => field.toLowerCase().endsWith('_coor_x'),
       orElse: () => '',
     );
     final yField = fields.firstWhere(
-      (field) => field.endsWith('_coor_y'),
+      (field) => field.toLowerCase().endsWith('_coor_y'),
       orElse: () => '',
     );
     final zField = fields.firstWhere(
-      (field) => field.endsWith('_coor_z'),
+      (field) => field.toLowerCase().endsWith('_coor_z'),
       orElse: () => '',
     );
 
-    final altitude = state.homeController.collectionManager.currentAltitude;
+    final altitude = state.homeController.currentAltitude;
     final data = <String, dynamic>{
       'latitude_gps': target.latitude,
       'longitude_gps': target.longitude,
@@ -905,6 +908,7 @@ Future<void> _startLineGeometryEditImpl(
   state._geometryEditLineItem = Map<String, dynamic>.from(item)
     ..['source_metier'] = metier
     ..['source_entity'] = entityType
+    ..['source_title'] = item['source_title']
     ..['source_table'] = tableName;
   state._pendingSrmLigneSelection = null;
   state._ligneRedoPoints.clear();
@@ -923,6 +927,7 @@ Future<void> _startLineGeometryEditImpl(
     srmMetadata: {
       'srmMetier': metier,
       'srmEntityType': entityType,
+      'srmTitleApp': item['source_title'],
       'srmTableName': tableName,
       'geometryEdit': true,
     },

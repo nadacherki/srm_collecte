@@ -60,6 +60,7 @@ import '../../services/special_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/downloaded_lines_service.dart';
+import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
@@ -985,6 +986,7 @@ class _HomePageState extends State<HomePage> {
 // === COLLECTE POLYGONE (Zone de Plaine) ===
   String? _pendingSrmPolygoneMetier;
   String? _pendingSrmPolygoneEntityType;
+  String? _pendingSrmPolygoneTitleApp;
 
   Future<void> startPolygonCollection({
     String? metier,

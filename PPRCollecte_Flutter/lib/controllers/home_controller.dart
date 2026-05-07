@@ -22,6 +22,7 @@ class HomeController extends ChangeNotifier {
   String? lastSync;
   bool isOnline = true;
   LatLng userPosition = const LatLng(34.683100, -1.909800); // Oujda
+  double? _currentAltitude;
   List<Marker> formMarkers = []; // Marqueurs des formulaires enregistrés
   final List<Polyline> collectedPolylines = <Polyline>[];
 
@@ -49,6 +50,8 @@ class HomeController extends ChangeNotifier {
       _collectionManager.specialCollection;
   int get collectionCountdown => _collectionManager.countdown;
   bool get isMockLocationEnabled => _locationService.isMockLocationEnabled;
+  double? get currentAltitude =>
+      _currentAltitude ?? _collectionManager.currentAltitude;
 
   LatLng? get mockPosition {
     final mock = _locationService.lastMockLocation;
@@ -58,6 +61,8 @@ class HomeController extends ChangeNotifier {
     return LatLng(mock!.latitude!, mock.longitude!);
   }
 
+  double? get mockAltitude => _locationService.lastMockLocation?.altitude;
+
   // Expose le collection manager pour la simulation
   CollectionManager get collectionManager => _collectionManager;
 
@@ -65,6 +70,7 @@ class HomeController extends ChangeNotifier {
     required double latitude,
     required double longitude,
     double accuracy = 1.0,
+    double altitude = 0.0,
   }) {
     if (latitude.abs() > 90 || longitude.abs() > 180) {
       throw Exception('Coordonnées mock invalides');
@@ -74,16 +80,18 @@ class HomeController extends ChangeNotifier {
       latitude: latitude,
       longitude: longitude,
       accuracy: accuracy,
+      altitude: altitude,
     );
 
     userPosition = LatLng(latitude, longitude);
+    _currentAltitude = altitude;
     gpsEnabled = true;
     gpsAccuracy = accuracy.round();
     gpsSourceLabel = 'mock interne';
     gpsDetailsLine = _buildPositionDetailsLine(
       latitude: latitude,
       longitude: longitude,
-      altitude: 0,
+      altitude: altitude,
       accuracy: accuracy,
       source: 'mock interne',
     );
@@ -93,12 +101,14 @@ class HomeController extends ChangeNotifier {
 
   Future<void> clearMockPosition() async {
     await _locationService.clearMockLocation();
+    _currentAltitude = null;
 
     try {
       final loc = await _locationService.getCurrent();
       if (loc.latitude != null && loc.longitude != null) {
         userPosition = LatLng(loc.latitude!, loc.longitude!);
       }
+      _currentAltitude = loc.altitude;
       gpsAccuracy = loc.accuracy?.round() ?? gpsAccuracy;
       gpsSourceLabel = 'téléphone';
       if (loc.latitude != null && loc.longitude != null) {
@@ -130,6 +140,7 @@ class HomeController extends ChangeNotifier {
     final ok = await _locationService.requestPermissionAndService();
     if (!ok) {
       gpsEnabled = false;
+      _currentAltitude = null;
       notifyListeners();
       return null;
     }
@@ -139,11 +150,13 @@ class HomeController extends ChangeNotifier {
     final lon = enriched.raw.longitude;
     if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
       gpsEnabled = false;
+      _currentAltitude = null;
       notifyListeners();
       return null;
     }
 
     userPosition = LatLng(lat, lon);
+    _currentAltitude = enriched.raw.altitude;
     gpsEnabled = true;
     gpsAccuracy = enriched.raw.accuracy?.round() ?? gpsAccuracy;
     gpsSourceLabel = 'téléphone';
@@ -182,6 +195,7 @@ class HomeController extends ChangeNotifier {
     }
 
     userPosition = LatLng(latitude, longitude);
+    _currentAltitude = altitude;
     gpsEnabled = true;
     gpsAccuracy = accuracy?.round() ?? gpsAccuracy;
     gpsSourceLabel = 'GNSS externe';
@@ -364,7 +378,11 @@ class HomeController extends ChangeNotifier {
     ];
 
     for (final point in points) {
-      _collectionManager.addManualPoint(CollectionType.special, point);
+      _collectionManager.addManualPoint(
+        CollectionType.special,
+        point,
+        altitude: currentAltitude,
+      );
     }
 
     debugPrint('🧪 SIMULATION: ${points.length} points de polygone simulés');
@@ -396,7 +414,11 @@ class HomeController extends ChangeNotifier {
       currentLng += distance * sin(angle);
 
       final point = LatLng(currentLat, currentLng);
-      _collectionManager.addManualPoint(CollectionType.special, point);
+      _collectionManager.addManualPoint(
+        CollectionType.special,
+        point,
+        altitude: currentAltitude,
+      );
     }
 
     debugPrint(
@@ -440,6 +462,7 @@ class HomeController extends ChangeNotifier {
       final ok = await _locationService.requestPermissionAndService();
       if (!ok) {
         gpsEnabled = false;
+        _currentAltitude = null;
         notifyListeners();
         return;
       }
@@ -449,6 +472,7 @@ class HomeController extends ChangeNotifier {
       if (loc.latitude != null && loc.longitude != null) {
         userPosition = LatLng(loc.latitude!, loc.longitude!);
       }
+      _currentAltitude = loc.altitude;
 
       gpsAccuracy = loc.accuracy?.round();
       lastSync = _formatTimeNow();
@@ -495,6 +519,7 @@ class HomeController extends ChangeNotifier {
             ? CollectionType.ligne
             : CollectionType.special,
         point,
+        altitude: currentAltitude,
       );
     }
 
@@ -547,6 +572,7 @@ class HomeController extends ChangeNotifier {
         if (lat.abs() > 90 || lon.abs() > 180) return;
 
         userPosition = LatLng(lat, lon);
+        _currentAltitude = loc.altitude;
         gpsAccuracy =
             loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
         if (!gpsSourceLabel.startsWith('GNSS externe')) {
@@ -630,6 +656,7 @@ class HomeController extends ChangeNotifier {
       final added = _collectionManager.addManualPoint(
         CollectionType.ligne,
         userPosition,
+        altitude: currentAltitude,
       );
       if (!added) {
         return 'Le point courant existe déjà dans ce tracé.';
@@ -641,6 +668,7 @@ class HomeController extends ChangeNotifier {
       final added = _collectionManager.addManualPoint(
         CollectionType.special,
         userPosition,
+        altitude: currentAltitude,
       );
       if (!added) {
         return 'Le point courant existe déjà dans ce tracé.';
@@ -790,7 +818,7 @@ class HomeController extends ChangeNotifier {
 
   void addManualPointToCollection(CollectionType type) {
     final point = LatLng(userPosition.latitude, userPosition.longitude);
-    _collectionManager.addManualPoint(type, point);
+    _collectionManager.addManualPoint(type, point, altitude: currentAltitude);
   }
 
   // === MÉTHODES UTILITAIRES ===
