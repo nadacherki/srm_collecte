@@ -11,6 +11,7 @@
 //  4. Toggle "Objet Incomplet" : griser les champs + saisir raison depuis objet_incomplet
 //     (même principe que le Switch Anomalie existant)
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -91,6 +92,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   late final int _maxPhotos;
   late double _merchichX;
   late double _merchichY;
+  Timer? _customerLinkTimer;
+  bool _isCustomerLinkLoading = false;
+  String? _customerLinkMessage;
+  String? _lastCustomerLinkKey;
+  bool _isApplyingCustomerLink = false;
+  final Set<String> _customerLinkListenerFields = {};
 
   bool _isTruthyFlag(dynamic value) {
     if (value == null) return false;
@@ -120,6 +127,30 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   bool get _isEpRegardPoint =>
       widget.metier == 'Eau Potable' && _tableName == 'ep_regard_point';
 
+  String _foldLabel(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp('[\\u00e0\\u00e1\\u00e2\\u00e3\\u00e4\\u00e5]'), 'a')
+        .replaceAll(RegExp('[\\u00e7]'), 'c')
+        .replaceAll(RegExp('[\\u00e8\\u00e9\\u00ea\\u00eb]'), 'e')
+        .replaceAll(RegExp('[\\u00ec\\u00ed\\u00ee\\u00ef]'), 'i')
+        .replaceAll(RegExp('[\\u00f1]'), 'n')
+        .replaceAll(RegExp('[\\u00f2\\u00f3\\u00f4\\u00f5\\u00f6]'), 'o')
+        .replaceAll(RegExp('[\\u00f9\\u00fa\\u00fb\\u00fc]'), 'u')
+        .replaceAll(RegExp('[\\u00fd\\u00ff]'), 'y');
+  }
+
+  bool get _isEpCompteurAbonne {
+    if (widget.metier != 'Eau Potable') return false;
+    final tableName = _tableName.toLowerCase();
+    if (tableName == 'compteur_abonne' || tableName == 'ep_brc_pt') {
+      return true;
+    }
+    final label =
+        _foldLabel('${widget.entityType} ${widget.displayTitle ?? ''}');
+    return label.contains('compteur') && label.contains('abonne');
+  }
+
   bool get _isEpMinimalLocationForm =>
       widget.metier == 'Eau Potable' &&
       const {'borne_onep', 'bouche_a_cles', 'autre_objet'}.contains(_tableName);
@@ -146,6 +177,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final initial = widget.existingData?[field]?.toString() ?? '';
       _controllers[field] = TextEditingController(text: initial);
     }
+    _ensureCustomerLinkListeners();
     _loadAttributConfigMobileFields();
     _prefillCoordinates();
     _applyEntitySpecificDefaults();
@@ -265,6 +297,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         }
         _prefillCoordinates();
         _applyEntitySpecificDefaults();
+        _ensureCustomerLinkListeners();
       });
     } catch (e) {
       debugPrint('[ATTRIBUT-CONFIG-MOBILE] Form fallback $_tableName: $e');
@@ -350,6 +383,142 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  void _ensureCustomerLinkListeners() {
+    if (!_isEpCompteurAbonne) return;
+    for (final field in const ['num_contrat', 'ancienne_police']) {
+      if (_customerLinkListenerFields.contains(field)) continue;
+      final controller = _controllers[field];
+      if (controller == null) continue;
+      controller.addListener(_scheduleCustomerLinkLookup);
+      _customerLinkListenerFields.add(field);
+    }
+  }
+
+  void _scheduleCustomerLinkLookup() {
+    if (!_isEpCompteurAbonne || _isLocked || _isApplyingCustomerLink) return;
+    _customerLinkTimer?.cancel();
+    _customerLinkTimer = Timer(
+      const Duration(milliseconds: 700),
+      _fetchCustomerLink,
+    );
+  }
+
+  Future<void> _fetchCustomerLink() async {
+    if (!_isEpCompteurAbonne || !mounted) return;
+    final numContrat = _controllers['num_contrat']?.text.trim() ?? '';
+    final anciennePolice = _controllers['ancienne_police']?.text.trim() ?? '';
+    if (numContrat.isEmpty && anciennePolice.isEmpty) {
+      setState(() {
+        _customerLinkMessage = null;
+        _isCustomerLinkLoading = false;
+      });
+      return;
+    }
+
+    final requestKey = '$numContrat|$anciennePolice|'
+        '${_merchichX.toStringAsFixed(3)}|${_merchichY.toStringAsFixed(3)}';
+    if (requestKey == _lastCustomerLinkKey) return;
+    _lastCustomerLinkKey = requestKey;
+
+    setState(() {
+      _isCustomerLinkLoading = true;
+      _customerLinkMessage = 'Recherche client ONEP...';
+    });
+
+    try {
+      final response = await ApiService.fetchCompteurAbonneCustomerLink(
+        numContrat: numContrat,
+        anciennePolice: anciennePolice,
+        x: _merchichX,
+        y: _merchichY,
+      );
+      if (!mounted || response == null) return;
+
+      final matched = response['matched'] == true;
+      if (matched) {
+        final rawData = response['data'];
+        if (rawData is Map) {
+          _applyCustomerLinkData(Map<String, dynamic>.from(rawData));
+        }
+        final note = response['observation_note']?.toString().trim() ?? '';
+        if (note.isNotEmpty) {
+          _appendObservationNote(note);
+        }
+        final matchType = response['match_type']?.toString();
+        final warnings = response['warnings'];
+        final warningText = warnings is List && warnings.isNotEmpty
+            ? warnings.first.toString()
+            : '';
+        setState(() {
+          final baseMessage = matchType == 'ancienne_police_commune'
+              ? 'Client ONEP trouve par ancienne police + commune.'
+              : 'Client ONEP trouve par numero de contrat.';
+          _customerLinkMessage =
+              warningText.isEmpty ? baseMessage : '$baseMessage $warningText';
+        });
+      } else {
+        final warnings = response['warnings'];
+        final warningText = warnings is List && warnings.isNotEmpty
+            ? warnings.first.toString()
+            : 'Aucun client ONEP trouve pour ces informations.';
+        setState(() {
+          _customerLinkMessage = warningText;
+        });
+      }
+    } catch (e) {
+      debugPrint('[ONEP-LINK] $e');
+      if (mounted) {
+        setState(() {
+          _customerLinkMessage = 'Liaison client indisponible hors ligne.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCustomerLinkLoading = false;
+        });
+      }
+    }
+  }
+
+  void _applyCustomerLinkData(Map<String, dynamic> data) {
+    const fields = [
+      'num_contrat',
+      'ancienne_police',
+      'abon',
+      'nom',
+      'adresse',
+      'etat_abonnement',
+      'ancien_ref_sap',
+      'id_geo',
+      'ref',
+    ];
+    _isApplyingCustomerLink = true;
+    try {
+      for (final field in fields) {
+        final value = data[field]?.toString().trim() ?? '';
+        if (value.isEmpty) continue;
+        final controller = _controllers[field];
+        if (controller != null && controller.text.trim() != value) {
+          controller.text = value;
+        }
+      }
+    } finally {
+      _isApplyingCustomerLink = false;
+    }
+  }
+
+  void _appendObservationNote(String note) {
+    final cleanNote = note.trim();
+    if (cleanNote.isEmpty) return;
+    final controller =
+        _controllers['ep_observation'] ?? _controllers['observation'];
+    if (controller == null) return;
+    final current = controller.text.trim();
+    if (current.contains(cleanNote)) return;
+    controller.text = current.isEmpty ? cleanNote : '$current | $cleanNote';
+  }
+
   String _formatDateOnly(DateTime value) {
     final year = value.year.toString().padLeft(4, '0');
     final month = value.month.toString().padLeft(2, '0');
@@ -392,10 +561,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   bool _isHiddenField(String field) => _isWorkflowManagedField(field);
 
+  bool _isCustomerLinkTriggerField(String field) =>
+      field == 'num_contrat' || field == 'ancienne_police';
+
   @override
   void dispose() {
     // ── SPRINT 7 : arrêter le timer de brouillon ──
     if (widget.existingData == null) disposeDraft();
+    _customerLinkTimer?.cancel();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -841,6 +1014,154 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _isCoordSuffix(field, '_coor_y') ||
       _isCoordSuffix(field, '_coor_z');
 
+  List<Widget> _buildDynamicFields() {
+    if (!_isEpCompteurAbonne) {
+      return _fields.map(_buildField).toList();
+    }
+    return _buildCompteurAbonneFields();
+  }
+
+  List<Widget> _buildCompteurAbonneFields() {
+    final widgets = <Widget>[];
+    final rendered = <String>{};
+
+    List<String> visibleFields(List<String> fields) {
+      return fields
+          .where((field) =>
+              _fields.contains(field) &&
+              !rendered.contains(field) &&
+              !_isHiddenField(field))
+          .toList();
+    }
+
+    void addFields(List<String> fields) {
+      for (final field in fields) {
+        rendered.add(field);
+        widgets.add(_buildField(field));
+      }
+    }
+
+    void addSection(
+      String title,
+      List<String> fields, {
+      Widget? leading,
+    }) {
+      final sectionFields = visibleFields(fields);
+      if (sectionFields.isEmpty && leading == null) return;
+      widgets.add(_buildSectionHeader(title));
+      if (leading != null) widgets.add(leading);
+      addFields(sectionFields);
+    }
+
+    final coordFields = _fields.where(_isCoordField).toList();
+    addSection('Terrain', [
+      'type_cpt',
+      'diametre',
+      ...coordFields,
+      'ep_conf_plan',
+      'mode_localisation',
+      'ep_observation',
+    ]);
+
+    addSection(
+      'Liaison clientele',
+      const [
+        'num_contrat',
+        'ancienne_police',
+        'abon',
+        'nom',
+        'adresse',
+        'etat_abonnement',
+        'ancien_ref_sap',
+        'id_geo',
+        'ref',
+      ],
+      leading: _buildCustomerLinkStatus(),
+    );
+
+    final remaining = _fields
+        .where((field) => !rendered.contains(field) && !_isHiddenField(field))
+        .toList();
+    addSection('Autres', remaining);
+
+    return widgets;
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 18,
+            decoration: BoxDecoration(
+              color: _metierColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              color: _metierColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Divider(color: Colors.grey.shade300, height: 1)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerLinkStatus() {
+    final message = _customerLinkMessage?.trim();
+    if (!_isCustomerLinkLoading && (message == null || message.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
+    final isSuccess = !_isCustomerLinkLoading &&
+        (message?.startsWith('Client ONEP') ?? false);
+    final color = isSuccess ? Colors.green.shade700 : Colors.orange.shade700;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isCustomerLinkLoading)
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _metierColor,
+              ),
+            )
+          else
+            Icon(
+              isSuccess ? Icons.link : Icons.info_outline,
+              size: 18,
+              color: color,
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message ?? 'Recherche client ONEP...',
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildField(String field) {
     if (_isHiddenField(field)) {
       return const SizedBox.shrink();
@@ -921,6 +1242,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           maxLength: rule.maxLength,
           inputFormatters: _inputFormatters(rule),
           readOnly: fieldIsReadOnly,
+          onChanged: fieldIsReadOnly
+              ? null
+              : (_) {
+                  if (_isCustomerLinkTriggerField(field)) {
+                    _scheduleCustomerLinkLookup();
+                  }
+                },
           validator: (value) => (_isObjetIncomplet || _isLocked)
               ? null
               : _validateField(field, value),
@@ -1846,7 +2174,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                       ),
 
                     // Champs dynamiques
-                    ..._fields.map(_buildField),
+                    ..._buildDynamicFields(),
 
                     // Sections anomalie + incomplet
                     if (!_isEpMinimalLocationForm) ...[

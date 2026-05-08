@@ -325,6 +325,23 @@ def main() -> int:
         "borne_onep": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
         "bouche_a_cles": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
         "autre_objet": ["ep_coor_x", "ep_coor_y", "ep_coor_z", "observation"],
+        "compteur_abonne": [
+            "type_cpt",
+            "diametre",
+            "ep_observation",
+            "ep_anomalie",
+            "type_anomalie",
+            "num_contrat",
+            "ancienne_police",
+            "abon",
+            "nom",
+            "adresse",
+            "etat_abonnement",
+            "ancien_ref_sap",
+            "id_geo",
+            "ep_conf_plan",
+            "mode_localisation",
+        ],
         "conduite_terrain": ["ep_diam", "ep_mat"],
     }
     for table_name, expected_fields in exact_fields.items():

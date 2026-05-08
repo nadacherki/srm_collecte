@@ -301,6 +301,54 @@ class ApiService {
         .toList();
   }
 
+  static Future<Map<String, dynamic>?> fetchCompteurAbonneCustomerLink({
+    String? numContrat,
+    String? anciennePolice,
+    double? x,
+    double? y,
+  }) async {
+    final contract = numContrat?.trim() ?? '';
+    final police = anciennePolice?.trim() ?? '';
+    if (contract.isEmpty && police.isEmpty) return null;
+
+    final params = <String, String>{
+      if (contract.isNotEmpty) 'num_contrat': contract,
+      if (police.isNotEmpty) 'ancienne_police': police,
+      if (x != null) 'x': x.toStringAsFixed(3),
+      if (y != null) 'y': y.toStringAsFixed(3),
+    };
+    final uri = Uri.parse('$baseUrl/api/ep/compteurs-abonne/customer-link/')
+        .replace(queryParameters: params);
+
+    try {
+      final response = await http
+          .get(uri, headers: _headers())
+          .timeout(const Duration(seconds: 12));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse liaison client invalide');
+      }
+
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur liaison client ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout liaison client');
+    } on SocketException {
+      throw Exception('Erreur reseau liaison client');
+    } on FormatException {
+      throw Exception('Reponse liaison client invalide');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> fetchCommunesOriental() async {
     final url = Uri.parse('$baseUrl/api/communes-oriental/');
     final response = await http

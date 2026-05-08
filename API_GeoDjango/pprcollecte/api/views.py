@@ -276,6 +276,378 @@ def _mobile_apply_input_aliases(payload, columns):
     return values
 
 
+ONEP_CLIENT_COLUMNS = [
+    'numero_contrat',
+    'ancienne_reference_sap',
+    'ancienne_police',
+    'nom_commune',
+    'nom_client',
+    'prenom_client',
+    'identifiant_geographique',
+    'etat_abonnement',
+    'adresse',
+]
+
+
+ONEP_CLIENT_SELECT = """
+    SELECT
+        o."numero de contrat"::text AS numero_contrat,
+        o."ancienne reference sap"::text AS ancienne_reference_sap,
+        o."ancienne police"::text AS ancienne_police,
+        COALESCE(o."nom commune_1", o."nom commune")::text AS nom_commune,
+        o."nom/raison sociale du client payeur"::text AS nom_client,
+        o."prenom du client payeur"::text AS prenom_client,
+        o."identifiant geographique"::text AS identifiant_geographique,
+        o."libelle etat abonnement"::text AS etat_abonnement,
+        o."adresse postale client payeur"::text AS adresse
+    FROM ep.onep_db o
+"""
+
+
+def _clean_str(value):
+    if value is None:
+        return ''
+    return str(value).strip()
+
+
+def _none_if_blank(value):
+    text = _clean_str(value)
+    return text or None
+
+
+def _parse_float(value):
+    text = _clean_str(value).replace(',', '.')
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _is_valid_old_police(value):
+    text = _clean_str(value)
+    return bool(text) and text.upper() not in {'NEANT', 'NÉANT', 'NULL'}
+
+
+def _onep_client_payload(row):
+    if row is None:
+        return {}
+    data = dict(zip(ONEP_CLIENT_COLUMNS, row))
+    old_sap = _none_if_blank(data.get('ancienne_reference_sap'))
+    return {
+        'num_contrat': _none_if_blank(data.get('numero_contrat')),
+        'ref': old_sap,
+        'ancien_ref_sap': old_sap,
+        'id_geo': _none_if_blank(data.get('identifiant_geographique')),
+        'ancienne_police': _none_if_blank(data.get('ancienne_police')),
+        'abon': _none_if_blank(data.get('prenom_client')),
+        'nom': _none_if_blank(data.get('nom_client')),
+        'adresse': _none_if_blank(data.get('adresse')),
+        'etat_abonnement': _none_if_blank(data.get('etat_abonnement')),
+        'type_abonnement': None,
+    }
+
+
+def _onep_spatial_commune_from_xy(x_value, y_value):
+    x = _parse_float(x_value)
+    y = _parse_float(y_value)
+    if x is None or y is None:
+        return None, None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                c.nom,
+                public.srm_normalize_commune_name(c.nom)
+            FROM public.commune_oriental c
+            WHERE ST_Covers(c.geom, ST_SetSRID(ST_MakePoint(%s, %s), 26191))
+            ORDER BY ST_Area(c.geom) ASC NULLS LAST
+            LIMIT 1
+            """,
+            [x, y],
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None, None
+    return row[0], row[1]
+
+
+def _onep_rows_by_contract(num_contrat):
+    contract = _clean_str(num_contrat)
+    if not contract:
+        return []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            ONEP_CLIENT_SELECT
+            + """
+            WHERE btrim(o."numero de contrat"::text) = %s
+            LIMIT 2
+            """,
+            [contract],
+        )
+        return cursor.fetchall()
+
+
+def _onep_rows_by_police_commune(ancienne_police, spatial_commune_key):
+    police = _clean_str(ancienne_police)
+    if not _is_valid_old_police(police) or not spatial_commune_key:
+        return []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            ONEP_CLIENT_SELECT
+            + """
+            WHERE btrim(o."ancienne police"::text) = %s
+              AND public.srm_onep_commune_key(
+                    COALESCE(o."nom commune_1", o."nom commune")
+                  ) = %s
+            LIMIT 2
+            """,
+            [police, spatial_commune_key],
+        )
+        return cursor.fetchall()
+
+
+def _onep_commune_key(raw_commune):
+    commune = _clean_str(raw_commune)
+    if not commune:
+        return None
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT public.srm_onep_commune_key(%s)",
+            [commune],
+        )
+        row = cursor.fetchone()
+    return row[0] if row else None
+
+
+@api_view(['GET'])
+def ep_compteur_abonne_customer_link_view(request):
+    """Lookup ONEP customer data for the mobile compteur abonne form."""
+    num_contrat = _clean_str(request.query_params.get('num_contrat'))
+    ancienne_police = _clean_str(request.query_params.get('ancienne_police'))
+    x = request.query_params.get('x') or request.query_params.get('ep_coor_x')
+    y = request.query_params.get('y') or request.query_params.get('ep_coor_y')
+
+    spatial_commune_name, spatial_commune_key = _onep_spatial_commune_from_xy(
+        x,
+        y,
+    )
+    warnings = []
+    rows = []
+    match_type = None
+
+    if num_contrat:
+        rows = _onep_rows_by_contract(num_contrat)
+        if len(rows) > 1:
+            return Response(
+                {
+                    'matched': False,
+                    'status': 'ambiguous_contract',
+                    'match_type': None,
+                    'warnings': [
+                        f'Numero de contrat ambigue dans ONEP: {num_contrat}'
+                    ],
+                    'data': {},
+                    'commune': {
+                        'spatial_name': spatial_commune_name,
+                        'spatial_key': spatial_commune_key,
+                        'onep_name': None,
+                        'onep_key': None,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        if len(rows) == 1:
+            match_type = 'num_contrat'
+
+    if not rows and ancienne_police:
+        if not spatial_commune_key:
+            warnings.append(
+                "Commune spatiale introuvable: liaison par ancienne police impossible."
+            )
+        elif not _is_valid_old_police(ancienne_police):
+            warnings.append(
+                "Ancienne police vide ou non exploitable pour la liaison ONEP."
+            )
+        else:
+            rows = _onep_rows_by_police_commune(
+                ancienne_police,
+                spatial_commune_key,
+            )
+            if len(rows) > 1:
+                return Response(
+                    {
+                        'matched': False,
+                        'status': 'ambiguous_old_police',
+                        'match_type': None,
+                        'warnings': [
+                            'Ancienne police ambigue dans ONEP pour la commune '
+                            f'{spatial_commune_key}: {ancienne_police}'
+                        ],
+                        'data': {},
+                        'commune': {
+                            'spatial_name': spatial_commune_name,
+                            'spatial_key': spatial_commune_key,
+                            'onep_name': None,
+                            'onep_key': None,
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            if len(rows) == 1:
+                match_type = 'ancienne_police_commune'
+
+    if not rows:
+        return Response(
+            {
+                'matched': False,
+                'status': 'not_found',
+                'match_type': None,
+                'warnings': warnings,
+                'data': {},
+                'commune': {
+                    'spatial_name': spatial_commune_name,
+                    'spatial_key': spatial_commune_key,
+                    'onep_name': None,
+                    'onep_key': None,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    row = rows[0]
+    client = dict(zip(ONEP_CLIENT_COLUMNS, row))
+    payload = _onep_client_payload(row)
+    onep_commune_name = client.get('nom_commune')
+    onep_commune_key = _onep_commune_key(onep_commune_name)
+    observation_note = None
+
+    if (
+        match_type == 'num_contrat'
+        and spatial_commune_key
+        and onep_commune_key
+        and onep_commune_key != spatial_commune_key
+    ):
+        observation_note = (
+            "Incoherence decoupage client: ONEP="
+            f"{onep_commune_name or '?'}, spatial={spatial_commune_key}. "
+            "Liaison conservee par numero de contrat."
+        )
+        warnings.append(observation_note)
+
+    return Response(
+        {
+            'matched': True,
+            'status': 'matched',
+            'match_type': match_type,
+            'warnings': warnings,
+            'observation_note': observation_note,
+            'data': payload,
+            'commune': {
+                'spatial_name': spatial_commune_name,
+                'spatial_key': spatial_commune_key,
+                'onep_name': onep_commune_name,
+                'onep_key': onep_commune_key,
+            },
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
+def ep_compteur_abonne_commune_audit_view(request):
+    """Reusable audit for ONEP commune names and spatial contract conflicts."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            WITH onep AS (
+              SELECT
+                COALESCE("nom commune_1", "nom commune")::text AS onep_commune,
+                public.srm_onep_commune_key(
+                  COALESCE("nom commune_1", "nom commune")
+                ) AS onep_key,
+                count(*) AS occurrences
+              FROM ep.onep_db
+              GROUP BY 1, 2
+            ), local_communes AS (
+              SELECT
+                nom,
+                public.srm_normalize_commune_name(nom) AS local_key
+              FROM public.commune_oriental
+            )
+            SELECT
+              onep.onep_commune,
+              onep.onep_key,
+              onep.occurrences,
+              local_communes.nom AS decoupage_commune
+            FROM onep
+            LEFT JOIN local_communes
+              ON local_communes.local_key = onep.onep_key
+            ORDER BY onep.onep_commune
+            """
+        )
+        commune_rows = [
+            {
+                'onep_commune': row[0],
+                'onep_key': row[1],
+                'occurrences': row[2],
+                'decoupage_commune': row[3],
+                'aligned': row[3] is not None,
+            }
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            """
+            WITH linked AS (
+              SELECT
+                COALESCE(o."nom commune_1", o."nom commune")::text
+                  AS onep_commune,
+                public.srm_onep_commune_key(
+                  COALESCE(o."nom commune_1", o."nom commune")
+                ) AS onep_key,
+                public.srm_ep_spatial_commune_key(b.geom) AS spatial_key
+              FROM ep.ep_brc_pt b
+              JOIN ep.onep_db o
+                ON btrim(b.num_contrat::text)
+                 = btrim(o."numero de contrat"::text)
+              WHERE b.geom IS NOT NULL
+            )
+            SELECT
+              onep_commune,
+              onep_key,
+              spatial_key,
+              count(*) AS total
+            FROM linked
+            WHERE onep_key IS DISTINCT FROM spatial_key
+            GROUP BY onep_commune, onep_key, spatial_key
+            ORDER BY total DESC, onep_commune, spatial_key
+            """
+        )
+        mismatch_rows = [
+            {
+                'onep_commune': row[0],
+                'onep_key': row[1],
+                'spatial_key': row[2],
+                'total': row[3],
+            }
+            for row in cursor.fetchall()
+        ]
+
+    return Response(
+        {
+            'communes': commune_rows,
+            'missing_commune_mappings': [
+                row for row in commune_rows if not row['aligned']
+            ],
+            'contract_spatial_mismatches': mismatch_rows,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
 def _table_foreign_keys(schema_name, table_name):
     """Liste les FK de la table cible : (col_locale, schema_ref, table_ref, col_ref)."""
     with connection.cursor() as cursor:
