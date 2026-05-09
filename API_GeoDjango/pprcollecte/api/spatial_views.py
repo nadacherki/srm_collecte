@@ -374,3 +374,4 @@ class TypesInfrastructuresAPIView(APIView):
             'types': types_config,
             'total': len(types_config)
         })
+# SRM metadata refresh.

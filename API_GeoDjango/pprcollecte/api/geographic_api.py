@@ -175,3 +175,4 @@ class ZoomToLocationAPIView(APIView):
             return [centroid.x, centroid.y]
         except:
             return Nones
+# SRM metadata refresh.

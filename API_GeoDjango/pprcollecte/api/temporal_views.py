@@ -576,3 +576,4 @@ class TemporalAnalysisAPIView(APIView):
             
         trend = ((avg_second - avg_first) / avg_first) * 100
         return round(trend, 1)
+# SRM metadata refresh.

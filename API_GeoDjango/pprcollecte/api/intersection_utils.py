@@ -117,3 +117,4 @@ def update_intersections_for_pistes(piste_ids):
     
     #  NOUVEAU: Retourner les IDs impactés 
     return list(existing_impacted)
+# SRM metadata refresh.
