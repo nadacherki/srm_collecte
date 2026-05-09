@@ -2710,7 +2710,7 @@ class DatabaseHelper {
         }
       }
     }
-    // Tables spéciales hors srm_config
+    // Tables techniques hors srm_config.
     tables.addAll({
       'objet_incomplet',
       'raison_incomplet',

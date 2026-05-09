@@ -32,7 +32,6 @@ class HomeController extends ChangeNotifier {
   List<LatLng> linePoints = [];
   double lineTotalDistance = 0.0;
   String? _activeLineCode;
-  String? _specialCollectionType;
   StreamSubscription<LocationData>? _locationSub;
 
   HomeController({LocationService? locationService})
@@ -46,8 +45,8 @@ class HomeController extends ChangeNotifier {
   bool get hasPausedCollection => _collectionManager.hasPausedCollection;
   String? get activeCollectionType => _collectionManager.activeCollectionType;
   String? get activeLineCode => _activeLineCode;
-  SpecialCollection? get specialCollection =>
-      _collectionManager.specialCollection;
+  PolygonCollection? get polygonCollection =>
+      _collectionManager.polygonCollection;
   int get collectionCountdown => _collectionManager.countdown;
   bool get isMockLocationEnabled => _locationService.isMockLocationEnabled;
   double? get currentAltitude =>
@@ -327,10 +326,10 @@ class HomeController extends ChangeNotifier {
     return type.isEmpty ? null : type;
   }
 
-  Future<void> startSpecialCollection(String specialType) async {
+  Future<void> startPolygonCollection(String entityType) async {
     try {
-      _collectionManager.startSpecialCollection(
-        specialType: specialType,
+      _collectionManager.startPolygonCollection(
+        entityType: entityType,
         initialPosition: userPosition, // ← ta position actuelle
         locationStream: _locationService.onLocationChanged(), // ← flux GPS réel
       );
@@ -340,97 +339,14 @@ class HomeController extends ChangeNotifier {
     }
   }
 
-  CollectionResult? finishSpecialCollection() {
-    return _collectionManager.finishSpecialCollection();
+  CollectionResult? finishPolygonCollection() {
+    return _collectionManager.finishPolygonCollection();
   }
 
-  void setSpecialCollectionType(String type) {
-    _specialCollectionType = type;
-  }
-
-  String? getSpecialCollectionType() {
-    return _specialCollectionType;
-  }
-
-  // Dans HomeController
-  void clearSpecialCollectionType() {
-    _specialCollectionType = null;
-    notifyListeners();
-  }
-
-  // SIMULATION ÉMULATEUR — À SUPPRIMER POUR LA PRODUCTION
-  void simulatePolygonPoints() {
-    if (specialCollection == null || !specialCollection!.isActive) return;
-
-    final centerLat = userPosition.latitude;
-    final centerLng = userPosition.longitude;
-
-    // Simuler un quadrilatère autour de la position actuelle
-    // ~50m de côté environ
-    const offset = 0.0005; // ~55 mètres
-    final points = [
-      LatLng(centerLat + offset, centerLng - offset), // Nord-Ouest
-      LatLng(centerLat + offset, centerLng + offset), // Nord-Est
-      LatLng(centerLat - offset, centerLng + offset * 0.8), // Sud-Est
-      LatLng(centerLat - offset * 0.6, centerLng - offset * 1.2), // Sud-Ouest
-      // Ajouter un 5ème point pour un pentagone plus réaliste
-      LatLng(centerLat + offset * 0.3, centerLng - offset * 1.3), // Ouest
-    ];
-
-    for (final point in points) {
-      _collectionManager.addManualPoint(
-        CollectionType.special,
-        point,
-        altitude: currentAltitude,
-      );
-    }
-
-    debugPrint('🧪 SIMULATION: ${points.length} points de polygone simulés');
-    notifyListeners();
-  }
-
-  // FIN SIMULATION
-
-  // méthode pour la simulation spéciale ( Bacs + Passages)
-  void addManualPointToSpecialCollection() {
-    if (specialCollection == null || !specialCollection!.isActive) return;
-
-    final random = Random();
-
-    // SIMULATION plus réaliste pour les lignes
-    final numberOfPoints = 10 + random.nextInt(5); // 10-15 points
-
-    double currentLat = userPosition.latitude;
-    double currentLng = userPosition.longitude;
-    double angle = random.nextDouble() * 2 * pi;
-    double curveIntensity = 0.05;
-
-    for (int i = 0; i < numberOfPoints; i++) {
-      final distance = 0.0001 + (random.nextDouble() * 0.00005); // 10-15m
-      final curveVariation = (random.nextDouble() - 0.5) * curveIntensity;
-      angle += curveVariation;
-
-      currentLat += distance * cos(angle);
-      currentLng += distance * sin(angle);
-
-      final point = LatLng(currentLat, currentLng);
-      _collectionManager.addManualPoint(
-        CollectionType.special,
-        point,
-        altitude: currentAltitude,
-      );
-    }
-
-    debugPrint(
-        '✅ $numberOfPoints points réalistes simulés pour collection spéciale');
-    notifyListeners();
-  }
-
-  /// Appelé lorsque les collectes changent
-  // Vérifier que la collection spéciale est bien mise à jour
+  /// Appel? lorsque les collectes changent
   void _onCollectionChanged() {
     final ligne = _collectionManager.ligneCollection;
-    final special = _collectionManager.specialCollection;
+    final polygon = _collectionManager.polygonCollection;
 
     if (ligne != null) {
       lineActive = ligne.isActive;
@@ -440,17 +356,15 @@ class HomeController extends ChangeNotifier {
       linePaused = false;
     }
 
-    // AJOUTER LA COLLECTION SPÉCIALE
     linePoints = [];
     lineTotalDistance = 0.0;
     if (ligne != null) {
       linePoints = List<LatLng>.from(ligne.points);
       lineTotalDistance = ligne.totalDistance;
     }
-    if (special != null) {
-      // Mettre à jour les points pour le traçage
-      linePoints = List<LatLng>.from(special.points);
-      lineTotalDistance = special.totalDistance;
+    if (polygon != null) {
+      linePoints = List<LatLng>.from(polygon.points);
+      lineTotalDistance = polygon.totalDistance;
     }
 
     notifyListeners();
@@ -517,7 +431,7 @@ class HomeController extends ChangeNotifier {
       _collectionManager.addManualPoint(
         activeCollectionType == 'ligne'
             ? CollectionType.ligne
-            : CollectionType.special,
+            : CollectionType.polygon,
         point,
         altitude: currentAltitude,
       );
@@ -635,16 +549,16 @@ class HomeController extends ChangeNotifier {
     }
   }
 
-  void toggleSpecialCollection() {
-    final special = _collectionManager.specialCollection;
-    if (special == null) return;
+  void togglePolygonCollection() {
+    final polygon = _collectionManager.polygonCollection;
+    if (polygon == null) return;
 
-    if (special.isActive) {
-      _collectionManager.pauseSpecialCollection();
-    } else if (special.isPaused) {
+    if (polygon.isActive) {
+      _collectionManager.pausePolygonCollection();
+    } else if (polygon.isPaused) {
       try {
         _collectionManager
-            .resumeSpecialCollection(_locationService.onLocationChanged());
+            .resumePolygonCollection(_locationService.onLocationChanged());
       } catch (_) {
         rethrow;
       }
@@ -664,9 +578,9 @@ class HomeController extends ChangeNotifier {
       return null;
     }
 
-    if (_collectionManager.specialCollection?.isActive ?? false) {
+    if (_collectionManager.polygonCollection?.isActive ?? false) {
       final added = _collectionManager.addManualPoint(
-        CollectionType.special,
+        CollectionType.polygon,
         userPosition,
         altitude: currentAltitude,
       );
@@ -747,8 +661,8 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void cancelSpecialCollection() {
-    _collectionManager.cancelSpecialCollection();
+  void cancelPolygonCollection() {
+    _collectionManager.cancelPolygonCollection();
     notifyListeners();
   }
 

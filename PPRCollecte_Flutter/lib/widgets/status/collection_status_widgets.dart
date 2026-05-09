@@ -74,11 +74,11 @@ class LigneStatusWidget extends StatelessWidget {
   }
 }
 
-class SpecialStatusWidget extends StatelessWidget {
-  final SpecialCollection collection;
+class PolygonStatusWidget extends StatelessWidget {
+  final PolygonCollection collection;
   final double? topOffset;
 
-  const SpecialStatusWidget({
+  const PolygonStatusWidget({
     super.key,
     required this.collection,
     this.topOffset,
@@ -117,7 +117,7 @@ class SpecialStatusWidget extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Collecte ${collection.specialType} active',
+                'Collecte ${collection.entityType} active',
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,

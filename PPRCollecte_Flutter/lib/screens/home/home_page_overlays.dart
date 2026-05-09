@@ -2,16 +2,6 @@ part of 'home_page.dart';
 
 const String _epRegardMiroirOverlayTable = 'ep_regard';
 const double _regardMiroirLocalSquareSizeMeters = 24.0;
-
-Future<void> _loadDownloadedSpecialLinesImpl(_HomePageState state) async {
-  if (state.mounted) {
-    state._setStateFromPart(() {
-      state._downloadedSpecialLinesPolylines = [];
-    });
-  }
-  debugPrint('[_loadDownloadedSpecialLines] stubbed for Sprint 6');
-}
-
 Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
   debugPrint('[LINE-DOWNLOAD] chargement des polylignes téléchargées');
   try {
@@ -79,12 +69,12 @@ double _polylineDistanceKmImpl(List<LatLng> points) {
   return sum / 1000.0;
 }
 
-Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
+Future<void> _loadDisplayedSrmLinesImpl(_HomePageState state) async {
   try {
     final srmLinesByTable = <String, List<Polyline>>{};
     final anomalieByTable = <String, List<Polyline>>{};
     final incompletByTable = <String, List<Polyline>>{};
-    final lines = await state._specialLinesService.getDisplayedSpecialLines(
+    final lines = await state._srmLinesService.getDisplayedSrmLines(
       onTapDetails: (data) {
         final start = LatLng(
           (data['start_lat'] as num).toDouble(),
@@ -97,9 +87,9 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
 
         final distanceKm = _polylineDistanceKmImpl([start, end]);
 
-        state._showSpecialLineDetailsSheet(
+        state._showSrmLineDetailsSheet(
           context: state.context,
-          specialType: (data['special_type'] ?? '----').toString(),
+          entityType: (data['entity_title'] ?? '----').toString(),
           statut: 'Sauvegardée (téléchargée)',
           region: (data['region_name'] ?? '').toString().isNotEmpty
               ? (data['region_name']).toString()
@@ -143,16 +133,15 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
     );
 
     state._setStateFromPart(() {
-      state._displayedSpecialLines = lines;
       state._displayedSrmLinesByTable = srmLinesByTable;
       state._displayedLineAnomalieByTable = anomalieByTable;
       state._displayedLineIncompletByTable = incompletByTable;
     });
     await state._loadPointCountsByTable();
 
-    debugPrint('[SRM-LINES] ${lines.length} ligne(s) speciale(s) affichee(s)');
+    debugPrint('[SRM-LINES] ${lines.length} ligne(s) SRM affichee(s)');
   } catch (e) {
-    debugPrint('[SPECIAL] Error loading special lines: $e');
+    debugPrint('[SRM-LINES] erreur chargement lignes SRM: $e');
   }
 }
 
@@ -202,58 +191,6 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             hasAnomalie || hasIncomplet ? alertBorderWidth : normalBorderWidth,
         hitValue: hitValue,
       );
-    }
-
-    final polygonTables = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-      ['enquete_polygone'],
-    );
-
-    if (polygonTables.isNotEmpty) {
-      final genericPolygons = await db.query(
-        'enquete_polygone',
-        where:
-            loginId == null ? null : '(login_id = ? OR saved_by_user_id = ?)',
-        whereArgs: loginId == null ? null : [loginId, loginId],
-      );
-
-      for (final poly in genericPolygons) {
-        final points = _extractPolygonPointsImpl(poly['points_json']);
-        if (points.length < 3) continue;
-        final hasAnomalie = hasRowAnomalie(poly);
-        final hasIncomplet = hasRowIncomplet(poly);
-
-        mapPolygons.add(
-          buildPolygon(
-            points: points,
-            baseColor: const Color(0xFF2E7D32),
-            hasAnomalie: hasAnomalie,
-            hasIncomplet: hasIncomplet,
-            hitValue: PolygonTapData(
-              nom: poly['nom']?.toString() ?? '----',
-              code: poly['code']?.toString() ??
-                  poly['line_code']?.toString() ??
-                  '----',
-              entityType: poly['entity_type']?.toString() ?? 'Zone de Plaine',
-              metier: poly['metier']?.toString() ?? '',
-              superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
-                  (poly['superficie_en_ha'] as num?)?.toDouble() ??
-                  0.0,
-              nbSommets: points.length,
-              enqueteur: poly['enqueteur']?.toString() ?? '',
-              dateCreation: poly['date_creation']?.toString() ?? '----',
-              synced: poly['synced'] == 1,
-              downloaded: poly['downloaded'] == 1,
-              hasAnomalie: hasAnomalie,
-              hasIncomplet: hasIncomplet,
-              typeAnomalie: poly['type_anomalie']?.toString(),
-              regionName: poly['region_name']?.toString() ?? '',
-              prefectureName: poly['prefecture_name']?.toString() ?? '',
-              communeName: poly['commune_name']?.toString() ?? '',
-            ),
-          ),
-        );
-      }
     }
 
     final Map<String, List<Polygon>> srmPolygonsByTable = {};

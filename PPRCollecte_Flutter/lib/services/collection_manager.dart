@@ -14,12 +14,12 @@ class CollectionManager extends ChangeNotifier {
   static const double _duplicatePointThresholdMeters = 0.1;
   static int _nextLineCollectionId = 1;
   LigneCollection? _ligneCollection;
-  SpecialCollection? _specialCollection;
+  PolygonCollection? _polygonCollection;
   int _countdown = 0;
 
   // Getters
   LigneCollection? get ligneCollection => _ligneCollection;
-  SpecialCollection? get specialCollection => _specialCollection;
+  PolygonCollection? get polygonCollection => _polygonCollection;
   int get countdown => _countdown;
 
   // ── SPRINT 5 : Altitude Z courante et données SRM ──
@@ -35,19 +35,19 @@ class CollectionManager extends ChangeNotifier {
 
   bool get hasActiveCollection =>
       (_ligneCollection?.isActive ?? false) ||
-      (_specialCollection?.isActive ?? false);
+      (_polygonCollection?.isActive ?? false);
   bool get hasPausedCollection =>
       (_ligneCollection?.isPaused ?? false) ||
-      (_specialCollection?.isPaused ?? false);
+      (_polygonCollection?.isPaused ?? false);
 
   String? get activeCollectionType {
     if (_ligneCollection?.isActive ?? false) return 'ligne';
-    if (_specialCollection?.isActive ?? false) return 'spéciale';
+    if (_polygonCollection?.isActive ?? false) return 'polygone';
     return null;
   }
 
-  void startSpecialCollection({
-    required String specialType,
+  void startPolygonCollection({
+    required String entityType,
     required LatLng initialPosition,
     required Stream<LocationData> locationStream,
   }) {
@@ -55,9 +55,9 @@ class CollectionManager extends ChangeNotifier {
       throw Exception('Une collecte est déjà en cours.');
     }
 
-    _specialCollection = SpecialCollection(
+    _polygonCollection = PolygonCollection(
       id: _nextLineCollectionId++,
-      specialType: specialType,
+      entityType: entityType,
       status: CollectionStatus.active,
       points: const [],
       startTime: DateTime.now(),
@@ -68,24 +68,24 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  CollectionResult? finishSpecialCollection() {
-    if (_specialCollection == null) return null;
+  CollectionResult? finishPolygonCollection() {
+    if (_polygonCollection == null) return null;
 
-    if (!_collectionService.canFinishCollection(_specialCollection!)) {
+    if (!_collectionService.canFinishCollection(_polygonCollection!)) {
       return null;
     }
 
     final result = CollectionResult(
-      id: _specialCollection!.id,
+      id: _polygonCollection!.id,
       lineCode: null,
-      type: CollectionType.special,
-      points: List<LatLng>.from(_specialCollection!.points),
-      totalDistance: _specialCollection!.totalDistance,
-      startTime: _specialCollection!.startTime,
+      type: CollectionType.polygon,
+      points: List<LatLng>.from(_polygonCollection!.points),
+      totalDistance: _polygonCollection!.totalDistance,
+      startTime: _polygonCollection!.startTime,
       endTime: DateTime.now(),
     );
 
-    _specialCollection = null;
+    _polygonCollection = null;
     _collectionService.stopCollection();
     _clearPausedDraft(); // SPRINT 7
     notifyListeners();
@@ -141,12 +141,12 @@ class CollectionManager extends ChangeNotifier {
         totalDistance: newDistance,
         lastPointTime: DateTime.now(),
       );
-    } else if (type == CollectionType.special && _specialCollection != null) {
-      final updatedPoints = List<LatLng>.from(_specialCollection!.points)
+    } else if (type == CollectionType.polygon && _polygonCollection != null) {
+      final updatedPoints = List<LatLng>.from(_polygonCollection!.points)
         ..add(point);
-      final newDistance = _specialCollection!.totalDistance + distance;
+      final newDistance = _polygonCollection!.totalDistance + distance;
 
-      _specialCollection = _specialCollection!.copyWith(
+      _polygonCollection = _polygonCollection!.copyWith(
         points: updatedPoints,
         totalDistance: newDistance,
         lastPointTime: DateTime.now(),
@@ -204,10 +204,10 @@ class CollectionManager extends ChangeNotifier {
     }
   }
 
-  /// Met en pause une collecte spéciale (Zone de Plaine)
-  void pauseSpecialCollection() {
-    if (_specialCollection?.isActive ?? false) {
-      _specialCollection = _specialCollection!.copyWith(
+  /// Met en pause une collecte polygone.
+  void pausePolygonCollection() {
+    if (_polygonCollection?.isActive ?? false) {
+      _polygonCollection = _polygonCollection!.copyWith(
         status: CollectionStatus.paused,
       );
       _collectionService.stopCollection();
@@ -217,25 +217,25 @@ class CollectionManager extends ChangeNotifier {
         tableName: 'app_metadata',
         cleLigne: 'paused_collection_draft',
         payload: {
-          'collection_type': 'special',
-          'point_count': _specialCollection!.points.length,
-          'collection_id': _specialCollection!.id,
-          'special_type': _specialCollection!.specialType,
+          'collection_type': 'polygon',
+          'point_count': _polygonCollection!.points.length,
+          'collection_id': _polygonCollection!.id,
+          'polygon_entity_type': _polygonCollection!.entityType,
         },
       );
       notifyListeners();
     }
   }
 
-  /// Reprend une collecte spéciale (Zone de Plaine)
-  void resumeSpecialCollection(Stream<LocationData> locationStream) {
-    if (_specialCollection?.isPaused ?? false) {
+  /// Reprend une collecte polygone.
+  void resumePolygonCollection(Stream<LocationData> locationStream) {
+    if (_polygonCollection?.isPaused ?? false) {
       if (hasActiveCollection) {
         throw Exception(
             'Une autre collecte est en cours. Veuillez la mettre en pause d\'abord.');
       }
 
-      _specialCollection = _specialCollection!.copyWith(
+      _polygonCollection = _polygonCollection!.copyWith(
         status: CollectionStatus.active,
       );
       _startCollectionService(locationStream);
@@ -244,10 +244,10 @@ class CollectionManager extends ChangeNotifier {
         tableName: 'app_metadata',
         cleLigne: 'paused_collection_draft',
         payload: {
-          'collection_type': 'special',
-          'point_count': _specialCollection!.points.length,
-          'collection_id': _specialCollection!.id,
-          'special_type': _specialCollection!.specialType,
+          'collection_type': 'polygon',
+          'point_count': _polygonCollection!.points.length,
+          'collection_id': _polygonCollection!.id,
+          'polygon_entity_type': _polygonCollection!.entityType,
         },
       );
       notifyListeners();
@@ -306,8 +306,8 @@ class CollectionManager extends ChangeNotifier {
 
     if (type == CollectionType.ligne) {
       collection = _ligneCollection;
-    } else if (type == CollectionType.special) {
-      collection = _specialCollection;
+    } else if (type == CollectionType.polygon) {
+      collection = _polygonCollection;
     }
 
     if (collection == null || !collection.isActive) {
@@ -389,8 +389,8 @@ class CollectionManager extends ChangeNotifier {
     if (type == CollectionType.ligne) {
       return _ligneCollection;
     }
-    if (type == CollectionType.special) {
-      return _specialCollection;
+    if (type == CollectionType.polygon) {
+      return _polygonCollection;
     }
     return null;
   }
@@ -405,8 +405,8 @@ class CollectionManager extends ChangeNotifier {
         totalDistance: totalDistance,
         lastPointTime: lastPointTime,
       );
-    } else if (type == CollectionType.special && _specialCollection != null) {
-      _specialCollection = _specialCollection!.copyWith(
+    } else if (type == CollectionType.polygon && _polygonCollection != null) {
+      _polygonCollection = _polygonCollection!.copyWith(
         points: points,
         totalDistance: totalDistance,
         lastPointTime: lastPointTime,
@@ -429,9 +429,9 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Restaure une collecte spéciale en état paused (depuis brouillon SQLite).
-  void restorePausedSpecialCollection(SpecialCollection paused) {
-    _specialCollection = paused;
+  /// Restaure une collecte polygone en etat paused (depuis brouillon SQLite).
+  void restorePausedPolygonCollection(PolygonCollection paused) {
+    _polygonCollection = paused;
     notifyListeners();
   }
 
@@ -472,9 +472,9 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void cancelSpecialCollection() {
-    if (_specialCollection == null) return;
-    _specialCollection = null;
+  void cancelPolygonCollection() {
+    if (_polygonCollection == null) return;
+    _polygonCollection = null;
     _countdown = 0;
     _collectionService.stopCollection();
     _clearPausedDraft(); // SPRINT 7
@@ -516,21 +516,21 @@ class CollectionManager extends ChangeNotifier {
         data['lastPointTime'] =
             _ligneCollection!.lastPointTime?.toIso8601String();
         data['totalDistance'] = _ligneCollection!.totalDistance;
-      } else if (_specialCollection?.isPaused ?? false) {
-        if (_specialCollection!.points.isEmpty) {
+      } else if (_polygonCollection?.isPaused ?? false) {
+        if (_polygonCollection!.points.isEmpty) {
           await _clearPausedDraft();
           return;
         }
-        data['collectionType'] = 'special';
-        data['id'] = _specialCollection!.id;
-        data['specialType'] = _specialCollection!.specialType;
-        data['points'] = _specialCollection!.points
+        data['collectionType'] = 'polygon';
+        data['id'] = _polygonCollection!.id;
+        data['entityType'] = _polygonCollection!.entityType;
+        data['points'] = _polygonCollection!.points
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList();
-        data['startTime'] = _specialCollection!.startTime.toIso8601String();
+        data['startTime'] = _polygonCollection!.startTime.toIso8601String();
         data['lastPointTime'] =
-            _specialCollection!.lastPointTime?.toIso8601String();
-        data['totalDistance'] = _specialCollection!.totalDistance;
+            _polygonCollection!.lastPointTime?.toIso8601String();
+        data['totalDistance'] = _polygonCollection!.totalDistance;
       } else {
         return;
       }
@@ -616,16 +616,16 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Restaure une collecte spéciale (polygone) en pause
-  void restoreSpecialCollection(Map<String, dynamic> data) {
+  /// Restaure une collecte polygone en pause.
+  void restorePolygonCollection(Map<String, dynamic> data) {
     final points = (data['points'] as List)
         .map((p) =>
             LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
         .toList();
 
-    _specialCollection = SpecialCollection(
+    _polygonCollection = PolygonCollection(
       id: data['id'] as int,
-      specialType: data['specialType'] as String? ?? 'Zone de Plaine',
+      entityType: data['entityType'] as String? ?? 'Polygone',
       status: CollectionStatus.paused,
       points: points,
       startTime: DateTime.parse(data['startTime'] as String),
@@ -639,10 +639,10 @@ class CollectionManager extends ChangeNotifier {
       tableName: 'app_metadata',
       cleLigne: 'paused_collection_draft',
       payload: {
-        'collection_type': 'special',
+        'collection_type': 'polygon',
         'point_count': points.length,
         'collection_id': data['id'],
-        'special_type': data['specialType'],
+        'polygon_entity_type': data['entityType'],
       },
     );
     notifyListeners();

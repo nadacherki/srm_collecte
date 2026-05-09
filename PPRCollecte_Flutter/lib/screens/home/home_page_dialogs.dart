@@ -438,7 +438,6 @@ void _showDownloadResultImpl(
               Navigator.pop(ctx);
               state._loadDisplayedPolygons();
               state._loadDownloadedLineOverlays();
-              state._loadDownloadedSpecialLines();
             },
             child: const Text('OK'),
           ),

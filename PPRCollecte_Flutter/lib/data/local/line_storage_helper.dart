@@ -715,47 +715,6 @@ class LineStorageHelper {
         );
 
         final mainDb = await DatabaseHelper().database;
-        final relatedTables = [
-          'localites',
-          'ecoles',
-          'marches',
-          'services_santes',
-          'batiments_administratifs',
-          'infrastructures_hydrauliques',
-          'autres_infrastructures',
-          'ponts',
-          'bacs',
-          'buses',
-          'dalots',
-          'passages_submersibles',
-          'points_critiques',
-          'points_coupures',
-          'site_enquete',
-          'enquete_polygone',
-        ];
-
-        for (final table in relatedTables) {
-          try {
-            final impactedRows = await mainDb.query(
-              table,
-              columns: ['id'],
-              where: '$_lineCodeColumn = ? AND synced = 0',
-              whereArgs: [oldLineCode],
-            );
-
-            for (final row in impactedRows) {
-              final localId = row['id'] as int?;
-              if (localId == null) continue;
-              await DatabaseHelper().updateEntityLocal(
-                table,
-                localId,
-                {_lineCodeColumn: newLineCode},
-                recordHistory: true,
-              );
-            }
-          } catch (_) {}
-        }
-
         try {
           await mainDb.update(
             'displayed_points',

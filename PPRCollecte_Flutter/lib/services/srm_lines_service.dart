@@ -14,10 +14,10 @@ import 'srm_status_flags.dart';
 import '../data/remote/api_service.dart';
 import '../models/map_overlay_tap_data.dart';
 
-class SpecialLinesService {
+class SrmLinesService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
-  Future<List<Polyline>> getDisplayedSpecialLines({
+  Future<List<Polyline>> getDisplayedSrmLines({
     required void Function(Map<String, dynamic>) onTapDetails,
     void Function(String tableName, String metier, Polyline polyline)?
         onPolylineCreated,
@@ -69,9 +69,9 @@ class SpecialLinesService {
               strokeWidth: lineStyle.strokeWidth,
               pattern: lineStyle.pattern,
               hitValue: PolylineTapData(
-                type: 'special_local',
+                type: 'srm_line_local',
                 data: {
-                  'special_type': entityTitle,
+                  'entity_title': entityTitle,
                   'table_name': tableName,
                   'metier': metier,
                   'anomalie': hasAnomalie,

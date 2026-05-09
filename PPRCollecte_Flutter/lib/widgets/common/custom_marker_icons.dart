@@ -4,62 +4,6 @@ import 'package:flutter/material.dart';
 class CustomMarkerIcons {
   // Configuration des icônes par table
   static final Map<String, MarkerIconConfig> iconConfig = {
-    'localites': const MarkerIconConfig(
-      icon: Icons.home,
-      color: Color(0xFFE67E22), // Orange
-    ),
-    'ecoles': const MarkerIconConfig(
-      icon: Icons.school,
-      color: Color(0xFF27AE60), // Vert
-    ),
-    'marches': const MarkerIconConfig(
-      icon: Icons.shopping_cart,
-      color: Color(0xFFF1C40F), // Jaune
-    ),
-    'services_santes': const MarkerIconConfig(
-      icon: Icons.local_hospital,
-      color: Color(0xFFE74C3C), // Rouge
-    ),
-    'batiments_administratifs': const MarkerIconConfig(
-      icon: Icons.business,
-      color: Color(0xFF34495E), // Gris foncé
-    ),
-    'infrastructures_hydrauliques': const MarkerIconConfig(
-      icon: Icons.water_drop,
-      color: Color(0xFF3498DB), // Bleu
-    ),
-    'autres_infrastructures': const MarkerIconConfig(
-      icon: Icons.location_pin,
-      color: Color(0xFF95A5A6), // Gris
-    ),
-    'ponts': const MarkerIconConfig(
-      icon: Icons.account_balance,
-      color: Color(0xFF9B59B6), // Violet
-    ),
-    'buses': const MarkerIconConfig(
-      icon: Icons.circle,
-      color: Color(0xFF7F8C8D), // Gris moyen
-    ),
-    'dalots': const MarkerIconConfig(
-      icon: Icons.water,
-      color: Color(0xFF3498DB), // Bleu
-    ),
-    'points_critiques': const MarkerIconConfig(
-      icon: Icons.warning,
-      color: Color(0xFFD35400), // Orange foncé
-    ),
-    'points_coupures': const MarkerIconConfig(
-      icon: Icons.close,
-      color: Color(0xFFC0392B), // Rouge foncé
-    ),
-    'site_enquete': const MarkerIconConfig(
-      icon: Icons.adjust,
-      color: Color(0xFF212121), // Noir (comme le web)
-    ),
-    'enquete_polygone': const MarkerIconConfig(
-      icon: Icons.pentagon,
-      color: Color(0xFF1B5E20),
-    ),
     // SRM Eau Potable
     'vanne': const MarkerIconConfig(
       icon: Icons.settings_input_component,

@@ -1,7 +1,7 @@
 // lib/collection_models.dart - VERSION CORRIGEE
 import 'package:latlong2/latlong.dart';
 
-enum CollectionType { ligne, special }
+enum CollectionType { ligne, polygon }
 
 enum CollectionStatus { inactive, active, paused }
 
@@ -121,12 +121,12 @@ class LigneCollection extends CollectionBase {
   }
 }
 
-class SpecialCollection extends CollectionBase {
-  final String specialType;
+class PolygonCollection extends CollectionBase {
+  final String entityType;
 
-  SpecialCollection({
+  PolygonCollection({
     required super.id,
-    required this.specialType,
+    required this.entityType,
     required super.status,
     required super.points,
     required super.startTime,
@@ -134,14 +134,14 @@ class SpecialCollection extends CollectionBase {
     super.totalDistance,
   }) : super(
           lineCode: null,
-          type: CollectionType.special,
+          type: CollectionType.polygon,
         );
 
   @override
-  SpecialCollection copyWith({
+  PolygonCollection copyWith({
     int? id,
     String? lineCode,
-    String? specialType,
+    String? entityType,
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
@@ -149,9 +149,9 @@ class SpecialCollection extends CollectionBase {
     DateTime? lastPointTime,
     double? totalDistance,
   }) {
-    return SpecialCollection(
+    return PolygonCollection(
       id: id ?? this.id,
-      specialType: specialType ?? this.specialType,
+      entityType: entityType ?? this.entityType,
       status: status ?? this.status,
       points: points ?? this.points,
       startTime: startTime ?? this.startTime,

@@ -1,9 +1,9 @@
 part of 'home_page.dart';
 
-void _showSpecialLineDetailsSheetImpl(
+void _showSrmLineDetailsSheetImpl(
   _HomePageState state, {
   required BuildContext context,
-  required String specialType,
+  required String entityType,
   required String statut,
   String? enqueteur,
   required String region,
@@ -49,7 +49,7 @@ void _showSpecialLineDetailsSheetImpl(
             ),
             const SizedBox(height: 12),
             Text(
-              safe(specialType),
+              safe(entityType),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
@@ -417,27 +417,27 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
       );
       break;
 
-    case 'special_local':
-    case 'special_downloaded':
-      state._showSpecialLineDetailsSheet(
+    case 'srm_line_local':
+    case 'srm_line_downloaded':
+      state._showSrmLineDetailsSheet(
         context: state.context,
-        specialType: (data['special_type'] ?? '----').toString(),
-        statut: type == 'special_local'
+        entityType: (data['entity_title'] ?? '----').toString(),
+        statut: type == 'srm_line_local'
             ? ((data['synced'].toString() == '1')
                 ? 'Synchronisée'
                 : 'Enregistrée localement')
             : 'Sauvegardée (téléchargée)',
-        region: type == 'special_downloaded'
+        region: type == 'srm_line_downloaded'
             ? (data['region_name'] ?? '----').toString()
             : (data['region_name'] ?? '').toString().isNotEmpty
                 ? (data['region_name']).toString()
                 : state._regionNom,
-        prefecture: type == 'special_downloaded'
+        prefecture: type == 'srm_line_downloaded'
             ? (data['prefecture_name'] ?? '----').toString()
             : (data['prefecture_name'] ?? '').toString().isNotEmpty
                 ? (data['prefecture_name']).toString()
                 : state._prefectureNom,
-        commune: type == 'special_downloaded'
+        commune: type == 'srm_line_downloaded'
             ? (data['commune_name'] ?? '----').toString()
             : (data['commune_name'] ?? '').toString().isNotEmpty
                 ? (data['commune_name']).toString()

@@ -54,9 +54,8 @@ import '../../models/map_overlay_tap_data.dart';
 // ============================================================
 import '../auth/login_page.dart';
 import '../data/data_categories_page.dart';
-import '../forms/special_line_form_page.dart';
 import '../forms/polygon_form_page.dart';
-import '../../services/special_lines_service.dart';
+import '../../services/srm_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/downloaded_lines_service.dart';
@@ -177,9 +176,8 @@ class _HomePageState extends State<HomePage> {
   int _syncProcessedItems = 0;
   final List<Marker> _focusOverlayMarkers = [];
   final List<Polyline> _focusOverlayPolylines = [];
-  bool _isSpecialCollection = false;
-  String? _specialCollectionType;
   bool _isPolygonCollection = false;
+  String? _polygonEntityType;
   final List<CollectionPointEdit> _ligneRedoPoints = [];
   final List<CollectionPointEdit> _polygonRedoPoints = [];
   List<Polygon> _displayedPolygons = [];
@@ -195,8 +193,7 @@ class _HomePageState extends State<HomePage> {
   LatLng? _lastCameraPosition;
   late final HomeController homeController;
   final DisplayedPointsService _pointsService = DisplayedPointsService();
-  final SpecialLinesService _specialLinesService = SpecialLinesService();
-  List<Polyline> _displayedSpecialLines = [];
+  final SrmLinesService _srmLinesService = SrmLinesService();
   Map<String, List<Polyline>> _displayedSrmLinesByTable = {};
   Map<String, List<Polyline>> _displayedLineAnomalieByTable = {};
   Map<String, List<Polyline>> _displayedLineIncompletByTable = {};
@@ -204,8 +201,6 @@ class _HomePageState extends State<HomePage> {
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
   bool _isSatellite = false;
-  List<Polyline> _downloadedSpecialLinesPolylines = [];
-  bool _showDownloadedSpecialLines = true;
 
   SrmSelection? _pendingSrmLigneSelection;
 
@@ -260,8 +255,6 @@ class _HomePageState extends State<HomePage> {
     'line_submersible': true,
     'line_col': true,
     'line_autre': true,
-    'bac': true,
-    'passage_submersible': true,
     'zone_plaine': true,
     'srm_ep_regard_polygon': true,
   };
@@ -303,14 +296,13 @@ class _HomePageState extends State<HomePage> {
     //_cleanupDisplayedPoints();
     _loadDisplayedLines();
     _loadDisplayedPoints();
-    _loadDisplayedSpecialLines();
+    _loadDisplayedSrmLines();
     _loadDownloadedLineOverlays();
     _isOnlineDynamic = widget.isOnline;
     homeController.setSyncAvailability(_isOnlineDynamic);
     _loadLastSyncTime();
     _startOnlineWatcher();
     _loadAdminNamesOffline();
-    _loadDownloadedSpecialLines();
     _loadDisplayedPolygons();
     _hydrateOfflineBasemapState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -386,12 +378,9 @@ class _HomePageState extends State<HomePage> {
   void _showInitialBasemapNoticeIfNeeded() =>
       _showInitialBasemapNoticeIfNeededImpl(this);
 
-  Future<void> _loadDownloadedSpecialLines() =>
-      _loadDownloadedSpecialLinesImpl(this);
-
-  void _showSpecialLineDetailsSheet({
+  void _showSrmLineDetailsSheet({
     required BuildContext context,
-    required String specialType,
+    required String entityType,
     required String statut,
     String? enqueteur,
     required String region,
@@ -404,10 +393,10 @@ class _HomePageState extends State<HomePage> {
     required double endLng,
     Map<String, dynamic>? editableItem,
   }) =>
-      _showSpecialLineDetailsSheetImpl(
+      _showSrmLineDetailsSheetImpl(
         this,
         context: context,
-        specialType: specialType,
+        entityType: entityType,
         statut: statut,
         enqueteur: enqueteur,
         region: region,
@@ -607,39 +596,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    for (final l in _displayedSpecialLines) {
-      final color = l.color;
-      final isBac = color == Colors.purple;
-      final isPassage = color == Colors.cyan;
-
-      if (isBac && (_legendVisibility['bac'] == true)) {
-        filtered.add(l);
-      } else if (isPassage &&
-          (_legendVisibility['passage_submersible'] == true)) {
-        filtered.add(l);
-      }
-    }
-
-    if (_showDownloadedSpecialLines) {
-      for (final l in _downloadedSpecialLinesPolylines) {
-        // flutter_map n'a pas d'ID sur Polyline, on utilise la couleur pour identifier
-        final color = l.color;
-
-        // Bac = purple, Passage submersible = cyan
-        final isBac = color == Colors.purple;
-        final isPassage = color == Colors.cyan;
-
-        if (isBac && (_legendVisibility['bac'] == true)) {
-          filtered.add(l);
-        } else if (isPassage &&
-            (_legendVisibility['passage_submersible'] == true)) {
-          filtered.add(l);
-        } else if (!isBac && !isPassage) {
-          filtered.add(l);
-        }
-      }
-    }
-
     // 6. Lignes en cours (TOUJOURS visibles)
     // Ligne en cours
     if (homeController.ligneCollection != null) {
@@ -660,39 +616,17 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    if (homeController.specialCollection != null) {
-      final specialPoints = homeController.specialCollection!.points;
-      if (specialPoints.length > 1) {
-        if (_isPolygonCollection) {
-          // Zone de Plaine : afficher comme POLYGONE semi-transparent
-          // (on ajoute le contour comme polyline + le polygone sera dans _displayedPolygons)
-          filtered.add(
-            Polyline(
-              points: [
-                ...specialPoints,
-                specialPoints.first
-              ], // fermer le contour
-              color: const Color(0xFF2E7D32),
-              strokeWidth: 3.0,
-              pattern: const StrokePattern.solid(),
-            ),
-          );
-        } else {
-          // Bac / Passage : afficher comme LIGNE
-          final specialColor = _specialCollectionType == "Bac"
-              ? Colors.purple
-              : Colors.deepPurple;
-          filtered.add(
-            Polyline(
-              points: specialPoints,
-              color: specialColor,
-              strokeWidth: 5.0,
-              pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: const [10, 5])
-                  : const StrokePattern.solid(),
-            ),
-          );
-        }
+    if (homeController.polygonCollection != null) {
+      final polygonPoints = homeController.polygonCollection!.points;
+      if (polygonPoints.length > 1) {
+        filtered.add(
+          Polyline(
+            points: [...polygonPoints, polygonPoints.first],
+            color: const Color(0xFF2E7D32),
+            strokeWidth: 3.0,
+            pattern: const StrokePattern.solid(),
+          ),
+        );
       }
     }
     filtered.addAll(_focusOverlayPolylines);
@@ -769,17 +703,13 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    final special = homeController.specialCollection;
-    if (special != null) {
-      final specialColor = _isPolygonCollection
-          ? const Color(0xFF1B5E20)
-          : _specialCollectionType == "Bac"
-              ? Colors.purple
-              : Colors.deepPurple;
+    final polygon = homeController.polygonCollection;
+    if (polygon != null) {
+      const polygonColor = Color(0xFF1B5E20);
       markers.addAll(
         _buildTraceVertexMarkers(
-          points: special.points,
-          color: special.isPaused ? Colors.orange : specialColor,
+          points: polygon.points,
+          color: polygon.isPaused ? Colors.orange : polygonColor,
         ),
       );
     }
@@ -904,11 +834,6 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _legendVisibility = visibility;
       _showDownloadedLines = visibility['lines'] ?? true;
-
-      // Bac + Passage submersible
-      final showBac = visibility['bac'] ?? true;
-      final showPassage = visibility['passage_submersible'] ?? true;
-      _showDownloadedSpecialLines = showBac || showPassage;
     });
   }
 
@@ -936,22 +861,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _refreshAfterNavigation() async {
-    await _loadDisplayedSpecialLines();
+    await _loadDisplayedSrmLines();
     await _refreshAllPoints();
   }
 
-  Future<void> _loadDisplayedSpecialLines() =>
-      _loadDisplayedSpecialLinesImpl(this);
+  Future<void> _loadDisplayedSrmLines() => _loadDisplayedSrmLinesImpl(this);
 
-  // Dans _HomePageState
-  // Remplacer startSpecialLineCollection par :
-  Future<void> startSpecialCollection(String type) =>
-      _startSpecialCollectionImpl(type);
+  Future<void> finishPolygonCollection() => _finishPolygonCollectionImpl();
 
-  // Remplacer finishSpecialLigneCollection par :
-  Future<void> finishSpecialCollection() => _finishSpecialCollectionImpl();
-
-  Future<void> cancelSpecialCollection() => _cancelSpecialCollectionImpl();
+  Future<void> cancelPolygonCollection() => _cancelPolygonCollectionImpl();
 
   Future<void> _loadDisplayedPolygons() => _loadDisplayedPolygonsImpl(this);
 
@@ -1002,7 +920,7 @@ class _HomePageState extends State<HomePage> {
         entityType: entityType,
       );
 
-  void toggleSpecialCollection() => _toggleSpecialCollectionImpl();
+  void togglePolygonCollection() => _togglePolygonCollectionImpl();
 
   void toggleLigneCollection() => _toggleLigneCollectionImpl();
 
@@ -1186,38 +1104,22 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
-    if (homeController.specialCollection != null) {
-      final specialPoints = homeController.specialCollection!.points;
-      if (specialPoints.length > 1) {
-        if (_isPolygonCollection) {
-          filteredPolylines.add(
-            Polyline(
-              points: [...specialPoints, specialPoints.first],
-              color: const Color(0xFF2E7D32),
-              strokeWidth: 3.0,
-              pattern: const StrokePattern.solid(),
-            ),
-          );
-        } else {
-          final specialColor = _specialCollectionType == "Bac"
-              ? Colors.purple
-              : Colors.deepPurple;
-          filteredPolylines.add(
-            Polyline(
-              points: specialPoints,
-              color: specialColor,
-              strokeWidth: 5.0,
-              pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: const [10, 5])
-                  : const StrokePattern.solid(),
-            ),
-          );
-        }
+    if (homeController.polygonCollection != null) {
+      final polygonPoints = homeController.polygonCollection!.points;
+      if (polygonPoints.length > 1) {
+        filteredPolylines.add(
+          Polyline(
+            points: [...polygonPoints, polygonPoints.first],
+            color: const Color(0xFF2E7D32),
+            strokeWidth: 3.0,
+            pattern: const StrokePattern.solid(),
+          ),
+        );
       }
     }
 // === AFFICHER LE POLYGONE EN COURS DE COLLECTE ===
-    if (_isPolygonCollection && homeController.specialCollection != null) {
-      final polyPoints = homeController.specialCollection!.points;
+    if (_isPolygonCollection && homeController.polygonCollection != null) {
+      final polyPoints = homeController.polygonCollection!.points;
       if (polyPoints.length >= 3) {
         filteredPolygons.add(
           Polygon(
@@ -1378,7 +1280,7 @@ class _HomePageState extends State<HomePage> {
                       onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
                       onStartPolygon: startPolygonCollection,
                       onToggleLigne: toggleLigneCollection,
-                      onTogglePolygon: toggleSpecialCollection,
+                      onTogglePolygon: togglePolygonCollection,
                       onUndoLigne: undoLignePoint,
                       onRedoLigne: redoLignePoint,
                       onUndoPolygon: undoPolygonPoint,
@@ -1386,12 +1288,10 @@ class _HomePageState extends State<HomePage> {
                       canRedoLigne: _ligneRedoPoints.isNotEmpty,
                       canRedoPolygon: _polygonRedoPoints.isNotEmpty,
                       onFinishLigne: finishLigneCollection,
-                      onFinishPolygon: finishSpecialCollection,
+                      onFinishPolygon: finishPolygonCollection,
                       onCancelLigne: cancelLigneCollection,
-                      onCancelPolygon: cancelSpecialCollection,
+                      onCancelPolygon: cancelPolygonCollection,
                       onRefresh: _loadDisplayedPoints,
-                      isSpecialCollection: _isSpecialCollection,
-                      onStopSpecial: finishSpecialCollection,
                       isPolygonCollection: _isPolygonCollection,
                     ),
                   // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
@@ -1403,9 +1303,9 @@ class _HomePageState extends State<HomePage> {
                       topOffset: 16,
                     ),
 
-                  if (homeController.specialCollection != null)
-                    SpecialStatusWidget(
-                      collection: homeController.specialCollection!,
+                  if (homeController.polygonCollection != null)
+                    PolygonStatusWidget(
+                      collection: homeController.polygonCollection!,
                       topOffset:
                           homeController.ligneCollection != null ? 70 : 16,
                     ),

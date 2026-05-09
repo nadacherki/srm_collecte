@@ -48,7 +48,7 @@ extension _HomePageAppActions on _HomePageState {
       await _hydrateOfflineBasemapState();
       await _refreshAllPoints();
       await _loadDisplayedLines();
-      await _loadDisplayedSpecialLines();
+      await _loadDisplayedSrmLines();
       await _loadPointCountsByTable();
 
       if (!mounted) return;
@@ -190,7 +190,7 @@ extension _HomePageAppActions on _HomePageState {
       _refreshAllPoints();
       _loadDisplayedPoints();
       _loadDisplayedLines();
-      _loadDisplayedSpecialLines();
+      _loadDisplayedSrmLines();
       _loadDisplayedPolygons();
       _loadPointCountsByTable();
 

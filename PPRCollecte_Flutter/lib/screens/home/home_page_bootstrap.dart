@@ -92,17 +92,18 @@ void _restorePausedCollectionImpl(
       }
       break;
 
-    case 'special':
-      state.homeController.collectionManager.restoreSpecialCollection(draft);
+    case 'polygon':
+      state.homeController.collectionManager.restorePolygonCollection(draft);
       if (srmMeta != null) {
         state._pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
         state._pendingSrmPolygoneEntityType =
             srmMeta['srmEntityType'] as String?;
         state._pendingSrmPolygoneTitleApp = srmMeta['srmTitleApp'] as String?;
-        state._isPolygonCollection = srmMeta['isPolygonCollection'] == true;
-        state._isSpecialCollection = srmMeta['isSpecialCollection'] == true;
-        state._specialCollectionType =
-            srmMeta['specialCollectionType'] as String?;
+        state._isPolygonCollection = true;
+        state._polygonEntityType = srmMeta['polygonEntityType'] as String?;
+      } else {
+        state._isPolygonCollection = true;
+        state._polygonEntityType = draft['entityType'] as String?;
       }
       break;
   }
