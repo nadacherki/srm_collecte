@@ -66,6 +66,11 @@ class AttributConfigMobileField {
   bool get isRequired =>
       visible && !nullable && !primaryKey && nomChamp.toLowerCase() != 'geom';
 
+  double? get numericMin => _toDouble(valeurMin);
+  double? get numericMax => _toDouble(valeurMax);
+  DateTime? get dateMin => _toDate(valeurMin);
+  DateTime? get dateMax => _toDate(valeurMax);
+
   bool get isAutoVisibleCoordinate {
     final prefix = _coordinatePrefixForMetier(nomMetier);
     if (prefix.isEmpty) return false;
@@ -91,6 +96,21 @@ class AttributConfigMobileField {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value.toString().trim());
+  }
+
+  static double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    final text = value.toString().trim().replaceAll(',', '.');
+    if (text.isEmpty) return null;
+    return double.tryParse(text);
+  }
+
+  static DateTime? _toDate(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    return DateTime.tryParse(text);
   }
 
   static bool _toBool(dynamic value, {bool defaultValue = false}) {
@@ -232,13 +252,17 @@ class AttributConfigMobileService {
     'puit': 'ep_puit',
     'pompe': 'ep_pompe',
     'reservoir': 'ep_reservoir',
+    'ep_bache': 'ep_bache',
     'station_de_pompage': 'ep_station_pompage',
     'regard': 'ep_regard_point',
     'regard_ep': 'ep_regard_point',
     'autre_objet': 'autre_objet',
+    'anomalie_conduite': 'anomalie_conduite',
     'conduite_terrain': 'conduite_terrain',
     'branchement': 'ep_branchement',
     'traverse': 'ep_traversee',
+    'tn': 'tn',
+    'voie': 'voie',
   };
 
   static const Map<String, String> _epMobileTableByConfigTable = {
@@ -262,11 +286,15 @@ class AttributConfigMobileService {
     'ep_forage': 'forage',
     'ep_puit': 'puit',
     'ep_pompe': 'pompe',
+    'ep_bache': 'ep_bache',
     'ep_regard_point': 'ep_regard_point',
     'ep_regard': 'ep_regard',
+    'anomalie_conduite': 'anomalie_conduite',
     'conduite_terrain': 'conduite_terrain',
     'ep_branchement': 'branchement',
     'ep_traversee': 'traverse',
+    'tn': 'tn',
+    'voie': 'voie',
     'autre_objet': 'autre_objet',
   };
 

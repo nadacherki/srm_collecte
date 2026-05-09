@@ -20,6 +20,7 @@ class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   static Database? _database;
   static bool _isInitializing = false;
+  static const Duration srmSessionDuration = Duration(days: 7);
 
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
@@ -140,6 +141,7 @@ class DatabaseHelper {
     await _createSrmFieldOptionLocalTable(db);
     await _createAttributConfigMobileLocalTable(db);
     await _createFormulaireConfigMobileLocalTable(db);
+    await _createOnepDbLocalTable(db);
     await _createCommuneLocalTable(db);
     await _createZoneLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
@@ -158,6 +160,7 @@ class DatabaseHelper {
     await _ensureSrmFieldOptionLocalTable(db);
     await _createAttributConfigMobileLocalTable(db);
     await _createFormulaireConfigMobileLocalTable(db);
+    await _createOnepDbLocalTable(db);
     await _ensureCommuneLocalTable(db);
     await _migrateZoneLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
@@ -680,17 +683,61 @@ class DatabaseHelper {
         titre_app TEXT NOT NULL,
         ordre INTEGER DEFAULT 0,
         visible INTEGER DEFAULT 1,
+        download_mobile INTEGER DEFAULT 0,
         created_at TEXT,
         updated_at TEXT
       )
     ''');
+    final columns = await db.rawQuery(
+      'PRAGMA table_info(formulaire_config_mobile_local)',
+    );
+    final names = columns.map((row) => row['name']?.toString()).toSet();
+    if (!names.contains('download_mobile')) {
+      await db.execute(
+        'ALTER TABLE formulaire_config_mobile_local '
+        'ADD COLUMN download_mobile INTEGER DEFAULT 0',
+      );
+    }
     await db.execute('''
       CREATE INDEX IF NOT EXISTS formulaire_config_mobile_local_lookup_idx
       ON formulaire_config_mobile_local (nom_metier, visible, ordre, id)
     ''');
     await db.execute('''
+      CREATE INDEX IF NOT EXISTS formulaire_config_mobile_local_download_idx
+      ON formulaire_config_mobile_local (nom_metier, download_mobile, ordre, id)
+    ''');
+    await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS formulaire_config_mobile_local_table_idx
       ON formulaire_config_mobile_local (nom_metier, nom_table)
+    ''');
+  }
+
+  Future<void> _createOnepDbLocalTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS onep_db (
+        id INTEGER PRIMARY KEY,
+        uuid TEXT UNIQUE,
+        numero_contrat TEXT,
+        ancienne_reference_sap TEXT,
+        ancienne_police TEXT,
+        nom_commune TEXT,
+        nom_client TEXT,
+        prenom_client TEXT,
+        identifiant_geographique TEXT,
+        etat_abonnement TEXT,
+        adresse TEXT,
+        downloaded INTEGER DEFAULT 1,
+        synced INTEGER DEFAULT 1,
+        date_sync TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS onep_db_num_contrat_idx
+      ON onep_db (numero_contrat)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS onep_db_police_commune_idx
+      ON onep_db (ancienne_police, nom_commune)
     ''');
   }
 
@@ -1079,6 +1126,38 @@ class DatabaseHelper {
     }
   }
 
+  Future<Map<String, dynamic>?> getActiveSessionUser({
+    Duration maxAge = srmSessionDuration,
+  }) async {
+    try {
+      final db = await database;
+      final session = await db.query('srm_session', limit: 1);
+      if (session.isEmpty) return null;
+
+      final row = session.first;
+      if (_toInt(row['is_logged_in']) != 1) return null;
+
+      if (!_isSessionFresh(row, maxAge: maxAge)) {
+        await _expireSrmSessionRow(row);
+        return null;
+      }
+
+      final login = row['current_login'] as String?;
+      if (login == null || login.isEmpty) return null;
+
+      final user = await db.query(
+        'utilisateur_local',
+        where: 'login = ?',
+        whereArgs: [login],
+        limit: 1,
+      );
+      return user.isNotEmpty ? user.first : null;
+    } catch (e) {
+      debugPrint('Erreur getActiveSessionUser: $e');
+      return null;
+    }
+  }
+
   /// Nom complet de l'agent
   Future<String?> getAgentFullName(String login) async {
     try {
@@ -1162,9 +1241,14 @@ class DatabaseHelper {
       final db = await database;
       final result = await db.query('srm_session', limit: 1);
       if (result.isNotEmpty) {
-        final isLogged = _toInt(result.first['is_logged_in']);
+        final row = result.first;
+        final isLogged = _toInt(row['is_logged_in']);
         if (isLogged == 1) {
-          return result.first['current_login'] as String?;
+          if (!_isSessionFresh(row, maxAge: srmSessionDuration)) {
+            await _expireSrmSessionRow(row);
+            return null;
+          }
+          return row['current_login'] as String?;
         }
       }
       return null;
@@ -1202,6 +1286,54 @@ class DatabaseHelper {
     } catch (e) {
       debugPrint('❌ Erreur clearSrmSession: $e');
     }
+  }
+
+  DateTime? _parseSessionDate(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  bool _isSessionFresh(
+    Map<String, dynamic> row, {
+    required Duration maxAge,
+  }) {
+    final lastLogin = _parseSessionDate(row['last_login']);
+    if (lastLogin == null) return false;
+    final now = DateTime.now();
+    if (lastLogin.isAfter(now.add(const Duration(minutes: 5)))) {
+      return true;
+    }
+    return now.difference(lastLogin.toLocal()) <= maxAge;
+  }
+
+  Future<void> _expireSrmSessionRow(Map<String, dynamic> row) async {
+    final db = await database;
+    final remember = _toInt(row['remember_me']);
+    if (remember == 1) {
+      await db.update(
+        'srm_session',
+        {'is_logged_in': 0},
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+    } else {
+      await db.delete(
+        'srm_session',
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+    }
+    await recordLocalEvent(
+      eventType: 'SESSION_EXPIRED',
+      tableName: 'srm_session',
+      cleLigne: row['current_login']?.toString(),
+      payload: {
+        'login': row['current_login'],
+        'remember_me': remember,
+        'max_age_days': srmSessionDuration.inDays,
+      },
+    );
   }
 
   // ══════════════════════════════════════════════════════
@@ -3032,6 +3164,10 @@ class DatabaseHelper {
             'titre_app': titre,
             'ordre': _asInt(row['ordre']) ?? 0,
             'visible': _toSqlBool(row['visible'], defaultValue: true),
+            'download_mobile': _toSqlBool(
+              row['download_mobile'],
+              defaultValue: _toSqlBool(row['visible'], defaultValue: true) == 1,
+            ),
             'created_at': row['created_at']?.toString(),
             'updated_at': row['updated_at']?.toString(),
           },
@@ -3045,6 +3181,7 @@ class DatabaseHelper {
     String? nomMetier,
     String? nomTable,
     bool visibleOnly = false,
+    bool downloadOnly = false,
   }) async {
     final db = await database;
     await _createFormulaireConfigMobileLocalTable(db);
@@ -3062,6 +3199,9 @@ class DatabaseHelper {
     if (visibleOnly) {
       whereParts.add('visible = 1');
     }
+    if (downloadOnly) {
+      whereParts.add('download_mobile = 1');
+    }
 
     return db.query(
       'formulaire_config_mobile_local',
@@ -3069,6 +3209,319 @@ class DatabaseHelper {
       whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'nom_metier ASC, ordre ASC, id ASC',
     );
+  }
+
+  Future<void> upsertDownloadedOnepDb(Map<String, dynamic> row) async {
+    final id = _asInt(row['id']);
+    final uuid = row['uuid']?.toString().trim() ?? '';
+    if (id == null && uuid.isEmpty) return;
+
+    final db = await database;
+    await _createOnepDbLocalTable(db);
+    await db.insert(
+      'onep_db',
+      {
+        if (id != null) 'id': id,
+        if (uuid.isNotEmpty) 'uuid': uuid,
+        'numero_contrat': row['numero_contrat']?.toString().trim(),
+        'ancienne_reference_sap':
+            row['ancienne_reference_sap']?.toString().trim(),
+        'ancienne_police': row['ancienne_police']?.toString().trim(),
+        'nom_commune': row['nom_commune']?.toString().trim(),
+        'nom_client': row['nom_client']?.toString().trim(),
+        'prenom_client': row['prenom_client']?.toString().trim(),
+        'identifiant_geographique':
+            row['identifiant_geographique']?.toString().trim(),
+        'etat_abonnement': row['etat_abonnement']?.toString().trim(),
+        'adresse': row['adresse']?.toString().trim(),
+        'downloaded': 1,
+        'synced': 1,
+        'date_sync': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> findOnepCustomerLocal({
+    String? numContrat,
+    String? anciennePolice,
+    double? x,
+    double? y,
+  }) async {
+    final contract = numContrat?.trim() ?? '';
+    final police = anciennePolice?.trim() ?? '';
+    if (contract.isEmpty && police.isEmpty) return null;
+
+    final db = await database;
+    await _createOnepDbLocalTable(db);
+
+    Map<String, dynamic>? spatialCommune;
+    String? spatialName;
+    String? spatialKey;
+    if (x != null && y != null) {
+      spatialCommune = await findCommuneLocalByPoint(x: x, y: y);
+      spatialName = spatialCommune?['nom_commune']?.toString().trim();
+      spatialKey = _onepCommuneKey(spatialName);
+    }
+
+    var warnings = <String>[];
+    var rows = <Map<String, dynamic>>[];
+    String? matchType;
+
+    if (contract.isNotEmpty) {
+      rows = await db.query(
+        'onep_db',
+        where: "TRIM(COALESCE(numero_contrat, '')) = ?",
+        whereArgs: [contract],
+        limit: 2,
+      );
+      if (rows.length > 1) {
+        return _onepLocalResponse(
+          matched: false,
+          statusText: 'ambiguous_contract',
+          warnings: ['Numero de contrat ambigue dans ONEP: $contract'],
+          spatialName: spatialName,
+          spatialKey: spatialKey,
+        );
+      }
+      if (rows.length == 1) {
+        matchType = 'num_contrat';
+      }
+    }
+
+    if (rows.isEmpty && police.isNotEmpty) {
+      if (spatialKey == null || spatialKey.isEmpty) {
+        warnings = [
+          'Commune spatiale introuvable: liaison par ancienne police impossible.',
+        ];
+      } else if (!_isValidOldPolice(police)) {
+        warnings = [
+          'Ancienne police vide ou non exploitable pour la liaison ONEP.',
+        ];
+      } else {
+        final policeRows = await db.query(
+          'onep_db',
+          where: "TRIM(COALESCE(ancienne_police, '')) = ?",
+          whereArgs: [police],
+        );
+        rows = policeRows
+            .where((row) => _onepCommuneKey(row['nom_commune']) == spatialKey)
+            .take(2)
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+        if (rows.length > 1) {
+          return _onepLocalResponse(
+            matched: false,
+            statusText: 'ambiguous_old_police',
+            warnings: [
+              'Ancienne police ambigue dans ONEP pour la commune '
+                  '$spatialKey: $police',
+            ],
+            spatialName: spatialName,
+            spatialKey: spatialKey,
+          );
+        }
+        if (rows.length == 1) {
+          matchType = 'ancienne_police_commune';
+        }
+      }
+    }
+
+    if (rows.isEmpty) {
+      return _onepLocalResponse(
+        matched: false,
+        statusText: 'not_found',
+        warnings: warnings,
+        spatialName: spatialName,
+        spatialKey: spatialKey,
+      );
+    }
+
+    final row = Map<String, dynamic>.from(rows.first);
+    final onepName = row['nom_commune']?.toString().trim();
+    final onepKey = _onepCommuneKey(onepName);
+    String? observationNote;
+    if (matchType == 'num_contrat' &&
+        spatialKey != null &&
+        onepKey != null &&
+        spatialKey != onepKey) {
+      observationNote = 'Incoherence decoupage client: ONEP='
+          '${onepName?.isNotEmpty == true ? onepName : '?'}, '
+          'spatial=$spatialKey. Liaison conservee par numero de contrat.';
+      warnings.add(observationNote);
+    }
+
+    return _onepLocalResponse(
+      matched: true,
+      statusText: 'matched',
+      matchType: matchType,
+      warnings: warnings,
+      data: _onepLocalPayload(row),
+      observationNote: observationNote,
+      spatialName: spatialName,
+      spatialKey: spatialKey,
+      onepName: onepName,
+      onepKey: onepKey,
+    );
+  }
+
+  Map<String, dynamic> _onepLocalResponse({
+    required bool matched,
+    required String statusText,
+    List<String> warnings = const [],
+    Map<String, dynamic> data = const {},
+    String? matchType,
+    String? observationNote,
+    String? spatialName,
+    String? spatialKey,
+    String? onepName,
+    String? onepKey,
+  }) {
+    return {
+      'matched': matched,
+      'status': statusText,
+      'match_type': matchType,
+      'warnings': warnings,
+      'observation_note': observationNote,
+      'data': data,
+      'source': 'local_onep_db',
+      'commune': {
+        'spatial_name': spatialName,
+        'spatial_key': spatialKey,
+        'onep_name': onepName,
+        'onep_key': onepKey,
+      },
+    };
+  }
+
+  Map<String, dynamic> _onepLocalPayload(Map<String, dynamic> row) {
+    final oldSap = row['ancienne_reference_sap']?.toString().trim() ?? '';
+    return {
+      'num_contrat': row['numero_contrat']?.toString().trim(),
+      'ref': oldSap.isEmpty ? null : oldSap,
+      'ancien_ref_sap': oldSap.isEmpty ? null : oldSap,
+      'id_geo': row['identifiant_geographique']?.toString().trim(),
+      'ancienne_police': row['ancienne_police']?.toString().trim(),
+      'abon': row['prenom_client']?.toString().trim(),
+      'nom': row['nom_client']?.toString().trim(),
+      'adresse': row['adresse']?.toString().trim(),
+      'etat_abonnement': row['etat_abonnement']?.toString().trim(),
+      'type_abonnement': null,
+    };
+  }
+
+  bool _isValidOldPolice(String value) {
+    final text = value.trim().toUpperCase();
+    return text.isNotEmpty && !{'NEANT', 'N\u00C9ANT', 'NULL'}.contains(text);
+  }
+
+  String? _onepCommuneKey(dynamic value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    var normalized = _stripDiacritics(text).toUpperCase();
+    normalized = normalized.replaceAll(RegExp(r'[^A-Z0-9]+'), ' ').trim();
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ');
+    const aliases = {
+      'LABSARA': 'BSARA',
+    };
+    return aliases[normalized] ?? normalized;
+  }
+
+  String _stripDiacritics(String value) {
+    final buffer = StringBuffer();
+    for (final codeUnit in value.runes) {
+      switch (codeUnit) {
+        case 0x00C0:
+        case 0x00C1:
+        case 0x00C2:
+        case 0x00C3:
+        case 0x00C4:
+        case 0x00C5:
+          buffer.write('A');
+          break;
+        case 0x00E0:
+        case 0x00E1:
+        case 0x00E2:
+        case 0x00E3:
+        case 0x00E4:
+        case 0x00E5:
+          buffer.write('a');
+          break;
+        case 0x00C7:
+          buffer.write('C');
+          break;
+        case 0x00E7:
+          buffer.write('c');
+          break;
+        case 0x00C8:
+        case 0x00C9:
+        case 0x00CA:
+        case 0x00CB:
+          buffer.write('E');
+          break;
+        case 0x00E8:
+        case 0x00E9:
+        case 0x00EA:
+        case 0x00EB:
+          buffer.write('e');
+          break;
+        case 0x00CC:
+        case 0x00CD:
+        case 0x00CE:
+        case 0x00CF:
+          buffer.write('I');
+          break;
+        case 0x00EC:
+        case 0x00ED:
+        case 0x00EE:
+        case 0x00EF:
+          buffer.write('i');
+          break;
+        case 0x00D1:
+          buffer.write('N');
+          break;
+        case 0x00F1:
+          buffer.write('n');
+          break;
+        case 0x00D2:
+        case 0x00D3:
+        case 0x00D4:
+        case 0x00D5:
+        case 0x00D6:
+          buffer.write('O');
+          break;
+        case 0x00F2:
+        case 0x00F3:
+        case 0x00F4:
+        case 0x00F5:
+        case 0x00F6:
+          buffer.write('o');
+          break;
+        case 0x00D9:
+        case 0x00DA:
+        case 0x00DB:
+        case 0x00DC:
+          buffer.write('U');
+          break;
+        case 0x00F9:
+        case 0x00FA:
+        case 0x00FB:
+        case 0x00FC:
+          buffer.write('u');
+          break;
+        case 0x00DD:
+        case 0x0178:
+          buffer.write('Y');
+          break;
+        case 0x00FD:
+        case 0x00FF:
+          buffer.write('y');
+          break;
+        default:
+          buffer.writeCharCode(codeUnit);
+      }
+    }
+    return buffer.toString();
   }
 
   int _toSqlBool(dynamic value, {bool defaultValue = false}) {

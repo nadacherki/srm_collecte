@@ -1,0 +1,229 @@
+{
+  "generated_at": "2026-05-08T15:40:08",
+  "current_db": "SRM_bureau",
+  "backup_db": "codex_cmp_srm_vf_web_20260508_1521",
+  "expected_local_only": {
+    "constraints": [
+      "ep.autre_objet.fk_autre_objet_agent"
+    ]
+  },
+  "acceptable": true,
+  "summary": {
+    "relations": {
+      "only_current": 0,
+      "only_backup": 0,
+      "changed": 0
+    },
+    "columns": {
+      "only_current": 0,
+      "only_backup": 0,
+      "changed": 0
+    },
+    "constraints": {
+      "only_current": 1,
+      "only_backup": 0,
+      "changed": 0
+    },
+    "indexes": {
+      "only_current": 0,
+      "only_backup": 0,
+      "changed": 0
+    },
+    "triggers": {
+      "only_current": 0,
+      "only_backup": 0,
+      "changed": 0
+    },
+    "routines": {
+      "only_current": 0,
+      "only_backup": 0,
+      "changed": 0
+    },
+    "sequences": {
+      "only_current": 0,
+      "only_backup": 0,
+      "changed": 0
+    }
+  },
+  "diffs": {
+    "relations": {
+      "only_current": [],
+      "only_backup": [],
+      "changed": {}
+    },
+    "columns": {
+      "only_current": [],
+      "only_backup": [],
+      "changed": {}
+    },
+    "constraints": {
+      "only_current": [
+        "ep.autre_objet.fk_autre_objet_agent"
+      ],
+      "only_backup": [],
+      "changed": {}
+    },
+    "indexes": {
+      "only_current": [],
+      "only_backup": [],
+      "changed": {}
+    },
+    "triggers": {
+      "only_current": [],
+      "only_backup": [],
+      "changed": {}
+    },
+    "routines": {
+      "only_current": [],
+      "only_backup": [],
+      "changed": {}
+    },
+    "sequences": {
+      "only_current": [],
+      "only_backup": [],
+      "changed": {}
+    }
+  },
+  "exact_counts": [
+    {
+      "table": "ep.anomalie_conduite",
+      "rows": 0
+    },
+    {
+      "table": "ep.autre_objet",
+      "rows": 0
+    },
+    {
+      "table": "ep.borne_onep",
+      "rows": 0
+    },
+    {
+      "table": "ep.bouche_a_cles",
+      "rows": 0
+    },
+    {
+      "table": "ep.centre_tampon",
+      "rows": 0
+    },
+    {
+      "table": "ep.conduite_terrain",
+      "rows": 0
+    },
+    {
+      "table": "ep.ep_bache",
+      "rows": 0
+    },
+    {
+      "table": "ep.ep_bf",
+      "rows": 267
+    },
+    {
+      "table": "ep.ep_bouche_arro",
+      "rows": 0
+    },
+    {
+      "table": "ep.ep_branchement",
+      "rows": 1989
+    },
+    {
+      "table": "ep.ep_brc_pt",
+      "rows": 2156
+    },
+    {
+      "table": "ep.ep_compteur_i",
+      "rows": 37
+    },
+    {
+      "table": "ep.ep_conduite",
+      "rows": 1626
+    },
+    {
+      "table": "ep.ep_cone_reduc",
+      "rows": 53
+    },
+    {
+      "table": "ep.ep_forage",
+      "rows": 2
+    },
+    {
+      "table": "ep.ep_hydrant",
+      "rows": 19
+    },
+    {
+      "table": "ep.ep_noeud",
+      "rows": 227
+    },
+    {
+      "table": "ep.ep_obturateur",
+      "rows": 442
+    },
+    {
+      "table": "ep.ep_pompe",
+      "rows": 1
+    },
+    {
+      "table": "ep.ep_puit",
+      "rows": 0
+    },
+    {
+      "table": "ep.ep_reduc_pres",
+      "rows": 1
+    },
+    {
+      "table": "ep.ep_regard",
+      "rows": 1439
+    },
+    {
+      "table": "ep.ep_regard_point",
+      "rows": 0
+    },
+    {
+      "table": "ep.ep_reservoir",
+      "rows": 32
+    },
+    {
+      "table": "ep.ep_st_demineralisation",
+      "rows": 5
+    },
+    {
+      "table": "ep.ep_station_pompage",
+      "rows": 5
+    },
+    {
+      "table": "ep.ep_traversee",
+      "rows": 102
+    },
+    {
+      "table": "ep.ep_vanne",
+      "rows": 511
+    },
+    {
+      "table": "ep.ep_ventouse",
+      "rows": 442
+    },
+    {
+      "table": "ep.ep_vidange",
+      "rows": 356
+    },
+    {
+      "table": "ep.onep_db",
+      "rows": 10580
+    },
+    {
+      "table": "ep.statistique_conduite",
+      "rows": 302
+    },
+    {
+      "table": "ep.statistique_conduite_segment",
+      "rows": 0
+    },
+    {
+      "table": "ep.tn",
+      "rows": 0
+    },
+    {
+      "table": "ep.voie",
+      "rows": 0
+    }
+  ]
+}

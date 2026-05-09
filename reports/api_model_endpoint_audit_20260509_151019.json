@@ -1,0 +1,1978 @@
+{
+  "generated_at": "2026-05-09T15:10:19",
+  "strict_models": true,
+  "mobile_endpoints": [
+    {
+      "endpoint": "ass/bassins",
+      "table": "asst.ASS_BASSIN_VERSANT",
+      "table_exists": true,
+      "column_count": 32,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/bassins-versants",
+      "table": "asst.ASS_BASSIN_VERSANT",
+      "table_exists": true,
+      "column_count": 32,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/bouches",
+      "table": "asst.ASS_BOUCHE",
+      "table_exists": true,
+      "column_count": 52,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/branchements",
+      "table": "asst.ASS_BRANCHEMENT",
+      "table_exists": true,
+      "column_count": 49,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/canalisations",
+      "table": "asst.ASS_COLLECTEUR",
+      "table_exists": true,
+      "column_count": 71,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/canalisations-reutilisation",
+      "table": "asst.ASS_REFOULEMENTR",
+      "table_exists": true,
+      "column_count": 68,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/caniveaux",
+      "table": "asst.ASS_CANIVEAU",
+      "table_exists": true,
+      "column_count": 51,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/caniveaux-branchement",
+      "table": "asst.ASS_CANIV_BRANCHE",
+      "table_exists": true,
+      "column_count": 49,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/collecteurs",
+      "table": "asst.ASS_COLLECTEUR",
+      "table_exists": true,
+      "column_count": 71,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/collecteurs-bouche",
+      "table": "asst.ASS_COL_BOUCHE",
+      "table_exists": true,
+      "column_count": 71,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/deversoirs",
+      "table": "asst.ASS_DEVERSOIR",
+      "table_exists": true,
+      "column_count": 73,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/equipements",
+      "table": "asst.ASS_POMPE",
+      "table_exists": true,
+      "column_count": 44,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/exutoires",
+      "table": "asst.ASS__EXUTOIRE",
+      "table_exists": true,
+      "column_count": 61,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/ouvrages",
+      "table": "asst.ASS_OUV_TRAVERSEE",
+      "table_exists": true,
+      "column_count": 66,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/regards",
+      "table": "asst.ASS_REGARD",
+      "table_exists": true,
+      "column_count": 68,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/regards-borgnes",
+      "table": "asst.ASS_BORGNE",
+      "table_exists": true,
+      "column_count": 66,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/regards-branchement",
+      "table": "asst.ASS_REGARD_FACADE",
+      "table_exists": true,
+      "column_count": 59,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/regards-facade",
+      "table": "asst.ASS_REGARD_FACADE",
+      "table_exists": true,
+      "column_count": 59,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/stations",
+      "table": "asst.ASS_STA_POMP",
+      "table_exists": true,
+      "column_count": 56,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/stations-epuration",
+      "table": "asst.ASS_STA_EPUR",
+      "table_exists": true,
+      "column_count": 55,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ass/stations-pompage",
+      "table": "asst.ASS_STA_POMP",
+      "table_exists": true,
+      "column_count": 56,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/anomalies-conduite",
+      "table": "ep.anomalie_conduite",
+      "table_exists": true,
+      "column_count": 17,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/autres-objets",
+      "table": "ep.autre_objet",
+      "table_exists": true,
+      "column_count": 23,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/baches",
+      "table": "ep.ep_bache",
+      "table_exists": true,
+      "column_count": 47,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/bornes-fontaine",
+      "table": "ep.ep_bf",
+      "table_exists": true,
+      "column_count": 66,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 267,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "adresse",
+          "anomalie",
+          "commune",
+          "compt_g",
+          "conform",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "derctrl",
+          "diam_brts",
+          "diam_comp",
+          "diamcond",
+          "emplacement",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_conform",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/bornes-onep",
+      "table": "ep.borne_onep",
+      "table_exists": true,
+      "column_count": 20,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/bouches-arrosage",
+      "table": "ep.ep_bouche_arro",
+      "table_exists": true,
+      "column_count": 47,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/bouches-cles",
+      "table": "ep.bouche_a_cles",
+      "table_exists": true,
+      "column_count": 20,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/branchements",
+      "table": "ep.ep_branchement",
+      "table_exists": true,
+      "column_count": 42,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 1989,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_date_insertion",
+          "ep_date_pose",
+          "ep_diam",
+          "ep_entreprise",
+          "ep_long_c",
+          "ep_long_r",
+          "ep_longueur",
+          "ep_mat",
+          "ep_num",
+          "ep_observation",
+          "ep_ref",
+          "ep_ref_marche",
+          "ep_ref_rue",
+          "ep_secteur_com"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/centres-tampon",
+      "table": "ep.centre_tampon",
+      "table_exists": true,
+      "column_count": 19,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/compteurs-abonne",
+      "table": "ep.ep_brc_pt",
+      "table_exists": true,
+      "column_count": 53,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 2156,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "abon",
+          "adresse",
+          "ancien_ref_sap",
+          "ancienne_police",
+          "anne_fabr_compt",
+          "anomalie",
+          "anomalie_rdo",
+          "cin",
+          "commune",
+          "conformite_plan",
+          "consommation",
+          "date_creation",
+          "date_modif",
+          "date_pose",
+          "date_releve",
+          "date_validation",
+          "diametre",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/compteurs-reseau",
+      "table": "ep.ep_compteur_i",
+      "table_exists": true,
+      "column_count": 60,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 37,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "emplacement",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_calibre",
+          "ep_code_ter",
+          "ep_compt_fonction",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_date_pose",
+          "ep_entreprise",
+          "ep_marque",
+          "ep_mm",
+          "ep_modele"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/conduites-bureau",
+      "table": "ep.ep_conduite",
+      "table_exists": true,
+      "column_count": 76,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 1626,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "annee_renouv",
+          "anomalie",
+          "autocad_layer",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "emplacement",
+          "ep_adresse",
+          "ep_agent_crea",
+          "ep_agent_maj",
+          "ep_anomalie",
+          "ep_classe_conduite",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_croquis",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_date_pose",
+          "ep_detail"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/conduites-terrain",
+      "table": "ep.conduite_terrain",
+      "table_exists": true,
+      "column_count": 20,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/cones-reduction",
+      "table": "ep.ep_cone_reduc",
+      "table_exists": true,
+      "column_count": 51,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 53,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "emplacement",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_diam_in",
+          "ep_diam_out",
+          "ep_dtae_pose",
+          "ep_entreprise",
+          "ep_num",
+          "ep_observation",
+          "ep_ref"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/forages",
+      "table": "ep.ep_forage",
+      "table_exists": true,
+      "column_count": 57,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 2,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "ass_coor_x",
+          "ass_coor_y",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_for",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_debit_equip",
+          "ep_debit_fo",
+          "ep_dern_intervention",
+          "ep_diam",
+          "ep_entreprise"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/hydrants",
+      "table": "ep.ep_hydrant",
+      "table_exists": true,
+      "column_count": 63,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 19,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "adresse",
+          "anomalie",
+          "codinsee",
+          "commune",
+          "conform",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "derctrl",
+          "diamcond",
+          "diametre",
+          "dispo",
+          "emplacement",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_conform",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/noeuds",
+      "table": "ep.ep_noeud",
+      "table_exists": true,
+      "column_count": 37,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 227,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_conf_plan",
+          "ep_num",
+          "ep_observation",
+          "ep_ref",
+          "ep_ref_rue",
+          "ep_secteur_com",
+          "ep_secteur_hydro",
+          "ep_tage_p",
+          "ep_zone_hydro",
+          "etage_aqua",
+          "fid",
+          "geometry_geojson",
+          "id_agent_crea",
+          "id_commune",
+          "id_mission",
+          "id_province"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/obturateurs",
+      "table": "ep.ep_obturateur",
+      "table_exists": true,
+      "column_count": 39,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 442,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_diam",
+          "ep_num",
+          "ep_observation",
+          "ep_statut",
+          "ep_tf",
+          "etage_aqua",
+          "fid",
+          "geometry_geojson",
+          "id_agent_crea"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/onep-db",
+      "table": "ep.onep_db",
+      "table_exists": true,
+      "column_count": 15,
+      "has_geom": false,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 10580,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": false,
+        "first_keys": [
+          "adresse",
+          "ancienne_police",
+          "ancienne_reference_sap",
+          "etat_abonnement",
+          "id",
+          "identifiant_geographique",
+          "nom_client",
+          "nom_commune",
+          "numero_contrat",
+          "prenom_client",
+          "uuid"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/pompes",
+      "table": "ep.ep_pompe",
+      "table_exists": true,
+      "column_count": 47,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 1,
+        "has_next": false,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_date_pose",
+          "ep_entreprise",
+          "ep_etat",
+          "ep_etat_s",
+          "ep_hmt",
+          "ep_num",
+          "ep_observation",
+          "ep_pompe_debit_fo"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/puits",
+      "table": "ep.ep_puit",
+      "table_exists": true,
+      "column_count": 38,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/reducteurs-pression",
+      "table": "ep.ep_reduc_pres",
+      "table_exists": true,
+      "column_count": 57,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 1,
+        "has_next": false,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "derctrl",
+          "emplacement",
+          "ep_adresse",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_classe_tampon",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_inerv",
+          "ep_date_insertion",
+          "ep_date_pose",
+          "ep_diam",
+          "ep_entreprise"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/regards",
+      "table": "ep.ep_regard_point",
+      "table_exists": true,
+      "column_count": 64,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 1439,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "anom_regard",
+          "anomalie",
+          "anomalie_regard",
+          "anomalie_tamp",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "echelon",
+          "emplacement",
+          "ep_adresse",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_ano_regard",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_croquis",
+          "ep_date_insertion",
+          "ep_date_pose",
+          "ep_detail"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/regards-miroir",
+      "table": "ep.ep_regard",
+      "table_exists": true,
+      "column_count": 69,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 1439,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "anom_regard",
+          "anomalie",
+          "anomalie_regard",
+          "anomalie_tamp",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "echelon",
+          "emplacement",
+          "ep_adresse",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_ano_regard",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_croquis",
+          "ep_date_insertion",
+          "ep_date_pose",
+          "ep_detail"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/reservoirs",
+      "table": "ep.ep_reservoir",
+      "table_exists": true,
+      "column_count": 64,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 32,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "ass_coor_x",
+          "ass_coor_y",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_capacite",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_cote_rad",
+          "ep_cote_tp",
+          "ep_date_constr",
+          "ep_date_insertion",
+          "ep_date_rehab",
+          "ep_detail",
+          "ep_diam_in"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/stations-pompage",
+      "table": "ep.ep_station_pompage",
+      "table_exists": true,
+      "column_count": 56,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 5,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "ass_coor_x",
+          "ass_coor_y",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_date_pose",
+          "ep_debit_global",
+          "ep_detail",
+          "ep_dxf_dwg",
+          "ep_entreprise",
+          "ep_etat"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/tn",
+      "table": "ep.tn",
+      "table_exists": true,
+      "column_count": 19,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    },
+    {
+      "endpoint": "ep/traverses",
+      "table": "ep.ep_traversee",
+      "table_exists": true,
+      "column_count": 53,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 102,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "ep_adresse",
+          "ep_agent_crea",
+          "ep_agent_maj",
+          "ep_anomalie",
+          "ep_classe_conduite",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_croquis",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_date_pose",
+          "ep_detail",
+          "ep_diam",
+          "ep_dxf_dwg",
+          "ep_entreprise",
+          "ep_interv",
+          "ep_lien",
+          "ep_long_r",
+          "ep_longueur"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/vannes",
+      "table": "ep.ep_vanne",
+      "table_exists": true,
+      "column_count": 58,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 511,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "altitute",
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "emplacement",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_date_pose",
+          "ep_diam",
+          "ep_entreprise",
+          "ep_etat",
+          "ep_manoeuvre",
+          "ep_marque",
+          "ep_modele"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/vannes-vidange",
+      "table": "ep.ep_vidange",
+      "table_exists": true,
+      "column_count": 53,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 356,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "emplacement",
+          "ep_agent",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_date_pose",
+          "ep_diam",
+          "ep_entreprise",
+          "ep_etat",
+          "ep_marque",
+          "ep_modele",
+          "ep_num",
+          "ep_observation"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/ventouses",
+      "table": "ep.ep_ventouse",
+      "table_exists": true,
+      "column_count": 53,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 441,
+        "has_next": true,
+        "page_items": 1,
+        "first_has_geometry_geojson": true,
+        "first_keys": [
+          "anomalie",
+          "commune",
+          "conformite_plan",
+          "date_creation",
+          "date_modif",
+          "date_validation",
+          "emplacement",
+          "ep_agent",
+          "ep_agent_crea",
+          "ep_alti",
+          "ep_anomalie",
+          "ep_code_ter",
+          "ep_conf_plan",
+          "ep_coor_x",
+          "ep_coor_y",
+          "ep_coor_z",
+          "ep_date_insertion",
+          "ep_date_interv",
+          "ep_date_pose",
+          "ep_diam",
+          "ep_entreprise",
+          "ep_etat",
+          "ep_marque",
+          "ep_modele",
+          "ep_num"
+        ]
+      }
+    },
+    {
+      "endpoint": "ep/voies",
+      "table": "ep.voie",
+      "table_exists": true,
+      "column_count": 17,
+      "has_geom": true,
+      "status": 200,
+      "payload": {
+        "shape": "dict",
+        "keys": [
+          "count",
+          "next",
+          "page",
+          "page_size",
+          "previous",
+          "results"
+        ],
+        "count": 0,
+        "has_next": false,
+        "page_items": 0
+      }
+    }
+  ],
+  "router_viewsets": [
+    {
+      "prefix": "communes-oriental",
+      "basename": "commune-oriental",
+      "viewset": "CommuneViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "Commune",
+      "table": "public.commune_oriental",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "communes",
+      "basename": "commune",
+      "viewset": "CommuneViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "Commune",
+      "table": "public.commune_oriental",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "zones",
+      "basename": "zone",
+      "viewset": "ZoneViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "Zone",
+      "table": "public.zone",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "zone-utilisateurs",
+      "basename": "zone-utilisateur",
+      "viewset": "ZoneUtilisateurViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "ZoneUtilisateur",
+      "table": "public.zone_utilisateur",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "historique-actions",
+      "basename": "historique-action",
+      "viewset": "HistoriqueActionViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "HistoriqueAction",
+      "table": "public.historique_action",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "objets-incomplets",
+      "basename": "objet-incomplet",
+      "viewset": "ObjetIncompletViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "ObjetIncomplet",
+      "table": "public.objet_incomplet",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "objets-photos",
+      "basename": "objet-photo",
+      "viewset": "ObjetPhotoViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "ObjetPhoto",
+      "table": "public.objet_photo",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "interventions-anomalies-terrain",
+      "basename": "intervention-anomalie-terrain",
+      "viewset": "InterventionAnomalieTerrainViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "InterventionAnomalie",
+      "table": "public.intervention_anomalie",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "srm-field-options",
+      "basename": "srm-field-option",
+      "viewset": "SrmFieldOptionViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "ListeChoix",
+      "table": "public.liste_choix",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-jour",
+      "basename": "metrics-agent-jour",
+      "viewset": "MetricAgentJourViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentJour",
+      "table": "public.vw_metrics_agent_jour",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-semaine",
+      "basename": "metrics-agent-semaine",
+      "viewset": "MetricAgentSemaineViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentSemaine",
+      "table": "public.vw_metrics_agent_semaine",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-mois",
+      "basename": "metrics-agent-mois",
+      "viewset": "MetricAgentMoisViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentMois",
+      "table": "public.vw_metrics_agent_mois",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-table-period",
+      "basename": "metrics-agent-table-period",
+      "viewset": "MetricAgentTablePeriodViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentTablePeriod",
+      "table": "public.vw_metrics_agent_table_period",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-period",
+      "basename": "metrics-agent-period",
+      "viewset": "MetricAgentPeriodViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentPeriod",
+      "table": "public.vw_metrics_agent_period",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-resume",
+      "basename": "metrics-agent-resume",
+      "viewset": "MetricAgentResumeViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentResume",
+      "table": "public.vw_metrics_agent_resume",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-public-jour",
+      "basename": "metrics-agent-public-jour",
+      "viewset": "MetricAgentPublicJourViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentPublicJour",
+      "table": "public.vw_metrics_agent_public_jour",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-public-semaine",
+      "basename": "metrics-agent-public-semaine",
+      "viewset": "MetricAgentPublicSemaineViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentPublicSemaine",
+      "table": "public.vw_metrics_agent_public_semaine",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-public-mois",
+      "basename": "metrics-agent-public-mois",
+      "viewset": "MetricAgentPublicMoisViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentPublicMois",
+      "table": "public.vw_metrics_agent_public_mois",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    },
+    {
+      "prefix": "metrics-agent-public-resume",
+      "basename": "metrics-agent-public-resume",
+      "viewset": "MetricAgentPublicResumeViewSet",
+      "shadowed_by_mobile_route": false,
+      "model": "MetricAgentPublicResume",
+      "table": "public.vw_metrics_agent_public_resume",
+      "table_exists": true,
+      "model_missing_db_columns": [],
+      "db_columns_not_in_model_count": 0,
+      "status": 200
+    }
+  ],
+  "failures": [],
+  "warnings": []
+}

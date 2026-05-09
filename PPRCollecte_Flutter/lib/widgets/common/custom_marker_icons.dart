@@ -141,6 +141,10 @@ class CustomMarkerIcons {
       icon: Icons.water_damage,
       color: Color(0xFF1565C0),
     ),
+    'ep_bache': const MarkerIconConfig(
+      icon: Icons.water_drop,
+      color: Color(0xFF00838F),
+    ),
     'station_de_pompage': const MarkerIconConfig(
       icon: Icons.sync,
       color: Color(0xFF283593),
@@ -161,7 +165,19 @@ class CustomMarkerIcons {
       icon: Icons.place,
       color: Color(0xFF78909C),
     ),
+    'tn': const MarkerIconConfig(
+      icon: Icons.terrain,
+      color: Color(0xFF607D8B),
+    ),
+    'anomalie_conduite': const MarkerIconConfig(
+      icon: Icons.report_problem,
+      color: Color(0xFFD32F2F),
+    ),
     // SRM Eau Potable - lignes
+    'voie': const MarkerIconConfig(
+      icon: Icons.alt_route,
+      color: Color(0xFF455A64),
+    ),
     'conduite_terrain': const MarkerIconConfig(
       icon: Icons.linear_scale,
       color: Color(0xFF1976D2),

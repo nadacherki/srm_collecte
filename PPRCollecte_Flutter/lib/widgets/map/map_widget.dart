@@ -23,6 +23,8 @@ import '../../core/constants/basemap_constants.dart';
 class MapWidget extends StatefulWidget {
   static const String onlineOsmUrlTemplate =
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const String onlineSatelliteUrlTemplate =
+      'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
 
   final LatLng userPosition;
   final bool gpsEnabled;
@@ -35,6 +37,7 @@ class MapWidget extends StatefulWidget {
   final List<Marker> formMarkers;
   final bool isSatellite;
   final Function(Object?)? onPolylineTap;
+  final ValueChanged<bool>? onMapTypeChanged;
   final VoidCallback? onUserInteraction;
   final VoidCallback? onGpsButtonPressed;
   final void Function(TapPosition, LatLng)? onMapTap;
@@ -62,6 +65,7 @@ class MapWidget extends StatefulWidget {
     required this.formMarkers,
     this.isSatellite = false,
     this.onPolylineTap,
+    this.onMapTypeChanged,
     this.onUserInteraction,
     this.onGpsButtonPressed,
     this.onMapTap,
@@ -155,6 +159,7 @@ class _MapWidgetState extends State<MapWidget> {
   bool _isBasemapLoading = false;
   int _basemapLoadRequestId = 0;
   int _offlinePoiRefreshRequestId = 0;
+  int _basemapLayerRevision = 0;
   String? _lastIconDiagnosticsKey;
   String? _lastOfflinePoiRefreshKey;
   final Map<String, bool> _offlinePoiAssetAvailabilityCache = {};
@@ -167,11 +172,6 @@ class _MapWidgetState extends State<MapWidget> {
   void initState() {
     super.initState();
     _mapController = MapController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onMapCreated(_mapController);
-      setState(() => _controllerReady = true);
-      _queueOfflinePoiMarkerRefresh(force: true, immediate: true);
-    });
     _polylineHitNotifier.addListener(_onPolylineHit);
     _polygonHitNotifier.addListener(_onPolygonHit);
     _loadBasemapProvider(
@@ -190,6 +190,19 @@ class _MapWidgetState extends State<MapWidget> {
         widget.offlineBasemapFormat,
       );
     }
+  }
+
+  void _handleMapReady() {
+    if (_controllerReady) return;
+
+    widget.onMapCreated(_mapController);
+
+    if (!mounted) return;
+    setState(() {
+      _controllerReady = true;
+      _basemapLayerRevision++;
+    });
+    _queueOfflinePoiMarkerRefresh(force: true, immediate: true);
   }
 
   @override
@@ -395,6 +408,7 @@ class _MapWidgetState extends State<MapWidget> {
         _loadedBasemapPath = basemapPath;
         _loadedBasemapFormat = normalizedFormat;
         _isBasemapLoading = false;
+        _basemapLayerRevision++;
       });
       if (normalizedFormat == 'pmtiles' && _vectorSpriteNames.isNotEmpty) {
         _schedulePmtilesIconDiagnostics(
@@ -1505,7 +1519,10 @@ class _MapWidgetState extends State<MapWidget> {
         : (widget.basemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom);
     final minZoom = widget.basemapMinZoom ?? BasemapConstants.fallbackMinZoom;
     final maxZoom = widget.basemapMaxZoom ?? BasemapConstants.fallbackMaxZoom;
-    final showOnlineBasemap = widget.useOnlineBasemap && !widget.isSatellite;
+    final showOnlineBasemap = widget.useOnlineBasemap;
+    final onlineBasemapUrlTemplate = widget.isSatellite
+        ? MapWidget.onlineSatelliteUrlTemplate
+        : MapWidget.onlineOsmUrlTemplate;
     final hasRasterBasemap = !showOnlineBasemap &&
         _rasterTileProvider != null &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
@@ -1544,6 +1561,7 @@ class _MapWidgetState extends State<MapWidget> {
             cameraConstraint: const CameraConstraint.unconstrained(),
             interactionOptions:
                 const InteractionOptions(flags: InteractiveFlag.all),
+            onMapReady: _handleMapReady,
             onTap: (tapPosition, latLng) {
               widget.onMapTap?.call(tapPosition, latLng);
             },
@@ -1562,18 +1580,27 @@ class _MapWidgetState extends State<MapWidget> {
           children: [
             if (showOnlineBasemap)
               TileLayer(
-                urlTemplate: MapWidget.onlineOsmUrlTemplate,
+                key: ValueKey(
+                  'online-${widget.isSatellite ? 'satellite' : 'osm'}-$_basemapLayerRevision',
+                ),
+                urlTemplate: onlineBasemapUrlTemplate,
                 userAgentPackageName: 'com.srm.collecte',
-                maxZoom: math.max(effectiveMaxZoom, 19),
+                maxZoom: math.max(effectiveMaxZoom, 20),
               ),
             if (hasRasterBasemap)
               TileLayer(
+                key: ValueKey(
+                  'offline-raster-$_loadedBasemapPath-$_basemapLayerRevision',
+                ),
                 tileProvider: _rasterTileProvider!,
                 userAgentPackageName: 'com.example.srmcollecte',
                 maxZoom: effectiveMaxZoom,
               ),
             if (hasVectorBasemap)
               vmt.VectorTileLayer(
+                key: ValueKey(
+                  'offline-vector-$_loadedBasemapPath-$_basemapLayerRevision',
+                ),
                 theme: _vectorTheme!,
                 sprites: _vectorSprites,
                 tileProviders: vmt.TileProviders({
@@ -1710,6 +1737,11 @@ class _MapWidgetState extends State<MapWidget> {
                 tooltip: 'Ma position',
               ),
             ),
+          ),
+        if (widget.showMapButtons && widget.onMapTypeChanged != null)
+          MapTypeToggle(
+            isSatellite: widget.isSatellite,
+            onMapTypeChanged: widget.onMapTypeChanged!,
           ),
         if (widget.showMapButtons)
           Positioned(

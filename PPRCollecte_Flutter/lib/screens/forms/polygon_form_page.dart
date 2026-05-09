@@ -473,7 +473,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return _stringifyRegardEpValue(field, existing);
     }
 
-    final configDefault = _regardEpConfigByField[field]?.valeurParDefaut ?? '';
+    final configDefault = _regardEpConfiguredDefaultValueForField(field);
     if (configDefault.trim().isNotEmpty) {
       return configDefault.trim();
     }
@@ -501,6 +501,19 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       default:
         return '';
     }
+  }
+
+  String _regardEpConfiguredDefaultValueForField(String field) {
+    final defaultValue =
+        _regardEpConfigByField[field]?.valeurParDefaut.trim() ?? '';
+    if (defaultValue.isEmpty) return '';
+
+    final options = _regardEpOptions[field] ?? const <SrmFieldChoice>[];
+    if (options.isNotEmpty &&
+        !options.any((choice) => choice.code == defaultValue)) {
+      return '';
+    }
+    return defaultValue;
   }
 
   String _stringifyRegardEpValue(String field, dynamic value) {
@@ -658,8 +671,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return (normalized == '1' || normalized.toLowerCase() == 'true') ? 1 : 0;
     }
 
-    final rule =
-        SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _regardEpFieldRule(field);
     switch (rule.kind) {
       case SrmFieldKind.integer:
         return int.tryParse(normalized);
@@ -1733,10 +1745,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 controller.text = value ?? '';
                 onFieldChanged();
               },
-              validator: isRequired
-                  ? (value) =>
-                      value == null || value.isEmpty ? 'Champ requis' : null
-                  : null,
+              validator: (value) =>
+                  _validateRegardEpField(field, value, isRequired, rule),
             ),
           ],
         ),
@@ -1772,10 +1782,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             inputFormatters: _inputFormattersForRegardEpRule(rule),
             maxLength: rule.maxLength,
             maxLines: rule.multiline ? 3 : 1,
-            validator: isRequired
-                ? (value) =>
-                    (value ?? '').trim().isEmpty ? 'Champ requis' : null
-                : null,
+            validator: (value) =>
+                _validateRegardEpField(field, value, isRequired, rule),
             decoration: InputDecoration(
               labelText: isRequired ? '$label *' : null,
               hintText: _hintForRegardEpField(field),
@@ -1821,6 +1829,94 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     }
   }
 
+  SrmFieldRule _regardEpFieldRule(String field) {
+    final fallback = SrmConfig.getFieldRule(
+      widget.metier,
+      widget.entityType,
+      field,
+    );
+    final config = _regardEpConfigByField[field];
+    if (config == null) return fallback;
+
+    final type = config.typeChamp.toLowerCase();
+    final configuredMaxLength = _configuredRegardEpTextMaxLength(type);
+    if (type.contains('int') || type.contains('serial')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.integer,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('double') ||
+        type.contains('numeric') ||
+        type.contains('decimal') ||
+        type.contains('real') ||
+        type.contains('float')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.decimal,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('date') || type.contains('timestamp')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.date,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('uuid')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.uuid,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('bool')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.booleanLike,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('char') || type.contains('text')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: configuredMaxLength ?? fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+        allowedValues: fallback.allowedValues,
+      );
+    }
+    return SrmFieldRule(
+      kind: fallback.kind,
+      maxLength: configuredMaxLength ?? fallback.maxLength,
+      required: config.isRequired,
+      multiline: fallback.multiline,
+      readOnly: fallback.readOnly,
+      allowedValues: fallback.allowedValues,
+    );
+  }
+
+  int? _configuredRegardEpTextMaxLength(String type) {
+    final match = RegExp(
+      r'(?:character varying|varchar|character)\s*\((\d+)\)',
+    ).firstMatch(type);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
+  }
+
   List<TextInputFormatter> _inputFormattersForRegardEpRule(SrmFieldRule rule) {
     switch (rule.kind) {
       case SrmFieldKind.integer:
@@ -1832,6 +1928,101 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       default:
         return const [];
     }
+  }
+
+  String? _validateRegardEpField(
+    String field,
+    String? value,
+    bool isRequired,
+    SrmFieldRule rule,
+  ) {
+    final normalized = (value ?? '').trim();
+    if (normalized.isEmpty) {
+      return isRequired || rule.required ? 'Champ requis' : null;
+    }
+    if (rule.maxLength != null && normalized.length > rule.maxLength!) {
+      return 'Maximum ${rule.maxLength} caracteres';
+    }
+
+    switch (rule.kind) {
+      case SrmFieldKind.integer:
+        if (int.tryParse(normalized) == null) {
+          return 'Nombre entier attendu';
+        }
+        break;
+      case SrmFieldKind.decimal:
+        if (double.tryParse(normalized.replaceAll(',', '.')) == null) {
+          return 'Nombre decimal attendu';
+        }
+        break;
+      case SrmFieldKind.date:
+        if (DateTime.tryParse(normalized) == null) {
+          return 'Date invalide';
+        }
+        break;
+      case SrmFieldKind.uuid:
+        if (!RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(normalized)) {
+          return 'UUID invalide';
+        }
+        break;
+      case SrmFieldKind.enumValue:
+        if (rule.allowedValues.isNotEmpty &&
+            !rule.allowedValues.contains(normalized)) {
+          return 'Valeur non autorisee';
+        }
+        break;
+      case SrmFieldKind.booleanLike:
+      case SrmFieldKind.text:
+        break;
+    }
+
+    final rangeError = _validateRegardEpConfiguredRange(
+      field,
+      normalized,
+      rule,
+    );
+    if (rangeError != null) return rangeError;
+
+    return null;
+  }
+
+  String? _validateRegardEpConfiguredRange(
+    String field,
+    String normalized,
+    SrmFieldRule rule,
+  ) {
+    final config = _regardEpConfigByField[field];
+    if (config == null) return null;
+
+    if (rule.kind == SrmFieldKind.integer ||
+        rule.kind == SrmFieldKind.decimal) {
+      final number = double.tryParse(normalized.replaceAll(',', '.'));
+      if (number == null) return null;
+      final min = config.numericMin;
+      if (min != null && number < min) {
+        return 'Valeur minimale : ${config.valeurMin}';
+      }
+      final max = config.numericMax;
+      if (max != null && number > max) {
+        return 'Valeur maximale : ${config.valeurMax}';
+      }
+      return null;
+    }
+
+    if (rule.kind == SrmFieldKind.date) {
+      final date = DateTime.tryParse(normalized);
+      if (date == null) return null;
+      final min = config.dateMin;
+      if (min != null && date.isBefore(min)) {
+        return 'Date minimale : ${config.valeurMin}';
+      }
+      final max = config.dateMax;
+      if (max != null && date.isAfter(max)) {
+        return 'Date maximale : ${config.valeurMax}';
+      }
+    }
+
+    return null;
   }
 
   String _hintForRegardEpField(String field) {

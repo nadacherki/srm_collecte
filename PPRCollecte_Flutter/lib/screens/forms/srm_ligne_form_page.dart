@@ -125,6 +125,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   bool _isAnomalieManagedField(String field) =>
       _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
 
+  bool _isConfiguredVisibleField(String field) {
+    final config = _attributConfigByField[field.toLowerCase()];
+    return config == null || config.visible;
+  }
+
   bool _isObjetIncompletManagedField(String field) {
     final normalized = field.toLowerCase();
     return normalized == 'objet_incomplet' ||
@@ -334,6 +339,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         }
         for (final config in byField.values) {
           if (!_isAnomalieDetailField(config.nomChamp)) continue;
+          if (!config.visible) continue;
           _controllers.putIfAbsent(
             config.nomChamp,
             () {
@@ -348,6 +354,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             },
           );
         }
+        _applyConfiguredDefaults();
         _prefillCoordinates();
       });
     } catch (e) {
@@ -361,6 +368,30 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         });
       }
     }
+  }
+
+  void _applyConfiguredDefaults() {
+    if (widget.existingData != null) return;
+    for (final entry in _attributConfigByField.entries) {
+      final defaultValue = _configuredDefaultValueForField(entry.key);
+      if (defaultValue.isEmpty) continue;
+      final controller = _controllers[entry.key];
+      if (controller == null || controller.text.trim().isNotEmpty) continue;
+      controller.text = defaultValue;
+    }
+  }
+
+  String _configuredDefaultValueForField(String field) {
+    final defaultValue =
+        _attributConfigByField[field]?.valeurParDefaut.trim() ?? '';
+    if (defaultValue.isEmpty) return '';
+
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty &&
+        !choices.any((choice) => choice.code == defaultValue)) {
+      return '';
+    }
+    return defaultValue;
   }
 
   void _prefillCoordinates() {
@@ -785,7 +816,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   List<String> _anomalieDetailFields() {
     final configs = _attributConfigByField.values
-        .where((config) => _isAnomalieDetailField(config.nomChamp))
+        .where((config) =>
+            config.visible && _isAnomalieDetailField(config.nomChamp))
         .toList()
       ..sort((a, b) => a.ordre.compareTo(b.ordre));
 
@@ -796,7 +828,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       }
     }
     for (final field in _controllers.keys) {
-      if (_isAnomalieDetailField(field) && !result.contains(field)) {
+      if (_isAnomalieDetailField(field) &&
+          _isConfiguredVisibleField(field) &&
+          !result.contains(field)) {
         result.add(field);
       }
     }
@@ -808,10 +842,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       .toList();
 
   bool get _hasTypeAnomalieField =>
-      _attributConfigByField.containsKey('type_anomalie') ||
-      _controllers.containsKey('type_anomalie') ||
-      _choicesByField.containsKey('type_anomalie') ||
-      (widget.existingData?.containsKey('type_anomalie') ?? false);
+      _isConfiguredVisibleField('type_anomalie') &&
+      (_attributConfigByField.containsKey('type_anomalie') ||
+          _controllers.containsKey('type_anomalie') ||
+          _choicesByField.containsKey('type_anomalie') ||
+          (widget.existingData?.containsKey('type_anomalie') ?? false));
 
   List<DropdownMenuItem<String>> _choiceDropdownItemsForField(String field) {
     final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
@@ -1239,6 +1274,45 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
   }
 
+  String? _validateConfiguredRange(
+    String field,
+    String normalized,
+    SrmFieldRule rule,
+  ) {
+    final config = _attributConfigByField[field];
+    if (config == null) return null;
+
+    if (rule.kind == SrmFieldKind.integer ||
+        rule.kind == SrmFieldKind.decimal) {
+      final number = double.tryParse(normalized.replaceAll(',', '.'));
+      if (number == null) return null;
+      final min = config.numericMin;
+      if (min != null && number < min) {
+        return 'Valeur minimale : ${config.valeurMin}';
+      }
+      final max = config.numericMax;
+      if (max != null && number > max) {
+        return 'Valeur maximale : ${config.valeurMax}';
+      }
+      return null;
+    }
+
+    if (rule.kind == SrmFieldKind.date) {
+      final date = DateTime.tryParse(normalized);
+      if (date == null) return null;
+      final min = config.dateMin;
+      if (min != null && date.isBefore(min)) {
+        return 'Date minimale : ${config.valeurMin}';
+      }
+      final max = config.dateMax;
+      if (max != null && date.isAfter(max)) {
+        return 'Date maximale : ${config.valeurMax}';
+      }
+    }
+
+    return null;
+  }
+
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
     final rule = _fieldRule(field);
@@ -1284,6 +1358,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       case SrmFieldKind.text:
         break;
     }
+
+    final rangeError = _validateConfiguredRange(field, normalized, rule);
+    if (rangeError != null) return rangeError;
+
     return null;
   }
 

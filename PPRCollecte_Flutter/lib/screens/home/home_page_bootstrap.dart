@@ -219,7 +219,61 @@ Future<void> _applyOnlineStatusImpl(
 
     if (wasOffline && reachable) {
       await _restoreApiServiceFromLocalImpl(state);
+      unawaited(_refreshMobileConfigAfterReconnectImpl(state));
     }
+  }
+}
+
+Future<void> _refreshMobileConfigAfterReconnectImpl(
+  _HomePageState state,
+) async {
+  if (!state.mounted) return;
+  if (state._mobileConfigAutoRefreshRunning) return;
+
+  final now = DateTime.now();
+  final lastRefresh = state._lastMobileConfigAutoRefreshAt;
+  if (lastRefresh != null &&
+      now.difference(lastRefresh) < const Duration(minutes: 2)) {
+    return;
+  }
+
+  state._mobileConfigAutoRefreshRunning = true;
+  state._lastMobileConfigAutoRefreshAt = now;
+
+  try {
+    await _restoreApiServiceFromLocalImpl(state);
+    await Future.wait<void>([
+      _runReconnectRefreshStep(
+        'FORMULAIRE-CONFIG-MOBILE',
+        FormulaireConfigMobileService().refreshConfig(),
+      ),
+      _runReconnectRefreshStep(
+        'ATTRIBUT-CONFIG-MOBILE',
+        AttributConfigMobileService().refreshConfig(),
+      ),
+      _runReconnectRefreshStep(
+        'SRM-FIELD-OPTIONS',
+        SrmFieldOptionService().refreshOptions(),
+      ),
+      _runReconnectRefreshStep(
+        'COMMUNES',
+        CommuneSyncService().refreshCommunes(),
+      ),
+    ]);
+    debugPrint('[RECONNECT-CONFIG] Refresh auto termine');
+  } finally {
+    state._mobileConfigAutoRefreshRunning = false;
+  }
+}
+
+Future<void> _runReconnectRefreshStep(
+  String label,
+  Future<dynamic> future,
+) async {
+  try {
+    await future;
+  } catch (e) {
+    debugPrint('[$label] Refresh reconnexion ignore: $e');
   }
 }
 

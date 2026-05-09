@@ -17,6 +17,15 @@ REPO = Path(__file__).resolve().parent.parent
 API_ROOT = REPO / "API_GeoDjango" / "pprcollecte"
 FLUTTER_ROOT = REPO / "PPRCollecte_Flutter"
 
+LOCATION_ONLY_FORMS = {
+    ("ep", "borne_onep"),
+    ("ep", "bouche_a_cles"),
+    ("asst", "ASS_CANIVEAU"),
+    ("asst", "ASS_CANIV_BRANCHE"),
+    ("asst", "ASS_COL_BOUCHE"),
+    ("asst", "ASS_BASSIN_VERSANT"),
+}
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pprcollecte.settings")
 sys.path.insert(0, str(API_ROOT))
 
@@ -74,7 +83,14 @@ def _parse_fallback_formulaires(text: str) -> dict[tuple[str, str], dict[str, ob
     result: dict[tuple[str, str], dict[str, object]] = {}
     for block in re.findall(r"FormulaireConfigMobileItem\((.*?)\),", text, re.S):
         values: dict[str, str] = {}
-        for name in ("nomMetier", "nomTable", "titreApp", "ordre", "visible"):
+        for name in (
+            "nomMetier",
+            "nomTable",
+            "titreApp",
+            "ordre",
+            "visible",
+            "downloadMobile",
+        ):
             match = re.search(
                 rf"{name}:\s*(.*?)(?:,\n|,\r\n|\n\s*\))",
                 block,
@@ -86,10 +102,17 @@ def _parse_fallback_formulaires(text: str) -> dict[tuple[str, str], dict[str, ob
             continue
         nom_metier = _decode_dart_string(values["nomMetier"])
         nom_table = _decode_dart_string(values["nomTable"])
+        visible = values.get("visible", "").lower() == "true"
+        download_mobile_raw = values.get("downloadMobile")
         result[(nom_metier, nom_table)] = {
             "titre_app": _decode_dart_string(values.get("titreApp", "")),
             "ordre": int(values["ordre"]) if values.get("ordre", "").isdigit() else None,
-            "visible": values.get("visible", "").lower() == "true",
+            "visible": visible,
+            "download_mobile": (
+                download_mobile_raw.lower() == "true"
+                if download_mobile_raw is not None
+                else visible
+            ),
         }
     return result
 
@@ -154,6 +177,10 @@ def _fetchall(query: str, params: list[object] | None = None) -> list[tuple]:
         return list(cursor.fetchall())
 
 
+def _is_location_only_form(nom_metier: str, nom_table: str) -> bool:
+    return (nom_metier, nom_table) in LOCATION_ONLY_FORMS
+
+
 def main() -> int:
     srm_config = _read(FLUTTER_ROOT / "lib" / "core" / "config" / "srm_config.dart")
     mapping_service = _read(
@@ -204,7 +231,17 @@ def main() -> int:
                  nom_table,
                  count(*) AS total_fields,
                  count(*) FILTER (
-                   WHERE COALESCE(visible,false)
+                   WHERE (
+                       COALESCE(visible,false)
+                       OR (
+                         nom_metier = 'ep'
+                         AND lower(nom_champ) IN ('ep_coor_x', 'ep_coor_y', 'ep_coor_z')
+                       )
+                       OR (
+                         nom_metier IN ('asst', 'ass')
+                         AND lower(nom_champ) IN ('ass_coor_x', 'ass_coor_y', 'ass_coor_z')
+                       )
+                     )
                      AND NOT COALESCE(primary_key,false)
                      AND lower(nom_champ) <> 'geom'
                  ) AS visible_fields,
@@ -236,6 +273,7 @@ def main() -> int:
                f.titre_app,
                f.ordre,
                COALESCE(f.visible,false),
+               COALESCE(f.download_mobile,false),
                COALESCE(fields.total_fields,0),
                COALESCE(fields.visible_fields,0),
                COALESCE(choice_fields.visible_choice_fields,0),
@@ -290,8 +328,9 @@ def main() -> int:
             "titre_app": titre,
             "ordre": ordre,
             "visible": visible,
+            "download_mobile": rest[0],
         }
-        for nom_metier, nom_table, titre, ordre, visible, *_rest in form_rows
+        for nom_metier, nom_table, titre, ordre, visible, *rest in form_rows
     }
     print("\nFORMULAIRE_FALLBACK_CHECK")
     fallback_keys = {
@@ -310,7 +349,7 @@ def main() -> int:
         fallback_row = fallback_formulaires[key]
         diffs = [
             f"{field}=db:{db_row[field]!r}/fallback:{fallback_row[field]!r}"
-            for field in ("titre_app", "ordre", "visible")
+            for field in ("titre_app", "ordre", "visible", "download_mobile")
             if db_row[field] != fallback_row[field]
         ]
         if diffs:
@@ -379,9 +418,78 @@ def main() -> int:
     for row in choice_counts:
         print(f"  {row[0]}: total={row[1]} active={row[2]} tables={row[3]} fields={row[4]}")
 
+    print("\nMOBILE_DOWNLOAD_CHECK")
+    download_gaps = 0
+    for (
+        nom_metier,
+        nom_table,
+        titre,
+        ordre,
+        visible,
+        download_mobile,
+        total,
+        visible_fields,
+        choice_fields,
+        choices,
+        geom_type,
+    ) in form_rows:
+        mobile_table = _mobile_table_for_config_table(
+            nom_metier, nom_table, ep_mobile_map, asst_mobile_map
+        )
+        schema_key = f"{nom_metier}/{mobile_table}"
+        has_srm_entity = mobile_table in srm_config_tables
+        has_sync_endpoint = schema_key in sync_endpoint_keys
+        is_onep_reference = nom_metier == "ep" and nom_table == "onep_db"
+        is_ep_regard_mirror = nom_metier == "ep" and nom_table == "ep_regard"
+        if visible and not download_mobile:
+            has_error = True
+            print(f"  ERROR visible without download_mobile: {nom_metier}.{nom_table}")
+        if nom_metier == "elec" and download_mobile:
+            has_error = True
+            print(f"  ERROR elec exported mobile: {nom_metier}.{nom_table}")
+        if is_onep_reference and (visible or not download_mobile):
+            has_error = True
+            print("  ERROR ep.onep_db must be visible=false and download_mobile=true")
+        if download_mobile and not is_onep_reference and not is_ep_regard_mirror and (
+            not has_srm_entity or not has_sync_endpoint
+        ):
+            download_gaps += 1
+            print(
+                "  "
+                f"warning unsupported download row: {nom_metier}.{nom_table} -> "
+                f"{mobile_table} | visible={visible} | "
+                f"srm_config={has_srm_entity} sync_endpoint={has_sync_endpoint} | "
+                f"{titre}"
+            )
+    if download_gaps == 0:
+        print("  download_mobile rows are technically covered.")
+
+    print("\nLOCATION_ONLY_FORMS")
+    location_only_rows = 0
+    for nom_metier, nom_table, titre, ordre, visible, download_mobile, total, visible_fields, choice_fields, choices, geom_type in form_rows:
+        if not visible or not _is_location_only_form(nom_metier, nom_table):
+            continue
+        location_only_rows += 1
+        mobile_table = _mobile_table_for_config_table(
+            nom_metier, nom_table, ep_mobile_map, asst_mobile_map
+        )
+        schema_key = f"{nom_metier}/{mobile_table}"
+        has_srm_entity = mobile_table in srm_config_tables
+        has_sync_endpoint = schema_key in sync_endpoint_keys
+        print(
+            "  "
+            f"{nom_metier}.{nom_table} -> {mobile_table} | "
+            f"ordre={ordre} | fields={visible_fields}/{total} | "
+            f"geom={geom_type or '-'} | "
+            f"srm_config={has_srm_entity} sync_endpoint={has_sync_endpoint} | "
+            f"{titre}"
+        )
+    if location_only_rows == 0:
+        print("  none")
+
     print("\nVISIBLE_FORM_GAPS")
     gaps = 0
-    for nom_metier, nom_table, titre, ordre, visible, total, visible_fields, choice_fields, choices, geom_type in form_rows:
+    for nom_metier, nom_table, titre, ordre, visible, download_mobile, total, visible_fields, choice_fields, choices, geom_type in form_rows:
         if not visible:
             continue
         mobile_table = _mobile_table_for_config_table(
@@ -390,7 +498,9 @@ def main() -> int:
         schema_key = f"{nom_metier}/{mobile_table}"
         has_srm_entity = mobile_table in srm_config_tables
         has_sync_endpoint = schema_key in sync_endpoint_keys
-        if not has_srm_entity or not has_sync_endpoint or visible_fields == 0:
+        expected_location_only = _is_location_only_form(nom_metier, nom_table)
+        has_missing_fields = visible_fields == 0 and not expected_location_only
+        if not has_srm_entity or not has_sync_endpoint or has_missing_fields:
             gaps += 1
             print(
                 "  "
@@ -404,7 +514,7 @@ def main() -> int:
         print("  none")
 
     print("\nVISIBLE_FORM_SUMMARY")
-    for nom_metier, nom_table, titre, ordre, visible, total, visible_fields, choice_fields, choices, geom_type in form_rows:
+    for nom_metier, nom_table, titre, ordre, visible, download_mobile, total, visible_fields, choice_fields, choices, geom_type in form_rows:
         if not visible:
             continue
         mobile_table = _mobile_table_for_config_table(

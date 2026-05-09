@@ -211,7 +211,7 @@ extension _HomePageAppActions on _HomePageState {
 
   Future<void> _performLogout() async {
     await DatabaseHelper().clearSrmSession();
-    ApiService.userId = null;
+    ApiService.resetSession();
 
     if (!mounted) return;
     Navigator.pushReplacement(

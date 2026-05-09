@@ -65,24 +65,54 @@ class Command(BaseCommand):
                           AND ep_coor_y IS NOT NULL;
 
                         UPDATE ep.ep_regard AS regard_poly
-                        SET geom = public.build_regard_miroir_geom(
-                            CASE
-                                WHEN source.geom IS NOT NULL
-                                     AND NOT ST_IsEmpty(source.geom)
-                                    THEN source.geom
-                                WHEN source.ep_coor_x IS NOT NULL
-                                     AND source.ep_coor_y IS NOT NULL
-                                    THEN ST_SetSRID(
-                                        ST_MakePoint(
-                                            source.ep_coor_x,
-                                            source.ep_coor_y,
-                                            COALESCE(source.ep_coor_z, 0.0)
-                                        ),
-                                        26191
-                                    )
-                                ELSE NULL
-                            END
-                        )
+                        SET geom = CASE
+                            WHEN source.longueur IS NOT NULL
+                                 AND source.longueur > 0
+                                 AND source.largeur IS NOT NULL
+                                 AND source.largeur > 0
+                                THEN public.build_regard_miroir_geom(
+                                    CASE
+                                        WHEN source.geom IS NOT NULL
+                                             AND NOT ST_IsEmpty(source.geom)
+                                            THEN source.geom
+                                        WHEN source.ep_coor_x IS NOT NULL
+                                             AND source.ep_coor_y IS NOT NULL
+                                            THEN ST_SetSRID(
+                                                ST_MakePoint(
+                                                    source.ep_coor_x,
+                                                    source.ep_coor_y,
+                                                    COALESCE(source.ep_coor_z, 0.0)
+                                                ),
+                                                26191
+                                            )
+                                        ELSE NULL
+                                    END,
+                                    source.longueur,
+                                    source.largeur
+                                )
+                            WHEN regard_poly.geom IS NULL
+                                THEN public.build_regard_miroir_geom(
+                                    CASE
+                                        WHEN source.geom IS NOT NULL
+                                             AND NOT ST_IsEmpty(source.geom)
+                                            THEN source.geom
+                                        WHEN source.ep_coor_x IS NOT NULL
+                                             AND source.ep_coor_y IS NOT NULL
+                                            THEN ST_SetSRID(
+                                                ST_MakePoint(
+                                                    source.ep_coor_x,
+                                                    source.ep_coor_y,
+                                                    COALESCE(source.ep_coor_z, 0.0)
+                                                ),
+                                                26191
+                                            )
+                                        ELSE NULL
+                                    END,
+                                    source.longueur,
+                                    source.largeur
+                                )
+                            ELSE regard_poly.geom
+                        END
                         FROM ep.ep_regard_point AS source
                         WHERE regard_poly.fid_regard_source = source.fid;
                     END IF;

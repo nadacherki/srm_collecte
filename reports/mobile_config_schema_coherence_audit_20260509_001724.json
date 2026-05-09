@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-05-09T00:17:24",
+  "forms_count": 61,
+  "visible_forms_count": 38,
+  "download_forms_count": 40,
+  "type_mismatches": [],
+  "nullable_mismatches": [],
+  "attr_without_physical": [],
+  "physical_without_attr": [],
+  "choice_without_attr": [],
+  "choice_without_physical": [],
+  "choice_id_mismatch": []
+}

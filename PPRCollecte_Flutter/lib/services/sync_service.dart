@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
+import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
 import 'photo_reference_service.dart';
 import 'projection_service.dart';
@@ -56,6 +57,7 @@ class _TableInfo {
   final String table;
   final String endpoint;
   final String geometryLabel;
+  final bool isReference;
 
   const _TableInfo({
     required this.metier,
@@ -64,6 +66,7 @@ class _TableInfo {
     required this.table,
     required this.endpoint,
     required this.geometryLabel,
+    this.isReference = false,
   });
 }
 
@@ -76,7 +79,7 @@ class SyncService {
   Future<SyncResult> downloadAllData({
     Function(double, String, int, int)? onProgress,
   }) async {
-    final tables = _collectSrmTables();
+    final tables = await _collectSrmTables();
     final result = SyncResult();
     final total = tables.length + 2;
     final nowIso = DateTime.now().toIso8601String();
@@ -161,6 +164,14 @@ class SyncService {
             final map = _normalizeRemoteItem(item);
             if (map == null) {
               result.skippedCount++;
+              continue;
+            }
+
+            if (info.isReference && info.table == 'onep_db') {
+              await dbHelper.upsertDownloadedOnepDb(map);
+              downloadedForTable++;
+              result.successCount++;
+              result.entitySuccessCount++;
               continue;
             }
 
@@ -256,7 +267,9 @@ class SyncService {
       return result;
     }
 
-    await refreshEpRegardMiroirCache(result: result);
+    if (await _shouldDownloadEpRegardMiroir()) {
+      await refreshEpRegardMiroirCache(result: result);
+    }
 
     if (result.failedCount == 0 && result.skippedCount == 0) {
       await dbHelper.saveLastDownloadTime(downloadStartedAt);
@@ -403,7 +416,9 @@ class SyncService {
   Future<SyncResult> syncAllDataSequential({
     Function(double, String, int, int)? onProgress,
   }) async {
-    final tables = _collectSrmTables();
+    final tables = (await _collectSrmTables())
+        .where((table) => !table.isReference)
+        .toList();
     final result = SyncResult();
     final total = tables.isEmpty ? 1 : tables.length;
     final nowIso = DateTime.now().toIso8601String();
@@ -695,6 +710,19 @@ class SyncService {
     }
   }
 
+  Future<bool> _shouldDownloadEpRegardMiroir() async {
+    try {
+      final rows = await FormulaireConfigMobileService().getFormulaires(
+        nomMetier: 'ep',
+        nomTable: 'ep_regard',
+        downloadOnly: true,
+      );
+      return rows.any((row) => row.downloadMobile);
+    } catch (_) {
+      return true;
+    }
+  }
+
   Future<bool> _syncRowsForTableV2({
     required _TableInfo info,
     required int current,
@@ -966,9 +994,82 @@ class SyncService {
     return responseUuid.isNotEmpty ? responseUuid : syncUuid;
   }
 
-  List<_TableInfo> _collectSrmTables() {
+  Future<List<_TableInfo>> _collectSrmTables() async {
     final tables = <_TableInfo>[];
 
+    try {
+      final manifest =
+          await FormulaireConfigMobileService().getMobileExportManifest();
+      for (final row in manifest) {
+        if (!_isTruthy(row['download_mobile'])) continue;
+
+        var endpoint = row['endpoint']?.toString().trim() ?? '';
+        final table = row['mobile_table']?.toString().trim() ?? '';
+        final schema = row['nom_metier']?.toString().trim() ?? '';
+        final configTable = row['nom_table']?.toString().trim() ?? '';
+        final title = row['titre_app']?.toString().trim() ?? table;
+        final isReference = _isTruthy(row['reference']);
+        if (schema == 'ep' && configTable == 'ep_regard') {
+          // Mirror polygons are refreshed by refreshEpRegardMiroirCache().
+          continue;
+        }
+        if (endpoint.isEmpty) {
+          endpoint = isReference && table == 'onep_db'
+              ? 'ep/onep-db'
+              : (_resolveEndpoint(schema, table) ?? '');
+        }
+        if (endpoint.isEmpty || table.isEmpty || schema.isEmpty) {
+          debugPrint('[DOWNLOAD-MANIFEST] Table ignoree sans endpoint: '
+              '$schema.${row['nom_table']}');
+          continue;
+        }
+        final mobileMetier = _mobileMetierForSchema(schema);
+        final entity = _entityForMobileTable(mobileMetier, table) ?? title;
+        if (!isReference &&
+            (mobileMetier.isEmpty ||
+                _entityForMobileTable(mobileMetier, table) == null)) {
+          debugPrint('[DOWNLOAD-MANIFEST] Table ignoree sans SrmConfig: '
+              '$schema.$table');
+          continue;
+        }
+        tables.add(
+          _TableInfo(
+            metier: mobileMetier.isEmpty ? schema : mobileMetier,
+            entity: entity,
+            schema: schema,
+            table: table,
+            endpoint: endpoint,
+            geometryLabel: isReference
+                ? 'Referentiel'
+                : _geometryLabel(mobileMetier, entity),
+            isReference: isReference,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[DOWNLOAD-MANIFEST] Fallback SrmConfig: $e');
+    }
+
+    if (tables.isEmpty) {
+      tables.addAll(_collectSrmTablesFallback());
+    }
+
+    tables.add(
+      const _TableInfo(
+        metier: 'public',
+        entity: 'objet_incomplet',
+        schema: 'public',
+        table: 'objet_incomplet',
+        endpoint: 'objets-incomplets',
+        geometryLabel: 'Objets incomplets',
+      ),
+    );
+
+    return _dedupeTables(tables);
+  }
+
+  List<_TableInfo> _collectSrmTablesFallback() {
+    final tables = <_TableInfo>[];
     for (final metier in SrmConfig.getMetiers()) {
       final entities = [
         ...SrmConfig.getPointEntities(metier),
@@ -1001,18 +1102,36 @@ class SyncService {
       }
     }
 
-    tables.add(
-      const _TableInfo(
-        metier: 'public',
-        entity: 'objet_incomplet',
-        schema: 'public',
-        table: 'objet_incomplet',
-        endpoint: 'objets-incomplets',
-        geometryLabel: 'Objets incomplets',
-      ),
-    );
-
     return tables;
+  }
+
+  List<_TableInfo> _dedupeTables(List<_TableInfo> tables) {
+    final seen = <String>{};
+    final result = <_TableInfo>[];
+    for (final table in tables) {
+      final key = '${table.schema}.${table.table}.${table.endpoint}';
+      if (seen.add(key)) {
+        result.add(table);
+      }
+    }
+    return result;
+  }
+
+  String _mobileMetierForSchema(String schema) {
+    final normalized = schema.trim().toLowerCase();
+    if (normalized == 'ep') return 'Eau Potable';
+    if (normalized == 'asst' || normalized == 'ass') return 'Assainissement';
+    return '';
+  }
+
+  String? _entityForMobileTable(String mobileMetier, String tableName) {
+    if (mobileMetier.isEmpty) return null;
+    for (final entity in SrmConfig.getEntitiesForMetier(mobileMetier)) {
+      if (SrmConfig.getTableName(mobileMetier, entity) == tableName) {
+        return entity;
+      }
+    }
+    return null;
   }
 
   Map<String, dynamic>? _normalizeRemoteItem(dynamic item) {
@@ -1096,15 +1215,19 @@ class SyncService {
       'ep/puit': 'ep/puits',
       'ep/pompe': 'ep/pompes',
       'ep/reservoir': 'ep/reservoirs',
+      'ep/ep_bache': 'ep/baches',
       'ep/station_de_pompage': 'ep/stations-pompage',
       'ep/ep_regard_point': 'ep/regards',
       'ep/regard': 'ep/regards',
       'ep/regard_ep': 'ep/regards',
       'ep/autre_objet': 'ep/autres-objets',
+      'ep/anomalie_conduite': 'ep/anomalies-conduite',
       'ep/conduite_terrain': 'ep/conduites-terrain',
       'ep/ep_conduite_terrain': 'ep/conduites-terrain',
       'ep/branchement': 'ep/branchements',
       'ep/traverse': 'ep/traverses',
+      'ep/tn': 'ep/tn',
+      'ep/voie': 'ep/voies',
       'ass/asst_regard': 'ass/regards',
       'asst/asst_regard': 'ass/regards',
       'asst/ASS_REGARD': 'ass/regards',

@@ -301,6 +301,41 @@ class ApiService {
         .toList();
   }
 
+  static Future<List<Map<String, dynamic>>> fetchMobileExportManifest({
+    String? nomMetier,
+    String? nomTable,
+  }) async {
+    final queryParameters = <String, String>{};
+    if (nomMetier != null && nomMetier.isNotEmpty) {
+      queryParameters['nom_metier'] = nomMetier;
+    }
+    if (nomTable != null && nomTable.isNotEmpty) {
+      queryParameters['nom_table'] = nomTable;
+    }
+
+    final url = Uri.parse('$baseUrl/api/mobile-export-manifest/').replace(
+      queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
+    );
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erreur GET mobile-export-manifest: ${response.statusCode}',
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    final List items =
+        data is List ? data : (data['results'] ?? data['features'] ?? const []);
+
+    return items
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   static Future<Map<String, dynamic>?> fetchCompteurAbonneCustomerLink({
     String? numContrat,
     String? anciennePolice,
@@ -1150,14 +1185,19 @@ class ApiService {
   static Future<List<dynamic>> fetchForages() => fetchData('ep/forages');
   static Future<List<dynamic>> fetchPuits() => fetchData('ep/puits');
   static Future<List<dynamic>> fetchPompes() => fetchData('ep/pompes');
+  static Future<List<dynamic>> fetchBaches() => fetchData('ep/baches');
   static Future<List<dynamic>> fetchRegardsEP() => fetchData('ep/regards');
   static Future<List<dynamic>> fetchRegardsMiroirEP() =>
       fetchData('ep/regards-miroir');
+  static Future<List<dynamic>> fetchAnomaliesConduite() =>
+      fetchData('ep/anomalies-conduite');
   static Future<List<dynamic>> fetchConduitesTerrain() =>
       fetchData('ep/conduites-terrain');
   static Future<List<dynamic>> fetchBranchementsEP() =>
       fetchData('ep/branchements');
   static Future<List<dynamic>> fetchTraverses() => fetchData('ep/traverses');
+  static Future<List<dynamic>> fetchTnEP() => fetchData('ep/tn');
+  static Future<List<dynamic>> fetchVoiesEP() => fetchData('ep/voies');
 
   // ── Assainissement ──
   static Future<List<dynamic>> fetchRegardsASS() => fetchData('ass/regards');

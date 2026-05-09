@@ -46,18 +46,7 @@ from .models import (
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
-    EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
-    EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
-    EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
-    EpNoeud, EpObturateur, EpReducteurDePression,
-    EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
-    EpRegard, EpRegardMiroir, EpRegardEp, EpAutreObjet,
-    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse,
-    AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
-    AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
-    ElecSupport, ElecPoste, ElecCoffretBt, ElecNoeudRaccord, ElecPointDesserte,
-    ElecTransformateur, ElecCellule, ElecDepartBt, ElecDepartHta,
-    ElecTronconBt, ElecTronconHta,
+    EpRegard, AssRegard,
 )
 from .serializers import (
     CommuneSerializer,
@@ -70,26 +59,6 @@ from .serializers import (
     MetricAgentTablePeriodSerializer, MetricAgentPeriodSerializer, MetricAgentResumeSerializer,
     MetricAgentPublicJourSerializer, MetricAgentPublicSemaineSerializer,
     MetricAgentPublicMoisSerializer, MetricAgentPublicResumeSerializer,
-    EpVanneSerializer, EpVanneDeVidangeSerializer, EpVentouseSerializer,
-    EpHydrantSerializer, EpBorneFontaineSerializer, EpBorneOnepSerializer,
-    EpBoucheClesSerializer, EpBoucheDarrosageSerializer,
-    EpCompteurAbonneSerializer, EpCompteurReseauSerializer,
-    EpConeDeReductionSerializer, EpCentreTamponSerializer,
-    EpNoeudSerializer, EpObturateurSerializer, EpReducteurDePressionSerializer,
-    EpForageSerializer, EpPuitSerializer, EpPompeSerializer,
-    EpReservoirSerializer, EpStationDePompageSerializer,
-    EpRegardSerializer, EpRegardMiroirSerializer, EpRegardEpSerializer, EpAutreObjetSerializer,
-    EpConduiteTerrainSerializer, EpConduiteBureauSerializer,
-    EpBranchementSerializer, EpTraverseSerializer,
-    AssRegardSerializer, AssRegardBranchementSerializer,
-    AssCanalisationSerializer, AssCanalisationReutilisationSerializer,
-    AssBranchementSerializer, AssBassinSerializer,
-    AssOuvrageSerializer, AssEquipementSerializer, AssStationSerializer,
-    ElecSupportSerializer, ElecPosteSerializer, ElecCoffretBtSerializer,
-    ElecNoeudRaccordSerializer, ElecPointDesserteSerializer,
-    ElecTransformateurSerializer, ElecCelluleSerializer,
-    ElecDepartBtSerializer, ElecDepartHtaSerializer,
-    ElecTronconBtSerializer, ElecTronconHtaSerializer,
     LoginRequestSerializer, PhotoUploadSerializer,
     StatistiqueConduiteValidateSerializer,
 )
@@ -116,14 +85,18 @@ MOBILE_SRM_TABLE_ENDPOINTS = {
     'ep/puits': ('ep', 'ep_puit'),
     'ep/pompes': ('ep', 'ep_pompe'),
     'ep/reservoirs': ('ep', 'ep_reservoir'),
+    'ep/baches': ('ep', 'ep_bache'),
     'ep/stations-pompage': ('ep', 'ep_station_pompage'),
     'ep/regards': ('ep', 'ep_regard_point'),
     'ep/regards-miroir': ('ep', 'ep_regard'),
     'ep/autres-objets': ('ep', 'autre_objet'),
+    'ep/anomalies-conduite': ('ep', 'anomalie_conduite'),
     'ep/conduites-terrain': ('ep', 'conduite_terrain'),
     'ep/conduites-bureau': ('ep', 'ep_conduite'),
     'ep/branchements': ('ep', 'ep_branchement'),
     'ep/traverses': ('ep', 'ep_traversee'),
+    'ep/tn': ('ep', 'tn'),
+    'ep/voies': ('ep', 'voie'),
     # ASS - endpoints kept stable, physical schema/table names follow VF legacy.
     'ass/regards': ('asst', 'ASS_REGARD'),
     'ass/regards-facade': ('asst', 'ASS_REGARD_FACADE'),
@@ -146,6 +119,66 @@ MOBILE_SRM_TABLE_ENDPOINTS = {
     'ass/ouvrages': ('asst', 'ASS_OUV_TRAVERSEE'),
     'ass/equipements': ('asst', 'ASS_POMPE'),
     'ass/stations': ('asst', 'ASS_STA_POMP'),
+}
+
+MOBILE_REFERENCE_TABLE_ENDPOINTS = {
+    'ep/onep-db': ('ep', 'onep_db'),
+}
+
+MOBILE_INTERVENTION_ANOMALIE_EXCLUDED_TABLES = {
+    # Compteur abonne: anomalie informative terrain, pas de workflow exploitant.
+    ('ep', 'ep_brc_pt'),
+}
+
+MOBILE_TABLE_BY_CONFIG_TABLE = {
+    ('ep', 'ep_vanne'): 'vanne',
+    ('ep', 'ep_vidange'): 'vanne_de_vidange',
+    ('ep', 'ep_ventouse'): 'ventouse',
+    ('ep', 'ep_hydrant'): 'hydrant',
+    ('ep', 'ep_bf'): 'borne_fontaine',
+    ('ep', 'borne_onep'): 'borne_onep',
+    ('ep', 'bouche_a_cles'): 'bouche_a_cles',
+    ('ep', 'ep_bouche_arro'): 'bouche_darrosage',
+    ('ep', 'ep_compteur_i'): 'compteur_reseau',
+    ('ep', 'ep_brc_pt'): 'compteur_abonne',
+    ('ep', 'ep_cone_reduc'): 'cone_de_reduction',
+    ('ep', 'centre_tampon'): 'centre_tampon',
+    ('ep', 'ep_noeud'): 'noeud',
+    ('ep', 'ep_obturateur'): 'obturateur',
+    ('ep', 'ep_reduc_pres'): 'reducteur_de_pression',
+    ('ep', 'ep_forage'): 'forage',
+    ('ep', 'ep_puit'): 'puit',
+    ('ep', 'ep_pompe'): 'pompe',
+    ('ep', 'ep_reservoir'): 'reservoir',
+    ('ep', 'ep_bache'): 'ep_bache',
+    ('ep', 'ep_station_pompage'): 'station_de_pompage',
+    ('ep', 'ep_regard_point'): 'ep_regard_point',
+    ('ep', 'ep_regard'): 'ep_regard',
+    ('ep', 'autre_objet'): 'autre_objet',
+    ('ep', 'anomalie_conduite'): 'anomalie_conduite',
+    ('ep', 'conduite_terrain'): 'conduite_terrain',
+    ('ep', 'ep_branchement'): 'branchement',
+    ('ep', 'ep_traversee'): 'traverse',
+    ('ep', 'tn'): 'tn',
+    ('ep', 'voie'): 'voie',
+    ('ep', 'onep_db'): 'onep_db',
+    ('asst', 'ASS_REGARD'): 'asst_regard',
+    ('asst', 'ASS_REGARD_FACADE'): 'asst_regard_branchement',
+    ('asst', 'ASS_BORGNE'): 'ASS_BORGNE',
+    ('asst', 'ASS_BOUCHE'): 'ASS_BOUCHE',
+    ('asst', 'ASS_DEVERSOIR'): 'ASS_DEVERSOIR',
+    ('asst', 'ASS__EXUTOIRE'): 'ASS__EXUTOIRE',
+    ('asst', 'ASS_STA_POMP'): 'asst_station',
+    ('asst', 'ASS_COLLECTEUR'): 'asst_canalisation',
+    ('asst', 'ASS_REFOULEMENTR'): 'asst_canalisation_reutilisation',
+    ('asst', 'ASS_BRANCHEMENT'): 'asst_branchement',
+    ('asst', 'ASS_CANIVEAU'): 'ASS_CANIVEAU',
+    ('asst', 'ASS_CANIV_BRANCHE'): 'ASS_CANIV_BRANCHE',
+    ('asst', 'ASS_COL_BOUCHE'): 'ASS_COL_BOUCHE',
+    ('asst', 'ASS_BASSIN_VERSANT'): 'asst_bassin',
+    ('asst', 'ASS_OUV_TRAVERSEE'): 'asst_ouvrage',
+    ('asst', 'ASS_POMPE'): 'asst_equipement',
+    ('asst', 'ASS_STA_EPUR'): 'ASS_STA_EPUR',
 }
 
 
@@ -276,6 +309,26 @@ def _mobile_apply_input_aliases(payload, columns):
     return values
 
 
+def _mobile_audit_user_id(*sources):
+    candidate_keys = (
+        'id_agent_modif',
+        'id_agent_crea',
+        'id_agent',
+        'id_user_modif',
+        'id_user_creat',
+        'id_user_valid',
+        'id_user',
+    )
+    for source in sources:
+        if not hasattr(source, 'get'):
+            continue
+        for key in candidate_keys:
+            parsed = _parse_positive_int_value(source.get(key))
+            if parsed is not None:
+                return parsed
+    return None
+
+
 ONEP_CLIENT_COLUMNS = [
     'numero_contrat',
     'ancienne_reference_sap',
@@ -349,6 +402,29 @@ def _onep_client_payload(row):
     }
 
 
+def _onep_mobile_row(row):
+    if row is None:
+        return {}
+    data = dict(zip(['id', 'uuid', *ONEP_CLIENT_COLUMNS], row))
+    return {
+        'id': data.get('id'),
+        'uuid': str(data.get('uuid') or ''),
+        'numero_contrat': _none_if_blank(data.get('numero_contrat')),
+        'ancienne_reference_sap': _none_if_blank(
+            data.get('ancienne_reference_sap')
+        ),
+        'ancienne_police': _none_if_blank(data.get('ancienne_police')),
+        'nom_commune': _none_if_blank(data.get('nom_commune')),
+        'nom_client': _none_if_blank(data.get('nom_client')),
+        'prenom_client': _none_if_blank(data.get('prenom_client')),
+        'identifiant_geographique': _none_if_blank(
+            data.get('identifiant_geographique')
+        ),
+        'etat_abonnement': _none_if_blank(data.get('etat_abonnement')),
+        'adresse': _none_if_blank(data.get('adresse')),
+    }
+
+
 def _onep_spatial_commune_from_xy(x_value, y_value):
     x = _parse_float(x_value)
     y = _parse_float(y_value)
@@ -388,6 +464,35 @@ def _onep_rows_by_contract(num_contrat):
             [contract],
         )
         return cursor.fetchall()
+
+
+def _onep_mobile_page(page, page_size):
+    offset = (page - 1) * page_size
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM ep.onep_db")
+        count = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            SELECT
+                o.id,
+                o.uuid,
+                o."numero de contrat"::text AS numero_contrat,
+                o."ancienne reference sap"::text AS ancienne_reference_sap,
+                o."ancienne police"::text AS ancienne_police,
+                COALESCE(o."nom commune_1", o."nom commune")::text AS nom_commune,
+                o."nom/raison sociale du client payeur"::text AS nom_client,
+                o."prenom du client payeur"::text AS prenom_client,
+                o."identifiant geographique"::text AS identifiant_geographique,
+                o."libelle etat abonnement"::text AS etat_abonnement,
+                o."adresse postale client payeur"::text AS adresse
+            FROM ep.onep_db o
+            ORDER BY o.id
+            LIMIT %s OFFSET %s
+            """,
+            [page_size, offset],
+        )
+        rows = cursor.fetchall()
+    return count, [_onep_mobile_row(row) for row in rows]
 
 
 def _onep_rows_by_police_commune(ancienne_police, spatial_commune_key):
@@ -648,6 +753,31 @@ def ep_compteur_abonne_commune_audit_view(request):
     )
 
 
+@api_view(['GET'])
+def onep_db_mobile_view(request):
+    """Read-only normalized ONEP cache for offline compteur abonne lookup."""
+    page_size = max(1, min(int(request.GET.get('page_size') or 500), 2000))
+    page = max(1, int(request.GET.get('page') or 1))
+    count, results = _onep_mobile_page(page=page, page_size=page_size)
+    next_url, previous_url = _mobile_next_previous_urls(
+        request,
+        count,
+        page,
+        page_size,
+    )
+    return JsonResponse(
+        {
+            'count': count,
+            'next': next_url,
+            'previous': previous_url,
+            'page': page,
+            'page_size': page_size,
+            'results': results,
+        },
+        encoder=DjangoJSONEncoder,
+    )
+
+
 def _table_foreign_keys(schema_name, table_name):
     """Liste les FK de la table cible : (col_locale, schema_ref, table_ref, col_ref)."""
     with connection.cursor() as cursor:
@@ -760,6 +890,124 @@ def _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value):
             return None
         names = [desc[0] for desc in cursor.description]
     return _mobile_apply_output_aliases(dict(zip(names, row)))
+
+
+def _mobile_anomaly_comment(row):
+    for field_name in (
+        'type_anomalie',
+        'anomalie_regard',
+        'anomalie_tamp',
+        'ep_observation',
+        'observation',
+        'commentaire',
+        'ASS_OBSERV',
+        'ass_observ',
+    ):
+        value = row.get(field_name) if hasattr(row, 'get') else None
+        if value in (None, ''):
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ''
+
+
+def _mobile_row_has_anomaly(row):
+    if not hasattr(row, 'get'):
+        return False
+    return any(
+        _is_truthy_anomaly(row.get(field_name))
+        for field_name in (
+            'anomalie',
+            'ep_anomalie',
+            'ASS_ANOMALIE',
+            'ass_anomalie',
+        )
+    )
+
+
+def _upsert_intervention_anomalie_for_mobile_row(
+    *,
+    schema_name,
+    table_name,
+    pk_value,
+    row,
+    id_user=None,
+):
+    table_ref = (schema_name, table_name)
+    if table_ref in MOBILE_INTERVENTION_ANOMALIE_EXCLUDED_TABLES:
+        return
+    if pk_value in (None, '') or not _mobile_row_has_anomaly(row):
+        return
+
+    nom_table = f'{schema_name}.{table_name}'
+    uuid_value = None
+    if hasattr(row, 'get'):
+        uuid_value = row.get('uuid') or row.get('uuid_objet')
+    uuid_text = str(uuid_value).strip() if uuid_value not in (None, '') else None
+    commentaire = _mobile_anomaly_comment(row)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id
+            FROM public.intervention_anomalie
+            WHERE nom_table = %s
+              AND id_objet = %s
+              AND statut NOT IN ('cloture', 'annule')
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            [nom_table, pk_value],
+        )
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                """
+                UPDATE public.intervention_anomalie
+                SET uuid_objet = COALESCE(NULLIF(%s, ''), uuid_objet),
+                    commentaire_exploitant = CASE
+                        WHEN statut = 'signale'
+                        THEN COALESCE(NULLIF(%s, ''), commentaire_exploitant)
+                        ELSE commentaire_exploitant
+                    END,
+                    id_user_exploitant = CASE
+                        WHEN statut = 'signale'
+                        THEN COALESCE(%s, id_user_exploitant)
+                        ELSE id_user_exploitant
+                    END,
+                    updated_at = now()
+                WHERE id = %s
+                """,
+                [uuid_text, commentaire, id_user, existing[0]],
+            )
+            return
+
+        cursor.execute(
+            """
+            INSERT INTO public.intervention_anomalie (
+                id_objet,
+                nom_classe,
+                nom_table,
+                uuid_objet,
+                statut,
+                commentaire_exploitant,
+                id_user_exploitant,
+                date_creation
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                'signale',
+                NULLIF(%s, ''),
+                %s,
+                now()::timestamp
+            )
+            """,
+            [pk_value, table_name, nom_table, uuid_text, commentaire, id_user],
+        )
 
 
 @api_view(['GET', 'POST'])
@@ -876,6 +1124,8 @@ def mobile_srm_table_view(request, endpoint):
         )
 
     geometry_value = writable.pop('geom', None)
+    sync_session_uuid, sync_client_item_uuid = _extract_sync_meta(request.data)
+    audit_user_id = _mobile_audit_user_id(writable, payload, request.data)
 
     # Defense FK : un id local (commune, planche, agent...) qui n'existe pas
     # dans la table referencee fait planter l'INSERT avec IntegrityError.
@@ -899,6 +1149,15 @@ def mobile_srm_table_view(request, endpoint):
             existing_pk = existing[0] if existing else None
 
     with transaction.atomic():
+        _set_local_audit_context(
+            user_id=audit_user_id,
+            source=_history_source_for_request(
+                request,
+                sync_session_uuid=sync_session_uuid,
+                default='mobile',
+            ),
+            action='update' if existing_pk is not None else 'insert',
+        )
         with connection.cursor() as cursor:
             if existing_pk is not None:
                 assignments = [
@@ -946,7 +1205,28 @@ def mobile_srm_table_view(request, endpoint):
                 cursor.execute(insert_query, params)
                 pk_value = cursor.fetchone()[0]
 
-    row = _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value)
+        row = _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value)
+        _upsert_intervention_anomalie_for_mobile_row(
+            schema_name=schema_name,
+            table_name=table_name,
+            pk_value=pk_value,
+            row=row or {},
+            id_user=audit_user_id,
+        )
+
+    response_uuid = None
+    if row:
+        response_uuid = row.get('uuid') or row.get('uuid_objet')
+    if response_uuid in (None, ''):
+        response_uuid = payload.get('uuid') or payload.get('uuid_objet') or pk_value
+    _mark_sync_item_received_for_table(
+        sync_uuid=sync_session_uuid,
+        nom_schema=schema_name,
+        nom_table=table_name,
+        uuid_objet=str(response_uuid),
+        response_pk=pk_value,
+        client_item_uuid=sync_client_item_uuid,
+    )
     return Response(row or {'id': pk_value}, status=status.HTTP_201_CREATED)
 
 
@@ -1590,17 +1870,6 @@ def _statistique_conduite_snapshot(stat_row, config=None, metier_key='ep'):
     }
 
 
-def _normalized_db_table(model):
-    return str(model._meta.db_table).replace('"', '')
-
-
-def _split_normalized_db_table(model):
-    normalized = _normalized_db_table(model)
-    if '.' in normalized:
-        return normalized.split('.', 1)
-    return 'public', normalized
-
-
 def _is_truthy_anomaly(value):
     if isinstance(value, bool):
         return value
@@ -1609,107 +1878,6 @@ def _is_truthy_anomaly(value):
     if value is None:
         return False
     return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'oui'}
-
-
-def _first_non_empty_attr(instance, names):
-    for name in names:
-        value = getattr(instance, name, None)
-        if value in (None, ''):
-            continue
-        text = str(value).strip()
-        if text:
-            return text
-    return ''
-
-
-def _instance_has_anomaly(instance):
-    return any(
-        _is_truthy_anomaly(getattr(instance, field_name, None))
-        for field_name in ('anomalie', 'ep_anomalie')
-    )
-
-
-def _upsert_intervention_anomalie_from_instance(instance, id_user=None):
-    if instance is None or not _instance_has_anomaly(instance):
-        return
-
-    schema_name, table_name = _split_normalized_db_table(instance.__class__)
-    nom_table = f'{schema_name}.{table_name}'
-    id_objet = getattr(instance, instance._meta.pk.attname, None)
-    if id_objet is None:
-        return
-
-    uuid_objet = getattr(instance, 'uuid', None)
-    uuid_text = str(uuid_objet).strip() if uuid_objet not in (None, '') else None
-    commentaire = _first_non_empty_attr(
-        instance,
-        (
-            'type_anomalie',
-            'anomalie_regard',
-            'anomalie_tamp',
-            'ep_observation',
-            'observation',
-            'commentaire',
-        ),
-    )
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT id
-            FROM public.intervention_anomalie
-            WHERE nom_table = %s
-              AND id_objet = %s
-              AND statut NOT IN ('cloture', 'annule')
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            [nom_table, id_objet],
-        )
-        row = cursor.fetchone()
-        if row:
-            cursor.execute(
-                """
-                UPDATE public.intervention_anomalie
-                SET uuid_objet = COALESCE(NULLIF(%s, ''), uuid_objet),
-                    commentaire_terrain = COALESCE(NULLIF(%s, ''), commentaire_terrain),
-                    id_user_terrain = COALESCE(%s, id_user_terrain),
-                    updated_at = now()
-                WHERE id = %s
-                """,
-                [uuid_text, commentaire, id_user, row[0]],
-            )
-            return
-
-        cursor.execute(
-            """
-            INSERT INTO public.intervention_anomalie (
-                id_objet,
-                nom_classe,
-                nom_table,
-                uuid_objet,
-                statut,
-                responsable_actuel,
-                etat_terrain,
-                commentaire_terrain,
-                id_user_terrain,
-                date_creation
-            )
-            VALUES (
-                %s,
-                %s,
-                %s,
-                %s,
-                'signale',
-                'terrain',
-                'en_attente',
-                NULLIF(%s, ''),
-                %s,
-                now()::timestamp
-            )
-            """,
-            [id_objet, table_name, nom_table, uuid_text, commentaire, id_user],
-        )
 
 
 def _set_local_audit_context(user_id=None, source=None, action=None):
@@ -1743,71 +1911,75 @@ def _set_local_audit_user_id(user_id):
     _set_local_audit_context(user_id=user_id)
 
 
-_SRM_PHOTO_MODELS = [
-    EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
-    EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
-    EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
-    EpNoeud, EpObturateur, EpReducteurDePression,
-    EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
-    EpRegard, EpRegardEp, EpAutreObjet,
-    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse,
-    AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
-    AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
-    ElecSupport, ElecPoste, ElecCoffretBt, ElecNoeudRaccord, ElecPointDesserte,
-    ElecTransformateur, ElecCellule, ElecDepartBt, ElecDepartHta,
-    ElecTronconBt, ElecTronconHta,
-]
-
-_SRM_MODEL_BY_SCHEMA_TABLE = {
-    tuple(_normalized_db_table(model).split('.', 1)): model
-    for model in _SRM_PHOTO_MODELS
-}
+def _normalise_mobile_schema_name(schema_name):
+    clean = (schema_name or '').strip().lower()
+    return 'asst' if clean == 'ass' else clean
 
 
-def _resolve_srm_photo_model(*, schema_name, table_name, endpoint_hint=''):
-    """Resout le model SRM pour un upload photo en tolerant les noms locaux mobile.
+def _mobile_entity_table_refs():
+    return {
+        (schema, table)
+        for schema, table in MOBILE_SRM_TABLE_ENDPOINTS.values()
+        if schema in {'ep', 'asst'}
+    }
 
-    Le mobile envoie souvent le `tableName` Flutter (ex: 'hydrant') alors que
-    Postgres heberge la table sous un autre nom (ex: 'ep_hydrant', voire
-    'ep_bf' pour les bornes-fontaine). On essaie dans l'ordre :
-      1. (schema, table) tel quel (cas direct).
-      2. Si endpoint mobile fourni (ex: 'ep/hydrants'), on resout via
-         MOBILE_SRM_TABLE_ENDPOINTS.
-      3. Prefixe schema : `<schema>_<table>` (couvre la majorite des cas EP).
-      4. Match approximatif : 1 seule table dont le nom Postgres se termine
-         par `_<table>` ou par `<table>` dans le bon schema.
 
-    Retourne (model, real_table_name) ou (None, table_name).
-    """
-    direct = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, table_name))
-    if direct is not None:
-        return direct, table_name
+def _mobile_table_ref_by_lower():
+    return {
+        (schema.lower(), table.lower()): (schema, table)
+        for schema, table in _mobile_entity_table_refs()
+    }
+
+
+def _mobile_table_ref_by_local_name():
+    entity_refs = _mobile_entity_table_refs()
+    refs = {}
+    for table_ref, mobile_table in MOBILE_TABLE_BY_CONFIG_TABLE.items():
+        if table_ref in entity_refs:
+            schema, _ = table_ref
+            refs[(schema.lower(), str(mobile_table).lower())] = table_ref
+    return refs
+
+
+def _resolve_srm_photo_table(*, schema_name, table_name, endpoint_hint=''):
+    schema_name = _normalise_mobile_schema_name(schema_name)
+    table_name = (table_name or '').strip()
+    table_key = table_name.lower()
 
     if endpoint_hint:
-        target = MOBILE_SRM_TABLE_ENDPOINTS.get(endpoint_hint)
-        if target is not None:
-            mapped_schema, mapped_table = target
-            mapped = _SRM_MODEL_BY_SCHEMA_TABLE.get((mapped_schema, mapped_table))
-            if mapped is not None:
-                return mapped, mapped_table
+        endpoint = endpoint_hint.strip().strip('/').lower()
+        target = MOBILE_SRM_TABLE_ENDPOINTS.get(endpoint)
+        if target in _mobile_entity_table_refs():
+            return target
 
-    prefixed_table = f"{schema_name}_{table_name}"
-    prefixed = _SRM_MODEL_BY_SCHEMA_TABLE.get((schema_name, prefixed_table))
+    direct = _mobile_table_ref_by_lower().get((schema_name, table_key))
+    if direct is not None:
+        return direct
+
+    local = _mobile_table_ref_by_local_name().get((schema_name, table_key))
+    if local is not None:
+        return local
+
+    prefixed = _mobile_table_ref_by_lower().get(
+        (schema_name, f'{schema_name}_{table_key}')
+    )
     if prefixed is not None:
-        return prefixed, prefixed_table
+        return prefixed
 
-    suffix_underscore = f"_{table_name}"
-    suffix_matches = [
-        (real_table, model)
-        for (schema, real_table), model in _SRM_MODEL_BY_SCHEMA_TABLE.items()
-        if schema == schema_name
-        and (real_table.endswith(suffix_underscore) or real_table == table_name)
+    suffix = f'_{table_key}'
+    matches = [
+        table_ref
+        for table_ref in _mobile_entity_table_refs()
+        if table_ref[0] == schema_name
+        and (
+            table_ref[1].lower().endswith(suffix)
+            or table_ref[1].lower() == table_key
+        )
     ]
-    if len(suffix_matches) == 1:
-        real_table, model = suffix_matches[0]
-        return model, real_table
+    if len(matches) == 1:
+        return matches[0]
 
-    return None, table_name
+    return None
 
 
 def _parse_positive_int_value(raw_value):
@@ -1989,57 +2161,6 @@ def _refresh_sync_session_counters(session):
     return session
 
 
-def _mark_sync_item_received(*, sync_uuid, model, uuid_objet, instance, client_item_uuid=None):
-    if not sync_uuid or not uuid_objet:
-        return
-
-    normalized = _normalized_db_table(model)
-    if '.' not in normalized:
-        return
-    nom_schema, nom_table = normalized.split('.', 1)
-
-    try:
-        session = SyncSession.objects.get(sync_uuid=sync_uuid)
-    except SyncSession.DoesNotExist:
-        return
-
-    now = timezone.now()
-    pk_value = getattr(instance, instance._meta.pk.attname, None) if instance is not None else None
-    item, _ = SyncSessionItem.objects.get_or_create(
-        sync_session=session,
-        nom_schema=nom_schema,
-        nom_table=nom_table,
-        uuid_objet=str(uuid_objet),
-        defaults={
-            'client_item_uuid': client_item_uuid,
-            'operation': 'upsert',
-            'statut': 'pending',
-            'last_activity_at': now,
-        },
-    )
-    item.client_item_uuid = client_item_uuid or item.client_item_uuid
-    item.statut = 'received'
-    item.attempts = (item.attempts or 0) + 1
-    item.last_error = None
-    item.received_at = item.received_at or now
-    item.last_activity_at = now
-    item.response_pk = str(pk_value) if pk_value is not None else item.response_pk
-    item.response_uuid = str(uuid_objet)
-    item.save(
-        update_fields=[
-            'client_item_uuid',
-            'statut',
-            'attempts',
-            'last_error',
-            'received_at',
-            'last_activity_at',
-            'response_pk',
-            'response_uuid',
-        ]
-    )
-    _refresh_sync_session_counters(session)
-
-
 def _mark_sync_item_received_for_table(
     *,
     sync_uuid,
@@ -2194,140 +2315,15 @@ def _regional_basemap_manifest():
     }
 
 
-# =====================================================================
-#  MIXIN : Upsert par UUID (re-synchronisation aprÃ¨s Ã©dition)
-# =====================================================================
+class MetricFilterMixin:
+    metric_text_filters = {
+        'nom_schema': 'nom_schema',
+        'nom_table': 'nom_table',
+        'metier': 'metier',
+        'type_geometrie': 'type_geometrie',
+        'famille_geometrie': 'famille_geometrie',
+    }
 
-class UpsertByUuidMixin:
-    """
-    Override de create() pour gÃ©rer la re-synchronisation mobile.
-
-    ProblÃ¨me rÃ©solu :
-      Un objet crÃ©Ã© localement est synchronisÃ© (POST â†’ crÃ©Ã© en base).
-      L'agent le rÃ©-Ã©dite (dÃ©sactive toggle anomalie/incomplet).
-      L'objet repasse en synced=0 cÃ´tÃ© Flutter.
-      Flutter re-poste en POST â†’ Django dÃ©tecte l'UUID existant â†’ UPDATE.
-
-    Comportement :
-      - POST sans uuid ou uuid inconnu  â†’ CREATE (comportement standard)
-      - POST avec uuid dÃ©jÃ  en base     â†’ UPDATE partiel (PATCH semantics)
-      - ModÃ¨le sans champ uuid          â†’ CREATE (comportement standard)
-    """
-
-    @staticmethod
-    def _model_has_uuid_field(model):
-        return any(f.name == 'uuid' for f in model._meta.get_fields())
-
-    def create(self, request, *args, **kwargs):
-        qs = self.get_queryset()
-        if not self._model_has_uuid_field(qs.model):
-            return super().create(request, *args, **kwargs)
-
-        uuid_val = None
-        sync_session_uuid, sync_client_item_uuid = _extract_sync_meta(request.data)
-        data = _strip_sync_meta(request.data)
-        if isinstance(data, dict):
-            props = data.get('properties', data)
-            uuid_val = props.get('uuid') if isinstance(props, dict) else None
-
-        if not uuid_val:
-            if sync_session_uuid:
-                serializer = self.get_serializer(data=data)
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-                headers = self.get_success_headers(serializer.data)
-                return Response(
-                    serializer.data,
-                    status=status.HTTP_201_CREATED,
-                    headers=headers,
-                )
-            return super().create(request, *args, **kwargs)
-
-        uuid_clean = str(uuid_val).strip()
-        if not uuid_clean:
-            if sync_session_uuid:
-                serializer = self.get_serializer(data=data)
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-                headers = self.get_success_headers(serializer.data)
-                return Response(
-                    serializer.data,
-                    status=status.HTTP_201_CREATED,
-                    headers=headers,
-                )
-            return super().create(request, *args, **kwargs)
-
-        try:
-            instance = qs.get(uuid=uuid_clean)
-            serializer = self.get_serializer(
-                instance, data=data, partial=True
-            )
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-            response_uuid = getattr(serializer.instance, 'uuid', None)
-            if response_uuid is not None and str(response_uuid).strip() != uuid_clean:
-                return Response(
-                    {
-                        'error': (
-                            'UUID incoherent apres mise a jour '
-                            f'({uuid_clean} != {response_uuid})'
-                        )
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
-            _mark_sync_item_received(
-                sync_uuid=sync_session_uuid,
-                model=qs.model,
-                uuid_objet=uuid_clean,
-                instance=serializer.instance,
-                client_item_uuid=sync_client_item_uuid,
-            )
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except qs.model.DoesNotExist:
-            pass
-        except qs.model.MultipleObjectsReturned:
-            return Response(
-                {
-                    'error': (
-                        f'UUID ambigu dÃ©tectÃ© pour {qs.model.__name__}: {uuid_clean}'
-                    )
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        response_uuid = getattr(serializer.instance, 'uuid', None)
-        if response_uuid is not None and str(response_uuid).strip() != uuid_clean:
-            return Response(
-                {
-                    'error': (
-                        'UUID incoherent apres creation '
-                        f'({uuid_clean} != {response_uuid})'
-                    )
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-        _mark_sync_item_received(
-            sync_uuid=sync_session_uuid,
-            model=qs.model,
-            uuid_objet=uuid_clean,
-            instance=serializer.instance,
-            client_item_uuid=sync_client_item_uuid,
-        )
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-
-# =====================================================================
-#  MIXIN : Filtrage commun des entites SRM
-# =====================================================================
-
-class SrmEntityFilterMixin(UpsertByUuidMixin):
-    """
-    Applique les filtres communs encore actifs sur les entites terrain.
-    """
     def _parse_positive_int_param(self, name):
         raw_value = self.request.query_params.get(name)
         if raw_value in (None, ''):
@@ -2342,125 +2338,6 @@ class SrmEntityFilterMixin(UpsertByUuidMixin):
             raise ValidationError({name: 'Entier positif attendu'})
 
         return value
-
-    def _parse_datetime_param(self, name):
-        raw_value = self.request.query_params.get(name)
-        if raw_value in (None, ''):
-            return None
-
-        value = parse_datetime(raw_value)
-        if value is None:
-            raise ValidationError({name: 'Date ISO 8601 attendue'})
-
-        if timezone.is_naive(value):
-            value = timezone.make_aware(value, timezone.get_current_timezone())
-
-        return value
-
-    def _has_model_field(self, qs, field_name):
-        return any(field.name == field_name for field in qs.model._meta.fields)
-
-    def _coerce_positive_int(self, value):
-        if value in (None, ''):
-            return None
-
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError):
-            return None
-
-        return parsed if parsed > 0 else None
-
-    def _extract_audit_user_id(self, serializer=None, instance=None):
-        candidate_keys = (
-            'id_agent_modif',
-            'id_agent',
-            'id_agent_crea',
-            'id_agent_incomplet',
-            'id_agent_completement',
-            'id_agent_signal',
-            'id_agent_retour',
-            'id_user',
-        )
-
-        validated_data = getattr(serializer, 'validated_data', None) or {}
-        request_data = getattr(self.request, 'data', None)
-
-        for source in (validated_data, request_data):
-            if not hasattr(source, 'get'):
-                continue
-            for key in candidate_keys:
-                parsed = self._coerce_positive_int(source.get(key))
-                if parsed is not None:
-                    return parsed
-
-        current_instance = instance or getattr(serializer, 'instance', None)
-        if current_instance is not None:
-            for key in candidate_keys:
-                parsed = self._coerce_positive_int(getattr(current_instance, key, None))
-                if parsed is not None:
-                    return parsed
-
-        return None
-
-    def perform_create(self, serializer):
-        with transaction.atomic():
-            audit_user_id = self._extract_audit_user_id(serializer)
-            _set_local_audit_context(
-                user_id=audit_user_id,
-                source=_history_source_for_request(self.request),
-                action='insert',
-            )
-            instance = serializer.save()
-            _upsert_intervention_anomalie_from_instance(instance, audit_user_id)
-
-    def perform_update(self, serializer):
-        with transaction.atomic():
-            audit_user_id = self._extract_audit_user_id(serializer)
-            history_source = _history_source_for_request(self.request)
-            _set_local_audit_context(
-                user_id=audit_user_id,
-                source=history_source,
-                action=_history_action_for_write(self.request, 'update'),
-            )
-            instance = serializer.save()
-            _set_local_audit_context(
-                user_id=audit_user_id,
-                source=history_source,
-                action='update',
-            )
-            _upsert_intervention_anomalie_from_instance(instance, audit_user_id)
-
-    def perform_destroy(self, instance):
-        with transaction.atomic():
-            _set_local_audit_context(
-                user_id=self._extract_audit_user_id(instance=instance),
-                source=_history_source_for_request(self.request),
-                action='delete',
-            )
-            instance.delete()
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        id_agent = self._parse_positive_int_param('id_agent_crea')
-        updated_after = self._parse_datetime_param('updated_after')
-        if id_agent is not None and self._has_model_field(qs, 'id_agent_crea'):
-            qs = qs.filter(id_agent_crea=id_agent)
-        if updated_after is not None and self._has_model_field(qs, 'updated_at'):
-            qs = qs.filter(updated_at__gt=updated_after)
-        if not qs.ordered:
-            qs = qs.order_by(qs.model._meta.pk.attname)
-        return qs
-
-
-class MetricFilterMixin(SrmEntityFilterMixin):
-    metric_text_filters = {
-        'nom_schema': 'nom_schema',
-        'nom_table': 'nom_table',
-        'metier': 'metier',
-        'type_geometrie': 'type_geometrie',
-        'famille_geometrie': 'famille_geometrie',
-    }
 
     def _parse_date_only_param(self, name):
         raw_value = self.request.query_params.get(name)
@@ -2899,25 +2776,25 @@ def photo_upload_view(request):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
-    schema_name = data['schema_name'].strip().lower()
-    table_name = data['table_name'].strip().lower()
+    schema_name = _normalise_mobile_schema_name(data['schema_name'])
+    table_name = data['table_name'].strip()
     uuid_objet = data['uuid_objet'].strip()
     photo_slot = data['photo_slot']
     endpoint_hint = (data.get('endpoint') or '').strip().strip('/').lower()
     sync_session_uuid = (data.get('sync_session_uuid') or '').strip()
     uploaded_file = data['file']
 
-    model, resolved_table = _resolve_srm_photo_model(
+    resolved_table_ref = _resolve_srm_photo_table(
         schema_name=schema_name,
         table_name=table_name,
         endpoint_hint=endpoint_hint,
     )
-    if model is None:
+    if resolved_table_ref is None:
         return Response(
             {'error': f'Objet SRM inconnu: {schema_name}.{table_name}'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    table_name = resolved_table
+    schema_name, table_name = resolved_table_ref
 
     # Verifier l'existence via raw SQL (et non model.objects.filter) car
     # certains modeles Django ont des colonnes desynchronisees avec la table
@@ -3600,6 +3477,155 @@ def attribut_config_mobile_view(request):
     return Response(rows)
 
 
+def _fetch_attribut_config_mobile_row(attr_id):
+    columns = [
+        'id',
+        'nom_metier',
+        'nom_table',
+        'nom_champ',
+        'type_champ',
+        'primary_key',
+        'foreign_key',
+        'ordre',
+        'titre_app',
+        'visible',
+        'contraintes',
+        'nullable',
+        'valeur_par_defaut',
+        'valeur_min',
+        'valeur_max',
+        'reference_fk',
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                id,
+                nom_metier,
+                nom_table,
+                nom_champ,
+                type_champ,
+                COALESCE(primary_key, false) AS primary_key,
+                COALESCE(foreign_key, false) AS foreign_key,
+                ordre,
+                titre_app,
+                COALESCE(visible, false) AS visible,
+                contraintes,
+                COALESCE(nullable, true) AS nullable,
+                valeur_par_defaut,
+                valeur_min,
+                valeur_max,
+                reference_fk
+            FROM public.attribut_config_mobile
+            WHERE id = %s
+            """,
+            [attr_id],
+        )
+        row = cursor.fetchone()
+    return dict(zip(columns, row)) if row else None
+
+
+@api_view(['POST'])
+def attribut_config_mobile_schema_preview_view(request):
+    """Preview the EP/ASST physical impact of an attribut_config_mobile change.
+
+    This is intended for bureau/admin screens before saving a config edit. It
+    has no side effect; the DB trigger remains the source of enforcement.
+    """
+    payload = request.data if isinstance(request.data, dict) else {}
+    operation = (payload.get('operation') or '').strip().upper()
+    old_config = payload.get('old')
+    new_config = payload.get('new')
+    attr_id = payload.get('id')
+
+    if isinstance(new_config, dict) and not attr_id:
+        attr_id = new_config.get('id')
+    if isinstance(old_config, dict) and not attr_id:
+        attr_id = old_config.get('id')
+
+    if not operation:
+        operation = 'UPDATE' if attr_id else 'INSERT'
+
+    if operation not in {'INSERT', 'UPDATE', 'DELETE'}:
+        return Response(
+            {'detail': 'operation doit etre INSERT, UPDATE ou DELETE.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if operation in {'UPDATE', 'DELETE'} and not isinstance(old_config, dict):
+        if not attr_id:
+            return Response(
+                {'detail': 'id ou old est obligatoire pour UPDATE/DELETE.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        old_config = _fetch_attribut_config_mobile_row(attr_id)
+        if old_config is None:
+            return Response(
+                {'detail': f'attribut_config_mobile id={attr_id} introuvable.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    if operation in {'INSERT', 'UPDATE'} and not isinstance(new_config, dict):
+        config_keys = {
+            'id',
+            'nom_metier',
+            'nom_table',
+            'nom_champ',
+            'type_champ',
+            'primary_key',
+            'foreign_key',
+            'ordre',
+            'titre_app',
+            'visible',
+            'contraintes',
+            'nullable',
+            'valeur_par_defaut',
+            'valeur_min',
+            'valeur_max',
+            'reference_fk',
+        }
+        new_config = {
+            key: value
+            for key, value in payload.items()
+            if key in config_keys
+        }
+        if attr_id and 'id' not in new_config:
+            new_config['id'] = attr_id
+
+    if operation in {'INSERT', 'UPDATE'} and not new_config:
+        return Response(
+            {'detail': 'new ou les champs attribut_config_mobile sont obligatoires.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if operation == 'UPDATE' and isinstance(old_config, dict) and isinstance(new_config, dict):
+        merged_config = dict(old_config)
+        merged_config.update(new_config)
+        if attr_id and 'id' not in merged_config:
+            merged_config['id'] = attr_id
+        new_config = merged_config
+
+    old_json = json.dumps(old_config, cls=DjangoJSONEncoder) if old_config else None
+    new_json = json.dumps(new_config, cls=DjangoJSONEncoder) if new_config else None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT public.srm_preview_attribut_config_mobile_schema_change(
+                %s,
+                %s::jsonb,
+                %s::jsonb
+            )
+            """,
+            [operation, old_json, new_json],
+        )
+        preview = cursor.fetchone()[0]
+
+    if isinstance(preview, str):
+        preview = json.loads(preview)
+    return Response(preview)
+
+
 @api_view(['GET'])
 def formulaire_config_mobile_view(request):
     """Expose public.formulaire_config_mobile as the mobile form list source.
@@ -3623,6 +3649,11 @@ def formulaire_config_mobile_view(request):
         or request.query_params.get('active_only')
         or ''
     ).strip().lower() in {'1', 'true', 'yes', 'oui'}
+    download_only = (
+        request.query_params.get('download_only')
+        or request.query_params.get('download_mobile_only')
+        or ''
+    ).strip().lower() in {'1', 'true', 'yes', 'oui'}
 
     if nom_metier:
         filters.append('nom_metier ILIKE %s')
@@ -3632,6 +3663,8 @@ def formulaire_config_mobile_view(request):
         params.append(nom_table.strip())
     if visible_only:
         filters.append('COALESCE(visible, false) = true')
+    if download_only:
+        filters.append('COALESCE(download_mobile, false) = true')
 
     where_sql = f"WHERE {' AND '.join(filters)}" if filters else ''
     query = f"""
@@ -3642,6 +3675,7 @@ def formulaire_config_mobile_view(request):
             titre_app,
             ordre,
             COALESCE(visible, false) AS visible,
+            COALESCE(download_mobile, false) AS download_mobile,
             created_at,
             updated_at
         FROM public.formulaire_config_mobile
@@ -3655,12 +3689,105 @@ def formulaire_config_mobile_view(request):
         'titre_app',
         'ordre',
         'visible',
+        'download_mobile',
         'created_at',
         'updated_at',
     ]
     with connection.cursor() as cursor:
         cursor.execute(query, params)
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    return Response(rows)
+
+
+def _mobile_endpoint_by_table():
+    endpoint_by_table = {}
+    for endpoint, table_ref in {
+        **MOBILE_SRM_TABLE_ENDPOINTS,
+        **MOBILE_REFERENCE_TABLE_ENDPOINTS,
+    }.items():
+        endpoint_by_table[table_ref] = endpoint
+    return endpoint_by_table
+
+
+@api_view(['GET'])
+def mobile_export_manifest_view(request):
+    """Expose the explicit table set allowed for mobile SQLite download."""
+    filters = ['COALESCE(f.download_mobile, false) = true']
+    params = []
+
+    nom_metier = (
+        request.query_params.get('nom_metier')
+        or request.query_params.get('table_schema')
+    )
+    nom_table = (
+        request.query_params.get('nom_table')
+        or request.query_params.get('table_name')
+    )
+    if nom_metier:
+        filters.append('f.nom_metier ILIKE %s')
+        params.append(nom_metier.strip())
+    if nom_table:
+        filters.append('f.nom_table ILIKE %s')
+        params.append(nom_table.strip())
+
+    where_sql = f"WHERE {' AND '.join(filters)}"
+    query = f"""
+        WITH geom_fields AS (
+          SELECT nom_metier, nom_table, max(type_champ) AS geometry_type
+          FROM public.attribut_config_mobile
+          WHERE lower(nom_champ) = 'geom'
+          GROUP BY nom_metier, nom_table
+        )
+        SELECT
+            f.id,
+            f.nom_metier,
+            f.nom_table,
+            f.titre_app,
+            f.ordre,
+            COALESCE(f.visible, false) AS visible,
+            COALESCE(f.download_mobile, false) AS download_mobile,
+            geom_fields.geometry_type
+        FROM public.formulaire_config_mobile f
+        LEFT JOIN geom_fields
+          ON geom_fields.nom_metier = f.nom_metier
+         AND geom_fields.nom_table = f.nom_table
+        {where_sql}
+        ORDER BY f.nom_metier, COALESCE(f.ordre, 999999), f.id
+    """
+    endpoint_by_table = _mobile_endpoint_by_table()
+    rows = []
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        for (
+            row_id,
+            schema,
+            table,
+            title,
+            order,
+            visible,
+            download_mobile,
+            geometry_type,
+        ) in cursor.fetchall():
+            table_ref = (schema, table)
+            endpoint = endpoint_by_table.get(table_ref)
+            mobile_table = MOBILE_TABLE_BY_CONFIG_TABLE.get(table_ref, table)
+            is_reference = table_ref == ('ep', 'onep_db')
+            rows.append(
+                {
+                    'id': row_id,
+                    'nom_metier': schema,
+                    'nom_table': table,
+                    'titre_app': title,
+                    'ordre': order,
+                    'visible': visible,
+                    'download_mobile': download_mobile,
+                    'endpoint': endpoint,
+                    'mobile_table': mobile_table,
+                    'geometry_type': geometry_type,
+                    'reference': is_reference,
+                    'export_ready': bool(endpoint and mobile_table),
+                }
+            )
     return Response(rows)
 
 
@@ -3887,277 +4014,3 @@ class MetricAgentPublicResumeViewSet(MetricFilterMixin, viewsets.ReadOnlyModelVi
             if value is not None:
                 qs = qs.filter(**{param: value})
         return qs
-
-
-# =====================================================================
-#  EP â€” Eau Potable (27 ViewSets)
-# =====================================================================
-
-class EpVanneViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpVanne.objects.all()
-    serializer_class = EpVanneSerializer
-
-
-class EpVanneDeVidangeViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpVanneDeVidange.objects.all()
-    serializer_class = EpVanneDeVidangeSerializer
-
-
-class EpVentouseViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpVentouse.objects.all()
-    serializer_class = EpVentouseSerializer
-
-
-class EpHydrantViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpHydrant.objects.all()
-    serializer_class = EpHydrantSerializer
-
-
-class EpBorneFontaineViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpBorneFontaine.objects.all()
-    serializer_class = EpBorneFontaineSerializer
-
-
-class EpBorneOnepViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpBorneOnep.objects.all()
-    serializer_class = EpBorneOnepSerializer
-
-
-class EpBoucheClesViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpBoucheCles.objects.all()
-    serializer_class = EpBoucheClesSerializer
-
-
-class EpBoucheDarrosageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpBoucheDarrosage.objects.all()
-    serializer_class = EpBoucheDarrosageSerializer
-
-
-class EpCompteurAbonneViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpCompteurAbonne.objects.all()
-    serializer_class = EpCompteurAbonneSerializer
-
-
-class EpCompteurReseauViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpCompteurReseau.objects.all()
-    serializer_class = EpCompteurReseauSerializer
-
-
-class EpConeDeReductionViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpConeDeReduction.objects.all()
-    serializer_class = EpConeDeReductionSerializer
-
-
-class EpCentreTamponViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpCentreTampon.objects.all()
-    serializer_class = EpCentreTamponSerializer
-
-
-class EpNoeudViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpNoeud.objects.all()
-    serializer_class = EpNoeudSerializer
-
-
-class EpObturateurViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpObturateur.objects.all()
-    serializer_class = EpObturateurSerializer
-
-
-class EpReducteurDePressionViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpReducteurDePression.objects.all()
-    serializer_class = EpReducteurDePressionSerializer
-
-
-class EpForageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpForage.objects.all()
-    serializer_class = EpForageSerializer
-
-
-class EpPuitViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpPuit.objects.all()
-    serializer_class = EpPuitSerializer
-
-
-class EpPompeViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpPompe.objects.all()
-    serializer_class = EpPompeSerializer
-
-
-class EpReservoirViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpReservoir.objects.all()
-    serializer_class = EpReservoirSerializer
-
-
-class EpStationDePompageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpStationDePompage.objects.all()
-    serializer_class = EpStationDePompageSerializer
-
-
-class EpRegardViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpRegard.objects.all()
-    serializer_class = EpRegardSerializer
-
-
-class EpRegardMiroirViewSet(SrmEntityFilterMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = EpRegardMiroir.objects.all()
-    serializer_class = EpRegardMiroirSerializer
-
-    def _table_exists(self):
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT to_regclass(%s)", ['ep.ep_regard'])
-            row = cursor.fetchone()
-        return bool(row and row[0])
-
-    def get_queryset(self):
-        if not self._table_exists():
-            return EpRegardMiroir.objects.none()
-        return super().get_queryset()
-
-    def list(self, request, *args, **kwargs):
-        if not self._table_exists():
-            return Response(
-                {
-                    'count': 0,
-                    'next': None,
-                    'previous': None,
-                    'results': [],
-                    'warning': (
-                        'La table polygonale ep.ep_regard n existe pas encore. '
-                        'Elle doit etre generee depuis ep.ep_regard_point.'
-                    ),
-                }
-            )
-        return super().list(request, *args, **kwargs)
-
-
-class EpAutreObjetViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpAutreObjet.objects.all()
-    serializer_class = EpAutreObjetSerializer
-
-
-class EpConduiteTerrainViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpConduiteTerrain.objects.all()
-    serializer_class = EpConduiteTerrainSerializer
-
-
-class EpConduiteBureauViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpConduiteBureau.objects.all()
-    serializer_class = EpConduiteBureauSerializer
-
-
-class EpBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpBranchement.objects.all()
-    serializer_class = EpBranchementSerializer
-
-
-class EpTraverseViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = EpTraverse.objects.all()
-    serializer_class = EpTraverseSerializer
-
-
-# =====================================================================
-#  ASS â€” Assainissement (9 ViewSets)
-# =====================================================================
-
-class AssRegardViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssRegard.objects.all()
-    serializer_class = AssRegardSerializer
-
-
-class AssRegardBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssRegardBranchement.objects.all()
-    serializer_class = AssRegardBranchementSerializer
-
-
-class AssCanalisationViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssCanalisation.objects.all()
-    serializer_class = AssCanalisationSerializer
-
-
-class AssCanalisationReutilisationViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssCanalisationReutilisation.objects.all()
-    serializer_class = AssCanalisationReutilisationSerializer
-
-
-class AssBranchementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssBranchement.objects.all()
-    serializer_class = AssBranchementSerializer
-
-
-class AssBassinViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssBassin.objects.all()
-    serializer_class = AssBassinSerializer
-
-
-class AssOuvrageViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssOuvrage.objects.all()
-    serializer_class = AssOuvrageSerializer
-
-
-class AssEquipementViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssEquipement.objects.all()
-    serializer_class = AssEquipementSerializer
-
-
-class AssStationViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = AssStation.objects.all()
-    serializer_class = AssStationSerializer
-
-
-# =====================================================================
-#  ELEC â€” Ã‰lectricitÃ© (11 ViewSets)
-# =====================================================================
-
-class ElecSupportViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecSupport.objects.all()
-    serializer_class = ElecSupportSerializer
-
-
-class ElecPosteViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecPoste.objects.all()
-    serializer_class = ElecPosteSerializer
-
-
-class ElecCoffretBtViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecCoffretBt.objects.all()
-    serializer_class = ElecCoffretBtSerializer
-
-
-class ElecNoeudRaccordViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecNoeudRaccord.objects.all()
-    serializer_class = ElecNoeudRaccordSerializer
-
-
-class ElecPointDesserteViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecPointDesserte.objects.all()
-    serializer_class = ElecPointDesserteSerializer
-
-
-class ElecTransformateurViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecTransformateur.objects.all()
-    serializer_class = ElecTransformateurSerializer
-
-
-class ElecCelluleViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecCellule.objects.all()
-    serializer_class = ElecCelluleSerializer
-
-
-class ElecDepartBtViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecDepartBt.objects.all()
-    serializer_class = ElecDepartBtSerializer
-
-
-class ElecDepartHtaViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecDepartHta.objects.all()
-    serializer_class = ElecDepartHtaSerializer
-
-
-class ElecTronconBtViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecTronconBt.objects.all()
-    serializer_class = ElecTronconBtSerializer
-
-
-class ElecTronconHtaViewSet(SrmEntityFilterMixin, viewsets.ModelViewSet):
-    queryset = ElecTronconHta.objects.all()
-    serializer_class = ElecTronconHtaSerializer

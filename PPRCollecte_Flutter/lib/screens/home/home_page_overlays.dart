@@ -363,7 +363,7 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
 
     var localGeneratedCount = 0;
     try {
-      final localRegards = await dbHelper.getEntities('regard');
+      final localRegards = await dbHelper.getEntitiesSrm('ep_regard_point');
       for (final regard in localRegards) {
         final uuid = regard['uuid']?.toString().trim();
         if (uuid != null && uuid.isNotEmpty && cachedUuids.contains(uuid)) {
@@ -482,9 +482,10 @@ Map<String, dynamic>? _buildLocalRegardMiroirRowImpl(
   final center = _extractRegardLatLngImpl(regard);
   if (center == null) return null;
 
-  final points = _buildSquareAroundPointImpl(
+  final points = _buildRectangleAroundPointImpl(
     center,
-    _regardMiroirLocalSquareSizeMeters,
+    longueurMeters: _positiveDoubleImpl(regard['longueur']),
+    largeurMeters: _positiveDoubleImpl(regard['largeur']),
   );
   if (points.length < 4) return null;
 
@@ -522,14 +523,28 @@ double? _toDoubleImpl(dynamic value) {
   return double.tryParse(value.toString());
 }
 
-List<LatLng> _buildSquareAroundPointImpl(LatLng center, double sizeMeters) {
-  final halfSize = sizeMeters / 2.0;
+double? _positiveDoubleImpl(dynamic value) {
+  final parsed = _toDoubleImpl(value);
+  if (parsed == null || parsed <= 0) return null;
+  return parsed;
+}
+
+List<LatLng> _buildRectangleAroundPointImpl(
+  LatLng center, {
+  double? longueurMeters,
+  double? largeurMeters,
+}) {
+  final lengthMeters =
+      longueurMeters ?? largeurMeters ?? _regardMiroirLocalSquareSizeMeters;
+  final widthMeters = largeurMeters ?? lengthMeters;
+  final halfLength = lengthMeters / 2.0;
+  final halfWidth = widthMeters / 2.0;
   const metersPerLatDegree = 111320.0;
   final cosLat = math.cos(center.latitude * math.pi / 180.0).abs();
   if (cosLat < 0.000001) return const [];
 
-  final deltaLat = halfSize / metersPerLatDegree;
-  final deltaLng = halfSize / (metersPerLatDegree * cosLat);
+  final deltaLat = halfWidth / metersPerLatDegree;
+  final deltaLng = halfLength / (metersPerLatDegree * cosLat);
 
   return [
     LatLng(center.latitude - deltaLat, center.longitude - deltaLng),

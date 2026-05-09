@@ -75,49 +75,10 @@ router.register(r'metrics-agent-public-semaine', views.MetricAgentPublicSemaineV
 router.register(r'metrics-agent-public-mois', views.MetricAgentPublicMoisViewSet, basename='metrics-agent-public-mois')
 router.register(r'metrics-agent-public-resume', views.MetricAgentPublicResumeViewSet, basename='metrics-agent-public-resume')
 
-# =====================================================================
-#  EP — Eau Potable (27 endpoints)
-# =====================================================================
-router.register(r'ep/vannes', views.EpVanneViewSet, basename='ep-vanne')
-router.register(r'ep/vannes-vidange', views.EpVanneDeVidangeViewSet, basename='ep-vanne-vidange')
-router.register(r'ep/ventouses', views.EpVentouseViewSet, basename='ep-ventouse')
-router.register(r'ep/hydrants', views.EpHydrantViewSet, basename='ep-hydrant')
-router.register(r'ep/bornes-fontaine', views.EpBorneFontaineViewSet, basename='ep-borne-fontaine')
-router.register(r'ep/bornes-onep', views.EpBorneOnepViewSet, basename='ep-borne-onep')
-router.register(r'ep/bouches-cles', views.EpBoucheClesViewSet, basename='ep-bouche-cles')
-router.register(r'ep/bouches-arrosage', views.EpBoucheDarrosageViewSet, basename='ep-bouche-arrosage')
-router.register(r'ep/compteurs-abonne', views.EpCompteurAbonneViewSet, basename='ep-compteur-abonne')
-router.register(r'ep/compteurs-reseau', views.EpCompteurReseauViewSet, basename='ep-compteur-reseau')
-router.register(r'ep/cones-reduction', views.EpConeDeReductionViewSet, basename='ep-cone-reduction')
-router.register(r'ep/centres-tampon', views.EpCentreTamponViewSet, basename='ep-centre-tampon')
-router.register(r'ep/noeuds', views.EpNoeudViewSet, basename='ep-noeud')
-router.register(r'ep/obturateurs', views.EpObturateurViewSet, basename='ep-obturateur')
-router.register(r'ep/reducteurs-pression', views.EpReducteurDePressionViewSet, basename='ep-reducteur-pression')
-router.register(r'ep/forages', views.EpForageViewSet, basename='ep-forage')
-router.register(r'ep/puits', views.EpPuitViewSet, basename='ep-puit')
-router.register(r'ep/pompes', views.EpPompeViewSet, basename='ep-pompe')
-router.register(r'ep/reservoirs', views.EpReservoirViewSet, basename='ep-reservoir')
-router.register(r'ep/stations-pompage', views.EpStationDePompageViewSet, basename='ep-station-pompage')
-router.register(r'ep/regards', views.EpRegardViewSet, basename='ep-regard')
-router.register(r'ep/regards-miroir', views.EpRegardMiroirViewSet, basename='ep-regard-miroir')
-router.register(r'ep/autres-objets', views.EpAutreObjetViewSet, basename='ep-autre-objet')
-router.register(r'ep/conduites-terrain', views.EpConduiteTerrainViewSet, basename='ep-conduite-terrain')
-router.register(r'ep/conduites-bureau', views.EpConduiteBureauViewSet, basename='ep-conduite-bureau')
-router.register(r'ep/branchements', views.EpBranchementViewSet, basename='ep-branchement')
-router.register(r'ep/traverses', views.EpTraverseViewSet, basename='ep-traverse')
-
-# =====================================================================
-#  ASS — Assainissement (9 endpoints)
-# =====================================================================
-router.register(r'ass/regards', views.AssRegardViewSet, basename='ass-regard')
-router.register(r'ass/regards-branchement', views.AssRegardBranchementViewSet, basename='ass-regard-branchement')
-router.register(r'ass/canalisations', views.AssCanalisationViewSet, basename='ass-canalisation')
-router.register(r'ass/canalisations-reutilisation', views.AssCanalisationReutilisationViewSet, basename='ass-canalisation-reutilisation')
-router.register(r'ass/branchements', views.AssBranchementViewSet, basename='ass-branchement')
-router.register(r'ass/bassins', views.AssBassinViewSet, basename='ass-bassin')
-router.register(r'ass/ouvrages', views.AssOuvrageViewSet, basename='ass-ouvrage')
-router.register(r'ass/equipements', views.AssEquipementViewSet, basename='ass-equipement')
-router.register(r'ass/stations', views.AssStationViewSet, basename='ass-station')
+# EP/ASS metier routes are served by mobile_srm_urlpatterns below.
+# Do not register the legacy DRF ModelViewSets here: their unmanaged models can
+# drift from physical client schemas, while mobile_srm_table_view reads the live
+# columns directly and is the canonical API surface for the mobile app.
 
 # =====================================================================
 #  URL PATTERNS
@@ -139,8 +100,11 @@ urlpatterns = [
     path('api/basemaps/region/download/', views.regional_basemap_download_view, name='basemap-regional-download'),
     path('api/statistiques-conduite/jour/', views.statistique_conduite_jour_view, name='statistique-conduite-jour'),
     path('api/statistiques-conduite/valider/', views.statistique_conduite_validate_view, name='statistique-conduite-valider'),
+    path('api/attribut-config-mobile/schema-preview/', views.attribut_config_mobile_schema_preview_view, name='attribut-config-mobile-schema-preview'),
     path('api/attribut-config-mobile/', views.attribut_config_mobile_view, name='attribut-config-mobile'),
     path('api/formulaire-config-mobile/', views.formulaire_config_mobile_view, name='formulaire-config-mobile'),
+    path('api/mobile-export-manifest/', views.mobile_export_manifest_view, name='mobile-export-manifest'),
+    path('api/ep/onep-db/', views.onep_db_mobile_view, name='onep-db-mobile'),
     path('api/ep/compteurs-abonne/customer-link/', views.ep_compteur_abonne_customer_link_view, name='ep-compteur-abonne-customer-link'),
     path('api/ep/compteurs-abonne/commune-audit/', views.ep_compteur_abonne_commune_audit_view, name='ep-compteur-abonne-commune-audit'),
     path('api/sync/manifest/', views.sync_manifest_view, name='sync-manifest'),

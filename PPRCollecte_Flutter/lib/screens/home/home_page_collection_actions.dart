@@ -1,6 +1,17 @@
 part of 'home_page.dart';
 
 extension _HomePageCollectionActions on _HomePageState {
+  bool _ensureGpsReadyForCapture() {
+    if (homeController.gpsEnabled && homeController.currentAltitude != null) {
+      return true;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Veuillez activer le GPS')),
+    );
+    return false;
+  }
+
   Future<void> _startSpecialCollectionImpl(String type) async {
     if (!homeController.gpsEnabled) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -278,6 +289,8 @@ extension _HomePageCollectionActions on _HomePageState {
       return;
     }
 
+    if (!_ensureGpsReadyForCapture()) return;
+
     if (!mounted) return;
     final selection = await showSrmPointSelector(context);
     if (!mounted || selection == null) return;
@@ -423,6 +436,8 @@ extension _HomePageCollectionActions on _HomePageState {
   }
 
   void _addCurrentPointToActiveCollection() {
+    if (!_ensureGpsReadyForCapture()) return;
+
     final error = homeController.addCurrentPointToActiveCollection();
 
     if (error != null) {
@@ -443,15 +458,11 @@ extension _HomePageCollectionActions on _HomePageState {
 
   Future<void> _startLigneSrmCollectionImpl() async {
     if (!mounted) return;
+    if (!_ensureGpsReadyForCapture()) return;
+
     final selection = await showSrmLigneSelector(context);
     if (!mounted || selection == null) return;
 
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez activer le GPS')),
-      );
-      return;
-    }
     if (homeController.hasActiveCollection) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

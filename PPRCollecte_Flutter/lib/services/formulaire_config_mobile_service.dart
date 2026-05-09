@@ -10,6 +10,7 @@ class FormulaireConfigMobileItem {
   final String titreApp;
   final int ordre;
   final bool visible;
+  final bool downloadMobile;
   final String createdAt;
   final String updatedAt;
 
@@ -20,9 +21,10 @@ class FormulaireConfigMobileItem {
     required this.titreApp,
     required this.ordre,
     required this.visible,
+    bool? downloadMobile,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : downloadMobile = downloadMobile ?? visible;
 
   factory FormulaireConfigMobileItem.fromMap(Map<String, dynamic> row) {
     return FormulaireConfigMobileItem(
@@ -32,6 +34,10 @@ class FormulaireConfigMobileItem {
       titreApp: row['titre_app']?.toString().trim() ?? '',
       ordre: _toInt(row['ordre']) ?? 0,
       visible: _toBool(row['visible'], defaultValue: true),
+      downloadMobile: _toBool(
+        row['download_mobile'],
+        defaultValue: _toBool(row['visible'], defaultValue: true),
+      ),
       createdAt: row['created_at']?.toString().trim() ?? '',
       updatedAt: row['updated_at']?.toString().trim() ?? '',
     );
@@ -129,12 +135,14 @@ class FormulaireConfigMobileService {
     String? nomMetier,
     String? nomTable,
     bool visibleOnly = false,
+    bool downloadOnly = false,
     bool refreshIfEmpty = true,
   }) async {
     var rows = await _db.getFormulaireConfigMobile(
       nomMetier: nomMetier,
       nomTable: nomTable,
       visibleOnly: visibleOnly,
+      downloadOnly: downloadOnly,
     );
     if (rows.isEmpty && refreshIfEmpty) {
       try {
@@ -143,12 +151,14 @@ class FormulaireConfigMobileService {
           nomMetier: nomMetier,
           nomTable: nomTable,
           visibleOnly: visibleOnly,
+          downloadOnly: downloadOnly,
         );
       } catch (_) {
         final fallback = _fallbackFormulaires(
           nomMetier: nomMetier,
           nomTable: nomTable,
           visibleOnly: visibleOnly,
+          downloadOnly: downloadOnly,
         );
         if (fallback.isNotEmpty) {
           return fallback;
@@ -164,7 +174,46 @@ class FormulaireConfigMobileService {
       nomMetier: nomMetier,
       nomTable: nomTable,
       visibleOnly: visibleOnly,
+      downloadOnly: downloadOnly,
     );
+  }
+
+  Future<List<Map<String, dynamic>>> getMobileExportManifest({
+    bool refreshIfEmpty = true,
+  }) async {
+    try {
+      final rows = await ApiService.fetchMobileExportManifest();
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {
+      // Local fallback below.
+    }
+
+    final items = await getFormulaires(
+      downloadOnly: true,
+      refreshIfEmpty: refreshIfEmpty,
+    );
+    return items
+        .map(
+          (item) => {
+            'id': item.id,
+            'nom_metier': item.nomMetier,
+            'nom_table': item.nomTable,
+            'titre_app': item.titreApp,
+            'ordre': item.ordre,
+            'visible': item.visible,
+            'download_mobile': item.downloadMobile,
+            'endpoint': null,
+            'mobile_table':
+                AttributConfigMobileService.mobileTableForConfigTable(
+              item.nomMetier,
+              item.nomTable,
+            ),
+            'geometry_type': null,
+            'reference': item.nomMetier == 'ep' && item.nomTable == 'onep_db',
+            'export_ready': false,
+          },
+        )
+        .toList();
   }
 
   Future<List<FormulaireConfigMobileEntity>> getMobileEntities({
@@ -346,6 +395,7 @@ class FormulaireConfigMobileService {
     String? nomMetier,
     String? nomTable,
     bool visibleOnly = false,
+    bool downloadOnly = false,
   }) {
     final metier = (nomMetier ?? '').trim().toLowerCase();
     final source = metier == 'asst' || metier == 'ass'
@@ -359,6 +409,9 @@ class FormulaireConfigMobileService {
         return false;
       }
       if (visibleOnly && !row.visible) {
+        return false;
+      }
+      if (downloadOnly && !row.downloadMobile) {
         return false;
       }
       return true;
@@ -658,7 +711,8 @@ class FormulaireConfigMobileService {
       nomTable: 'ep_regard',
       titreApp: 'Regard (polygone)',
       ordre: 29,
-      visible: true,
+      visible: false,
+      downloadMobile: true,
       createdAt: '',
       updatedAt: '',
     ),
@@ -699,6 +753,7 @@ class FormulaireConfigMobileService {
       titreApp: 'ONEP DB',
       ordre: 32,
       visible: false,
+      downloadMobile: true,
       createdAt: '',
       updatedAt: '',
     ),
@@ -851,7 +906,7 @@ class FormulaireConfigMobileService {
       nomTable: 'ASS_BASSIN_VERSANT',
       titreApp: 'Bassins versants',
       ordre: 13,
-      visible: false,
+      visible: true,
       createdAt: '',
       updatedAt: '',
     ),

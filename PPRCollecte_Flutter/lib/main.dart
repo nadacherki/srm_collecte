@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dargon2_flutter/dargon2_flutter.dart';
 import 'screens/auth/login_page.dart';
+import 'screens/home/home_page.dart';
+import 'data/local/database_helper.dart';
+import 'data/remote/api_service.dart';
+import 'services/offline_basemap_service.dart';
 
 bool _isIgnorableAppError(Object error) {
   return error is CancellationException || error.toString() == 'Cancelled';
@@ -58,7 +62,84 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: const SessionGate(),
+    );
+  }
+}
+
+class SessionGate extends StatefulWidget {
+  const SessionGate({super.key});
+
+  @override
+  State<SessionGate> createState() => _SessionGateState();
+}
+
+class _SessionGateState extends State<SessionGate> {
+  late final Future<Widget> _target = _resolveTarget();
+
+  Future<Widget> _resolveTarget() async {
+    final db = DatabaseHelper();
+    final user = await db.getActiveSessionUser();
+    if (user == null) {
+      ApiService.resetSession();
+      return const LoginPage();
+    }
+
+    _restoreApiServiceFromUser(user);
+    final activeBasemap = await OfflineBasemapService().getActiveBasemap();
+    final offlineBasemapPath = activeBasemap?['local_path']?.toString().trim();
+    final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
+    final agentName = ApiService.nomPrenom ?? 'Agent SRM';
+
+    return HomePage(
+      agentName: agentName,
+      isOnline: false,
+      initialOfflineBasemapPath: offlineBasemapPath,
+      initialOfflineBasemapFormat: offlineBasemapFormat,
+      initialBasemapNotice:
+          offlineBasemapPath == null || offlineBasemapPath.isEmpty
+              ? "Aucune carte offline active n'a encore ete telechargee."
+              : null,
+      onLogout: _logoutRestoredSession,
+    );
+  }
+
+  void _restoreApiServiceFromUser(Map<String, dynamic> user) {
+    final rawUserId = user['id_user'];
+    ApiService.userId = rawUserId is int
+        ? rawUserId
+        : int.tryParse(rawUserId?.toString() ?? '');
+    ApiService.userLogin = user['login']?.toString();
+    ApiService.userNom = user['nom']?.toString();
+    ApiService.userPrenom = user['prenom']?.toString();
+    ApiService.userRole = user['role']?.toString();
+    ApiService.nomPrenom = DatabaseHelper.fullNameFromUserRow(user);
+  }
+
+  Future<void> _logoutRestoredSession() async {
+    await DatabaseHelper().clearSrmSession();
+    ApiService.resetSession();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Widget>(
+      future: _target,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
+          return snapshot.data!;
+        }
+        return const Scaffold(
+          backgroundColor: Color(0xFFF8FAFC),
+          body: Center(child: CircularProgressIndicator()),
+        );
+      },
     );
   }
 }

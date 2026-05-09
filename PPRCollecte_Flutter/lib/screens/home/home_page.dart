@@ -61,6 +61,9 @@ import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/downloaded_lines_service.dart';
 import '../../services/formulaire_config_mobile_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
+import '../../services/srm_field_option_service.dart';
+import '../../services/commune_sync_service.dart';
 import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
@@ -200,7 +203,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, List<Marker>> _displayedPointsByTable = {};
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
-  final bool _isSatellite = false;
+  bool _isSatellite = false;
   List<Polyline> _downloadedSpecialLinesPolylines = [];
   bool _showDownloadedSpecialLines = true;
 
@@ -227,6 +230,8 @@ class _HomePageState extends State<HomePage> {
   double? _offlineBasemapMaxZoom;
   late bool _isOnlineDynamic;
   Timer? _onlineWatchTimer;
+  bool _mobileConfigAutoRefreshRunning = false;
+  DateTime? _lastMobileConfigAutoRefreshAt;
   Timer? _nmeaBridgeWatchTimer;
   bool _isConduiteDrawingMode = false;
   String _conduiteModeMetier = 'ep';
@@ -1284,6 +1289,11 @@ class _HomePageState extends State<HomePage> {
                     onMapCreated: _onMapCreated,
                     formMarkers: formMarkers,
                     isSatellite: _isSatellite,
+                    onMapTypeChanged: (value) {
+                      setState(() {
+                        _isSatellite = value;
+                      });
+                    },
                     onPolylineTap: _handlePolylineTap,
                     onCameraIdle: null,
                     offlineBasemapPath: _offlineBasemapPath,

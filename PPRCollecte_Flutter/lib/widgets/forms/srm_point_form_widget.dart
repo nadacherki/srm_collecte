@@ -281,6 +281,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         }
         for (final config in byField.values) {
           if (!_isAnomalieDetailField(config.nomChamp)) continue;
+          if (!config.visible) continue;
           _controllers.putIfAbsent(
             config.nomChamp,
             () {
@@ -295,6 +296,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             },
           );
         }
+        _applyConfiguredDefaults();
         _prefillCoordinates();
         _applyEntitySpecificDefaults();
         _ensureCustomerLinkListeners();
@@ -312,18 +314,51 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  void _applyConfiguredDefaults() {
+    if (widget.existingData != null) return;
+    for (final entry in _attributConfigByField.entries) {
+      final defaultValue = _configuredDefaultValueForField(entry.key);
+      if (defaultValue.isEmpty) continue;
+      final controller = _controllers[entry.key];
+      if (controller == null || controller.text.trim().isNotEmpty) continue;
+      controller.text = defaultValue;
+    }
+  }
+
+  String _configuredDefaultValueForField(String field) {
+    final defaultValue =
+        _attributConfigByField[field]?.valeurParDefaut.trim() ?? '';
+    if (defaultValue.isEmpty) return '';
+
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty &&
+        !choices.any((choice) => choice.code == defaultValue)) {
+      return '';
+    }
+    return defaultValue;
+  }
+
   void _prefillCoordinates() {
+    if (widget.altitude == null) {
+      if (widget.existingData == null) {
+        for (final entry in _controllers.entries) {
+          if (_isCoordField(entry.key)) {
+            entry.value.clear();
+          }
+        }
+      }
+      return;
+    }
+
+    final zStr = widget.altitude!.toStringAsFixed(3);
     final coordFields = {
       'ep_coor_x': _merchichX.toStringAsFixed(3),
       'ep_coor_y': _merchichY.toStringAsFixed(3),
+      'ep_coor_z': zStr,
       'ass_coor_x': _merchichX.toStringAsFixed(3),
       'ass_coor_y': _merchichY.toStringAsFixed(3),
+      'ass_coor_z': zStr,
     };
-    if (widget.altitude != null) {
-      final zStr = widget.altitude!.toStringAsFixed(3);
-      coordFields['ep_coor_z'] = zStr;
-      coordFields['ass_coor_z'] = zStr;
-    }
     for (final entry in _controllers.entries) {
       final value = coordFields[entry.key.toLowerCase()];
       if (value != null) {
@@ -433,40 +468,19 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         y: _merchichY,
       );
       if (!mounted || response == null) return;
-
-      final matched = response['matched'] == true;
-      if (matched) {
-        final rawData = response['data'];
-        if (rawData is Map) {
-          _applyCustomerLinkData(Map<String, dynamic>.from(rawData));
-        }
-        final note = response['observation_note']?.toString().trim() ?? '';
-        if (note.isNotEmpty) {
-          _appendObservationNote(note);
-        }
-        final matchType = response['match_type']?.toString();
-        final warnings = response['warnings'];
-        final warningText = warnings is List && warnings.isNotEmpty
-            ? warnings.first.toString()
-            : '';
-        setState(() {
-          final baseMessage = matchType == 'ancienne_police_commune'
-              ? 'Client ONEP trouve par ancienne police + commune.'
-              : 'Client ONEP trouve par numero de contrat.';
-          _customerLinkMessage =
-              warningText.isEmpty ? baseMessage : '$baseMessage $warningText';
-        });
-      } else {
-        final warnings = response['warnings'];
-        final warningText = warnings is List && warnings.isNotEmpty
-            ? warnings.first.toString()
-            : 'Aucun client ONEP trouve pour ces informations.';
-        setState(() {
-          _customerLinkMessage = warningText;
-        });
-      }
+      _handleCustomerLinkResponse(response);
     } catch (e) {
       debugPrint('[ONEP-LINK] $e');
+      final localResponse = await DatabaseHelper().findOnepCustomerLocal(
+        numContrat: numContrat,
+        anciennePolice: anciennePolice,
+        x: _merchichX,
+        y: _merchichY,
+      );
+      if (mounted && localResponse != null) {
+        _handleCustomerLinkResponse(localResponse, offline: true);
+        return;
+      }
       if (mounted) {
         setState(() {
           _customerLinkMessage = 'Liaison client indisponible hors ligne.';
@@ -478,6 +492,47 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           _isCustomerLinkLoading = false;
         });
       }
+    }
+  }
+
+  void _handleCustomerLinkResponse(
+    Map<String, dynamic> response, {
+    bool offline = false,
+  }) {
+    if (!mounted) return;
+    final matched = response['matched'] == true;
+    if (matched) {
+      final rawData = response['data'];
+      if (rawData is Map) {
+        _applyCustomerLinkData(Map<String, dynamic>.from(rawData));
+      }
+      final note = response['observation_note']?.toString().trim() ?? '';
+      if (note.isNotEmpty) {
+        _appendObservationNote(note);
+      }
+      final matchType = response['match_type']?.toString();
+      final warnings = response['warnings'];
+      final warningText = warnings is List && warnings.isNotEmpty
+          ? warnings.first.toString()
+          : '';
+      setState(() {
+        final baseMessage = matchType == 'ancienne_police_commune'
+            ? 'Client ONEP trouve par ancienne police + commune.'
+            : 'Client ONEP trouve par numero de contrat.';
+        final sourceSuffix = offline ? ' (cache local).' : '';
+        _customerLinkMessage = warningText.isEmpty
+            ? '$baseMessage$sourceSuffix'
+            : '$baseMessage$sourceSuffix $warningText';
+      });
+    } else {
+      final warnings = response['warnings'];
+      final warningText = warnings is List && warnings.isNotEmpty
+          ? warnings.first.toString()
+          : 'Aucun client ONEP trouve pour ces informations.';
+      setState(() {
+        _customerLinkMessage =
+            offline ? '$warningText (cache local).' : warningText;
+      });
     }
   }
 
@@ -533,6 +588,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   bool _isAnomalieFlagField(String field) {
     final normalized = field.toLowerCase();
+    if (_isCompteurAbonneAnomalieChoiceField(normalized)) return false;
     return normalized == 'anomalie' ||
         normalized == 'ep_anomalie' ||
         normalized == 'ass_anomalie';
@@ -540,6 +596,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   bool _isAnomalieDetailField(String field) {
     final normalized = field.toLowerCase();
+    if (_isCompteurAbonneAnomalieChoiceField(normalized)) return false;
     if (_isAnomalieFlagField(normalized)) return false;
     return normalized == 'type_anomalie' ||
         normalized.startsWith('anomalie_') ||
@@ -548,6 +605,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   bool _isAnomalieManagedField(String field) =>
       _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+
+  bool _isCompteurAbonneAnomalieChoiceField(String field) =>
+      _isEpCompteurAbonne && field.toLowerCase() == 'ep_anomalie';
+
+  bool _isConfiguredVisibleField(String field) {
+    final config = _attributConfigByField[field.toLowerCase()];
+    return config == null || config.visible;
+  }
 
   bool _isObjetIncompletManagedField(String field) {
     final normalized = field.toLowerCase();
@@ -764,6 +829,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       return;
     }
 
+    if (widget.existingData == null && widget.altitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Veuillez activer le GPS'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final tableName =
@@ -932,7 +1005,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   List<String> _anomalieDetailFields() {
     final configs = _attributConfigByField.values
-        .where((config) => _isAnomalieDetailField(config.nomChamp))
+        .where((config) =>
+            config.visible && _isAnomalieDetailField(config.nomChamp))
         .toList()
       ..sort((a, b) => a.ordre.compareTo(b.ordre));
 
@@ -943,7 +1017,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       }
     }
     for (final field in _controllers.keys) {
-      if (_isAnomalieDetailField(field) && !result.contains(field)) {
+      if (_isAnomalieDetailField(field) &&
+          _isConfiguredVisibleField(field) &&
+          !result.contains(field)) {
         result.add(field);
       }
     }
@@ -965,7 +1041,36 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return _hasAnomalie ? 'Oui' : 'Non';
   }
 
+  bool _isNoAnomalieValue(String value) {
+    final normalized = _foldLabel(value);
+    return normalized.isEmpty ||
+        normalized == 'non' ||
+        normalized == 'no' ||
+        normalized == 'n' ||
+        normalized == '0' ||
+        normalized == 'false' ||
+        normalized == 'aucun' ||
+        normalized == 'aucune' ||
+        normalized == 'sans anomalie' ||
+        normalized == 'aucune anomalie';
+  }
+
+  void _applyCompteurAbonneAnomaliePayload(Map<String, dynamic> data) {
+    final value = (_controllers['ep_anomalie']?.text ??
+            data['ep_anomalie']?.toString() ??
+            '')
+        .trim();
+    data['ep_anomalie'] = value.isEmpty ? null : value;
+    data['anomalie'] = value.isNotEmpty && !_isNoAnomalieValue(value) ? 1 : 0;
+    data['type_anomalie'] = null;
+  }
+
   void _applyAnomaliePayload(Map<String, dynamic> data) {
+    if (_isEpCompteurAbonne) {
+      _applyCompteurAbonneAnomaliePayload(data);
+      return;
+    }
+
     data['anomalie'] = _hasAnomalie ? 1 : 0;
 
     for (final field in const ['ep_anomalie', 'ass_anomalie']) {
@@ -1061,6 +1166,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'ep_conf_plan',
       'mode_localisation',
       'ep_observation',
+      'ep_anomalie',
     ]);
 
     addSection(
@@ -1472,6 +1578,45 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  String? _validateConfiguredRange(
+    String field,
+    String normalized,
+    SrmFieldRule rule,
+  ) {
+    final config = _attributConfigByField[field];
+    if (config == null) return null;
+
+    if (rule.kind == SrmFieldKind.integer ||
+        rule.kind == SrmFieldKind.decimal) {
+      final number = double.tryParse(normalized.replaceAll(',', '.'));
+      if (number == null) return null;
+      final min = config.numericMin;
+      if (min != null && number < min) {
+        return 'Valeur minimale : ${config.valeurMin}';
+      }
+      final max = config.numericMax;
+      if (max != null && number > max) {
+        return 'Valeur maximale : ${config.valeurMax}';
+      }
+      return null;
+    }
+
+    if (rule.kind == SrmFieldKind.date) {
+      final date = DateTime.tryParse(normalized);
+      if (date == null) return null;
+      final min = config.dateMin;
+      if (min != null && date.isBefore(min)) {
+        return 'Date minimale : ${config.valeurMin}';
+      }
+      final max = config.dateMax;
+      if (max != null && date.isAfter(max)) {
+        return 'Date maximale : ${config.valeurMax}';
+      }
+    }
+
+    return null;
+  }
+
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
     final rule = _fieldRule(field);
@@ -1517,6 +1662,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       case SrmFieldKind.text:
         break;
     }
+
+    final rangeError = _validateConfiguredRange(field, normalized, rule);
+    if (rangeError != null) return rangeError;
+
     return null;
   }
 
@@ -1694,10 +1843,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       .toList();
 
   bool get _hasTypeAnomalieField =>
-      _attributConfigByField.containsKey('type_anomalie') ||
-      _controllers.containsKey('type_anomalie') ||
-      _choicesByField.containsKey('type_anomalie') ||
-      (widget.existingData?.containsKey('type_anomalie') ?? false);
+      _isConfiguredVisibleField('type_anomalie') &&
+      (_attributConfigByField.containsKey('type_anomalie') ||
+          _controllers.containsKey('type_anomalie') ||
+          _choicesByField.containsKey('type_anomalie') ||
+          (widget.existingData?.containsKey('type_anomalie') ?? false));
 
   List<DropdownMenuItem<String>> _choiceDropdownItemsForField(String field) {
     final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
@@ -2177,7 +2327,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                     ..._buildDynamicFields(),
 
                     // Sections anomalie + incomplet
-                    if (!_isEpMinimalLocationForm) ...[
+                    if (!_isEpMinimalLocationForm && !_isEpCompteurAbonne) ...[
                       _buildAnomalieSection(),
                       if (!_isLocked) _buildObjetIncompletSection(),
                     ],
