@@ -1,6 +1,5 @@
 """
 Django settings for SRM Collecte backend.
-Adapté de pprcollecte (GeoDNGR) pour le projet SIG SRM.
 """
 
 import os
