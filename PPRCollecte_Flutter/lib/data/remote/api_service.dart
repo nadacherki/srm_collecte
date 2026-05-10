@@ -378,7 +378,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout liaison client');
     } on SocketException {
-      throw Exception('Erreur reseau liaison client');
+      throw Exception('Erreur réseau liaison client');
     } on FormatException {
       throw Exception('Reponse liaison client invalide');
     }
@@ -514,6 +514,36 @@ class ApiService {
     }).toList();
   }
 
+  static Future<List<Map<String, dynamic>>> fetchPlancheOverlay() async {
+    final items = await fetchData('reference-overlays/planches');
+    return items
+        .whereType<Map>()
+        .map((item) => _flattenReferenceOverlayItem(item))
+        .toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchFondPlanOverlay() async {
+    final items = await fetchData('reference-overlays/fond-plan');
+    return items
+        .whereType<Map>()
+        .map((item) => _flattenReferenceOverlayItem(item))
+        .toList();
+  }
+
+  static Map<String, dynamic> _flattenReferenceOverlayItem(Map rawItem) {
+    final item = Map<String, dynamic>.from(rawItem);
+    final properties = item['properties'] is Map
+        ? Map<String, dynamic>.from(item['properties'] as Map)
+        : Map<String, dynamic>.from(item);
+
+    final geometry = item['geometry'] ?? properties['geometry_geojson'];
+    if (geometry != null) {
+      properties['geometry_geojson'] =
+          geometry is String ? geometry : jsonEncode(geometry);
+    }
+    return properties;
+  }
+
   static Future<Map<String, dynamic>> updateTerrainIntervention({
     required int idIntervention,
     required String etatTerrain,
@@ -562,7 +592,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout intervention terrain');
     } on SocketException {
-      throw Exception('Erreur reseau intervention terrain');
+      throw Exception('Erreur réseau intervention terrain');
     } on FormatException {
       throw Exception('Reponse intervention terrain invalide');
     }
@@ -668,9 +698,9 @@ class ApiService {
       }
       return null;
     } on SocketException catch (e) {
-      debugPrint('Erreur reseau $endpoint: $e');
+      debugPrint('Erreur réseau $endpoint: $e');
       if (throwOnError) {
-        throw Exception('Erreur reseau POST $endpoint');
+        throw Exception('Erreur réseau POST $endpoint');
       }
       return null;
     } catch (e) {
@@ -718,7 +748,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout manifeste sync');
     } on SocketException {
-      throw Exception('Erreur reseau manifeste sync');
+      throw Exception('Erreur réseau manifeste sync');
     } on FormatException {
       throw Exception('Reponse manifeste sync invalide');
     }
@@ -783,7 +813,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout upload photo');
     } on SocketException {
-      throw Exception('Erreur reseau upload photo');
+      throw Exception('Erreur réseau upload photo');
     }
   }
 
@@ -847,7 +877,7 @@ class ApiService {
     } on TimeoutException catch (_) {
       throw Exception('Timeout GET $endpoint');
     } on SocketException catch (_) {
-      throw Exception('Erreur reseau GET $endpoint');
+      throw Exception('Erreur réseau GET $endpoint');
     } catch (e) {
       throw Exception('Erreur GET $endpoint: $e');
     }
@@ -963,7 +993,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout GET $endpoint');
     } on SocketException {
-      throw Exception('Erreur reseau GET $endpoint');
+      throw Exception('Erreur réseau GET $endpoint');
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Erreur GET $endpoint: $e');
@@ -1077,7 +1107,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout lecture conduite du jour');
     } on SocketException {
-      throw Exception('Erreur reseau lecture conduite du jour');
+      throw Exception('Erreur réseau lecture conduite du jour');
     } on FormatException {
       throw Exception('Réponse conduite du jour invalide');
     }
@@ -1143,7 +1173,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout validation conduite');
     } on SocketException {
-      throw Exception('Erreur reseau validation conduite');
+      throw Exception('Erreur réseau validation conduite');
     } on FormatException {
       throw Exception('Réponse validation conduite invalide');
     }

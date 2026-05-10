@@ -277,10 +277,40 @@ class PhotoUploadSerializer(serializers.Serializer):
     }
     max_photo_bytes = 5 * 1024 * 1024
 
+    def _has_allowed_signature(self, extension, header):
+        if extension in ('.jpg', '.jpeg'):
+            return header.startswith(b'\xff\xd8\xff')
+        if extension == '.png':
+            return header.startswith(b'\x89PNG\r\n\x1a\n')
+        if extension == '.webp':
+            return (
+                len(header) >= 12
+                and header[:4] == b'RIFF'
+                and header[8:12] == b'WEBP'
+            )
+        if extension in ('.heic', '.heif'):
+            return b'ftyp' in header[:16] and any(
+                brand in header[:32]
+                for brand in (
+                    b'heic',
+                    b'heix',
+                    b'hevc',
+                    b'hevx',
+                    b'heif',
+                    b'mif1',
+                    b'msf1',
+                )
+            )
+        return False
+
     def validate_file(self, value):
         file_name = getattr(value, 'name', '') or ''
         lowered = file_name.lower()
-        if not any(lowered.endswith(ext) for ext in self.allowed_photo_extensions):
+        extension = next(
+            (ext for ext in self.allowed_photo_extensions if lowered.endswith(ext)),
+            None,
+        )
+        if extension is None:
             raise serializers.ValidationError(
                 'Extension photo non autorisée (jpg, jpeg, png, webp, heic, heif)'
             )
@@ -290,6 +320,19 @@ class PhotoUploadSerializer(serializers.Serializer):
 
         if value.size > self.max_photo_bytes:
             raise serializers.ValidationError('Photo trop volumineuse (maximum 5 Mo)')
+
+        try:
+            position = value.tell()
+        except (AttributeError, OSError):
+            position = None
+        header = value.read(32)
+        try:
+            value.seek(position or 0)
+        except (AttributeError, OSError):
+            pass
+
+        if not self._has_allowed_signature(extension, header):
+            raise serializers.ValidationError('Signature fichier photo invalide')
 
         return value
 

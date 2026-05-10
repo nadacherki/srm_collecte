@@ -2,6 +2,9 @@ part of 'home_page.dart';
 
 const String _epRegardMiroirOverlayTable = 'ep_regard';
 const double _regardMiroirLocalSquareSizeMeters = 24.0;
+const Color _zoneOverlayColor = Color(0xFF1565C0);
+const Color _plancheOverlayColor = Color(0xFF455A64);
+
 Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
   debugPrint('[LINE-DOWNLOAD] chargement des polylignes téléchargées');
   try {
@@ -39,6 +42,116 @@ Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
     debugPrint('[LINE-DOWNLOAD] erreur: $e');
   }
   debugPrint('[LINE-DOWNLOAD] chargement termine');
+}
+
+Future<void> _loadReferenceOverlaysImpl(_HomePageState state) async {
+  try {
+    final db = DatabaseHelper();
+    final zones = await db.getZonesLocal(activeOnly: true);
+    final planches = await db.getPlancheOverlayLocal();
+    final fondPlan = await db.getFondPlanOverlayLocal();
+
+    final zonePolygons = <Polygon>[];
+    for (final zone in zones) {
+      for (final points in _polygonRingsFromGeoJsonImpl(
+        zone['geometry_geojson'],
+      )) {
+        if (points.length < 3) continue;
+        zonePolygons.add(
+          Polygon(
+            points: points,
+            color: _zoneOverlayColor.withValues(alpha: 0.05),
+            borderColor: _zoneOverlayColor.withValues(alpha: 0.82),
+            borderStrokeWidth: 1.4,
+            hitValue: PolygonTapData(
+              nom: _displayValueImpl(zone['nom_zone'], fallback: 'Zone'),
+              code: _displayValueImpl(zone['id_zone'], fallback: '----'),
+              entityType: 'Zone',
+              metier: 'Contexte',
+              superficie: 0.0,
+              nbSommets: points.length,
+              enqueteur: '',
+              dateCreation: '',
+              synced: true,
+              downloaded: true,
+              statusOverride: 'Couche contexte offline',
+              extraDetails: _compactDetailsImpl({
+                'Nom': zone['nom_zone'],
+                'État': zone['etat'],
+              }),
+            ),
+          ),
+        );
+      }
+    }
+
+    final planchePolygons = <Polygon>[];
+    for (final planche in planches) {
+      for (final points in _polygonRingsFromGeoJsonImpl(
+        planche['geometry_geojson'],
+      )) {
+        if (points.length < 3) continue;
+        planchePolygons.add(
+          Polygon(
+            points: points,
+            color: _plancheOverlayColor.withValues(alpha: 0.015),
+            borderColor: _plancheOverlayColor.withValues(alpha: 0.44),
+            borderStrokeWidth: 0.7,
+            hitValue: PolygonTapData(
+              nom:
+                  'Planche ${_displayValueImpl(planche['numero'], fallback: '')}'
+                      .trim(),
+              code: _displayValueImpl(planche['id'], fallback: '----'),
+              entityType: 'Planche',
+              metier: 'Contexte',
+              superficie: 0.0,
+              nbSommets: points.length,
+              enqueteur: '',
+              dateCreation: '',
+              synced: true,
+              downloaded: true,
+              statusOverride: 'Couche contexte offline',
+              extraDetails: _compactDetailsImpl({
+                'Numéro': planche['numero'],
+              }),
+            ),
+          ),
+        );
+      }
+    }
+
+    final fondPlanPolylines = <Polyline>[];
+    for (final feature in fondPlan) {
+      final color = _fondPlanPolylineColorImpl(feature['color']);
+      final strokeWidth = _fondPlanStrokeWidthImpl(feature['linewidth']);
+      for (final points in _lineStringsFromGeoJsonImpl(
+        feature['geometry_geojson'],
+      )) {
+        if (points.length < 2) continue;
+        fondPlanPolylines.add(
+          Polyline(
+            points: points,
+            color: color,
+            strokeWidth: strokeWidth,
+          ),
+        );
+      }
+    }
+
+    if (!state.mounted) return;
+    state._setStateFromPart(() {
+      state._referenceZonePolygons = zonePolygons;
+      state._referencePlanchePolygons = planchePolygons;
+      state._referenceFondPlanPolylines = fondPlanPolylines;
+      state._referenceOverlayCounts = {
+        'overlay_zones': zonePolygons.length,
+        'overlay_planche': planchePolygons.length,
+        'overlay_fond_plan': fondPlanPolylines.length,
+      };
+    });
+  } catch (e) {
+    debugPrint('[REFERENCE-OVERLAYS] chargement local ignore: $e');
+  }
 }
 
 double _deg2radImpl(double deg) => deg * (math.pi / 180.0);
@@ -460,6 +573,22 @@ double? _toDoubleImpl(dynamic value) {
   return double.tryParse(value.toString());
 }
 
+String _displayValueImpl(dynamic value, {String fallback = '----'}) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty || text.toLowerCase() == 'null') return fallback;
+  return text;
+}
+
+Map<String, String> _compactDetailsImpl(Map<String, dynamic> rawDetails) {
+  final details = <String, String>{};
+  for (final entry in rawDetails.entries) {
+    final value = _displayValueImpl(entry.value, fallback: '');
+    if (value.isEmpty) continue;
+    details[entry.key] = value;
+  }
+  return details;
+}
+
 double? _positiveDoubleImpl(dynamic value) {
   final parsed = _toDoubleImpl(value);
   if (parsed == null || parsed <= 0) return null;
@@ -524,6 +653,127 @@ List<LatLng> _extractPolygonPointsImpl(dynamic rawPoints) {
   } catch (_) {
     return [];
   }
+}
+
+List<List<LatLng>> _polygonRingsFromGeoJsonImpl(dynamic rawGeometry) {
+  final geometry = _decodeGeoJsonGeometryImpl(rawGeometry);
+  if (geometry is! Map) return const [];
+
+  final type = geometry['type']?.toString();
+  final coordinates = geometry['coordinates'];
+  if (type == 'Polygon' && coordinates is List) {
+    final ring = coordinates.isNotEmpty ? coordinates.first : null;
+    final points = _positionsToLatLngImpl(ring);
+    return points.length >= 3 ? [points] : const [];
+  }
+  if (type == 'MultiPolygon' && coordinates is List) {
+    final rings = <List<LatLng>>[];
+    for (final polygon in coordinates) {
+      if (polygon is! List || polygon.isEmpty) continue;
+      final points = _positionsToLatLngImpl(polygon.first);
+      if (points.length >= 3) rings.add(points);
+    }
+    return rings;
+  }
+  if (type == 'GeometryCollection' && geometry['geometries'] is List) {
+    return (geometry['geometries'] as List)
+        .expand(_polygonRingsFromGeoJsonImpl)
+        .toList();
+  }
+  return const [];
+}
+
+List<List<LatLng>> _lineStringsFromGeoJsonImpl(dynamic rawGeometry) {
+  final geometry = _decodeGeoJsonGeometryImpl(rawGeometry);
+  if (geometry is! Map) return const [];
+
+  final type = geometry['type']?.toString();
+  final coordinates = geometry['coordinates'];
+  if (type == 'LineString' && coordinates is List) {
+    final points = _positionsToLatLngImpl(coordinates);
+    return points.length >= 2 ? [points] : const [];
+  }
+  if ((type == 'MultiLineString' || type == 'MultiCurve') &&
+      coordinates is List) {
+    final lines = <List<LatLng>>[];
+    for (final line in coordinates) {
+      final points = _positionsToLatLngImpl(line);
+      if (points.length >= 2) lines.add(points);
+    }
+    return lines;
+  }
+  if (type == 'GeometryCollection' && geometry['geometries'] is List) {
+    return (geometry['geometries'] as List)
+        .expand(_lineStringsFromGeoJsonImpl)
+        .toList();
+  }
+  return const [];
+}
+
+dynamic _decodeGeoJsonGeometryImpl(dynamic rawGeometry) {
+  if (rawGeometry == null) return null;
+  if (rawGeometry is Map) return rawGeometry;
+  if (rawGeometry is String) {
+    final trimmed = rawGeometry.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      return jsonDecode(trimmed);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+List<LatLng> _positionsToLatLngImpl(dynamic rawPositions) {
+  if (rawPositions is! List) return const [];
+  final points = <LatLng>[];
+  for (final item in rawPositions) {
+    final point = _latLngFromGeoJsonPositionImpl(item);
+    if (point != null) points.add(point);
+  }
+  if (points.length >= 2 && _samePointImpl(points.first, points.last)) {
+    return points.sublist(0, points.length - 1);
+  }
+  return points;
+}
+
+LatLng? _latLngFromGeoJsonPositionImpl(dynamic rawPosition) {
+  if (rawPosition is! List || rawPosition.length < 2) return null;
+  final x = _toDoubleImpl(rawPosition[0]);
+  final y = _toDoubleImpl(rawPosition[1]);
+  if (x == null || y == null) return null;
+
+  if (x.abs() <= 180 && y.abs() <= 90) {
+    return LatLng(y, x);
+  }
+
+  final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+  return LatLng(projected.latitude, projected.longitude);
+}
+
+Color _fondPlanPolylineColorImpl(dynamic rawColor) {
+  final text = rawColor?.toString().trim() ?? '';
+  final parts = text
+      .split(',')
+      .map((part) => int.tryParse(part.trim()))
+      .whereType<int>()
+      .toList();
+  if (parts.length >= 3) {
+    final r = parts[0].clamp(0, 255).toInt();
+    final g = parts[1].clamp(0, 255).toInt();
+    final b = parts[2].clamp(0, 255).toInt();
+    final a = parts.length >= 4 ? parts[3].clamp(0, 255).toInt() : 255;
+    final displayAlpha = (a * 0.70).round().clamp(60, 210).toInt();
+    return Color.fromARGB(displayAlpha, r, g, b);
+  }
+  return const Color(0xFF555555).withValues(alpha: 0.58);
+}
+
+double _fondPlanStrokeWidthImpl(dynamic rawWidth) {
+  final width = _toDoubleImpl(rawWidth);
+  if (width == null || width <= 0) return 0.8;
+  return width.clamp(0.6, 2.4).toDouble();
 }
 
 bool _samePointImpl(LatLng a, LatLng b, {double tolerance = 0.0000001}) {

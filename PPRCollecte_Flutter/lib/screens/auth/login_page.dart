@@ -15,6 +15,7 @@ import '../../services/public_metrics_cache_service.dart';
 import '../../services/srm_field_option_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
 import '../../services/formulaire_config_mobile_service.dart';
+import '../../services/reference_overlay_sync_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -81,6 +82,33 @@ class _LoginPageState extends State<LoginPage> {
       await CommuneSyncService().refreshCommunes();
     } catch (e) {
       debugPrint('[COMMUNES] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshReferenceOverlaysSilently() async {
+    try {
+      await ReferenceOverlaySyncService().refreshLightOverlays();
+    } catch (e) {
+      debugPrint('[REFERENCE-OVERLAYS] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<String?> _refreshPublicMetricsSilently() async {
+    try {
+      final snapshot = await PublicMetricsCacheService()
+          .prefetchForCurrentSession(
+              requestTimeout: const Duration(seconds: 4));
+      if (snapshot.hasAnyData) {
+        final error = snapshot.error?.trim();
+        if (error != null && error.isNotEmpty) {
+          debugPrint('[METRICS] Refresh partiel au login: $error');
+        }
+        return null;
+      }
+      return snapshot.error ?? 'Aucune metrique serveur recue au login.';
+    } catch (e) {
+      debugPrint('[METRICS] Sync ignoree au login: $e');
+      return e.toString();
     }
   }
 
@@ -224,8 +252,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Optimisation login : on parallelise tous les refreshes au lieu de
       // les enchainer en serie (avant ~10-15s d'attente). Tout part en
-      // background -> l'agent atterrit sur la HomePage en quelques
-      // centaines de ms.
+      // background -> l'agent atterrit sur la HomePage rapidement.
       //
       // Le basemap est un cas particulier : si deja en cache local et
       // sha256 OK, ensureRegionalBasemapDownloaded() retourne en ~50ms;
@@ -233,26 +260,26 @@ class _LoginPageState extends State<LoginPage> {
       // accorde une courte fenetre (3s) pour le cas "deja a jour", puis
       // on bascule en background sans bloquer l'UI.
       final basemapFuture = _refreshBasemapCatalogSilently();
+      final metricsFuture = _refreshPublicMetricsSilently();
       unawaited(_refreshAttributConfigMobileSilently());
       unawaited(_refreshFormulaireConfigMobileSilently());
       unawaited(_refreshSrmFieldOptionsSilently());
       unawaited(_refreshCommunesSilently());
-      unawaited(
-        PublicMetricsCacheService()
-            .prefetchForCurrentSession()
-            .catchError((_) {}),
-      );
+      unawaited(_refreshReferenceOverlaysSilently());
 
       String? basemapError;
       try {
-        basemapError =
-            await basemapFuture.timeout(const Duration(seconds: 3));
+        basemapError = await basemapFuture.timeout(const Duration(seconds: 3));
       } on TimeoutException {
         // Le download continue en arriere-plan : le mobile affichera la
         // carte des qu'elle est prete via _hydrateOfflineBasemapState.
         basemapError = null;
       } catch (_) {
         basemapError = null;
+      }
+      final metricsError = await metricsFuture;
+      if (metricsError != null && metricsError.trim().isNotEmpty) {
+        debugPrint('[METRICS] Non chargees au login: $metricsError');
       }
 
       final fullName = userData['nom_complet'] ?? 'Agent SRM';

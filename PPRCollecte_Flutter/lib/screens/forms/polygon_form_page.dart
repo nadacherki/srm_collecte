@@ -56,7 +56,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   final _nomController = TextEditingController();
   final _codeGpsController = TextEditingController();
 
-  // Champs SRM pour Regard EP et Planche
+  // Champs SRM pour Regard EP
   final _epNumController = TextEditingController();
   final _epTypeController = TextEditingController();
   final _epFormeController = TextEditingController();
@@ -1192,17 +1192,6 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               for (final field
                   in SrmConfig.getFields(widget.metier, widget.entityType))
                 _buildRegardEpField(field),
-            ] else if (widget.entityType == 'Planche') ...[
-              _buildTextField(
-                label: 'Nom de la planche',
-                hint: 'Ex: Planche_01',
-                controller: _nomController,
-              ),
-              _buildTextField(
-                label: 'Code',
-                hint: '',
-                controller: _codeGpsController,
-              ),
             ],
           ],
         ),

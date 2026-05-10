@@ -837,18 +837,6 @@ class SrmConfig {
           ],
           "requiredFields": ["ep_etat", "conformite_plan"],
         },
-        "Planche": {
-          "tableName": "planche",
-          "schema": "ep",
-          "geometryType": "Polygon",
-          "hasZ": false,
-          "isPolygon": true,
-          "maxPhotos": 0,
-          "typeField": null,
-          "typeOptions": [],
-          "fields": ["nom", "code"],
-          "requiredFields": ["nom", "code"],
-        },
         "Autre Objet EP": {
           "tableName": "autre_objet",
           "schema": "ep",

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -29,6 +30,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final DatabaseHelper _db = DatabaseHelper();
+  late final FormulaireConfigMobileService _formulaireConfigService;
   late final PublicMetricsCacheService _metricsCache;
 
   bool _isLoading = true;
@@ -65,9 +67,14 @@ class _ProfilePageState extends State<ProfilePage> {
       _weekMetrics != null ||
       _monthMetrics != null;
 
+  bool get _hasPeriodMetrics =>
+      _dayMetrics != null || _weekMetrics != null || _monthMetrics != null;
+
   @override
   void initState() {
     super.initState();
+    _formulaireConfigService =
+        FormulaireConfigMobileService(databaseHelper: _db);
     _metricsCache = PublicMetricsCacheService(databaseHelper: _db);
     _loadData();
   }
@@ -177,9 +184,10 @@ class _ProfilePageState extends State<ProfilePage> {
     var polygones = 0;
 
     for (final metier in SrmConfig.getMetiers()) {
-      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName == null || tableName.isEmpty) {
+      final entities = await _profileEntitiesForMetier(metier);
+      for (final entity in entities) {
+        final tableName = entity.tableName;
+        if (tableName.isEmpty) {
           continue;
         }
 
@@ -205,11 +213,13 @@ class _ProfilePageState extends State<ProfilePage> {
             }
           }
 
-          final config = SrmConfig.getEntityConfig(metier, entity);
-          final geometryType = config?['geometryType'] as String? ?? 'Point';
-          if (geometryType == 'Point') points += count;
-          if (geometryType == 'LineString') lignes += count;
-          if (geometryType == 'Polygon') polygones += count;
+          if (entity.isPolygon) {
+            polygones += count;
+          } else if (entity.isLine) {
+            lignes += count;
+          } else {
+            points += count;
+          }
         } catch (_) {
           // Table absente localement.
         }
@@ -237,6 +247,33 @@ class _ProfilePageState extends State<ProfilePage> {
       totalLignes: lignes,
       totalPolygones: polygones,
     );
+  }
+
+  Future<List<FormulaireConfigMobileEntity>> _profileEntitiesForMetier(
+    String metier,
+  ) async {
+    final entities = <FormulaireConfigMobileEntity>[];
+    final seenTables = <String>{};
+
+    for (final geometryFilter in const ['point', 'line', 'polygon']) {
+      final configured = await _formulaireConfigService.getMobileEntities(
+        mobileMetier: metier,
+        geometryFilter: geometryFilter,
+        refreshIfEmpty: false,
+      );
+      for (final entity in configured) {
+        final tableName = entity.tableName.trim();
+        if (tableName.isEmpty) {
+          continue;
+        }
+        final key = '${entity.schema}.$tableName'.toLowerCase();
+        if (seenTables.add(key)) {
+          entities.add(entity);
+        }
+      }
+    }
+
+    return entities;
   }
 
   bool _isLocalFlagEnabled(dynamic value) {
@@ -281,14 +318,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   _buildProfileCard(),
                   const SizedBox(height: 16),
-                  if (_hasServerMetrics || _metricsError == null) ...[
+                  if (_resumeMetrics != null) ...[
                     _buildPublicOverviewSection(),
                     const SizedBox(height: 16),
                     _buildPublicQualitySection(),
                     const SizedBox(height: 16),
+                  ],
+                  if (_hasPeriodMetrics) ...[
                     _buildPublicPeriodsSection(),
                     const SizedBox(height: 16),
-                  ] else ...[
+                  ],
+                  if (!_hasServerMetrics) ...[
                     _buildMetricsUnavailableSection(),
                     const SizedBox(height: 16),
                   ],
@@ -370,15 +410,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   _nomPrenom.isNotEmpty ? _nomPrenom : widget.agentName,
                   style: const TextStyle(
                     fontSize: 18,
+                    height: 1.18,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1B4F72),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
-                  _login.isNotEmpty ? '@$_login' : '@agent',
+                  _login.isNotEmpty ? _login : 'agent',
                   style: const TextStyle(
                     fontSize: 14,
+                    height: 1.2,
                     color: Color(0xFF666666),
                   ),
                 ),
@@ -597,28 +639,34 @@ class _ProfilePageState extends State<ProfilePage> {
       title: 'Périodes en cours',
       color: const Color(0xFF16A085),
       children: [
-        _buildPeriodCard(
-          title: 'Aujourd\'hui',
-          subtitle: _formatDateLabel(
-            _dayMetrics?['jour'] ?? DateTime.now().toIso8601String(),
+        if (_dayMetrics != null)
+          _buildPeriodCard(
+            title: 'Aujourd\'hui',
+            subtitle: _formatDateLabel(
+              _dayMetrics?['jour'] ?? DateTime.now().toIso8601String(),
+            ),
+            metrics: _dayMetrics,
+            color: const Color(0xFF1976D2),
           ),
-          metrics: _dayMetrics,
-          color: const Color(0xFF1976D2),
-        ),
-        const SizedBox(height: 12),
-        _buildPeriodCard(
-          title: 'Semaine',
-          subtitle: _weekPeriodLabel(),
-          metrics: _weekMetrics,
-          color: const Color(0xFF27AE60),
-        ),
-        const SizedBox(height: 12),
-        _buildPeriodCard(
-          title: 'Mois',
-          subtitle: _monthPeriodLabel(),
-          metrics: _monthMetrics,
-          color: const Color(0xFFF39C12),
-        ),
+        if (_dayMetrics != null && _weekMetrics != null)
+          const SizedBox(height: 12),
+        if (_weekMetrics != null)
+          _buildPeriodCard(
+            title: 'Semaine',
+            subtitle: _weekPeriodLabel(),
+            metrics: _weekMetrics,
+            color: const Color(0xFF27AE60),
+          ),
+        if ((_dayMetrics != null || _weekMetrics != null) &&
+            _monthMetrics != null)
+          const SizedBox(height: 12),
+        if (_monthMetrics != null)
+          _buildPeriodCard(
+            title: 'Mois',
+            subtitle: _monthPeriodLabel(),
+            metrics: _monthMetrics,
+            color: const Color(0xFFF39C12),
+          ),
       ],
     );
   }
@@ -632,7 +680,7 @@ class _ProfilePageState extends State<ProfilePage> {
           icon: Icons.cloud_off_outlined,
           color: const Color(0xFFF39C12),
           text: _metricsError ??
-              'Les métriques serveur ne sont pas disponibles pour le moment.',
+              'Aucune métrique serveur chargée pour cet agent. Rafraîchissez pour vérifier.',
         ),
       ],
     );

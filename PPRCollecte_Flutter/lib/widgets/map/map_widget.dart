@@ -33,6 +33,7 @@ class MapWidget extends StatefulWidget {
   final List<Polyline> polylines;
   final List<Polygon> polygons;
   final Function(Object?)? onPolygonTap;
+  final Function(Object?)? onPolygonLongPress;
   final Function(MapController) onMapCreated;
   final List<Marker> formMarkers;
   final bool isSatellite;
@@ -61,6 +62,7 @@ class MapWidget extends StatefulWidget {
     required this.polylines,
     this.polygons = const [],
     this.onPolygonTap,
+    this.onPolygonLongPress,
     required this.onMapCreated,
     required this.formMarkers,
     this.isSatellite = false,
@@ -149,8 +151,6 @@ class _MapWidgetState extends State<MapWidget> {
   String? _requestedBasemapPath;
   String? _requestedBasemapFormat;
   String? _basemapLoadError;
-  String? _vectorDetailsSummary;
-  String? _vectorDetailsWarning;
   Set<String> _vectorSpriteNames = const {};
   List<Marker> _offlinePoiMarkers = const [];
   Timer? _offlinePoiRefreshTimer;
@@ -226,6 +226,13 @@ class _MapWidgetState extends State<MapWidget> {
     final hitResult = _polygonHitNotifier.value;
     if (hitResult != null && hitResult.hitValues.isNotEmpty) {
       widget.onPolygonTap?.call(hitResult.hitValues.first);
+    }
+  }
+
+  void _onPolygonLongPress() {
+    final hitResult = _polygonHitNotifier.value;
+    if (hitResult != null && hitResult.hitValues.isNotEmpty) {
+      widget.onPolygonLongPress?.call(hitResult.hitValues.first);
     }
   }
 
@@ -307,8 +314,6 @@ class _MapWidgetState extends State<MapWidget> {
       _vectorTileProvider = null;
       _vectorTheme = null;
       _vectorSprites = null;
-      _vectorDetailsSummary = null;
-      _vectorDetailsWarning = null;
       _loadedBasemapPath = null;
       _loadedBasemapFormat = normalizedFormat;
       _basemapLoadError = null;
@@ -403,8 +408,6 @@ class _MapWidgetState extends State<MapWidget> {
         _vectorTileProvider = vectorProvider;
         _vectorTheme = vectorTheme;
         _vectorSprites = vectorSprites;
-        _vectorDetailsSummary = vectorDetailsSummary;
-        _vectorDetailsWarning = vectorDetailsWarning;
         _loadedBasemapPath = basemapPath;
         _loadedBasemapFormat = normalizedFormat;
         _isBasemapLoading = false;
@@ -434,8 +437,6 @@ class _MapWidgetState extends State<MapWidget> {
       debugPrint('[BASEMAP] Erreur chargement offline ($normalizedFormat): $e');
       setState(() {
         _basemapLoadError = e.toString();
-        _vectorDetailsSummary = null;
-        _vectorDetailsWarning = null;
         _isBasemapLoading = false;
       });
     }
@@ -1617,50 +1618,18 @@ class _MapWidgetState extends State<MapWidget> {
               hitNotifier: _polylineHitNotifier,
             ),
             if (widget.polygons.isNotEmpty)
-              PolygonLayer(
-                polygons: widget.polygons,
-                hitNotifier: _polygonHitNotifier,
+              GestureDetector(
+                onLongPress: _onPolygonLongPress,
+                child: PolygonLayer(
+                  polygons: widget.polygons,
+                  hitNotifier: _polygonHitNotifier,
+                ),
               ),
             if (!showOnlineBasemap && _offlinePoiMarkers.isNotEmpty)
               MarkerLayer(markers: _offlinePoiMarkers),
             MarkerLayer(markers: allMarkers),
           ],
         ),
-        if (kDebugMode &&
-            !showOnlineBasemap &&
-            hasVectorBasemap &&
-            _vectorDetailsSummary != null &&
-            _basemapLoadError == null)
-          Positioned(
-            top: 8,
-            left: 12,
-            right: 70,
-            child: IgnorePointer(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: (_vectorDetailsWarning != null
-                          ? Colors.orange
-                          : Colors.black)
-                      .withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _vectorDetailsWarning == null
-                      ? _vectorDetailsSummary!
-                      : '$_vectorDetailsSummary\n$_vectorDetailsWarning',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ),
         if (_isBasemapLoading || basemapMessage != null)
           Positioned(
             top: 8,
@@ -1745,7 +1714,7 @@ class _MapWidgetState extends State<MapWidget> {
           ),
         if (widget.showMapButtons)
           Positioned(
-            right: 5,
+            right: 10,
             bottom: 10,
             child: Column(
               children: [
@@ -1783,7 +1752,7 @@ class _MapWidgetState extends State<MapWidget> {
                   child: IconButton(
                     icon: const Icon(Icons.remove, color: Colors.black87),
                     onPressed: _zoomOut,
-                    tooltip: 'Zoom arriere',
+                    tooltip: 'Zoom arrière',
                   ),
                 ),
               ],
@@ -1862,7 +1831,7 @@ class MapTypeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 55,
+      top: 70,
       right: 10,
       child: Container(
         decoration: BoxDecoration(
@@ -1925,7 +1894,7 @@ class DownloadedLinesToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 100,
+      top: 130,
       right: 10,
       child: Container(
         decoration: BoxDecoration(

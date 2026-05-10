@@ -46,6 +46,7 @@ extension _HomePageAppActions on _HomePageState {
       _setStateFromPart(() => lastSyncResult = result);
 
       await _hydrateOfflineBasemapState();
+      await _loadReferenceOverlays();
       await _refreshAllPoints();
       await _loadDisplayedLines();
       await _loadDisplayedSrmLines();
@@ -153,6 +154,7 @@ extension _HomePageAppActions on _HomePageState {
     final value = error.toString().toLowerCase();
     if (value.contains('connexion interrompue') ||
         value.contains('erreur reseau') ||
+        value.contains('erreur réseau') ||
         value.contains('timeout') ||
         value.contains('socketexception') ||
         value.contains('clientexception') ||

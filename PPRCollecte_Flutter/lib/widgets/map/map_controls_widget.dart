@@ -61,7 +61,7 @@ class MapControlsWidget extends StatelessWidget {
       children: [
         Positioned(
           top: 8,
-          right: 55,
+          right: 70,
           child: FloatingActionButton(
             heroTag: 'refreshBtn',
             mini: true,
@@ -74,8 +74,8 @@ class MapControlsWidget extends StatelessWidget {
         ),
         Positioned(
           bottom: 10,
-          left: 0,
-          right: 50,
+          left: 10,
+          right: 80,
           child: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -149,7 +149,7 @@ class MapControlsWidget extends StatelessWidget {
     if (isManualCollectionActive) {
       if (compact) {
         return Tooltip(
-          message: 'Ajouter un point au trace',
+          message: 'Ajouter un point au tracé',
           child: FloatingActionButton(
             heroTag: 'addPointBtn',
             mini: true,
@@ -260,7 +260,7 @@ class MapControlsWidget extends StatelessWidget {
             icon: Icons.undo,
             color: const Color(0xFF455A64),
             onPressed: ligneCollection.points.isNotEmpty ? onUndoLigne : null,
-            tooltip: 'Revenir en arriere',
+            tooltip: 'Revenir en arrière',
           ),
           const SizedBox(width: 6),
           _buildTraceActionButton(
@@ -268,7 +268,7 @@ class MapControlsWidget extends StatelessWidget {
             icon: Icons.redo,
             color: const Color(0xFF455A64),
             onPressed: canRedoLigne ? onRedoLigne : null,
-            tooltip: 'Retablir',
+            tooltip: 'Rétablir',
           ),
           const SizedBox(width: 6),
           _buildTraceActionButton(
@@ -284,7 +284,7 @@ class MapControlsWidget extends StatelessWidget {
             icon: Icons.close,
             color: const Color(0xFFE53E3E),
             onPressed: onCancelLigne,
-            tooltip: 'Annuler le trace',
+            tooltip: 'Annuler le tracé',
           ),
           const SizedBox(width: 6),
           _buildTraceActionButton(
@@ -333,7 +333,7 @@ class MapControlsWidget extends StatelessWidget {
             color: const Color(0xFF455A64),
             onPressed:
                 polygonCollection.points.isNotEmpty ? onUndoPolygon : null,
-            tooltip: 'Revenir en arriere',
+            tooltip: 'Revenir en arrière',
           ),
           const SizedBox(width: 6),
           _buildTraceActionButton(
@@ -341,7 +341,7 @@ class MapControlsWidget extends StatelessWidget {
             icon: Icons.redo,
             color: const Color(0xFF455A64),
             onPressed: canRedoPolygon ? onRedoPolygon : null,
-            tooltip: 'Retablir',
+            tooltip: 'Rétablir',
           ),
           const SizedBox(width: 6),
           _buildTraceActionButton(

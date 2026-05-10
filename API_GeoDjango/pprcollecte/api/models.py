@@ -1,16 +1,16 @@
 """
-ModÃ¨les Django pour la base de donnÃ©es SIG SRM.
+Modèles Django pour la base de données SIG SRM.
 
-IMPORTANT : managed = False sur tous les modÃ¨les car les tables existent dÃ©jÃ 
-dans la base sig_srm. Django ne crÃ©e ni ne modifie les tables â€” il les lit.
+IMPORTANT : managed = False sur tous les modèles car les tables existent déjà
+dans la base sig_srm. Django ne crée ni ne modifie les tables - il les lit.
 
 Organisation :
-  - SchÃ©ma public : Utilisateur, Commune, Zone, synchronisation, etc.
-  - SchÃ©ma ep     : Eau Potable (27 tables)
-  - SchÃ©ma ass    : Assainissement (9 tables)
-  - SchÃ©ma elec   : Ã‰lectricitÃ© (11 tables)
+  - Schéma public : Utilisateur, Commune, Zone, synchronisation, etc.
+  - Schéma ep     : Eau Potable (27 tables)
+  - Schéma ass    : Assainissement (9 tables)
+  - Schéma elec   : Électricité (11 tables)
 
-Toutes les gÃ©omÃ©tries sont en EPSG:26191 (Merchich Nord).
+Toutes les géométries sont en EPSG:26191 (Merchich Nord).
 """
 
 from django.contrib.gis.db import models
@@ -35,7 +35,7 @@ class SrmTrackedModel(models.Model):
 
 
 # =====================================================================
-#  SCHÃ‰MA PUBLIC â€” Tables de gestion (8 tables)
+#  SCHÉMA PUBLIC - Tables de gestion (8 tables)
 # =====================================================================
 
 class Utilisateur(models.Model):
@@ -466,7 +466,7 @@ class ListeChoix(models.Model):
 
 
 # =====================================================================
-#  SCHÃ‰MA EP â€” Eau Potable : PONCTUELS (tables 1 Ã  22)
+#  SCHÉMA EP - Eau Potable : PONCTUELS (tables 1 à 22)
 # =====================================================================
 
 class EpRegard(models.Model):

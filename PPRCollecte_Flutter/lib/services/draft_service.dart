@@ -15,6 +15,140 @@ class DraftService {
   factory DraftService() => _instance;
   DraftService._internal();
 
+  static bool hasMeaningfulDraftContent({
+    required Map<String, String> formData,
+    Map<int, String?>? photoPaths,
+    Map<String, dynamic>? extraState,
+  }) {
+    final hasFormData = formData.entries.any(
+      (entry) => isDraftFieldMeaningfulValue(entry.key, entry.value),
+    );
+    final hasPhotos =
+        photoPaths?.values.any((p) => (p ?? '').trim().isNotEmpty) ?? false;
+    final hasExtraState = extraState?.entries.any(
+          (entry) => isDraftExtraStateMeaningfulValue(entry.key, entry.value),
+        ) ??
+        false;
+    return hasFormData || hasPhotos || hasExtraState;
+  }
+
+  static bool isDraftFieldMeaningfulValue(String field, String value) {
+    final cleanValue = value.trim();
+    if (cleanValue.isEmpty) return false;
+    final key = field.trim().toLowerCase();
+    if (_isAutomaticDraftField(key)) return false;
+    if (_isNeutralDefaultDraftValue(key, cleanValue)) return false;
+    return true;
+  }
+
+  static bool isDraftExtraStateMeaningfulValue(String key, dynamic value) {
+    final cleanKey = key.trim().toLowerCase();
+    if ((cleanKey == 'typeanomalie' || cleanKey == 'type_anomalie') &&
+        value is String &&
+        _isNeutralDefaultDraftValue(cleanKey, value)) {
+      return false;
+    }
+    return _isMeaningfulDraftValue(value);
+  }
+
+  static bool _isAutomaticDraftField(String key) {
+    const automaticFields = {
+      'id',
+      'fid',
+      'uuid',
+      'source',
+      'mode_localisation',
+      'latitude',
+      'longitude',
+      'altitude',
+      'latitude_gps',
+      'longitude_gps',
+      'altitude_gps',
+      'altitude_z_moy',
+      'x',
+      'y',
+      'z',
+      'lat',
+      'lon',
+      'lng',
+      'x_debut',
+      'y_debut',
+      'x_fin',
+      'y_fin',
+      'lat_debut',
+      'lon_debut',
+      'lat_fin',
+      'lon_fin',
+      'distance_m',
+      'nb_points',
+      'points_json',
+      'id_agent_crea',
+      'id_user_creat',
+      'id_user_modif',
+      'id_commune',
+      'id_province',
+      'id_zone',
+      'id_mission',
+      'id_planche',
+      'date_collecte',
+      'date_sync',
+      'date_creation',
+      'date_modif',
+      'date_validation',
+      'code_gps',
+    };
+    if (automaticFields.contains(key)) return true;
+    if (RegExp(r'(^|_)(coor|coord|coords|coordinate)_?[xyz]$').hasMatch(key)) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool _isNeutralDefaultDraftValue(String key, String value) {
+    final normalized = _normalizeDraftValue(value);
+    if ((key.contains('anomalie') || key == 'typeanomalie') &&
+        const {'non', 'false', '0'}.contains(normalized)) {
+      return true;
+    }
+    if ((key.contains('conf') && key.contains('plan')) &&
+        normalized == 'objet decouvert') {
+      return true;
+    }
+    if (key == 'mode_localisation' &&
+        const {'gnss', 'gps', 'mock', 'nmea'}.contains(normalized)) {
+      return true;
+    }
+    return false;
+  }
+
+  static String _normalizeDraftValue(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('Ã©', 'e')
+        .replaceAll('Ã¨', 'e')
+        .replaceAll('Ãª', 'e')
+        .replaceAll('Ã«', 'e')
+        .replaceAll('Ã ', 'a')
+        .replaceAll('Ã¢', 'a')
+        .replaceAll('Ã¹', 'u')
+        .replaceAll('Ã»', 'u')
+        .replaceAll('Ã®', 'i')
+        .replaceAll('Ã¯', 'i')
+        .replaceAll('Ã´', 'o')
+        .replaceAll('Ã§', 'c');
+  }
+
+  static bool _isMeaningfulDraftValue(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is String) return value.trim().isNotEmpty;
+    if (value is num) return value != 0;
+    if (value is Iterable) return value.isNotEmpty;
+    if (value is Map) return value.isNotEmpty;
+    return true;
+  }
+
   // ══════════════════════════════════════════════════════
   // ██ TABLE CREATION (appelé par DatabaseHelper)
   // ══════════════════════════════════════════════════════
@@ -423,12 +557,123 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
     Map<int, String?>? photoPaths,
     Map<String, dynamic>? extraState,
   }) {
-    final hasFormData = formData.values.any((v) => v.trim().isNotEmpty);
+    final hasFormData = formData.entries.any(
+      (entry) => isDraftFieldMeaningful(entry.key, entry.value),
+    );
     final hasPhotos =
         photoPaths?.values.any((p) => (p ?? '').trim().isNotEmpty) ?? false;
-    final hasExtraState =
-        extraState?.values.any(_isMeaningfulDraftValue) ?? false;
+    final hasExtraState = extraState?.entries.any(
+          (entry) => isDraftExtraStateMeaningful(entry.key, entry.value),
+        ) ??
+        false;
     return hasFormData || hasPhotos || hasExtraState;
+  }
+
+  bool isDraftFieldMeaningful(String field, String value) {
+    final cleanValue = value.trim();
+    if (cleanValue.isEmpty) return false;
+    final key = field.trim().toLowerCase();
+    if (_isAutomaticDraftField(key)) return false;
+    if (_isNeutralDefaultDraftValue(key, cleanValue)) return false;
+    return true;
+  }
+
+  bool isDraftExtraStateMeaningful(String key, dynamic value) {
+    final cleanKey = key.trim().toLowerCase();
+    if ((cleanKey == 'typeanomalie' || cleanKey == 'type_anomalie') &&
+        value is String &&
+        _isNeutralDefaultDraftValue(cleanKey, value)) {
+      return false;
+    }
+    return _isMeaningfulDraftValue(value);
+  }
+
+  bool _isAutomaticDraftField(String key) {
+    const automaticFields = {
+      'id',
+      'fid',
+      'uuid',
+      'source',
+      'mode_localisation',
+      'latitude',
+      'longitude',
+      'altitude',
+      'latitude_gps',
+      'longitude_gps',
+      'altitude_gps',
+      'altitude_z_moy',
+      'x',
+      'y',
+      'z',
+      'lat',
+      'lon',
+      'lng',
+      'x_debut',
+      'y_debut',
+      'x_fin',
+      'y_fin',
+      'lat_debut',
+      'lon_debut',
+      'lat_fin',
+      'lon_fin',
+      'distance_m',
+      'nb_points',
+      'points_json',
+      'id_agent_crea',
+      'id_user_creat',
+      'id_user_modif',
+      'id_commune',
+      'id_province',
+      'id_zone',
+      'id_mission',
+      'id_planche',
+      'date_collecte',
+      'date_sync',
+      'date_creation',
+      'date_modif',
+      'date_validation',
+      'code_gps',
+    };
+    if (automaticFields.contains(key)) return true;
+    if (RegExp(r'(^|_)(coor|coord|coords|coordinate)_?[xyz]$').hasMatch(key)) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isNeutralDefaultDraftValue(String key, String value) {
+    final normalized = _normalizeDraftValue(value);
+    if ((key.contains('anomalie') || key == 'typeanomalie') &&
+        const {'non', 'false', '0'}.contains(normalized)) {
+      return true;
+    }
+    if ((key.contains('conf') && key.contains('plan')) &&
+        normalized == 'objet decouvert') {
+      return true;
+    }
+    if (key == 'mode_localisation' &&
+        const {'gnss', 'gps', 'mock', 'nmea'}.contains(normalized)) {
+      return true;
+    }
+    return false;
+  }
+
+  String _normalizeDraftValue(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ô', 'o')
+        .replaceAll('ç', 'c');
   }
 
   bool _isMeaningfulDraftValue(dynamic value) {

@@ -25,6 +25,35 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
 
+  @visibleForTesting
+  static Future<Database> openInMemoryDatabaseForTest({
+    bool includeSrmEntityTables = true,
+  }) async {
+    await resetForTest();
+    final db = await openDatabase(
+      inMemoryDatabasePath,
+      version: 21,
+      onCreate: (db, version) async {
+        await _instance._createAllTables(
+          db,
+          includeSrmEntityTables: includeSrmEntityTables,
+        );
+      },
+    );
+    _database = db;
+    return db;
+  }
+
+  @visibleForTesting
+  static Future<void> resetForTest() async {
+    final db = _database;
+    _database = null;
+    _isInitializing = false;
+    if (db != null && db.isOpen) {
+      await db.close();
+    }
+  }
+
   Future<Database> get database async {
     if (_database != null) {
       try {
@@ -142,8 +171,10 @@ class DatabaseHelper {
     await _createAttributConfigMobileLocalTable(db);
     await _createFormulaireConfigMobileLocalTable(db);
     await _createOnepDbLocalTable(db);
+    await _createRegardMiroirCacheTable(db);
     await _createCommuneLocalTable(db);
     await _createZoneLocalTables(db);
+    await _createReferenceOverlayLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
     if (includeSrmEntityTables) {
       await _createAllSrmEntityTables(db);
@@ -161,8 +192,10 @@ class DatabaseHelper {
     await _createAttributConfigMobileLocalTable(db);
     await _createFormulaireConfigMobileLocalTable(db);
     await _createOnepDbLocalTable(db);
+    await _createRegardMiroirCacheTable(db);
     await _ensureCommuneLocalTable(db);
     await _migrateZoneLocalTables(db);
+    await _migrateReferenceOverlayLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
     await _createPhotoSyncQueueTable(db);
     await _createLocalHistoryTable(db);
@@ -177,6 +210,7 @@ class DatabaseHelper {
     await _migratePhotoSyncQueueTable(db);
     await _createAllSrmEntityTables(db);
     await _assertAllSrmEntityTablesPresentAndAligned(db);
+    await _markLocalHistoryForAlreadySyncedObjects(db);
   }
 
   /// Crée ou migre la table objet_incomplet avec les colonnes PostgreSQL exactes
@@ -741,6 +775,26 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _createRegardMiroirCacheTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS regard_miroir_cache_local (
+        cache_key TEXT PRIMARY KEY,
+        uuid TEXT,
+        payload_json TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS regard_miroir_cache_uuid_idx
+      ON regard_miroir_cache_local (uuid)
+    ''');
+
+    await db.delete(
+      'app_metadata',
+      where: 'key = ?',
+      whereArgs: [_regardMiroirCacheKey()],
+    );
+  }
+
   Future<void> _createCommuneLocalTable(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS commune_oriental_local (
@@ -854,6 +908,60 @@ class DatabaseHelper {
         'id_user': 'INTEGER',
         'date_affectation': 'TEXT',
         'actif': 'INTEGER DEFAULT 1',
+      },
+    );
+  }
+
+  Future<void> _createReferenceOverlayLocalTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS planche_overlay_local (
+        id INTEGER PRIMARY KEY,
+        numero INTEGER,
+        geometry_geojson TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS planche_overlay_local_numero_idx
+      ON planche_overlay_local (numero)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS fond_plan_overlay_local (
+        fid INTEGER PRIMARY KEY,
+        layer TEXT,
+        color TEXT,
+        linewidth REAL,
+        geometry_geojson TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS fond_plan_overlay_local_layer_idx
+      ON fond_plan_overlay_local (layer)
+    ''');
+  }
+
+  Future<void> _migrateReferenceOverlayLocalTables(Database db) async {
+    await _createReferenceOverlayLocalTables(db);
+    await _ensureColumns(
+      db,
+      tableName: 'planche_overlay_local',
+      columns: const {
+        'id': 'INTEGER',
+        'numero': 'INTEGER',
+        'geometry_geojson': 'TEXT',
+      },
+    );
+    await _ensureColumns(
+      db,
+      tableName: 'fond_plan_overlay_local',
+      columns: const {
+        'fid': 'INTEGER',
+        'layer': 'TEXT',
+        'color': 'TEXT',
+        'linewidth': 'REAL',
+        'geometry_geojson': 'TEXT',
       },
     );
   }
@@ -1585,25 +1693,10 @@ class DatabaseHelper {
       objet_incomplet INTEGER DEFAULT 0
     ''';
 
-    // Colonnes du formulaire SRM (saisies par l'agent).
-    final formColumns = <String>{};
-    final dynamicColLines = <String>[];
-    for (final field in fields) {
-      if (!_isAllowedSrmColumn(field) || _isFixedCol(field)) continue;
-      if (!formColumns.add(field)) continue;
-      dynamicColLines.add('  $field ${_sqliteTypeForField(field)}');
-    }
-
-    // Colonnes additionnelles exposees par le serveur (non saisies). Source :
-    // lib/core/config/srm_server_columns.dart, genere depuis
-    // public.attribut_config_mobile. Permet d'absorber le payload serveur avec
-    // une structure locale deja complete.
-    final serverColumns = srmServerColumnsByTable[tableName] ?? const {};
-    for (final entry in serverColumns.entries) {
-      final col = entry.key;
-      if (formColumns.contains(col) || _isFixedCol(col)) continue;
-      dynamicColLines.add('  $col ${entry.value}');
-    }
+    final dynamicColLines = _srmDynamicColumnsForTable(tableName, fields)
+        .entries
+        .map((entry) => '  ${entry.key} ${entry.value}')
+        .toList();
 
     final dynamicCols = dynamicColLines.join(',\n');
     return '''
@@ -2006,6 +2099,26 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> markLocalHistoryForObjectSynced({
+    required String tableName,
+    required Map<String, dynamic> row,
+  }) async {
+    _assertAllowedSrmTable(tableName);
+    final db = await database;
+    await _markLocalHistoryTableForObjectSynced(
+      db,
+      historyTableName: 'historique_local_attribut',
+      tableName: tableName,
+      row: row,
+    );
+    await _markLocalHistoryTableForObjectSynced(
+      db,
+      historyTableName: 'historique_local_evenement',
+      tableName: tableName,
+      row: row,
+    );
+  }
+
   Future<void> markLocalAttributeHistoryFailed(
     List<String> syncUuids,
     String errorMessage,
@@ -2049,6 +2162,132 @@ class DatabaseHelper {
       );
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<void> _markLocalHistoryTableForObjectSynced(
+    Database db, {
+    required String historyTableName,
+    required String tableName,
+    required Map<String, dynamic> row,
+  }) async {
+    if (!await _tableExistsInDb(db, historyTableName)) return;
+
+    final uuidObjet = (row['uuid'] ?? row['uuid_objet'])?.toString().trim();
+    final idObjet = _asInt(row['id']) ?? _asInt(row['id_objet']);
+    final clauses = <String>[];
+    final args = <Object?>[];
+
+    if (uuidObjet != null && uuidObjet.isNotEmpty) {
+      clauses.add('uuid_objet = ?');
+      args.add(uuidObjet);
+      clauses.add('cle_ligne = ?');
+      args.add(uuidObjet);
+    }
+    if (idObjet != null) {
+      clauses.add('id_objet = ?');
+      args.add(idObjet);
+      clauses.add('cle_ligne = ?');
+      args.add(idObjet.toString());
+    }
+    if (clauses.isEmpty) return;
+
+    await db.update(
+      historyTableName,
+      {
+        'synced': 1,
+        'date_sync': DateTime.now().toIso8601String(),
+        'last_error': null,
+      },
+      where:
+          '(synced IS NULL OR synced = 0) AND nom_table = ? AND (${clauses.join(' OR ')})',
+      whereArgs: [tableName, ...args],
+    );
+  }
+
+  Future<void> _markLocalHistoryForAlreadySyncedObjects(Database db) async {
+    for (final historyTableName in const [
+      'historique_local_attribut',
+      'historique_local_evenement',
+    ]) {
+      if (!await _tableExistsInDb(db, historyTableName)) continue;
+
+      for (final tableName in _allowedSrmTables()) {
+        if (!await _tableExistsInDb(db, tableName)) continue;
+
+        final columns = await _columnsForTableInDb(db, tableName);
+        if (!columns.contains('id') || !columns.contains('synced')) continue;
+
+        final tableSql = _quoteSqliteIdentifier(tableName);
+        final uuidPredicates = columns.contains('uuid')
+            ? '''
+              OR (
+                $historyTableName.uuid_objet IS NOT NULL
+                AND $historyTableName.uuid_objet = synced_object.uuid
+              )
+              OR (
+                $historyTableName.cle_ligne IS NOT NULL
+                AND $historyTableName.cle_ligne = synced_object.uuid
+              )
+            '''
+            : '';
+        final updated = await db.rawUpdate(
+          '''
+          UPDATE $historyTableName
+          SET synced = 1,
+              date_sync = COALESCE(date_sync, ?),
+              last_error = NULL
+          WHERE (synced IS NULL OR synced = 0)
+            AND nom_table = ?
+            AND EXISTS (
+              SELECT 1
+              FROM $tableSql AS synced_object
+              WHERE COALESCE(synced_object.synced, 0) = 1
+                AND (
+                  (
+                    $historyTableName.id_objet IS NOT NULL
+                    AND $historyTableName.id_objet = synced_object.id
+                  )
+                  OR (
+                    $historyTableName.cle_ligne IS NOT NULL
+                    AND $historyTableName.cle_ligne = CAST(synced_object.id AS TEXT)
+                  )
+                  $uuidPredicates
+                )
+            )
+          ''',
+          [DateTime.now().toIso8601String(), tableName],
+        );
+        if (updated > 0) {
+          debugPrint(
+            'Historique local clos: $updated ligne(s) pour $tableName',
+          );
+        }
+      }
+    }
+  }
+
+  Future<bool> _tableExistsInDb(Database db, String tableName) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [tableName],
+    );
+    return tables.isNotEmpty;
+  }
+
+  Future<Set<String>> _columnsForTableInDb(
+    Database db,
+    String tableName,
+  ) async {
+    final rows = await db
+        .rawQuery('PRAGMA table_info(${_quoteSqliteIdentifier(tableName)})');
+    return rows
+        .map((row) => row['name']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toSet();
+  }
+
+  String _quoteSqliteIdentifier(String value) {
+    return '"${value.replaceAll('"', '""')}"';
   }
 
   Future<void> _markLocalHistoryRowsFailed({
@@ -2512,6 +2751,9 @@ class DatabaseHelper {
       whereArgs: [schemaName, tableName, uuidObjet, photoSlot],
       limit: 1,
     );
+    if (existing.isNotEmpty && _toInt(existing.first['synced']) == 1) {
+      return _toInt(existing.first['id']);
+    }
 
     final payload = <String, dynamic>{
       'schema_name': schemaName,
@@ -2564,13 +2806,29 @@ class DatabaseHelper {
     return existingId;
   }
 
+  Future<void> cancelPhotoSyncItem({
+    required String schemaName,
+    required String tableName,
+    required String uuidObjet,
+    required int photoSlot,
+  }) async {
+    final db = await database;
+    await db.delete(
+      'photo_sync_queue',
+      where:
+          'schema_name = ? AND table_name = ? AND uuid_objet = ? AND photo_slot = ? '
+          'AND COALESCE(synced, 0) != 1',
+      whereArgs: [schemaName, tableName, uuidObjet, photoSlot],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getPendingPhotoSyncItems({
     int limit = 200,
   }) async {
     final db = await database;
     return db.query(
       'photo_sync_queue',
-      where: 'synced IS NULL OR synced = 0',
+      where: '(synced IS NULL OR synced = 0) AND COALESCE(retry_count, 0) < 5',
       orderBy: 'id ASC',
       limit: limit,
     );
@@ -2648,8 +2906,11 @@ class DatabaseHelper {
     await db.rawUpdate(
       '''
       UPDATE photo_sync_queue
-      SET synced = 0,
-          retry_count = COALESCE(retry_count, 0) + 1,
+      SET retry_count = COALESCE(retry_count, 0) + 1,
+          synced = CASE
+            WHEN COALESCE(retry_count, 0) + 1 >= 5 THEN -1
+            ELSE 0
+          END,
           last_error = ?,
           updated_at = ?
       WHERE id = ?
@@ -2728,6 +2989,7 @@ class DatabaseHelper {
     for (final tableColumns in srmServerColumnsByTable.values) {
       columns.addAll(tableColumns.keys);
     }
+    columns.addAll(_mobileOutputAliasColumns.values);
     return columns;
   }
 
@@ -2740,6 +3002,66 @@ class DatabaseHelper {
       }
     }
     return const [];
+  }
+
+  static const Map<String, String> _mobileOutputAliasColumns = {
+    'ep_ref_rue': 'ref_rue',
+    'ep_observation': 'observation',
+    'ep_conf_plan': 'conformite_plan',
+    'ASS_CONF_PLAN': 'conformite_plan',
+    'ASS_OBSERV': 'observation',
+    'ASS_DATE_INTERV': 'date_leve',
+    'ASS_COOR_X': 'ass_coor_x',
+    'ASS_COOR_Y': 'ass_coor_y',
+    'ASS_COOR_Z': 'ass_coor_z',
+    'ASS_TYPE_RESEAU': 'typereseau',
+    'ASS_STATUT': 'etat',
+    'ASS_DIAM': 'diametre',
+    'ASS_MAT': 'nature',
+    'ASS_LONG_R': 'longueur',
+  };
+
+  Map<String, String> _srmDynamicColumnsForTable(
+    String tableName,
+    List<String> fields,
+  ) {
+    final columns = <String, String>{};
+
+    void addColumn(String column, String type) {
+      final normalized = column.trim();
+      if (normalized.isEmpty) return;
+      if (!_isAllowedSrmColumn(normalized) || _isFixedCol(normalized)) return;
+      if (_caseInsensitiveKey(columns.keys, normalized) != null) return;
+      columns[normalized] = type.trim().isEmpty ? 'TEXT' : type.trim();
+    }
+
+    for (final field in fields) {
+      addColumn(field, _sqliteTypeForField(field));
+    }
+
+    final serverColumns = srmServerColumnsByTable[tableName] ?? const {};
+    for (final entry in serverColumns.entries) {
+      addColumn(entry.key, entry.value);
+    }
+
+    // Backend mobile endpoints also return stable aliases. Keep these aliases
+    // in SQLite whenever their source column is part of the downloaded table.
+    for (final entry in _mobileOutputAliasColumns.entries) {
+      final sourceKey = _caseInsensitiveKey(columns.keys, entry.key);
+      if (sourceKey == null) continue;
+      addColumn(
+          entry.value, columns[sourceKey] ?? _sqliteTypeForField(sourceKey));
+    }
+
+    return columns;
+  }
+
+  String? _caseInsensitiveKey(Iterable<String> keys, String value) {
+    final target = value.toLowerCase();
+    for (final key in keys) {
+      if (key.toLowerCase() == target) return key;
+    }
+    return null;
   }
 
   static const Set<String> _fixedSrmColumns = {
@@ -2875,22 +3197,7 @@ class DatabaseHelper {
     String tableName,
     List<String> fields,
   ) async {
-    final entityColumns = <String, String>{};
-    for (final field in fields) {
-      if (!_isAllowedSrmColumn(field) || _isFixedCol(field)) continue;
-      entityColumns[field] = _sqliteTypeForField(field);
-    }
-    // Inclure aussi les colonnes serveur generees depuis attribut_config_mobile,
-    // pour verifier que les tables locales pre-existantes sont deja alignes.
-    final serverColumns = srmServerColumnsByTable[tableName];
-    if (serverColumns != null) {
-      for (final entry in serverColumns.entries) {
-        if (_isFixedCol(entry.key) || entityColumns.containsKey(entry.key)) {
-          continue;
-        }
-        entityColumns[entry.key] = entry.value;
-      }
-    }
+    final entityColumns = _srmDynamicColumnsForTable(tableName, fields);
     if (entityColumns.isEmpty) return;
     await _ensureColumns(
       db,
@@ -3686,6 +3993,76 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> replacePlancheOverlay({
+    required List<Map<String, dynamic>> planches,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      await txn.delete('planche_overlay_local');
+      for (final planche in planches) {
+        final id = _asInt(planche['id']);
+        if (id == null) continue;
+        await txn.insert(
+          'planche_overlay_local',
+          {
+            'id': id,
+            'numero': _asInt(planche['numero']),
+            'geometry_geojson': _encodeGeoJson(planche['geometry_geojson']),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<void> replaceFondPlanOverlay({
+    required List<Map<String, dynamic>> features,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      await txn.delete('fond_plan_overlay_local');
+      for (final feature in features) {
+        final fid = _asInt(feature['fid']);
+        if (fid == null) continue;
+        await txn.insert(
+          'fond_plan_overlay_local',
+          {
+            'fid': fid,
+            'layer': feature['layer']?.toString(),
+            'color': feature['color']?.toString(),
+            'linewidth': _asDouble(feature['linewidth']),
+            'geometry_geojson': _encodeGeoJson(feature['geometry_geojson']),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPlancheOverlayLocal() async {
+    final db = await database;
+    return db.query(
+      'planche_overlay_local',
+      orderBy: 'numero, id',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getFondPlanOverlayLocal() async {
+    final db = await database;
+    return db.query(
+      'fond_plan_overlay_local',
+      orderBy: 'layer, fid',
+    );
+  }
+
+  static String? _encodeGeoJson(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    return jsonEncode(value);
+  }
+
   Future<List<Map<String, dynamic>>> getCommunesLocal() async {
     final db = await database;
     return db.query(
@@ -3941,32 +4318,64 @@ class DatabaseHelper {
   String _regardMiroirCacheKey() => 'ep_regard_polygon_cache';
 
   Future<void> saveRegardMiroirCache(List<Map<String, dynamic>> items) async {
-    await saveAppMetadataValue(
-      _regardMiroirCacheKey(),
-      jsonEncode(items),
-    );
+    final db = await database;
+    await _createRegardMiroirCacheTable(db);
+
+    await db.transaction((txn) async {
+      await txn.delete('regard_miroir_cache_local');
+      await txn.delete(
+        'app_metadata',
+        where: 'key = ?',
+        whereArgs: [_regardMiroirCacheKey()],
+      );
+
+      for (var index = 0; index < items.length; index++) {
+        final item = items[index];
+        final uuid = item['uuid']?.toString().trim();
+        final id = item['id']?.toString().trim();
+        final cacheKey = (uuid != null && uuid.isNotEmpty)
+            ? uuid
+            : (id != null && id.isNotEmpty)
+                ? 'id:$id'
+                : 'row:$index';
+        await txn.insert(
+          'regard_miroir_cache_local',
+          {
+            'cache_key': cacheKey,
+            'uuid': uuid == null || uuid.isEmpty ? null : uuid,
+            'payload_json': jsonEncode(item),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 
   Future<List<Map<String, dynamic>>> getRegardMiroirCache() async {
-    final raw = await getAppMetadataValue(
-      _regardMiroirCacheKey(),
+    final db = await database;
+    await _createRegardMiroirCacheTable(db);
+    final rows = await db.query(
+      'regard_miroir_cache_local',
+      orderBy: 'cache_key ASC',
     );
-    if (raw == null || raw.trim().isEmpty) {
+    if (rows.isEmpty) {
       return const <Map<String, dynamic>>[];
     }
 
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        return const <Map<String, dynamic>>[];
+    final items = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final raw = row['payload_json']?.toString();
+      if (raw == null || raw.trim().isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          items.add(Map<String, dynamic>.from(decoded));
+        }
+      } catch (_) {
+        continue;
       }
-      return decoded
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
-    } catch (_) {
-      return const <Map<String, dynamic>>[];
     }
+    return items;
   }
 
   Future<void> deleteAppMetadataValue(

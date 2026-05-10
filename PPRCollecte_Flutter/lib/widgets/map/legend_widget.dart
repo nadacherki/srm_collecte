@@ -17,6 +17,9 @@ class LegendWidget extends StatefulWidget {
   /// Compteur d'objets incomplets par table (fourni par home_page)
   final Map<String, int> incompletCountsByTable;
 
+  /// Compteurs des couches de contexte hors metier.
+  final Map<String, int> referenceOverlayCounts;
+
   // Paramètres conservés pour préserver la signature existante dans home_page.
   final List<dynamic> allPolylines;
   final List<dynamic> allMarkers;
@@ -32,6 +35,7 @@ class LegendWidget extends StatefulWidget {
     this.pointCountsByTable = const {},
     this.anomalieCountsByTable = const {},
     this.incompletCountsByTable = const {},
+    this.referenceOverlayCounts = const {},
     this.allPolylines = const [],
     this.allMarkers = const [],
     this.polygonCount = 0,
@@ -74,6 +78,9 @@ class _LegendWidgetState extends State<LegendWidget> {
   void initState() {
     super.initState();
     _visibility = Map<String, bool>.from(widget.initialVisibility);
+    _visibility.putIfAbsent('overlay_zones', () => true);
+    _visibility.putIfAbsent('overlay_planche', () => false);
+    _visibility.putIfAbsent('overlay_fond_plan', () => false);
     for (final m in SrmConfig.getMetiers()) {
       _metierExpanded[m] = false;
       if (!_visibility.containsKey(_mk(m))) _visibility[_mk(m)] = true;
@@ -207,7 +214,7 @@ class _LegendWidgetState extends State<LegendWidget> {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 105,
+      top: 135,
       right: 10,
       child: Container(
         decoration: BoxDecoration(
@@ -286,6 +293,8 @@ class _LegendWidgetState extends State<LegendWidget> {
                 _buildAnomalieFilter(),
                 const SizedBox(height: 8),
                 _buildIncompletFilter(),
+                const SizedBox(height: 10),
+                _buildReferenceOverlaysSection(),
                 const SizedBox(height: 10),
                 Divider(height: 1, color: Colors.grey.shade200),
                 const SizedBox(height: 6),
@@ -455,6 +464,115 @@ class _LegendWidgetState extends State<LegendWidget> {
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReferenceOverlaysSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blueGrey.shade100),
+      ),
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade600,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Icon(
+                  Icons.layers_outlined,
+                  color: Colors.white,
+                  size: 14,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'Couches contexte',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _buildReferenceOverlayRow(
+            keyName: 'overlay_zones',
+            label: 'Zones',
+            color: const Color(0xFF1565C0),
+            icon: Icons.crop_square,
+          ),
+          _buildReferenceOverlayRow(
+            keyName: 'overlay_planche',
+            label: 'Planches',
+            color: const Color(0xFF455A64),
+            icon: Icons.grid_on,
+          ),
+          _buildReferenceOverlayRow(
+            keyName: 'overlay_fond_plan',
+            label: 'Fond plan',
+            color: const Color(0xFF616161),
+            icon: Icons.polyline,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReferenceOverlayRow({
+    required String keyName,
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    final isVisible = _visibility[keyName] ?? false;
+    final count = widget.referenceOverlayCounts[keyName] ?? 0;
+    final effectiveColor = isVisible ? color : Colors.grey.shade300;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: Checkbox(
+              value: isVisible,
+              onChanged: (v) => _toggle(keyName, v ?? false),
+              activeColor: color,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Icon(icon, size: 16, color: effectiveColor),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: isVisible ? Colors.grey.shade800 : Colors.grey.shade400,
+              ),
+            ),
+          ),
+          if (count > 0) _badge(count, color: color),
         ],
       ),
     );

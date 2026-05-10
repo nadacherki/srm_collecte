@@ -260,7 +260,17 @@ Future<void> _refreshMobileConfigAfterReconnectImpl(
         'COMMUNES',
         CommuneSyncService().refreshCommunes(),
       ),
+      _runReconnectRefreshStep(
+        'REFERENCE-OVERLAYS',
+        ReferenceOverlaySyncService().refreshLightOverlays(),
+      ),
+      _runReconnectRefreshStep(
+        'METRICS',
+        PublicMetricsCacheService().prefetchForCurrentSession(
+            requestTimeout: const Duration(seconds: 4)),
+      ),
     ]);
+    await state._loadReferenceOverlays();
     debugPrint('[RECONNECT-CONFIG] Refresh auto termine');
   } finally {
     state._mobileConfigAutoRefreshRunning = false;

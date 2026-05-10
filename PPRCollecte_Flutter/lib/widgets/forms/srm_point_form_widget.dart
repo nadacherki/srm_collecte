@@ -661,6 +661,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   @override
+  bool isDraftFieldMeaningful(String field, String value) {
+    if (!super.isDraftFieldMeaningful(field, value)) return false;
+    final defaultValue = _configuredDefaultValueForField(field).trim();
+    return defaultValue.isEmpty || value.trim() != defaultValue;
+  }
+
+  @override
   Map<int, String?> collectPhotoPaths() => Map.from(_photoPaths);
 
   @override
@@ -795,7 +802,30 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     setState(() => _photoPaths[index] = durablePath);
   }
 
-  void _removePhoto(int index) => setState(() => _photoPaths[index] = null);
+  void _removePhoto(int index) {
+    setState(() => _photoPaths[index] = null);
+  }
+
+  Future<void> _cancelRemovedLocalPhotoUploadsAfterSave(
+      DatabaseHelper db) async {
+    final uuid = widget.existingData?['uuid']?.toString().trim() ?? '';
+    if (uuid.isEmpty || _tableName.isEmpty) return;
+
+    for (var slot = 1; slot <= 4; slot++) {
+      final previous =
+          widget.existingData?['photo_$slot']?.toString().trim() ?? '';
+      final current = _photoPaths[slot]?.trim() ?? '';
+      if (previous.isEmpty || current.isNotEmpty) continue;
+      if (!PhotoReferenceService.isRemoteReference(previous)) {
+        await db.cancelPhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+        );
+      }
+    }
+  }
 
   Widget _buildPhotoPreview(String path) {
     final remoteUrl = PhotoReferenceService.buildRemoteUrl(path);
@@ -977,6 +1007,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           idObjet: localId,
         );
       }
+
+      await _cancelRemovedLocalPhotoUploadsAfterSave(db);
 
       if (mounted) {
         // ── SPRINT 7 : supprimer le brouillon après enregistrement réussi ──
@@ -1784,10 +1816,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           children: List.generate(_maxPhotos, (i) {
             final idx = i + 1;
             final path = _photoPaths[idx];
+            final isRemotePhoto =
+                path != null && PhotoReferenceService.isRemoteReference(path);
+            final disabled = _isObjetIncomplet || _isLocked;
+            final canEditSlot = !disabled && !isRemotePhoto;
             return GestureDetector(
-              onTap: _isObjetIncomplet ? null : () => _pickPhoto(idx),
+              onTap: canEditSlot ? () => _pickPhoto(idx) : null,
               child: Opacity(
-                opacity: _isObjetIncomplet ? 0.35 : 1.0,
+                opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
                 child: Stack(
                   children: [
                     Container(
@@ -1814,12 +1850,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                               ],
                             ),
                     ),
-                    if (path != null && !_isObjetIncomplet)
+                    if (path != null && canEditSlot)
                       Positioned(
                         top: 2,
                         right: 2,
                         child: GestureDetector(
-                          onTap: () => _removePhoto(idx),
+                          onTap: () {
+                            _removePhoto(idx);
+                          },
                           child: Container(
                             decoration: const BoxDecoration(
                                 color: Colors.red, shape: BoxShape.circle),

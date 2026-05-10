@@ -56,7 +56,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   final Map<String, TextEditingController> _controllers = {};
   final _detailRaisonController = TextEditingController();
   final _picker = ImagePicker();
-  final Map<int, String?> _photoPaths = {1: null, 2: null};
+  final Map<int, String?> _photoPaths = {1: null, 2: null, 3: null, 4: null};
 
   bool _hasAnomalie = false;
   String? _typeAnomalie;
@@ -76,6 +76,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   late final String? _typeField;
   late final int _maxPhotos;
   late final double _distanceTotaleM;
+  int get _photoSlotCount =>
+      _maxPhotos < 0 ? 0 : (_maxPhotos > 4 ? 4 : _maxPhotos);
 
   late double _xDebut;
   late double _yDebut;
@@ -258,7 +260,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
-      for (int i = 1; i <= 2; i++) {
+      for (int i = 1; i <= _photoSlotCount; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
       _isLocked = FormLockService.isLocked(widget.existingData!);
@@ -490,6 +492,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   @override
+  bool isDraftFieldMeaningful(String field, String value) {
+    if (!super.isDraftFieldMeaningful(field, value)) return false;
+    final defaultValue = _configuredDefaultValueForField(field).trim();
+    return defaultValue.isEmpty || value.trim() != defaultValue;
+  }
+
+  @override
   Map<int, String?> collectPhotoPaths() => Map.from(_photoPaths);
 
   @override
@@ -648,7 +657,30 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     setState(() => _photoPaths[index] = durablePath);
   }
 
-  void _removePhoto(int index) => setState(() => _photoPaths[index] = null);
+  void _removePhoto(int index) {
+    setState(() => _photoPaths[index] = null);
+  }
+
+  Future<void> _cancelRemovedLocalPhotoUploadsAfterSave(
+      DatabaseHelper db) async {
+    final uuid = widget.existingData?['uuid']?.toString().trim() ?? '';
+    if (uuid.isEmpty || _tableName.isEmpty) return;
+
+    for (var slot = 1; slot <= _photoSlotCount; slot++) {
+      final previous =
+          widget.existingData?['photo_$slot']?.toString().trim() ?? '';
+      final current = _photoPaths[slot]?.trim() ?? '';
+      if (previous.isEmpty || current.isNotEmpty) continue;
+      if (!PhotoReferenceService.isRemoteReference(previous)) {
+        await db.cancelPhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+        );
+      }
+    }
+  }
 
   Future<void> _save() async {
     if (_isLocked) return;
@@ -712,7 +744,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _applyAnomaliePayload(data);
       data['objet_incomplet'] = _isObjetIncomplet ? 1 : 0;
 
-      for (int i = 1; i <= 2; i++) {
+      for (int i = 1; i <= _photoSlotCount; i++) {
         data['photo_$i'] = _photoPaths[i];
       }
 
@@ -781,6 +813,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           idObjet: localId,
         );
       }
+
+      await _cancelRemovedLocalPhotoUploadsAfterSave(dbHelper);
 
       if (mounted) {
         await clearDraftAfterSave();
@@ -1444,14 +1478,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   Widget _buildPhotoSection() {
-    if (_maxPhotos == 0) return const SizedBox.shrink();
+    if (_photoSlotCount == 0) return const SizedBox.shrink();
     final disabled = _isObjetIncomplet || _isLocked;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 24),
         Text(
-          'Photos (max $_maxPhotos)',
+          'Photos (max $_photoSlotCount)',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         const SizedBox(height: 8),
@@ -1464,11 +1498,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: List.generate(_maxPhotos, (i) {
+          children: List.generate(_photoSlotCount, (i) {
             final idx = i + 1;
             final path = _photoPaths[idx];
+            final isRemotePhoto =
+                path != null && PhotoReferenceService.isRemoteReference(path);
+            final canEditSlot = !disabled && !isRemotePhoto;
             return GestureDetector(
-              onTap: disabled ? null : () => _pickPhoto(idx),
+              onTap: canEditSlot ? () => _pickPhoto(idx) : null,
               child: Opacity(
                 opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
                 child: Stack(
@@ -1503,12 +1540,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                               ],
                             ),
                     ),
-                    if (path != null && !disabled)
+                    if (path != null && canEditSlot)
                       Positioned(
                         top: 2,
                         right: 2,
                         child: GestureDetector(
-                          onTap: () => _removePhoto(idx),
+                          onTap: () {
+                            _removePhoto(idx);
+                          },
                           child: Container(
                             decoration: const BoxDecoration(
                               color: Colors.red,

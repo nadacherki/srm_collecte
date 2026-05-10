@@ -457,6 +457,11 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
 void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
   if (hitValue == null || hitValue is! PolygonTapData) return;
   final data = hitValue;
+
+  if (data.metier == 'Contexte') {
+    return;
+  }
+
   final titlePrefix =
       data.entityType.trim().isEmpty ? 'Polygone' : data.entityType.trim();
 
@@ -496,7 +501,12 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             if (data.metier.trim().isNotEmpty)
               state._detailRow('Métier', data.metier),
             state._detailRow('Code', data.code),
-            if (data.downloaded || data.synced) ...[
+            for (final entry in data.extraDetails.entries)
+              state._detailRow(entry.key, entry.value),
+            if ((data.downloaded || data.synced) &&
+                (data.regionName.isNotEmpty ||
+                    data.prefectureName.isNotEmpty ||
+                    data.communeName.isNotEmpty)) ...[
               state._detailRow(
                   'Région', data.regionName.isEmpty ? '----' : data.regionName),
               state._detailRow('Préfecture',
@@ -512,22 +522,25 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
                     : 'Oui',
               ),
             if (data.hasIncomplet) state._detailRow('Objet incomplet', 'Oui'),
-            state._detailRow(
-                'Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
+            if (data.superficie > 0)
+              state._detailRow(
+                  'Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
             state._detailRow('Sommets', '${data.nbSommets} points'),
-            state._detailRow(
-              'Enquêteur',
-              state.enqueteurDisplayByStatut(
-                enqueteurValue: data.enqueteur,
-                statut: data.statut,
+            if (data.enqueteur.trim().isNotEmpty)
+              state._detailRow(
+                'Enquêteur',
+                state.enqueteurDisplayByStatut(
+                  enqueteurValue: data.enqueteur,
+                  statut: data.statut,
+                ),
               ),
-            ),
-            state._detailRow(
-              'Date création',
-              data.dateCreation.length > 10
-                  ? data.dateCreation.substring(0, 10)
-                  : data.dateCreation,
-            ),
+            if (data.dateCreation.trim().isNotEmpty)
+              state._detailRow(
+                'Date création',
+                data.dateCreation.length > 10
+                    ? data.dateCreation.substring(0, 10)
+                    : data.dateCreation,
+              ),
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
@@ -554,6 +567,87 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
         ),
       );
     },
+  );
+}
+
+void _handlePolygonLongPressImpl(_HomePageState state, Object? hitValue) {
+  if (hitValue == null || hitValue is! PolygonTapData) return;
+  final data = hitValue;
+
+  if (data.metier == 'Contexte') {
+    _showReferenceOverlayPopupImpl(state, data);
+  }
+}
+
+void _showReferenceOverlayPopupImpl(_HomePageState state, PolygonTapData data) {
+  final title = data.entityType.trim().isEmpty
+      ? 'Couche contexte'
+      : data.entityType.trim();
+  final details = data.extraDetails.entries
+      .where((entry) => entry.value.trim().isNotEmpty)
+      .toList();
+
+  showDialog(
+    context: state.context,
+    builder: (ctx) => AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(18, 16, 18, 6),
+      contentPadding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: details.isEmpty
+            ? [
+                Text(
+                  data.nom,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ]
+            : [
+                for (final entry in details)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${entry.key} : ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            entry.value,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Fermer'),
+        ),
+      ],
+    ),
   );
 }
 

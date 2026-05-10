@@ -293,6 +293,67 @@ def _mobile_apply_output_aliases(row):
     return row
 
 
+def _mobile_photo_delta_filter_sql(schema_name, table_name, updated_after):
+    if updated_after is None:
+        return None, []
+    return (
+        pg_sql.SQL(
+            """
+            EXISTS (
+                SELECT 1
+                FROM public.objet_photo op
+                WHERE op.nom_schema = %s
+                  AND op.nom_table = %s
+                  AND op.uuid_objet = CAST({uuid_column} AS text)
+                  AND op.date_upload >= %s
+            )
+            """
+        ).format(uuid_column=pg_sql.Identifier('uuid')),
+        [schema_name, table_name, updated_after],
+    )
+
+
+def _attach_mobile_photo_refs(rows, schema_name, table_name):
+    if not rows:
+        return rows
+
+    rows_by_uuid = {}
+    for row in rows:
+        for slot in range(1, 5):
+            row[f'photo_{slot}'] = None
+        uuid_value = row.get('uuid')
+        if uuid_value is None:
+            continue
+        uuid_text = str(uuid_value).strip()
+        if uuid_text:
+            rows_by_uuid[uuid_text] = row
+
+    if not rows_by_uuid:
+        return rows
+
+    _ensure_objet_photo_schema()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT uuid_objet, num_photo, chemin_relatif
+            FROM public.objet_photo
+            WHERE nom_schema = %s
+              AND nom_table = %s
+              AND actif = true
+              AND num_photo BETWEEN 1 AND 4
+              AND uuid_objet = ANY(%s)
+            ORDER BY uuid_objet, num_photo
+            """,
+            [schema_name, table_name, list(rows_by_uuid.keys())],
+        )
+        for uuid_objet, num_photo, chemin_relatif in cursor.fetchall():
+            row = rows_by_uuid.get(str(uuid_objet))
+            if row is None:
+                continue
+            row[f'photo_{int(num_photo)}'] = chemin_relatif
+    return rows
+
+
 def _mobile_apply_input_aliases(payload, columns):
     values = dict(payload)
     columns_by_lower = {str(column).lower(): column for column in columns}
@@ -1051,11 +1112,31 @@ def mobile_srm_table_view(request, endpoint):
         updated_after = request.GET.get('updated_after') or request.GET.get('since')
         filter_column = _mobile_timestamp_filter_column(columns)
         parsed_updated_after = parse_datetime(updated_after) if updated_after else None
-        if parsed_updated_after is not None and filter_column:
-            where_parts.append(
-                pg_sql.SQL('{} >= %s').format(pg_sql.Identifier(filter_column))
-            )
-            params.append(parsed_updated_after)
+        if parsed_updated_after is not None:
+            timestamp_parts = []
+            timestamp_params = []
+            if filter_column:
+                timestamp_parts.append(
+                    pg_sql.SQL('{} >= %s').format(pg_sql.Identifier(filter_column))
+                )
+                timestamp_params.append(parsed_updated_after)
+            if 'uuid' in columns:
+                _ensure_objet_photo_schema()
+                photo_filter, photo_params = _mobile_photo_delta_filter_sql(
+                    schema_name,
+                    table_name,
+                    parsed_updated_after,
+                )
+                if photo_filter is not None:
+                    timestamp_parts.append(photo_filter)
+                    timestamp_params.extend(photo_params)
+            if timestamp_parts:
+                where_parts.append(
+                    pg_sql.SQL('(')
+                    + pg_sql.SQL(' OR ').join(timestamp_parts)
+                    + pg_sql.SQL(')')
+                )
+                params.extend(timestamp_params)
 
         # Exclure les objets sans geometrie : ils sont inutilisables cote
         # mobile (impossibles a placer sur la carte) et viennent surtout
@@ -1094,6 +1175,7 @@ def mobile_srm_table_view(request, endpoint):
                 _mobile_apply_output_aliases(dict(zip(names, row)))
                 for row in cursor.fetchall()
             ]
+            results = _attach_mobile_photo_refs(results, schema_name, table_name)
 
         next_url, previous_url = _mobile_next_previous_urls(request, count, page, page_size)
         return JsonResponse(
@@ -1424,7 +1506,7 @@ def _resolve_conduite_regard_node(node_payload):
                 )
             else:
                 raise ValidationError(
-                    {'nodes': [f'Regard fid={fid} sans gÃ©omÃ©trie exploitable.']}
+                    {'nodes': [f'Regard fid={fid} sans géométrie exploitable.']}
                 )
         return regard
 
@@ -1472,7 +1554,7 @@ def _resolve_conduite_regard_node(node_payload):
                 raise ValidationError(
                     {
                         'nodes': [
-                            f'Regard {ep_num or uuid_value} sans gÃ©omÃ©trie exploitable.'
+                            f'Regard {ep_num or uuid_value} sans géométrie exploitable.'
                         ]
                     }
                 )
@@ -2374,13 +2456,13 @@ def login_view(request):
     """
     POST /api/login/
     Body: { "login": "username", "mot_de_passe": "password" }
-    VÃ©rifie le mot de passe via les hashers Django configurÃ©s.
+    Vérifie le mot de passe via les hashers Django configurés.
     Le backend ne modifie jamais automatiquement la base des mots de passe.
     """
     try:
         payload = json.loads(request.body)
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Corps de la requÃªte invalide (JSON attendu)'}, status=400)
+        return JsonResponse({'error': 'Corps de la requête invalide (JSON attendu)'}, status=400)
 
     serializer = LoginRequestSerializer(data=payload)
     if not serializer.is_valid():
@@ -2395,17 +2477,17 @@ def login_view(request):
         return JsonResponse({'error': 'Login ou mot de passe incorrect'}, status=401)
 
     if not user.actif:
-        return JsonResponse({'error': 'Compte dÃ©sactivÃ©. Contactez votre administrateur.'}, status=403)
+        return JsonResponse({'error': 'Compte désactivé. Contactez votre administrateur.'}, status=403)
 
     if user.is_deleted:
-        return JsonResponse({'error': 'Compte supprimÃ©. Contactez votre administrateur.'}, status=403)
+        return JsonResponse({'error': 'Compte supprimé. Contactez votre administrateur.'}, status=403)
 
     if not user.mot_de_passe_hash:
-        return JsonResponse({'error': 'Aucun mot de passe configurÃ© pour ce compte'}, status=401)
+        return JsonResponse({'error': 'Aucun mot de passe configuré pour ce compte'}, status=401)
 
-    # Le mot de passe doit dÃ©jÃ  Ãªtre stockÃ© hashÃ© en base.
+    # Le mot de passe doit déjà être stocké hashé en base.
     if not user.mot_de_passe_hash.startswith(('argon2', 'pbkdf2', 'bcrypt')):
-        return JsonResponse({'error': 'Compte non configurÃ© pour lâ€™authentification sÃ©curisÃ©e'}, status=401)
+        return JsonResponse({'error': "Compte non configuré pour l'authentification sécurisée"}, status=401)
 
     mot_de_passe_valide = check_password(mot_de_passe, user.mot_de_passe_hash)
 
@@ -2414,7 +2496,7 @@ def login_view(request):
 
     roles_mobile = ['admin', 'project_manager', 'editeur_terrain', 'editeur_bureau', 'superadmin']
     if user.role not in roles_mobile:
-        return JsonResponse({'error': "Votre profil ne permet pas l'accÃ¨s Ã  l'application mobile"}, status=403)
+        return JsonResponse({'error': "Votre profil ne permet pas l'accès à l'application mobile"}, status=403)
 
     user.dernier_login = timezone.now()
     user.save(update_fields=['dernier_login'])
@@ -2539,6 +2621,110 @@ def regional_basemap_download_view(request):
     for key, value in headers_extra.items():
         response[key] = value
     return response
+
+
+def _parse_positive_int(raw_value, default, maximum=None):
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        value = default
+    if value < 1:
+        value = default
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
+def _paged_reference_overlay_response(request, *, count_sql, data_sql, params=None):
+    page = _parse_positive_int(request.GET.get('page'), 1)
+    page_size = _parse_positive_int(request.GET.get('page_size'), 1000, 5000)
+    offset = (page - 1) * page_size
+    query_params = list(params or [])
+
+    with connection.cursor() as cursor:
+        cursor.execute(count_sql, query_params)
+        total_count = int(cursor.fetchone()[0] or 0)
+        cursor.execute(data_sql, [*query_params, page_size, offset])
+        columns = [col[0] for col in cursor.description]
+        results = []
+        for raw_row in cursor.fetchall():
+            row = dict(zip(columns, raw_row))
+            geometry = row.pop('geometry_geojson', None)
+            if isinstance(geometry, str) and geometry:
+                try:
+                    row['geometry_geojson'] = json.loads(geometry)
+                except json.JSONDecodeError:
+                    row['geometry_geojson'] = None
+            else:
+                row['geometry_geojson'] = geometry
+            results.append(row)
+
+    next_url = None
+    if offset + page_size < total_count:
+        next_params = request.GET.copy()
+        next_params['page'] = str(page + 1)
+        if 'page_size' not in next_params:
+            next_params['page_size'] = str(page_size)
+        next_url = request.build_absolute_uri(
+            f'{request.path}?{next_params.urlencode()}'
+        )
+
+    return Response(
+        {
+            'count': total_count,
+            'next': next_url,
+            'results': results,
+        }
+    )
+
+
+@api_view(['GET'])
+def reference_planches_overlay_view(request):
+    return _paged_reference_overlay_response(
+        request,
+        count_sql="""
+            SELECT COUNT(*)
+            FROM public.planche
+            WHERE geom IS NOT NULL
+        """,
+        data_sql="""
+            SELECT
+                id,
+                numero,
+                ST_AsGeoJSON(ST_Force2D(geom), 6) AS geometry_geojson
+            FROM public.planche
+            WHERE geom IS NOT NULL
+            ORDER BY numero NULLS LAST, id NULLS LAST
+            LIMIT %s OFFSET %s
+        """,
+    )
+
+
+@api_view(['GET'])
+def reference_fond_plan_overlay_view(request):
+    return _paged_reference_overlay_response(
+        request,
+        count_sql="""
+            SELECT COUNT(*)
+            FROM public.fond_plan
+            WHERE geom IS NOT NULL
+              AND coalesce(visible, 1) = 1
+        """,
+        data_sql="""
+            SELECT
+                fid,
+                layer,
+                color,
+                linewidth,
+                ST_AsGeoJSON(ST_Force2D(ST_CurveToLine(geom)), 6)
+                    AS geometry_geojson
+            FROM public.fond_plan
+            WHERE geom IS NOT NULL
+              AND coalesce(visible, 1) = 1
+            ORDER BY layer NULLS LAST, fid
+            LIMIT %s OFFSET %s
+        """,
+    )
 
 
 @api_view(['POST'])
@@ -2828,10 +3014,11 @@ def photo_upload_view(request):
         uuid_objet=uuid_objet,
         num_photo=photo_slot,
     ).first()
+    previous_file_to_delete = None
     if existing_photo and existing_photo.chemin_relatif:
         previous_file = Path(settings.MEDIA_ROOT) / existing_photo.chemin_relatif
         if previous_file.exists() and previous_file.name != file_name:
-            previous_file.unlink(missing_ok=True)
+            previous_file_to_delete = previous_file
 
     final_path = absolute_dir / file_name
     temp_path = absolute_dir / f'.tmp_{file_name}'
@@ -2874,6 +3061,9 @@ def photo_upload_view(request):
             },
         )
 
+    if previous_file_to_delete is not None:
+        previous_file_to_delete.unlink(missing_ok=True)
+
     _mark_sync_attachment_received(
         sync_uuid=sync_session_uuid,
         schema_name=schema_name,
@@ -2913,12 +3103,12 @@ def statistique_conduite_jour_view(request):
 
     if not raw_agent:
         return Response(
-            {'error': 'ParamÃ¨tre id_agent requis.'},
+            {'error': 'Paramètre id_agent requis.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
     if not raw_jour:
         return Response(
-            {'error': 'ParamÃ¨tre jour requis.'},
+            {'error': 'Paramètre jour requis.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -2926,14 +3116,14 @@ def statistique_conduite_jour_view(request):
         id_agent = int(raw_agent)
     except ValueError:
         return Response(
-            {'error': 'ParamÃ¨tre id_agent invalide.'},
+            {'error': 'Paramètre id_agent invalide.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     jour = parse_date(raw_jour)
     if jour is None:
         return Response(
-            {'error': 'ParamÃ¨tre jour invalide (YYYY-MM-DD attendu).'},
+            {'error': 'Paramètre jour invalide (YYYY-MM-DD attendu).'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -2985,7 +3175,7 @@ def statistique_conduite_validate_view(request):
     ).first()
     if existing is not None:
         payload = _statistique_conduite_snapshot(existing, conduite_config, metier_key)
-        payload['error'] = 'La conduite de ce jour est dÃ©jÃ  figÃ©e.'
+        payload['error'] = 'La conduite de ce jour est déjà figée.'
         _mark_sync_item_received_for_table(
             sync_uuid=sync_session_uuid,
             nom_schema=conduite_config['sync_schema'],
@@ -3007,7 +3197,7 @@ def statistique_conduite_validate_view(request):
         raise ValidationError(
             {
                 'nodes': [
-                    'Aucun segment unique exploitable Ã  enregistrer pour cette conduite.'
+                    'Aucun segment unique exploitable à enregistrer pour cette conduite.'
                 ]
             }
         )

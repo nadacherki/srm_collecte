@@ -12,6 +12,7 @@ import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
 import 'photo_reference_service.dart';
 import 'projection_service.dart';
+import 'reference_overlay_sync_service.dart';
 
 class SyncResult {
   int successCount = 0;
@@ -94,6 +95,8 @@ class SyncService {
     if (!canContinueAfterBasemap || result.interrupted) {
       return result;
     }
+
+    await _ensureReferenceOverlaysForDownload(result: result);
 
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
@@ -191,7 +194,7 @@ class SyncService {
             await dbHelper.upsertDownloadedEntitySrm(
               info.table,
               map,
-              recordHistory: true,
+              recordHistory: false,
             );
             downloadedForTable++;
             result.successCount++;
@@ -343,6 +346,26 @@ class SyncService {
     return true;
   }
 
+  Future<void> _ensureReferenceOverlaysForDownload({
+    required SyncResult result,
+  }) async {
+    try {
+      final overlayResult = await ReferenceOverlaySyncService(
+        databaseHelper: dbHelper,
+      ).refreshOverlays(includeFondPlan: true);
+      result.warnings.add(
+        'Couches contexte offline: '
+        '${overlayResult['planches_count'] ?? 0} planches, '
+        '${overlayResult['zones_count'] ?? 0} zones, '
+        '${overlayResult['fond_plan_count'] ?? 0} objets fond plan.',
+      );
+    } catch (e) {
+      result.warnings.add(
+        'Couches contexte offline non mises a jour : ${_short(e)}',
+      );
+    }
+  }
+
   Future<void> _downloadTerrainInterventions({
     required SyncResult result,
     required Function(double, String, int, int)? onProgress,
@@ -481,7 +504,10 @@ class SyncService {
           }
 
           final payload = Map<String, dynamic>.from(row);
-          final localPhotos = _extractLocalPhotos(payload);
+          final localPhotos = _extractLocalPhotos(
+            payload,
+            strictMissing: false,
+          );
           final uuid = row['uuid']?.toString().trim();
           if (uuid != null && uuid.isNotEmpty) {
             await _enqueuePhotosForRow(
@@ -515,7 +541,11 @@ class SyncService {
               info.table,
               localId,
               _syncedPatchForResponse(info, response, nowIso),
-              recordHistory: true,
+              recordHistory: false,
+            );
+            await dbHelper.markLocalHistoryForObjectSynced(
+              tableName: info.table,
+              row: row,
             );
           } else {
             await _markRowSyncedByUuid(
@@ -774,7 +804,10 @@ class SyncService {
 
       try {
         final payload = Map<String, dynamic>.from(row);
-        final localPhotos = _extractLocalPhotos(payload);
+        final localPhotos = _extractLocalPhotos(
+          payload,
+          strictMissing: false,
+        );
         final uuid = row['uuid']?.toString().trim();
         if (uuid != null && uuid.isNotEmpty) {
           await _enqueuePhotosForRow(
@@ -808,7 +841,11 @@ class SyncService {
             info.table,
             localId,
             _syncedPatchForResponse(info, response, nowIso),
-            recordHistory: true,
+            recordHistory: false,
+          );
+          await dbHelper.markLocalHistoryForObjectSynced(
+            tableName: info.table,
+            row: row,
           );
         } else {
           await _markRowSyncedByUuid(
@@ -1479,7 +1516,14 @@ class SyncService {
         'synced': 1,
         'date_sync': nowIso,
       },
-      recordHistory: true,
+      recordHistory: false,
+    );
+    await dbHelper.markLocalHistoryForObjectSynced(
+      tableName: tableName,
+      row: {
+        'id': localId,
+        'uuid': cleanUuid,
+      },
     );
   }
 
@@ -1613,7 +1657,7 @@ class SyncService {
           uuidObjet,
           photoSlot,
           remotePath,
-          recordHistory: true,
+          recordHistory: false,
         );
         result.successCount++;
         result.photoSuccessCount++;

@@ -55,6 +55,23 @@ PG_TO_SQLITE = {
     'uuid': 'TEXT', 'json': 'TEXT', 'jsonb': 'TEXT',
 }
 
+MOBILE_OUTPUT_ALIASES = {
+    'ep_ref_rue': 'ref_rue',
+    'ep_observation': 'observation',
+    'ep_conf_plan': 'conformite_plan',
+    'ASS_CONF_PLAN': 'conformite_plan',
+    'ASS_OBSERV': 'observation',
+    'ASS_DATE_INTERV': 'date_leve',
+    'ASS_COOR_X': 'ass_coor_x',
+    'ASS_COOR_Y': 'ass_coor_y',
+    'ASS_COOR_Z': 'ass_coor_z',
+    'ASS_TYPE_RESEAU': 'typereseau',
+    'ASS_STATUT': 'etat',
+    'ASS_DIAM': 'diametre',
+    'ASS_MAT': 'nature',
+    'ASS_LONG_R': 'longueur',
+}
+
 
 def main() -> int:
     sync_text = (REPO / 'PPRCollecte_Flutter' / 'lib' / 'services' /
@@ -117,13 +134,33 @@ def main() -> int:
         rows = cur.fetchall()
         if not rows:
             continue
+        physical_types = {
+            str(col).lower(): PG_TO_SQLITE.get(dtype, 'TEXT')
+            for col, dtype in rows
+        }
         fields_lower = {f.lower() for f in ent['fields']}
+        added_lower = set()
         for col, dtype in rows:
             cl = col.lower()
             if cl in fields_lower or cl in SKIP_FIXED or cl in SKIP_BINARY:
                 continue
             sqlite_type = PG_TO_SQLITE.get(dtype, 'TEXT')
             out[ent['table']].append((cl, sqlite_type))
+            added_lower.add(cl)
+
+        local_lower = fields_lower | added_lower
+        for source, target in MOBILE_OUTPUT_ALIASES.items():
+            source_lower = source.lower()
+            target_lower = target.lower()
+            if source_lower not in local_lower:
+                continue
+            if target_lower in local_lower:
+                continue
+            if target_lower in SKIP_FIXED or target_lower in SKIP_BINARY:
+                continue
+            sqlite_type = physical_types.get(source_lower, 'TEXT')
+            out[ent['table']].append((target_lower, sqlite_type))
+            local_lower.add(target_lower)
 
     lines = [
         '// AUTO-GENERATED depuis public.attribut_config_mobile.',

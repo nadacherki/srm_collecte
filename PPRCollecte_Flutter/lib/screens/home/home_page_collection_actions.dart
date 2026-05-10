@@ -2,12 +2,15 @@ part of 'home_page.dart';
 
 extension _HomePageCollectionActions on _HomePageState {
   bool _ensureGpsReadyForCapture() {
-    if (homeController.gpsEnabled && homeController.currentAltitude != null) {
+    if (CaptureLocationGuard.canCapture(
+      gpsEnabled: homeController.gpsEnabled,
+      altitude: homeController.currentAltitude,
+    )) {
       return true;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Veuillez activer le GPS')),
+      const SnackBar(content: Text(CaptureLocationGuard.missingGpsMessage)),
     );
     return false;
   }
@@ -390,12 +393,7 @@ extension _HomePageCollectionActions on _HomePageState {
     String? metier,
     String? entityType,
   }) async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez activer le GPS')),
-      );
-      return;
-    }
+    if (!_ensureGpsReadyForCapture()) return;
 
     if (homeController.hasActiveCollection) {
       ScaffoldMessenger.of(context).showSnackBar(

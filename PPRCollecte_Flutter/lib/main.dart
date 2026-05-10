@@ -98,7 +98,7 @@ class _SessionGateState extends State<SessionGate> {
       initialOfflineBasemapFormat: offlineBasemapFormat,
       initialBasemapNotice:
           offlineBasemapPath == null || offlineBasemapPath.isEmpty
-              ? "Aucune carte offline active n'a encore ete telechargee."
+              ? "Aucune carte offline active n'a encore été téléchargée."
               : null,
       onLogout: _logoutRestoredSession,
     );

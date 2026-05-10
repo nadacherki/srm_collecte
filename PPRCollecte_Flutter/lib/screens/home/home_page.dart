@@ -68,6 +68,8 @@ import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
 import '../../services/nmea_bridge_service.dart';
 import '../../services/public_metrics_cache_service.dart';
+import '../../services/capture_location_guard.dart';
+import '../../services/reference_overlay_sync_service.dart';
 import '../../services/srm_row_visibility_filter.dart';
 import '../../services/srm_status_flags.dart';
 
@@ -181,6 +183,9 @@ class _HomePageState extends State<HomePage> {
   final List<CollectionPointEdit> _ligneRedoPoints = [];
   final List<CollectionPointEdit> _polygonRedoPoints = [];
   List<Polygon> _displayedPolygons = [];
+  List<Polygon> _referencePlanchePolygons = [];
+  List<Polygon> _referenceZonePolygons = [];
+  List<Polyline> _referenceFondPlanPolylines = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
   Map<String, List<Polygon>> _displayedPolygonAnomalieByTable = {};
   Map<String, List<Polygon>> _displayedPolygonIncompletByTable = {};
@@ -189,6 +194,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, int> _pointCountsByTable = {};
   Map<String, int> _anomalieCountsByTable = {};
   Map<String, int> _incompletCountsByTable = {};
+  Map<String, int> _referenceOverlayCounts = {};
   MapController? _mapController;
   LatLng? _lastCameraPosition;
   late final HomeController homeController;
@@ -257,6 +263,9 @@ class _HomePageState extends State<HomePage> {
     'line_autre': true,
     'zone_plaine': true,
     'srm_ep_regard_polygon': true,
+    'overlay_zones': true,
+    'overlay_planche': false,
+    'overlay_fond_plan': false,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -304,6 +313,8 @@ class _HomePageState extends State<HomePage> {
     _startOnlineWatcher();
     _loadAdminNamesOffline();
     _loadDisplayedPolygons();
+    _loadReferenceOverlays();
+    unawaited(_refreshReferenceOverlaysForMapStartup());
     _hydrateOfflineBasemapState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showInitialBasemapNoticeIfNeeded();
@@ -500,6 +511,9 @@ class _HomePageState extends State<HomePage> {
   void _handlePolygonTap(Object? hitValue) =>
       _handlePolygonTapImpl(this, hitValue);
 
+  void _handlePolygonLongPress(Object? hitValue) =>
+      _handlePolygonLongPressImpl(this, hitValue);
+
   Widget _detailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -552,6 +566,9 @@ class _HomePageState extends State<HomePage> {
 
   List<Polyline> _getFilteredPolylines() {
     final List<Polyline> filtered = List<Polyline>.from(collectedPolylines);
+    if (_legendVisibility['overlay_fond_plan'] == true) {
+      filtered.addAll(_referenceFondPlanPolylines);
+    }
     if (_legendVisibility['lines'] == true) {
       filtered.addAll(_finishedLines);
     }
@@ -778,6 +795,13 @@ class _HomePageState extends State<HomePage> {
     final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
     final List<Polygon> filtered = <Polygon>[];
 
+    if (_legendVisibility['overlay_zones'] != false) {
+      filtered.addAll(_referenceZonePolygons);
+    }
+    if (_legendVisibility['overlay_planche'] == true) {
+      filtered.addAll(_referencePlanchePolygons);
+    }
+
     if (anomalieFilterOn && !incompletFilterOn) {
       for (final entry in _displayedPolygonAnomalieByTable.entries) {
         if (_isSrmTableVisible(entry.key)) {
@@ -866,6 +890,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadDisplayedSrmLines() => _loadDisplayedSrmLinesImpl(this);
+
+  Future<void> _loadReferenceOverlays() => _loadReferenceOverlaysImpl(this);
+
+  Future<void> _refreshReferenceOverlaysForMapStartup() async {
+    if (!_isOnlineDynamic) return;
+    try {
+      await ReferenceOverlaySyncService().refreshLightOverlays();
+      await _loadReferenceOverlays();
+    } catch (e) {
+      debugPrint('[REFERENCE-OVERLAYS] Refresh carte ignore: $e');
+    }
+  }
 
   Future<void> finishPolygonCollection() => _finishPolygonCollectionImpl();
 
@@ -1188,6 +1224,7 @@ class _HomePageState extends State<HomePage> {
                     polylines: filteredPolylines,
                     polygons: filteredPolygons,
                     onPolygonTap: _handlePolygonTap,
+                    onPolygonLongPress: _handlePolygonLongPress,
                     onMapCreated: _onMapCreated,
                     formMarkers: formMarkers,
                     isSatellite: _isSatellite,
@@ -1224,6 +1261,7 @@ class _HomePageState extends State<HomePage> {
                     pointCountsByTable: _pointCountsByTable,
                     anomalieCountsByTable: _anomalieCountsByTable,
                     incompletCountsByTable: _incompletCountsByTable,
+                    referenceOverlayCounts: _referenceOverlayCounts,
                     onExpandedChanged: (expanded) {
                       setState(() => _isLegendExpanded = expanded);
                     },
