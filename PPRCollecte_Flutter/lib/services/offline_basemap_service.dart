@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
 
-/// Resultat d'une mise a jour du basemap regional.
+/// Resultat d'une mise à jour du basemap regional.
 class OfflineBasemapDownloadResult {
   final bool success;
   final bool alreadyUpToDate;
@@ -26,7 +26,7 @@ class OfflineBasemapDownloadResult {
   });
 }
 
-/// Gere le fichier .pmtiles regional unique : telechargement, verification de
+/// Gere le fichier .pmtiles regional unique : téléchargement, vérification de
 /// version (sha256), stockage local et exposition du chemin actif a la carte.
 class OfflineBasemapService {
   static final OfflineBasemapService _instance =
@@ -78,7 +78,7 @@ class OfflineBasemapService {
   }
 
   /// Synchronise le basemap regional : recupere le manifest, compare au sha256
-  /// stocke localement, telecharge si besoin (avec reprise via Range).
+  /// stocke localement, télécharge si besoin (avec reprise via Range).
   Future<OfflineBasemapDownloadResult> ensureRegionalBasemapDownloaded({
     bool force = false,
   }) async {

@@ -43,6 +43,9 @@ class DraftService {
 
   static bool isDraftExtraStateMeaningfulValue(String key, dynamic value) {
     final cleanKey = key.trim().toLowerCase();
+    if (cleanKey == 'regardepuuid' || cleanKey == 'regard_ep_uuid') {
+      return false;
+    }
     if ((cleanKey == 'typeanomalie' || cleanKey == 'type_anomalie') &&
         value is String &&
         _isNeutralDefaultDraftValue(cleanKey, value)) {
@@ -93,6 +96,7 @@ class DraftService {
       'date_collecte',
       'date_sync',
       'date_creation',
+      'ep_date_insertion',
       'date_modif',
       'date_validation',
       'code_gps',
@@ -125,18 +129,18 @@ class DraftService {
     return value
         .trim()
         .toLowerCase()
-        .replaceAll('Ã©', 'e')
-        .replaceAll('Ã¨', 'e')
-        .replaceAll('Ãª', 'e')
-        .replaceAll('Ã«', 'e')
-        .replaceAll('Ã ', 'a')
-        .replaceAll('Ã¢', 'a')
-        .replaceAll('Ã¹', 'u')
-        .replaceAll('Ã»', 'u')
-        .replaceAll('Ã®', 'i')
-        .replaceAll('Ã¯', 'i')
-        .replaceAll('Ã´', 'o')
-        .replaceAll('Ã§', 'c');
+        .replaceAll('\u00e9', 'e')
+        .replaceAll('\u00e8', 'e')
+        .replaceAll('\u00ea', 'e')
+        .replaceAll('\u00eb', 'e')
+        .replaceAll('\u00e0', 'a')
+        .replaceAll('\u00e2', 'a')
+        .replaceAll('\u00f9', 'u')
+        .replaceAll('\u00fb', 'u')
+        .replaceAll('\u00ee', 'i')
+        .replaceAll('\u00ef', 'i')
+        .replaceAll('\u00f4', 'o')
+        .replaceAll('\u00e7', 'c');
   }
 
   static bool _isMeaningfulDraftValue(dynamic value) {
@@ -580,6 +584,9 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
 
   bool isDraftExtraStateMeaningful(String key, dynamic value) {
     final cleanKey = key.trim().toLowerCase();
+    if (cleanKey == 'regardepuuid' || cleanKey == 'regard_ep_uuid') {
+      return false;
+    }
     if ((cleanKey == 'typeanomalie' || cleanKey == 'type_anomalie') &&
         value is String &&
         _isNeutralDefaultDraftValue(cleanKey, value)) {
@@ -630,6 +637,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
       'date_collecte',
       'date_sync',
       'date_creation',
+      'ep_date_insertion',
       'date_modif',
       'date_validation',
       'code_gps',
@@ -662,18 +670,18 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
     return value
         .trim()
         .toLowerCase()
-        .replaceAll('é', 'e')
-        .replaceAll('è', 'e')
-        .replaceAll('ê', 'e')
-        .replaceAll('ë', 'e')
-        .replaceAll('à', 'a')
-        .replaceAll('â', 'a')
-        .replaceAll('ù', 'u')
-        .replaceAll('û', 'u')
-        .replaceAll('î', 'i')
-        .replaceAll('ï', 'i')
-        .replaceAll('ô', 'o')
-        .replaceAll('ç', 'c');
+        .replaceAll('\u00e9', 'e')
+        .replaceAll('\u00e8', 'e')
+        .replaceAll('\u00ea', 'e')
+        .replaceAll('\u00eb', 'e')
+        .replaceAll('\u00e0', 'a')
+        .replaceAll('\u00e2', 'a')
+        .replaceAll('\u00f9', 'u')
+        .replaceAll('\u00fb', 'u')
+        .replaceAll('\u00ee', 'i')
+        .replaceAll('\u00ef', 'i')
+        .replaceAll('\u00f4', 'o')
+        .replaceAll('\u00e7', 'c');
   }
 
   bool _isMeaningfulDraftValue(dynamic value) {

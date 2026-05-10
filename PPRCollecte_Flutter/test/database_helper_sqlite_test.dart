@@ -136,6 +136,41 @@ void main() {
         await columnsOf('hydrant'),
         contains('conformite_plan'),
       );
+      expect(
+        await columnsOf('conduite_terrain'),
+        containsAll({'altitude_z_moy', 'ep_diam', 'ep_mat'}),
+      );
+      expect(
+        await columnsOf('conduite_terrain'),
+        isNot(contains('ep_coor_z')),
+      );
+    });
+
+    test('line tables accept average altitude without point Z columns',
+        () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest();
+      final helper = DatabaseHelper();
+
+      final id = await helper.insertEntitySrm('conduite_terrain', {
+        'uuid': 'line-altitude-1',
+        'ep_diam': '10',
+        'ep_mat': '2',
+        'points_json':
+            '[{"lat":34.68,"lon":-1.91},{"lat":34.681,"lon":-1.912}]',
+        'nb_points': 2,
+        'distance_m': 12.3,
+        'altitude_z_moy': 42.75,
+      });
+
+      final db = await helper.database;
+      final row = (await db.query(
+        'conduite_terrain',
+        where: 'id = ?',
+        whereArgs: [id],
+      ))
+          .single;
+
+      expect(row['altitude_z_moy'], 42.75);
     });
   });
 }

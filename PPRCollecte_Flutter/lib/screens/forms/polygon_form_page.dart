@@ -45,6 +45,7 @@ class PolygonFormPage extends StatefulWidget {
 
 class _PolygonFormPageState extends State<PolygonFormPage>
     with FormDraftMixin<PolygonFormPage> {
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isLocked = false;
@@ -799,6 +800,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return;
     }
 
+    if (!_isObjetIncomplet && !(_formKey.currentState?.validate() ?? true)) {
+      setState(() => _isSaving = false);
+      return;
+    }
+
     try {
       final now = DateTime.now();
       final dbHelper = DatabaseHelper();
@@ -1312,9 +1318,12 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
               // ===== CONTENU DU FORMULAIRE =====
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: formSections,
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: formSections,
+                  ),
                 ),
               ),
 
@@ -1446,6 +1455,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     String label,
     String value, {
     String? helperText,
+    bool isRequired = false,
   }) {
     final displayValue =
         value.trim().isEmpty ? 'Non d\u00E9termin\u00E9' : value.trim();
@@ -1454,14 +1464,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
+          _requiredLabel(label, isRequired),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -1590,6 +1593,33 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     return SrmConfig.getFieldLabel(widget.metier, widget.entityType, field);
   }
 
+  TextStyle get _fieldLabelStyle => const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF374151),
+      );
+
+  Widget _requiredLabel(String label, bool isRequired) {
+    if (!isRequired) {
+      return Text(label, style: _fieldLabelStyle);
+    }
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: _fieldLabelStyle,
+        children: const [
+          TextSpan(
+            text: ' *',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRegardEpField(String field) {
     final controller = _regardEpControllers[field];
     if (controller == null) return const SizedBox.shrink();
@@ -1611,14 +1641,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
         child: SwitchListTile(
-          title: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
+          title: _requiredLabel(label, isRequired),
           value: boolValue,
           onChanged: isReadOnly
               ? null
@@ -1644,14 +1667,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF374151),
-                ),
-              ),
+              _requiredLabel(label, isRequired),
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -1701,19 +1717,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF374151),
-              ),
-            ),
+            _requiredLabel(label, isRequired),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: currentValue.isEmpty ? null : currentValue,
               decoration: InputDecoration(
-                labelText: isRequired ? '$label *' : null,
                 filled: true,
                 fillColor: const Color(0xFFF9FAFB),
                 border: OutlineInputBorder(
@@ -1746,6 +1754,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return _buildRegardEpStaticField(
         label,
         _formatRegardEpDisplayValue(field, controller.text),
+        isRequired: isRequired,
       );
     }
 
@@ -1754,14 +1763,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
-            ),
-          ),
+          _requiredLabel(label, isRequired),
           const SizedBox(height: 8),
           TextFormField(
             controller: controller,
@@ -1774,7 +1776,6 @@ class _PolygonFormPageState extends State<PolygonFormPage>
             validator: (value) =>
                 _validateRegardEpField(field, value, isRequired, rule),
             decoration: InputDecoration(
-              labelText: isRequired ? '$label *' : null,
               hintText: _hintForRegardEpField(field),
               hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
               filled: true,

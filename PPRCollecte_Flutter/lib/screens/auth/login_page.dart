@@ -40,7 +40,7 @@ class _LoginPageState extends State<LoginPage> {
           await OfflineBasemapService().ensureRegionalBasemapDownloaded();
       if (!result.success) {
         final reason = result.errorMessage ?? result.userMessage ?? '';
-        debugPrint('[BASEMAP-REGIONAL] Echec telechargement : $reason');
+        debugPrint('[BASEMAP-REGIONAL] Échec téléchargement : $reason');
         return reason.isNotEmpty
             ? 'Carte hors ligne non téléchargée : $reason'
             : 'Carte hors ligne non téléchargée.';
@@ -48,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
       return null;
     } catch (e) {
       final reason = e.toString();
-      debugPrint('[BASEMAP-REGIONAL] Exception telechargement : $reason');
+      debugPrint('[BASEMAP-REGIONAL] Exception téléchargement : $reason');
       return 'Carte hors ligne indisponible : $reason';
     }
   }
@@ -256,7 +256,7 @@ class _LoginPageState extends State<LoginPage> {
       //
       // Le basemap est un cas particulier : si deja en cache local et
       // sha256 OK, ensureRegionalBasemapDownloaded() retourne en ~50ms;
-      // sinon il peut prendre 10-15s pour telecharger 19 Mo. On lui
+      // sinon il peut prendre 10-15s pour télécharger 19 Mo. On lui
       // accorde une courte fenetre (3s) pour le cas "deja a jour", puis
       // on bascule en background sans bloquer l'UI.
       final basemapFuture = _refreshBasemapCatalogSilently();
@@ -289,7 +289,7 @@ class _LoginPageState extends State<LoginPage> {
           activeBasemap?['local_path']?.toString().trim();
       final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
       if (!mounted) return;
-      // Si la carte n'a pas pu etre telechargee, on remonte la cause exacte
+      // Si la carte n'a pas pu etre téléchargée, on remonte la cause exacte
       // (au lieu d'avaler silencieusement). Permet de diagnostiquer les
       // problemes reseau / endpoint indisponible / fichier serveur manquant.
       final basemapNotice = basemapError ??

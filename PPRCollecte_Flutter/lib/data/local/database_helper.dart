@@ -595,7 +595,7 @@ class DatabaseHelper {
       throw StateError(
         'Structure SQLite locale incompatible pour $tableName. '
         'Colonnes manquantes$source: ${missing.join(', ')}. '
-        'Reinitialisez les donnees locales puis relancez le telechargement.',
+        'Réinitialisez les données locales puis relancez le téléchargement.',
       );
     }
   }
@@ -1030,7 +1030,7 @@ class DatabaseHelper {
         throw StateError(
           'Structure SQLite locale incompatible pour $tableName. '
           'Colonne manquante: ${entry.key}. '
-          'Reinitialisez les donnees locales puis relancez le telechargement.',
+          'Réinitialisez les données locales puis relancez le téléchargement.',
         );
       }
     }
@@ -1106,7 +1106,7 @@ class DatabaseHelper {
         throw StateError(
           'Structure SQLite locale incompatible pour photo_sync_queue. '
           'Colonne manquante: ${entry.key}. '
-          'Reinitialisez les donnees locales puis relancez le telechargement.',
+          'Réinitialisez les données locales puis relancez le téléchargement.',
         );
       }
     }
@@ -1144,9 +1144,9 @@ class DatabaseHelper {
       );
       if (tables.isEmpty) {
         throw StateError(
-          'Table metier SQLite locale manquante: $tableName. '
-          'Le mobile ne cree plus les tables metier a chaud. '
-          'Reinitialisez les donnees locales pour recreer la structure depuis '
+          'Table métier SQLite locale manquante: $tableName. '
+          'Le mobile ne crée plus les tables métier à chaud. '
+          'Réinitialisez les données locales pour recréer la structure depuis '
           'attribut_config_mobile / srm_server_columns.',
         );
       }
@@ -3234,9 +3234,9 @@ class DatabaseHelper {
     );
     if (tables.isEmpty) {
       throw StateError(
-        'Table metier SQLite locale manquante pour $tableName. '
-        'Le mobile ne cree plus les tables metier a chaud. '
-        'Reinitialisez les donnees locales puis relancez le telechargement.',
+        'Table métier SQLite locale manquante pour $tableName. '
+        'Le mobile ne crée plus les tables métier à chaud. '
+        'Réinitialisez les données locales puis relancez le téléchargement.',
       );
     }
 

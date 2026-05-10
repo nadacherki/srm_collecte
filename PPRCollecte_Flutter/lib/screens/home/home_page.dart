@@ -69,6 +69,7 @@ import '../../services/form_lock_service.dart';
 import '../../services/nmea_bridge_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 import '../../services/capture_location_guard.dart';
+import '../../services/download_notification_service.dart';
 import '../../services/reference_overlay_sync_service.dart';
 import '../../services/srm_row_visibility_filter.dart';
 import '../../services/srm_status_flags.dart';

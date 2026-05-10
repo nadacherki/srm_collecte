@@ -23,6 +23,7 @@ import kotlin.concurrent.thread
 
 class MainActivity: FlutterActivity() {
     private val channelName = "com.srm.collecte/nmea_bridge"
+    private val downloadNotificationChannelName = "com.srm.collecte/download_notification"
     private val sppUuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     private val mockProviders = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
 
@@ -122,6 +123,88 @@ class MainActivity: FlutterActivity() {
                 "getStatus" -> result.success(statusPayload())
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            downloadNotificationChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startDownloadNotification" -> {
+                    sendDownloadNotificationIntent(
+                        DownloadForegroundService.ACTION_START,
+                        call.argument<String>("title"),
+                        call.argument<String>("text"),
+                        call.argument<Int>("progress"),
+                        call.argument<Boolean>("indeterminate"),
+                    )
+                    result.success(true)
+                }
+                "updateDownloadNotification" -> {
+                    sendDownloadNotificationIntent(
+                        DownloadForegroundService.ACTION_UPDATE,
+                        call.argument<String>("title"),
+                        call.argument<String>("text"),
+                        call.argument<Int>("progress"),
+                        call.argument<Boolean>("indeterminate"),
+                    )
+                    result.success(true)
+                }
+                "finishDownloadNotification" -> {
+                    sendDownloadNotificationIntent(
+                        DownloadForegroundService.ACTION_FINISH,
+                        call.argument<String>("title"),
+                        call.argument<String>("text"),
+                        call.argument<Int>("progress"),
+                        call.argument<Boolean>("indeterminate"),
+                    )
+                    result.success(true)
+                }
+                "failDownloadNotification" -> {
+                    sendDownloadNotificationIntent(
+                        DownloadForegroundService.ACTION_FAIL,
+                        call.argument<String>("title"),
+                        call.argument<String>("text"),
+                        call.argument<Int>("progress"),
+                        call.argument<Boolean>("indeterminate"),
+                    )
+                    result.success(true)
+                }
+                "stopDownloadNotification" -> {
+                    sendDownloadNotificationIntent(
+                        DownloadForegroundService.ACTION_STOP,
+                        null,
+                        null,
+                        null,
+                        null,
+                    )
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun sendDownloadNotificationIntent(
+        actionName: String,
+        title: String?,
+        text: String?,
+        progress: Int?,
+        indeterminate: Boolean?,
+    ) {
+        val intent = Intent(this, DownloadForegroundService::class.java).apply {
+            action = actionName
+            if (title != null) putExtra("title", title)
+            if (text != null) putExtra("text", text)
+            if (progress != null) putExtra("progress", progress)
+            if (indeterminate != null) putExtra("indeterminate", indeterminate)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            actionName == DownloadForegroundService.ACTION_START
+        ) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
         }
     }
 

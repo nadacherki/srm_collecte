@@ -27,10 +27,21 @@ extension _HomePageAppActions on _HomePageState {
       _processedItems = 0;
       _totalItems = 1;
     });
+    await DownloadNotificationService.start();
+
+    var notificationResolved = false;
+    var downloadFailureMessage =
+        'Téléchargement interrompu. Relancez pour reprendre.';
 
     try {
       final result = await SyncService().downloadAllData(
         onProgress: (progress, currentOperation, processed, total) {
+          DownloadNotificationService.update(
+            progress: progress,
+            operation: currentOperation,
+            processed: processed,
+            total: total,
+          );
           if (!mounted) return;
           _setStateFromPart(() {
             _progressValue = progress;
@@ -121,6 +132,16 @@ extension _HomePageAppActions on _HomePageState {
                               ? Colors.green
                               : Colors.blue;
 
+      if (result.interrupted || fullFailure || partialFailure) {
+        downloadFailureMessage = snackBarMessage;
+        await DownloadNotificationService.fail(text: snackBarMessage);
+        notificationResolved = true;
+      } else {
+        await DownloadNotificationService.complete(text: snackBarMessage);
+        notificationResolved = true;
+      }
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(snackBarMessage),
@@ -128,6 +149,9 @@ extension _HomePageAppActions on _HomePageState {
         ),
       );
     } on DownloadInterruptedException catch (e) {
+      downloadFailureMessage = e.message;
+      await DownloadNotificationService.fail(text: e.message);
+      notificationResolved = true;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -136,14 +160,20 @@ extension _HomePageAppActions on _HomePageState {
         ),
       );
     } catch (e) {
+      downloadFailureMessage = _downloadErrorMessage(e);
+      await DownloadNotificationService.fail(text: downloadFailureMessage);
+      notificationResolved = true;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_downloadErrorMessage(e)),
+          content: Text(downloadFailureMessage),
           backgroundColor: Colors.red,
         ),
       );
     } finally {
+      if (!notificationResolved) {
+        await DownloadNotificationService.fail(text: downloadFailureMessage);
+      }
       if (mounted) {
         _setStateFromPart(() => isDownloading = false);
       }
@@ -483,7 +513,7 @@ extension _HomePageAppActions on _HomePageState {
               ),
               SizedBox(width: 10),
               Text(
-                'Sauvegarde en cours',
+                'Téléchargement en cours',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

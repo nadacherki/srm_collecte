@@ -109,6 +109,67 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
         titleColor = Colors.blue;
       }
 
+      final isNoDataResult = result.successCount == 0 &&
+          result.failedCount == 0 &&
+          result.warningCount == 0 &&
+          errorsToShow.isEmpty &&
+          warningsToShow.isEmpty;
+
+      if (isNoDataResult) {
+        return AlertDialog(
+          contentPadding: const EdgeInsets.fromLTRB(24, 22, 24, 6),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: titleColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(titleIcon, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Aucune donnée à synchroniser',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Tout est déjà à jour sur ce téléphone.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      }
+
       return AlertDialog(
         title: Row(
           children: [

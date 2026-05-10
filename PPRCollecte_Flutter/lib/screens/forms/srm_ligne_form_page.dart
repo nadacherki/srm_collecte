@@ -15,7 +15,9 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
+import '../../services/line_form_payload_service.dart';
 import '../../services/photo_reference_service.dart';
+import '../../services/photo_slot_service.dart';
 import '../../services/photo_storage_service.dart';
 import '../../services/photo_validation_service.dart';
 import '../../services/projection_service.dart';
@@ -263,6 +265,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       for (int i = 1; i <= _photoSlotCount; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
+      _photoPaths.addAll(
+        PhotoSlotService.compact(
+          _photoPaths,
+          _photoSlotCount,
+          isLockedReference: PhotoReferenceService.isRemoteReference,
+        ),
+      );
       _isLocked = FormLockService.isLocked(widget.existingData!);
       _restoreLinkedObjetIncompletDetails();
     }
@@ -523,6 +532,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   @override
   void restorePhotoPaths(Map<int, String?> photos) {
     _photoPaths.addAll(photos);
+    _photoPaths.addAll(
+      PhotoSlotService.compact(
+        _photoPaths,
+        _photoSlotCount,
+        isLockedReference: PhotoReferenceService.isRemoteReference,
+      ),
+    );
   }
 
   @override
@@ -563,6 +579,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   Future<void> _pickPhoto(int index) async {
+    if (!PhotoSlotService.canPickSlot(_photoPaths, index, _photoSlotCount)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ajoutez les photos dans l'ordre."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -654,11 +680,31 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
 
     if (!mounted) return;
-    setState(() => _photoPaths[index] = durablePath);
+    setState(() {
+      _photoPaths[index] = durablePath;
+      _photoPaths.addAll(
+        PhotoSlotService.compact(
+          _photoPaths,
+          _photoSlotCount,
+          isLockedReference: PhotoReferenceService.isRemoteReference,
+        ),
+      );
+    });
+    if (widget.existingData == null) onFieldChanged();
   }
 
   void _removePhoto(int index) {
-    setState(() => _photoPaths[index] = null);
+    setState(() {
+      _photoPaths.addAll(
+        PhotoSlotService.removeAndCompact(
+          _photoPaths,
+          index,
+          _photoSlotCount,
+          isLockedReference: PhotoReferenceService.isRemoteReference,
+        ),
+      );
+    });
+    if (widget.existingData == null) onFieldChanged();
   }
 
   Future<void> _cancelRemovedLocalPhotoUploadsAfterSave(
@@ -670,7 +716,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       final previous =
           widget.existingData?['photo_$slot']?.toString().trim() ?? '';
       final current = _photoPaths[slot]?.trim() ?? '';
-      if (previous.isEmpty || current.isNotEmpty) continue;
+      if (previous.isEmpty || current == previous) continue;
       if (!PhotoReferenceService.isRemoteReference(previous)) {
         await db.cancelPhotoSyncItem(
           schemaName: _metierCode.toLowerCase(),
@@ -720,14 +766,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           .toList());
       data['nb_points'] = effectiveLinePoints.length;
       data['distance_m'] = _distanceTotaleM;
-
-      if (widget.averageAltitude != null) {
-        data['altitude_z_moy'] = widget.averageAltitude;
-        final schema = SrmConfig.getEntityConfig(
-                widget.metier, widget.entityType)?['schema'] ??
-            '';
-        data['${schema}_coor_z'] = widget.averageAltitude;
-      }
+      LineFormPayloadService.applyAverageAltitude(
+        data,
+        widget.averageAltitude,
+      );
 
       data['x_debut'] = _xDebut;
       data['y_debut'] = _yDebut;
@@ -1480,6 +1522,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   Widget _buildPhotoSection() {
     if (_photoSlotCount == 0) return const SizedBox.shrink();
     final disabled = _isObjetIncomplet || _isLocked;
+    final visibleSlotCount = PhotoSlotService.visibleSlotCount(
+      _photoPaths,
+      _photoSlotCount,
+      allowAdd: !disabled,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1498,12 +1545,18 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: List.generate(_photoSlotCount, (i) {
+          children: List.generate(visibleSlotCount, (i) {
             final idx = i + 1;
             final path = _photoPaths[idx];
             final isRemotePhoto =
                 path != null && PhotoReferenceService.isRemoteReference(path);
-            final canEditSlot = !disabled && !isRemotePhoto;
+            final canEditSlot = !disabled &&
+                !isRemotePhoto &&
+                PhotoSlotService.canPickSlot(
+                  _photoPaths,
+                  idx,
+                  _photoSlotCount,
+                );
             return GestureDetector(
               onTap: canEditSlot ? () => _pickPhoto(idx) : null,
               child: Opacity(

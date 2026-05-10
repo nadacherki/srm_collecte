@@ -135,7 +135,7 @@ class SyncService {
 
       onProgress?.call(
         (current - 1) / total,
-        'Telechargement ${info.geometryLabel} - ${info.endpoint}',
+        'Téléchargement ${info.geometryLabel} - ${info.endpoint}',
         current - 1,
         total,
       );
@@ -152,7 +152,7 @@ class SyncService {
 
           onProgress?.call(
             (current - 1) / total,
-            'Telechargement ${info.geometryLabel} - page $nextPage',
+            'Téléchargement ${info.geometryLabel} - page $nextPage',
             current - 1,
             total,
           );
@@ -247,12 +247,12 @@ class SyncService {
           return result;
         }
         result.failedCount++;
-        result.errors.add('Telechargement ${info.table}: $message');
+        result.errors.add('Téléchargement ${info.table}: $message');
       }
 
       onProgress?.call(
         current / total,
-        'Telechargement ${info.geometryLabel} - ${info.endpoint}',
+        'Téléchargement ${info.geometryLabel} - ${info.endpoint}',
         current,
         total,
       );
@@ -288,7 +288,7 @@ class SyncService {
   }) async {
     onProgress?.call(
       0,
-      'Telechargement des cartes offline',
+      'Téléchargement des cartes offline',
       0,
       total,
     );
@@ -339,7 +339,7 @@ class SyncService {
 
     onProgress?.call(
       1 / total,
-      'Cartes offline verifiees',
+      'Carte offline vérifiée',
       1,
       total,
     );
@@ -361,7 +361,7 @@ class SyncService {
       );
     } catch (e) {
       result.warnings.add(
-        'Couches contexte offline non mises a jour : ${_short(e)}',
+        'Couches contexte offline non mises à jour : ${_short(e)}',
       );
     }
   }
@@ -382,7 +382,7 @@ class SyncService {
 
     onProgress?.call(
       (current - 1) / total,
-      'Telechargement anomalies terrain',
+      'Téléchargement anomalie',
       current - 1,
       total,
     );
@@ -425,12 +425,12 @@ class SyncService {
         return;
       }
       result.failedCount++;
-      result.errors.add('Telechargement anomalies terrain: $message');
+      result.errors.add('Téléchargement anomalie: $message');
     }
 
     onProgress?.call(
       current / total,
-      'Telechargement anomalies terrain',
+      'Téléchargement anomalie',
       current,
       total,
     );
@@ -1945,6 +1945,7 @@ class SyncService {
       'nb_points',
       'distance_m',
       'points_json',
+      'altitude_z_moy',
       'date_collecte',
     };
     payload.removeWhere((key, _) => localOnlyKeys.contains(key));

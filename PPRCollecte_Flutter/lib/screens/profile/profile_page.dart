@@ -374,104 +374,123 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
       padding: const EdgeInsets.all(20),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1B4F72),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1B4F72).withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B4F72),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1B4F72).withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _nomPrenom.isNotEmpty ? _nomPrenom : widget.agentName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        height: 1.18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B4F72),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _login.isNotEmpty ? _login : 'agent',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.2,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildBadge(
+                          label: _role.isNotEmpty ? _role : 'agent',
+                          color: roleColor,
+                        ),
+                        if (_activeAgentId != null)
+                          _buildBadge(
+                            label: 'Agent #$_activeAgentId',
+                            color: const Color(0xFF1976D2),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _nomPrenom.isNotEmpty ? _nomPrenom : widget.agentName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    height: 1.18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1B4F72),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _startConduiteDrawingMode('ep'),
+                  icon: const Icon(Icons.water_drop_outlined),
+                  label: const Text(
+                    'Conduite EP',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1B4F72),
+                    side: const BorderSide(color: Color(0xFF1B4F72)),
+                    minimumSize: const Size(0, 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  _login.isNotEmpty ? _login : 'agent',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.2,
-                    color: Color(0xFF666666),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _startConduiteDrawingMode('asst'),
+                  icon: const Icon(Icons.plumbing_outlined),
+                  label: const Text(
+                    'Conduite ASS',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2E7D32),
+                    side: const BorderSide(color: Color(0xFF2E7D32)),
+                    minimumSize: const Size(0, 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildBadge(
-                      label: _role.isNotEmpty ? _role : 'agent',
-                      color: roleColor,
-                    ),
-                    if (_activeAgentId != null)
-                      _buildBadge(
-                        label: 'Agent #$_activeAgentId',
-                        color: const Color(0xFF1976D2),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _startConduiteDrawingMode('ep'),
-                        icon: const Icon(Icons.water_drop_outlined),
-                        label: const Text('Conduite EP'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1B4F72),
-                          side: const BorderSide(color: Color(0xFF1B4F72)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _startConduiteDrawingMode('asst'),
-                        icon: const Icon(Icons.plumbing_outlined),
-                        label: const Text('Conduite ASS'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF2E7D32),
-                          side: const BorderSide(color: Color(0xFF2E7D32)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

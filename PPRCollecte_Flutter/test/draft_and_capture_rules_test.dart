@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:srm_collecte/services/capture_location_guard.dart';
 import 'package:srm_collecte/services/draft_service.dart';
+import 'package:srm_collecte/services/line_form_payload_service.dart';
 
 void main() {
   group('draft rules', () {
@@ -11,11 +12,27 @@ void main() {
           'ep_coor_y': '459013.134',
           'ep_coor_z': '41.250',
           'altitude_gps': '41.250',
+          'ep_date_insertion': '2026-05-11',
           'ep_conf_plan': 'Objet decouvert',
           'anomalie': 'Non',
         },
         extraState: {
+          'regardEpUuid': '1b6f3b3a-0c55-4f0d-a6a8-0d2f302ca317',
           'type_anomalie': 'Non',
+        },
+      );
+
+      expect(meaningful, isFalse);
+    });
+
+    test('regard technical state alone does not create a draft', () {
+      final meaningful = DraftService.hasMeaningfulDraftContent(
+        formData: const {},
+        extraState: const {
+          'regardEpUuid': '1b6f3b3a-0c55-4f0d-a6a8-0d2f302ca317',
+          'polygonPoints': <Map<String, double>>[],
+          'hasAnomalie': false,
+          'isObjetIncomplet': false,
         },
       );
 
@@ -54,6 +71,18 @@ void main() {
         isTrue,
       );
       expect(CaptureLocationGuard.missingGpsMessage, 'Veuillez activer le GPS');
+    });
+  });
+
+  group('line form payload', () {
+    test('average altitude does not write point coordinate Z fields', () {
+      final payload = <String, dynamic>{};
+
+      LineFormPayloadService.applyAverageAltitude(payload, 42.75);
+
+      expect(payload['altitude_z_moy'], 42.75);
+      expect(payload.containsKey('ep_coor_z'), isFalse);
+      expect(payload.containsKey('ass_coor_z'), isFalse);
     });
   });
 }
