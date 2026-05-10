@@ -14,7 +14,12 @@ try {
 
     $skipBackend = $SkipBackendChecks -or ($env:SRM_SKIP_BACKEND_CHECKS -eq "1")
     if (-not $skipBackend) {
-        & $FlutterRunner "tools\audit_mobile_config_schema_coherence.py"
+        $AuditTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "srm_mobile_release_checks"
+        New-Item -ItemType Directory -Force -Path $AuditTempDir | Out-Null
+        $SchemaReport = Join-Path $AuditTempDir "mobile_config_schema_coherence_audit.md"
+        $SchemaJson = Join-Path $AuditTempDir "mobile_config_schema_coherence_audit.json"
+
+        & $FlutterRunner "tools\audit_mobile_config_schema_coherence.py" --report $SchemaReport --json $SchemaJson
         & $FlutterRunner "tools\audit_mobile_form_mapping.py"
         & $FlutterRunner "API_GeoDjango\pprcollecte\manage.py" check
     }
