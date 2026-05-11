@@ -21,6 +21,7 @@ class MapControlsWidget extends StatelessWidget {
   final bool canRedoLigne;
   final bool canRedoPolygon;
   final bool isPolygonCollection;
+  final bool showRefresh;
 
   const MapControlsWidget({
     super.key,
@@ -42,6 +43,7 @@ class MapControlsWidget extends StatelessWidget {
     required this.canRedoLigne,
     required this.canRedoPolygon,
     required this.isPolygonCollection,
+    this.showRefresh = true,
   });
 
   @override
@@ -49,6 +51,7 @@ class MapControlsWidget extends StatelessWidget {
     final hasLigneContext = controller.ligneCollection != null;
     final hasPolygonContext =
         isPolygonCollection && controller.polygonCollection != null;
+    final hasTraceContext = hasLigneContext || hasPolygonContext;
 
     final showAddPointForLigne =
         (controller.ligneCollection?.isActive ?? false) ||
@@ -59,27 +62,29 @@ class MapControlsWidget extends StatelessWidget {
 
     return Stack(
       children: [
-        Positioned(
-          top: 8,
-          right: 70,
-          child: FloatingActionButton(
-            heroTag: 'refreshBtn',
-            mini: true,
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            onPressed: onRefresh,
-            elevation: 6,
-            child: const Icon(Icons.refresh, size: 20),
+        if (showRefresh)
+          Positioned(
+            top: 8,
+            right: 70,
+            child: FloatingActionButton(
+              heroTag: 'refreshBtn',
+              mini: true,
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              onPressed: onRefresh,
+              elevation: 6,
+              child: const Icon(Icons.refresh, size: 20),
+            ),
           ),
-        ),
         Positioned(
           bottom: 10,
           left: 10,
-          right: 80,
+          right: hasTraceContext ? 10 : 80,
           child: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final gap = constraints.maxWidth < 330 ? 8.0 : 12.0;
+                final gap =
+                    hasTraceContext || constraints.maxWidth < 330 ? 8.0 : 12.0;
                 final rawButtonWidth = (constraints.maxWidth - (gap * 2)) / 3;
                 final buttonWidth =
                     rawButtonWidth > 110 ? 110.0 : rawButtonWidth;

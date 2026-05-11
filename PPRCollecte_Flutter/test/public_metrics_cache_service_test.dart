@@ -39,8 +39,28 @@ void main() {
       final snapshot = await service.refreshAndSave(agentId: 19);
 
       expect(snapshot.hasAnyData, isFalse);
+      expect(snapshot.error, contains('Métriques serveur indisponibles'));
+      expect(snapshot.error, contains('le résumé'));
+      expect(snapshot.error, contains('la journée'));
+      expect(snapshot.error, contains('la semaine'));
+      expect(snapshot.error, contains('le mois'));
       expect(snapshot.error, contains('serveur indisponible'));
       expect(store.savedKeys, isEmpty);
+    });
+
+    test('technical endpoint names are hidden from metric errors', () async {
+      final store = _FakeMetricsStore();
+      final service = PublicMetricsCacheService(
+        apiClient: const _EndpointFailingMetricsApiClient(),
+        metadataStore: store,
+      );
+
+      final snapshot = await service.refreshAndSave(agentId: 19);
+
+      expect(snapshot.error, contains('Métriques serveur indisponibles'));
+      expect(snapshot.error, contains('connexion serveur indisponible'));
+      expect(snapshot.error, isNot(contains('metrics-agent-public')));
+      expect(snapshot.error, isNot(contains('GET')));
     });
 
     test('loadSnapshot restores cached metrics and cached error', () async {
@@ -127,6 +147,43 @@ class _FailingMetricsApiClient implements PublicMetricsApiClient {
   const _FailingMetricsApiClient();
 
   Exception get _error => Exception('serveur indisponible');
+
+  @override
+  Future<Map<String, dynamic>?> fetchResume({required int idAgent}) async {
+    throw _error;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchJour({
+    required int idAgent,
+    required DateTime jour,
+  }) async {
+    throw _error;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchSemaine({
+    required int idAgent,
+    required int anneeIso,
+    required int semaineIso,
+  }) async {
+    throw _error;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchMois({
+    required int idAgent,
+    required int annee,
+    required int moisNumero,
+  }) async {
+    throw _error;
+  }
+}
+
+class _EndpointFailingMetricsApiClient implements PublicMetricsApiClient {
+  const _EndpointFailingMetricsApiClient();
+
+  Exception get _error => Exception('Erreur réseau GET metrics-agent-public');
 
   @override
   Future<Map<String, dynamic>?> fetchResume({required int idAgent}) async {

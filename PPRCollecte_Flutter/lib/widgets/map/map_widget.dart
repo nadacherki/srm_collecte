@@ -52,6 +52,9 @@ class MapWidget extends StatefulWidget {
   final double? basemapMinZoom;
   final double? basemapMaxZoom;
   final bool showMapButtons;
+  final bool showLocationButton;
+  final bool showZoomButtons;
+  final bool showMapTypeButton;
 
   const MapWidget({
     super.key,
@@ -81,6 +84,9 @@ class MapWidget extends StatefulWidget {
     this.basemapMinZoom,
     this.basemapMaxZoom,
     this.showMapButtons = true,
+    this.showLocationButton = true,
+    this.showZoomButtons = true,
+    this.showMapTypeButton = true,
   });
 
   @override
@@ -1684,7 +1690,7 @@ class _MapWidgetState extends State<MapWidget> {
               ),
             ),
           ),
-        if (widget.showMapButtons)
+        if (widget.showMapButtons && widget.showLocationButton)
           Positioned(
             top: 8,
             right: 10,
@@ -1707,12 +1713,14 @@ class _MapWidgetState extends State<MapWidget> {
               ),
             ),
           ),
-        if (widget.showMapButtons && widget.onMapTypeChanged != null)
+        if (widget.showMapButtons &&
+            widget.showMapTypeButton &&
+            widget.onMapTypeChanged != null)
           MapTypeToggle(
             isSatellite: widget.isSatellite,
             onMapTypeChanged: widget.onMapTypeChanged!,
           ),
-        if (widget.showMapButtons)
+        if (widget.showMapButtons && widget.showZoomButtons)
           Positioned(
             right: 10,
             bottom: 10,

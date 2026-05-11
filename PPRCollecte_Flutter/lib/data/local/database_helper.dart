@@ -2673,6 +2673,9 @@ class DatabaseHelper {
     return existingId;
   }
 
+  /// Récupère la conduite locale pour ce métier/agent/jour, qu'elle soit
+  /// synchronisée ou en attente. Le caller distingue via le champ `synced`
+  /// (1 = déjà validée et envoyée au serveur, 0/null = en attente).
   Future<Map<String, dynamic>?> getConduiteSyncItemForDay({
     required String metier,
     required int idAgent,
@@ -2683,9 +2686,9 @@ class DatabaseHelper {
     final jourKey = jour.toIso8601String().substring(0, 10);
     final rows = await db.query(
       'conduite_sync_queue',
-      where:
-          'metier = ? AND id_agent = ? AND jour = ? AND (synced IS NULL OR synced = 0)',
+      where: 'metier = ? AND id_agent = ? AND jour = ?',
       whereArgs: [metier, idAgent, jourKey],
+      orderBy: 'COALESCE(synced, 0) DESC, id DESC',
       limit: 1,
     );
     return rows.isEmpty ? null : rows.first;

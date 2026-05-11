@@ -70,6 +70,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool get _hasPeriodMetrics =>
       _dayMetrics != null || _weekMetrics != null || _monthMetrics != null;
 
+  bool get _usesCachedMetricsAfterRefreshError =>
+      _metricsError != null && _hasServerMetrics;
+
   @override
   void initState() {
     super.initState();
@@ -517,14 +520,6 @@ class _ProfilePageState extends State<ProfilePage> {
         color: Color(0xFF1B4F72),
       ),
       children: [
-        if (_metricsError != null) ...[
-          _buildNoticeCard(
-            icon: Icons.info_outline,
-            color: const Color(0xFFF39C12),
-            text: _metricsError!,
-          ),
-          const SizedBox(height: 12),
-        ],
         _buildStatsGrid(
           childAspectRatio: 1.45,
           children: [
@@ -583,6 +578,12 @@ class _ProfilePageState extends State<ProfilePage> {
           'Métriques mises à jour',
           _formatDateTimeLabel(_metricsFetchedAt),
         ),
+        if (_usesCachedMetricsAfterRefreshError)
+          _buildInfoRow(
+            Icons.cloud_off_outlined,
+            'Source métriques',
+            'Cache local (serveur indisponible)',
+          ),
         if (_buildOverviewBadges().isNotEmpty) ...[
           const SizedBox(height: 4),
           Wrap(
@@ -704,11 +705,18 @@ class _ProfilePageState extends State<ProfilePage> {
         _buildNoticeCard(
           icon: Icons.cloud_off_outlined,
           color: const Color(0xFFF39C12),
-          text: _metricsError ??
-              'Aucune métrique serveur chargée pour cet agent. Rafraîchissez pour vérifier.',
+          text: _metricsUnavailableMessage(),
         ),
       ],
     );
+  }
+
+  String _metricsUnavailableMessage() {
+    if (_metricsError == null || _metricsError!.trim().isEmpty) {
+      return 'Aucune métrique serveur chargée pour cet agent. Rafraîchissez pour vérifier.';
+    }
+
+    return '${_metricsError!} Aucun cache serveur n’est disponible sur ce téléphone pour cet agent.';
   }
 
   Widget _buildLocalMetierSection() {

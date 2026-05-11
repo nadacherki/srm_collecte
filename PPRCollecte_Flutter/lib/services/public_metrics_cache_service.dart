@@ -152,7 +152,7 @@ class PublicMetricsCacheService {
     final now = DateTime.now();
     final isoWeek = _computeIsoWeek(now);
 
-    final errors = <String>[];
+    final errors = <String, String>{};
     final failedLabels = <String>{};
 
     Future<Map<String, dynamic>?> fetchMetric(
@@ -166,7 +166,7 @@ class PublicMetricsCacheService {
         return await future.timeout(requestTimeout);
       } catch (e) {
         failedLabels.add(label);
-        errors.add('$label: ${_cleanErrorMessage(e)}');
+        errors[label] = _cleanErrorMessage(e);
         return null;
       }
     }
@@ -221,7 +221,7 @@ class PublicMetricsCacheService {
         week: week,
         month: month,
         fetchedAt: now,
-        error: errors.isEmpty ? null : errors.join(' | '),
+        error: errors.isEmpty ? null : _formatMetricsFetchError(errors),
       );
 
       if (snapshot.hasAnyData) {
@@ -294,6 +294,66 @@ class PublicMetricsCacheService {
       return raw.substring('Exception: '.length).trim();
     }
     return raw;
+  }
+
+  String _formatMetricsFetchError(Map<String, String> errorsByLabel) {
+    final failedScopes = errorsByLabel.keys.map(_metricScopeLabel).toList();
+    final reason = _summarizeMetricsErrorReason(errorsByLabel.values);
+    final prefix = errorsByLabel.length >= 4
+        ? 'Métriques serveur indisponibles'
+        : 'Rafraîchissement partiel des métriques serveur';
+
+    return '$prefix : impossible de charger ${_joinFrench(failedScopes)}. '
+        'Cause probable : $reason.';
+  }
+
+  String _metricScopeLabel(String label) {
+    switch (label) {
+      case 'resume':
+        return 'le résumé';
+      case 'jour':
+        return 'la journée';
+      case 'semaine':
+        return 'la semaine';
+      case 'mois':
+        return 'le mois';
+      default:
+        return label;
+    }
+  }
+
+  String _summarizeMetricsErrorReason(Iterable<String> rawReasons) {
+    final normalized = rawReasons.map(_simplifyMetricsErrorReason).toSet();
+    if (normalized.length == 1) {
+      return normalized.first;
+    }
+    return normalized.join(' / ');
+  }
+
+  String _simplifyMetricsErrorReason(String rawReason) {
+    final lower = rawReason.toLowerCase();
+    if (lower.contains('erreur réseau') ||
+        lower.contains('network') ||
+        lower.contains('socket') ||
+        lower.contains('connection') ||
+        lower.contains('host') ||
+        lower.contains('timeout')) {
+      return 'connexion serveur indisponible';
+    }
+    if (lower.contains('404')) {
+      return 'endpoint métriques introuvable';
+    }
+    if (lower.contains('500')) {
+      return 'erreur interne du serveur';
+    }
+    return rawReason;
+  }
+
+  String _joinFrench(List<String> values) {
+    if (values.isEmpty) return '';
+    if (values.length == 1) return values.first;
+    if (values.length == 2) return '${values.first} et ${values.last}';
+    return '${values.take(values.length - 1).join(', ')} et ${values.last}';
   }
 
   Map<String, dynamic> _zeroResume(int agentId) {

@@ -129,6 +129,8 @@ Future<void> _enterConduiteDrawingModeImpl(
   final localPendingPreview = localPending == null
       ? null
       : _buildConduiteLocalPendingPreview(localPending);
+  final isLocalAlreadySynced =
+      localPending != null && (localPending['synced'] as int? ?? 0) == 1;
 
   final isServerFrozen = existingSnapshot != null &&
       existingSnapshot['exists'] == true &&
@@ -164,13 +166,15 @@ Future<void> _enterConduiteDrawingModeImpl(
     state._conduiteIsFrozenForDay = isFrozen;
     state._conduiteIsSaving = false;
     state._conduiteModeError = loadWarning;
-    state._conduiteModeStatusText = localPendingPreview != null
-        ? 'Conduite locale en attente de synchronisation.'
-        : isFrozen
-            ? 'La conduite du jour est déjà validée et figée.'
-            : state._isOnlineDynamic
-                ? 'Touchez un regard pour commencer.'
-                : 'Touchez un regard pour préparer la conduite. Validation disponible seulement en ligne.';
+    state._conduiteModeStatusText = isServerFrozen
+        ? 'La conduite du jour est déjà validée et figée.'
+        : isLocalAlreadySynced
+            ? 'Conduite du jour déjà synchronisée avec le serveur.'
+            : localPendingPreview != null
+                ? 'Conduite locale en attente de synchronisation.'
+                : state._isOnlineDynamic
+                    ? 'Touchez un regard pour commencer.'
+                    : 'Touchez un regard pour préparer la conduite. Validation disponible seulement en ligne.';
     state._autoCenterDisabledByUser = true;
   });
 

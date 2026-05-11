@@ -1203,6 +1203,9 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
+    final hasTraceCollection = homeController.ligneCollection != null ||
+        homeController.polygonCollection != null;
+
     return Scaffold(
       backgroundColor: const Color(
         0xFFF0F8FF,
@@ -1249,6 +1252,8 @@ class _HomePageState extends State<HomePage> {
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
                       showMapButtons: true,
+                      showLocationButton: !hasTraceCollection,
+                      showZoomButtons: !hasTraceCollection,
                       onMapTap: (_, __) {
                         if (_isLegendExpanded) {
                           setState(() => _isLegendExpanded = false);
@@ -1341,6 +1346,7 @@ class _HomePageState extends State<HomePage> {
                         onCancelPolygon: cancelPolygonCollection,
                         onRefresh: _loadDisplayedPoints,
                         isPolygonCollection: _isPolygonCollection,
+                        showRefresh: !hasTraceCollection,
                       ),
                     // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
 

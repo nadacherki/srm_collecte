@@ -12,9 +12,12 @@ void main() {
           'ep_coor_y': '459013.134',
           'ep_coor_z': '41.250',
           'altitude_gps': '41.250',
+          'ep_agent': 'ETAFAT',
+          'ep_agent_crea': 'ETAFAT',
           'ep_date_insertion': '2026-05-11',
           'ep_conf_plan': 'Objet decouvert',
           'anomalie': 'Non',
+          'ep_anomalie': '0',
         },
         extraState: {
           'regardEpUuid': '1b6f3b3a-0c55-4f0d-a6a8-0d2f302ca317',

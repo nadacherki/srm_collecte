@@ -30,6 +30,20 @@ import '../../services/form_lock_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
 import '../../services/srm_field_option_service.dart';
 
+/// Option vide pour les listes déroulantes — permet à l'agent de désélectionner
+/// son choix s'il a sélectionné par erreur. La validation Champ obligatoire
+/// continue à bloquer si nécessaire.
+const DropdownMenuItem<String> _kEmptyChoiceMenuItem = DropdownMenuItem<String>(
+  value: null,
+  child: Text(
+    '—',
+    style: TextStyle(
+      color: Color(0xFF9CA3AF),
+      fontStyle: FontStyle.italic,
+    ),
+  ),
+);
+
 class SrmPointFormWidget extends StatefulWidget {
   final String metier; // "Eau Potable" | "Assainissement"
   final String entityType; // ex: "Vanne", "Regard ASS"
@@ -225,22 +239,32 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   Future<void> _loadAttributConfigMobileFields() async {
     try {
-      final configFields = await AttributConfigMobileService().getFormFields(
-        metier: widget.metier,
-        entityType: widget.entityType,
-      );
-      if (!mounted) return;
-      if (configFields.isEmpty) return;
-
-      final formFields = <String>[];
-      final requiredFields = <String>[];
-      final byField = <String, AttributConfigMobileField>{};
       final nomMetier =
           AttributConfigMobileService.nomMetierForMobileMetier(widget.metier);
       final nomTable = AttributConfigMobileService.configTableForMobileTable(
         nomMetier,
         _tableName,
       );
+      final results = await Future.wait<dynamic>([
+        AttributConfigMobileService().getFormFields(
+          metier: widget.metier,
+          entityType: widget.entityType,
+          refreshIfEmpty: false,
+        ),
+        SrmFieldOptionService().getOptionsByField(
+          tableSchema: nomMetier,
+          tableName: nomTable,
+          refreshIfEmpty: false,
+        ),
+      ]);
+      final configFields = results[0] as List<AttributConfigMobileField>;
+      final rawChoicesByField = results[1] as Map<String, List<SrmFieldChoice>>;
+      if (!mounted) return;
+      if (configFields.isEmpty) return;
+
+      final formFields = <String>[];
+      final requiredFields = <String>[];
+      final byField = <String, AttributConfigMobileField>{};
       for (final config in configFields) {
         if (config.nomChamp.isEmpty ||
             config.primaryKey ||
@@ -262,12 +286,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         }
       }
 
-      final choicesByField = await SrmFieldOptionService().getOptionsByField(
-        tableSchema: nomMetier,
-        tableName: nomTable,
-        fieldNames: byField.keys,
+      final choicesByField = Map.fromEntries(
+        rawChoicesByField.entries.where((entry) => byField.containsKey(
+              entry.key,
+            )),
       );
-      if (!mounted) return;
 
       setState(() {
         _attributConfigByField = byField;
@@ -1378,9 +1401,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           initialValue: controller.text.isEmpty ? null : controller.text,
           decoration: _deco(label, required: isRequired && !_isLocked),
           isExpanded: true,
-          items: _typeOptions
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
+          items: [
+            _kEmptyChoiceMenuItem,
+            ..._typeOptions
+                .map((o) => DropdownMenuItem<String>(value: o, child: Text(o))),
+          ],
           onChanged: (_isObjetIncomplet || _isLocked)
               ? null // désactivé si objet incomplet
               : (v) => controller.text = v ?? '',
@@ -1459,7 +1484,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }) {
     final currentValue = controller.text.trim();
     final seenValues = <String>{};
-    final items = <DropdownMenuItem<String>>[];
+    final items = <DropdownMenuItem<String>>[_kEmptyChoiceMenuItem];
 
     for (final choice in choices) {
       if (!seenValues.add(choice.code)) continue;
@@ -1943,7 +1968,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
     final currentValue = (_controllers[field]?.text ?? '').trim();
     final seenValues = <String>{};
-    final items = <DropdownMenuItem<String>>[];
+    final items = <DropdownMenuItem<String>>[_kEmptyChoiceMenuItem];
     for (final choice in choices) {
       if (!seenValues.add(choice.code)) continue;
       items.add(

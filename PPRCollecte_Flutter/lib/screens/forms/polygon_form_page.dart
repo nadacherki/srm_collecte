@@ -14,6 +14,18 @@ import '../../services/form_lock_service.dart';
 import '../../services/srm_field_option_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
 
+/// Option vide partagée par les listes déroulantes du formulaire polygone.
+const DropdownMenuItem<String> _kEmptyChoiceMenuItem = DropdownMenuItem<String>(
+  value: null,
+  child: Text(
+    '—',
+    style: TextStyle(
+      color: Color(0xFF9CA3AF),
+      fontStyle: FontStyle.italic,
+    ),
+  ),
+);
+
 class PolygonFormPage extends StatefulWidget {
   final List<LatLng> polygonPoints;
   final DateTime startTime;
@@ -1693,7 +1705,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
       final currentValue = controller.text.trim();
       final seenValues = <String>{};
-      final items = <DropdownMenuItem<String>>[];
+      final items = <DropdownMenuItem<String>>[_kEmptyChoiceMenuItem];
       for (final option in options) {
         if (!seenValues.add(option.code)) continue;
         items.add(
