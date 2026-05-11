@@ -525,8 +525,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           : '';
       setState(() {
         final baseMessage = matchType == 'ancienne_police_commune'
-            ? 'Client ONEP trouve par ancienne police + commune.'
-            : 'Client ONEP trouve par numero de contrat.';
+            ? 'Client ONEP trouvé par ancienne police + commune.'
+            : 'Client ONEP trouvé par numéro de contrat.';
         final sourceSuffix = offline ? ' (cache local).' : '';
         _customerLinkMessage = warningText.isEmpty
             ? '$baseMessage$sourceSuffix'
@@ -536,7 +536,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final warnings = response['warnings'];
       final warningText = warnings is List && warnings.isNotEmpty
           ? warnings.first.toString()
-          : 'Aucun client ONEP trouve pour ces informations.';
+          : 'Aucun client ONEP trouvé pour ces informations.';
       setState(() {
         _customerLinkMessage =
             offline ? '$warningText (cache local).' : warningText;
@@ -1247,7 +1247,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     ]);
 
     addSection(
-      'Liaison clientele',
+      'Liaison clientèle',
       const [
         'num_contrat',
         'ancienne_police',

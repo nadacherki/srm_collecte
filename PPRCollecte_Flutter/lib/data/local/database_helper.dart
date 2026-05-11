@@ -3595,7 +3595,7 @@ class DatabaseHelper {
         return _onepLocalResponse(
           matched: false,
           statusText: 'ambiguous_contract',
-          warnings: ['Numero de contrat ambigue dans ONEP: $contract'],
+          warnings: ['Numéro de contrat ambigu dans ONEP : $contract'],
           spatialName: spatialName,
           spatialKey: spatialKey,
         );
@@ -3630,8 +3630,8 @@ class DatabaseHelper {
             matched: false,
             statusText: 'ambiguous_old_police',
             warnings: [
-              'Ancienne police ambigue dans ONEP pour la commune '
-                  '$spatialKey: $police',
+              'Ancienne police ambiguë dans ONEP pour la commune '
+                  '$spatialKey : $police',
             ],
             spatialName: spatialName,
             spatialKey: spatialKey,
@@ -3661,9 +3661,9 @@ class DatabaseHelper {
         spatialKey != null &&
         onepKey != null &&
         spatialKey != onepKey) {
-      observationNote = 'Incoherence decoupage client: ONEP='
+      observationNote = 'Incohérence découpage client : ONEP='
           '${onepName?.isNotEmpty == true ? onepName : '?'}, '
-          'spatial=$spatialKey. Liaison conservee par numero de contrat.';
+          'spatial=$spatialKey. Liaison conservée par numéro de contrat.';
       warnings.add(observationNote);
     }
 

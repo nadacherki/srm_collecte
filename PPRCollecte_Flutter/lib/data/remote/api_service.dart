@@ -366,7 +366,7 @@ class ApiService {
         if (decoded is Map<String, dynamic>) {
           return decoded;
         }
-        throw Exception('Reponse liaison client invalide');
+        throw Exception('Réponse liaison client invalide');
       }
 
       throw Exception(
@@ -380,7 +380,7 @@ class ApiService {
     } on SocketException {
       throw Exception('Erreur réseau liaison client');
     } on FormatException {
-      throw Exception('Reponse liaison client invalide');
+      throw Exception('Réponse liaison client invalide');
     }
   }
 

@@ -5,6 +5,174 @@ const double _regardMiroirLocalSquareSizeMeters = 24.0;
 const Color _zoneOverlayColor = Color(0xFF1565C0);
 const Color _plancheOverlayColor = Color(0xFF455A64);
 
+// Rayon en mètres pour considérer plusieurs points comme superposés.
+// 5m couvre les cas typiques : points exactement à la même coord ou avec
+// petite variation GPS, sans inclure des objets distincts à 10m+.
+const double _overlappingPointsRadiusMeters = 5.0;
+
+// Haversine simplifié — distance en mètres entre 2 paires lat/lng (WGS84).
+double _haversineMetersOverlap(
+  double lat1,
+  double lng1,
+  double lat2,
+  double lng2,
+) {
+  const earthRadiusM = 6371000.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1 * math.pi / 180.0) *
+          math.cos(lat2 * math.pi / 180.0) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return earthRadiusM * c;
+}
+
+void _showOverlappingPointsSheet({
+  required _HomePageState state,
+  required List<Map<String, dynamic>> overlapping,
+  required Map<String, dynamic> tappedData,
+  required void Function(Map<String, dynamic>) onSelect,
+}) {
+  // Tri : objet réellement tappé en premier, puis distance croissante au tap.
+  final tappedLat = (tappedData['lat'] as num).toDouble();
+  final tappedLng = (tappedData['lng'] as num).toDouble();
+  final sorted = List<Map<String, dynamic>>.from(overlapping)
+    ..sort((a, b) {
+      if (identical(a, tappedData)) return -1;
+      if (identical(b, tappedData)) return 1;
+      final da = _haversineMetersOverlap(
+        (a['lat'] as num).toDouble(),
+        (a['lng'] as num).toDouble(),
+        tappedLat,
+        tappedLng,
+      );
+      final db = _haversineMetersOverlap(
+        (b['lat'] as num).toDouble(),
+        (b['lng'] as num).toDouble(),
+        tappedLat,
+        tappedLng,
+      );
+      return da.compareTo(db);
+    });
+
+  state._suspendAutoCenterFor(const Duration(seconds: 30));
+
+  showModalBottomSheet<void>(
+    context: state.context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.layers, color: Color(0xFF1B4F72)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${sorted.length} objets superposés ici',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Touchez celui que vous voulez ouvrir.',
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: sorted.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final data = sorted[i];
+                    final type = (data['type'] ?? 'Point').toString();
+                    final name = (data['name'] ?? 'Sans nom').toString();
+                    final synced = data['synced'].toString() == '1';
+                    final hasAnomalie = data['anomalie'] == true;
+                    final hasIncomplet = data['objet_incomplet'] == true;
+                    final dist = _haversineMetersOverlap(
+                      (data['lat'] as num).toDouble(),
+                      (data['lng'] as num).toDouble(),
+                      tappedLat,
+                      tappedLng,
+                    );
+                    final tableName =
+                        (data['table_name'] ?? '').toString();
+                    final iconWidget = hasAnomalie
+                        ? CustomMarkerIcons.getAnomalieMarkerWidget(
+                            tableName,
+                            size: 32,
+                          )
+                        : hasIncomplet
+                            ? CustomMarkerIcons.getIncompletMarkerWidget(
+                                tableName,
+                                size: 32,
+                              )
+                            : CustomMarkerIcons.getMarkerWidget(
+                                tableName,
+                                size: 32,
+                              );
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Center(child: iconWidget),
+                      ),
+                      title: Text(
+                        type,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$name${dist > 0.5 ? '  •  ${dist.toStringAsFixed(1)} m' : ''}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: [
+                          if (hasAnomalie)
+                            const Icon(Icons.warning_amber,
+                                color: Colors.red, size: 18),
+                          if (hasIncomplet)
+                            const Icon(Icons.report_problem,
+                                color: Colors.orange, size: 18),
+                          Icon(
+                            synced ? Icons.cloud_done : Icons.phone_android,
+                            color: synced ? Colors.green : Colors.blueGrey,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        onSelect(data);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
   debugPrint('[LINE-DOWNLOAD] chargement des polylignes téléchargées');
   try {
@@ -811,31 +979,62 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
     final Map<String, List<Marker>> callbackByTable = {};
     final Map<String, List<Marker>> anomalieByTable = {};
     final Map<String, List<Marker>> incompletByTable = {};
+    final List<Map<String, dynamic>> registry = [];
+
+    void openSinglePoint(Map<String, dynamic> data) {
+      state._suspendAutoCenterFor(const Duration(seconds: 10));
+      state._showPointDetailsSheet(
+        context: state.context,
+        type: (data['type'] ?? 'Point').toString(),
+        name: (data['name'] ?? 'Sans nom').toString(),
+        region: (data['region_name'] ?? '').toString().isNotEmpty
+            ? (data['region_name']).toString()
+            : state._regionNom,
+        prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty
+            ? (data['prefecture_name']).toString()
+            : state._prefectureNom,
+        commune: (data['commune_name'] ?? '').toString().isNotEmpty
+            ? (data['commune_name']).toString()
+            : state._communeNom,
+        enqueteur: (data['enqueteur'] ?? '').toString(),
+        lineCode: (data['line_code'] ?? '').toString(),
+        lat: (data['lat'] as num).toDouble(),
+        lng: (data['lng'] as num).toDouble(),
+        statut: (data['synced'].toString() == '1')
+            ? 'Synchronisée'
+            : 'Enregistrée localement',
+        editableItem: _editableItemFromDynamicImpl(data['existing_item']),
+      );
+    }
+
     final markers = await state._pointsService.getDisplayedPointsMarkers(
+      onMarkerData: (data) => registry.add(data),
       onTapDetails: (data) {
-        state._suspendAutoCenterFor(const Duration(seconds: 10));
-        state._showPointDetailsSheet(
-          context: state.context,
-          type: (data['type'] ?? 'Point').toString(),
-          name: (data['name'] ?? 'Sans nom').toString(),
-          region: (data['region_name'] ?? '').toString().isNotEmpty
-              ? (data['region_name']).toString()
-              : state._regionNom,
-          prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty
-              ? (data['prefecture_name']).toString()
-              : state._prefectureNom,
-          commune: (data['commune_name'] ?? '').toString().isNotEmpty
-              ? (data['commune_name']).toString()
-              : state._communeNom,
-          enqueteur: (data['enqueteur'] ?? '').toString(),
-          lineCode: (data['line_code'] ?? '').toString(),
-          lat: (data['lat'] as num).toDouble(),
-          lng: (data['lng'] as num).toDouble(),
-          statut: (data['synced'].toString() == '1')
-              ? 'Synchronisée'
-              : 'Enregistrée localement',
-          editableItem: _editableItemFromDynamicImpl(data['existing_item']),
-        );
+        final tappedLat = (data['lat'] as num).toDouble();
+        final tappedLng = (data['lng'] as num).toDouble();
+        final overlapping = registry.where((m) {
+          final mLat = (m['lat'] as num?)?.toDouble();
+          final mLng = (m['lng'] as num?)?.toDouble();
+          if (mLat == null || mLng == null) return false;
+          return _haversineMetersOverlap(
+                mLat,
+                mLng,
+                tappedLat,
+                tappedLng,
+              ) <=
+              _overlappingPointsRadiusMeters;
+        }).toList();
+
+        if (overlapping.length <= 1) {
+          openSinglePoint(data);
+        } else {
+          _showOverlappingPointsSheet(
+            state: state,
+            overlapping: overlapping,
+            tappedData: data,
+            onSelect: openSinglePoint,
+          );
+        }
       },
       onMarkerCreated: (
         tableName,

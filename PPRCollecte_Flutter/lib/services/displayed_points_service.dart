@@ -30,6 +30,7 @@ class DisplayedPointsService {
     })? onMarkerCreated,
     void Function(String tableName, bool hasAnomalie)? onAnomalieDetected,
     void Function(String tableName, bool hasIncomplet)? onIncompletDetected,
+    void Function(Map<String, dynamic> data)? onMarkerData,
   }) async {
     try {
       final db = await _dbHelper.database;
@@ -79,40 +80,40 @@ class DisplayedPointsService {
             );
             final hitBoxSize = math.max(markerSize, _pointTapTargetSize);
 
+            final markerData = <String, dynamic>{
+              'type': entityTitle,
+              'name': _resolvePointName(row, entityType),
+              'metier': metier,
+              'table_name': tableName,
+              'anomalie': hasAnomalie,
+              'objet_incomplet': hasIncomplet,
+              'type_anomalie': (row['type_anomalie'] ??
+                      row['anomalie_regard'] ??
+                      row['anomalie_tamp'] ??
+                      '')
+                  .toString(),
+              'enqueteur': (row['enqueteur'] ??
+                      ApiService.nomPrenom ??
+                      ApiService.userLogin ??
+                      '')
+                  .toString(),
+              'line_code': (row['line_code'] ?? '').toString(),
+              'lat': latLng.latitude,
+              'lng': latLng.longitude,
+              'synced': (row['synced'] ?? 0).toString(),
+              'existing_item': editableItem,
+              'region_name': (row['region_name'] ?? '').toString(),
+              'prefecture_name': (row['prefecture_name'] ?? '').toString(),
+              'commune_name': (row['commune_name'] ?? '').toString(),
+            };
+            onMarkerData?.call(markerData);
+
             final marker = Marker(
               point: latLng,
               width: hitBoxSize,
               height: hitBoxSize,
               child: GestureDetector(
-                onTap: () {
-                  onTapDetails({
-                    'type': entityTitle,
-                    'name': _resolvePointName(row, entityType),
-                    'metier': metier,
-                    'table_name': tableName,
-                    'anomalie': hasAnomalie,
-                    'objet_incomplet': hasIncomplet,
-                    'type_anomalie': (row['type_anomalie'] ??
-                            row['anomalie_regard'] ??
-                            row['anomalie_tamp'] ??
-                            '')
-                        .toString(),
-                    'enqueteur': (row['enqueteur'] ??
-                            ApiService.nomPrenom ??
-                            ApiService.userLogin ??
-                            '')
-                        .toString(),
-                    'line_code': (row['line_code'] ?? '').toString(),
-                    'lat': latLng.latitude,
-                    'lng': latLng.longitude,
-                    'synced': (row['synced'] ?? 0).toString(),
-                    'existing_item': editableItem,
-                    'region_name': (row['region_name'] ?? '').toString(),
-                    'prefecture_name':
-                        (row['prefecture_name'] ?? '').toString(),
-                    'commune_name': (row['commune_name'] ?? '').toString(),
-                  });
-                },
+                onTap: () => onTapDetails(markerData),
                 child: Center(
                   child: hasAnomalie
                       ? CustomMarkerIcons.getAnomalieMarkerWidget(

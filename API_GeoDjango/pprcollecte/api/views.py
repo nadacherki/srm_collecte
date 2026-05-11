@@ -613,7 +613,7 @@ def ep_compteur_abonne_customer_link_view(request):
                     'status': 'ambiguous_contract',
                     'match_type': None,
                     'warnings': [
-                        f'Numero de contrat ambigue dans ONEP: {num_contrat}'
+                        f'Numéro de contrat ambigu dans ONEP : {num_contrat}'
                     ],
                     'data': {},
                     'commune': {
@@ -649,8 +649,8 @@ def ep_compteur_abonne_customer_link_view(request):
                         'status': 'ambiguous_old_police',
                         'match_type': None,
                         'warnings': [
-                            'Ancienne police ambigue dans ONEP pour la commune '
-                            f'{spatial_commune_key}: {ancienne_police}'
+                            'Ancienne police ambiguë dans ONEP pour la commune '
+                            f'{spatial_commune_key} : {ancienne_police}'
                         ],
                         'data': {},
                         'commune': {
@@ -697,9 +697,9 @@ def ep_compteur_abonne_customer_link_view(request):
         and onep_commune_key != spatial_commune_key
     ):
         observation_note = (
-            "Incoherence decoupage client: ONEP="
+            "Incohérence découpage client : ONEP="
             f"{onep_commune_name or '?'}, spatial={spatial_commune_key}. "
-            "Liaison conservee par numero de contrat."
+            "Liaison conservée par numéro de contrat."
         )
         warnings.append(observation_note)
 

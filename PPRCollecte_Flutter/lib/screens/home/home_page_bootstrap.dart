@@ -547,7 +547,7 @@ String _formatTimeHHmmImpl(DateTime dt) {
   return '$h:$m';
 }
 
-const Duration _focusOverlayVisibleDuration = Duration(seconds: 4);
+const Duration _focusOverlayVisibleDuration = Duration(seconds: 2);
 
 double _focusTargetZoomImpl(_HomePageState state) {
   final rawMaxZoom = state._mapController?.camera.maxZoom ??

@@ -20,6 +20,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../widgets/common/top_bar_widget.dart';
 import '../../widgets/common/bottom_buttons_widget.dart';
 import '../../widgets/common/bottom_status_bar_widget.dart';
+import '../../widgets/common/custom_marker_icons.dart';
 import '../../widgets/map/map_widget.dart';
 import '../../widgets/map/map_controls_widget.dart';
 import '../../widgets/map/legend_widget.dart';
