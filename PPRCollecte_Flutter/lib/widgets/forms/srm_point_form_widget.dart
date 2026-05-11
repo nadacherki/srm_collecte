@@ -101,6 +101,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   // n'est pas encore chargee : evite le flash entre les champs SrmConfig codes
   // en dur et les champs reels du serveur.
   bool _isLoadingFields = true;
+  // Quand vrai, onFieldChanged ne déclenche pas la sauvegarde de brouillon.
+  // Utilisé pendant l'application des valeurs par défaut auto (ETAFAT, dates,
+  // coordonnées GPS, mode_localisation) afin de ne pas créer un brouillon
+  // alors que l'agent n'a rien touché.
+  bool _suppressDraftSave = false;
   Map<String, List<SrmFieldChoice>> _choicesByField = {};
   late final List<String> _typeOptions;
   late final String? _typeField;
@@ -347,13 +352,25 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   void _applyConfiguredDefaults() {
     if (widget.existingData != null) return;
-    for (final entry in _attributConfigByField.entries) {
-      final defaultValue = _configuredDefaultValueForField(entry.key);
-      if (defaultValue.isEmpty) continue;
-      final controller = _controllers[entry.key];
-      if (controller == null || controller.text.trim().isNotEmpty) continue;
-      controller.text = defaultValue;
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      for (final entry in _attributConfigByField.entries) {
+        final defaultValue = _configuredDefaultValueForField(entry.key);
+        if (defaultValue.isEmpty) continue;
+        final controller = _controllers[entry.key];
+        if (controller == null || controller.text.trim().isNotEmpty) continue;
+        controller.text = defaultValue;
+      }
+    } finally {
+      _suppressDraftSave = wasSuppressed;
     }
+  }
+
+  @override
+  void onFieldChanged() {
+    if (_suppressDraftSave) return;
+    super.onFieldChanged();
   }
 
   String _configuredDefaultValueForField(String field) {
@@ -370,31 +387,37 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   void _prefillCoordinates() {
-    if (widget.altitude == null) {
-      if (widget.existingData == null) {
-        for (final entry in _controllers.entries) {
-          if (_isCoordField(entry.key)) {
-            entry.value.clear();
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      if (widget.altitude == null) {
+        if (widget.existingData == null) {
+          for (final entry in _controllers.entries) {
+            if (_isCoordField(entry.key)) {
+              entry.value.clear();
+            }
           }
         }
+        return;
       }
-      return;
-    }
 
-    final zStr = widget.altitude!.toStringAsFixed(3);
-    final coordFields = {
-      'ep_coor_x': _merchichX.toStringAsFixed(3),
-      'ep_coor_y': _merchichY.toStringAsFixed(3),
-      'ep_coor_z': zStr,
-      'ass_coor_x': _merchichX.toStringAsFixed(3),
-      'ass_coor_y': _merchichY.toStringAsFixed(3),
-      'ass_coor_z': zStr,
-    };
-    for (final entry in _controllers.entries) {
-      final value = coordFields[entry.key.toLowerCase()];
-      if (value != null) {
-        entry.value.text = value;
+      final zStr = widget.altitude!.toStringAsFixed(3);
+      final coordFields = {
+        'ep_coor_x': _merchichX.toStringAsFixed(3),
+        'ep_coor_y': _merchichY.toStringAsFixed(3),
+        'ep_coor_z': zStr,
+        'ass_coor_x': _merchichX.toStringAsFixed(3),
+        'ass_coor_y': _merchichY.toStringAsFixed(3),
+        'ass_coor_z': zStr,
+      };
+      for (final entry in _controllers.entries) {
+        final value = coordFields[entry.key.toLowerCase()];
+        if (value != null) {
+          entry.value.text = value;
+        }
       }
+    } finally {
+      _suppressDraftSave = wasSuppressed;
     }
   }
 
@@ -429,15 +452,21 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   void _applyEntitySpecificDefaults() {
     if (!_isEpRegardPoint || widget.existingData != null) return;
-
-    final now = DateTime.now();
-    _setControllerIfEmpty('ep_agent', 'ETAFAT');
-    _setControllerIfEmpty('ep_agent_crea', 'ETAFAT');
-    _setControllerIfEmpty('ep_date_insertion', _formatDateOnly(now));
-    _setControllerIfEmpty('id_user_creat', ApiService.userId?.toString() ?? '');
-    _setControllerIfEmpty('date_creation', now.toIso8601String());
-    _setControllerIfEmpty('mode_localisation', 'Levé topographique');
-    _setControllerIfEmpty('ep_anomalie', '0');
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      final now = DateTime.now();
+      _setControllerIfEmpty('ep_agent', 'ETAFAT');
+      _setControllerIfEmpty('ep_agent_crea', 'ETAFAT');
+      _setControllerIfEmpty('ep_date_insertion', _formatDateOnly(now));
+      _setControllerIfEmpty(
+          'id_user_creat', ApiService.userId?.toString() ?? '');
+      _setControllerIfEmpty('date_creation', now.toIso8601String());
+      _setControllerIfEmpty('mode_localisation', 'Levé topographique');
+      _setControllerIfEmpty('ep_anomalie', '0');
+    } finally {
+      _suppressDraftSave = wasSuppressed;
+    }
   }
 
   void _setControllerIfEmpty(String field, String value) {
