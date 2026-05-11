@@ -63,8 +63,49 @@ class AttributConfigMobileField {
   String get label =>
       titreApp.isNotEmpty ? titreApp : nomChamp.replaceAll('_', ' ');
 
-  bool get isRequired =>
-      visible && !nullable && !primaryKey && nomChamp.toLowerCase() != 'geom';
+  bool get isRequired {
+    if (primaryKey) return false;
+    if (!visible) return false;
+    final name = nomChamp.toLowerCase();
+    if (name == 'geom') return false;
+    // Champs auto-gérés ailleurs dans le formulaire ou par le système.
+    const autoManaged = {
+      'mode_localisation',
+      'anomalie',
+      'ep_anomalie',
+      'ass_anomalie',
+      'type_anomalie',
+      'anomalie_regard',
+      'anomalie_tamp',
+      'objet_incomplet',
+      'raison_incomplet',
+      'detail_raison_incomplet',
+      'photo_1',
+      'photo_2',
+      'photo_3',
+      'photo_4',
+      'created_at',
+      'updated_at',
+      'date_creation',
+      'date_modif',
+      'id_user_creat',
+      'id_user_modif',
+      'is_deleted',
+      'is_validated',
+    };
+    if (autoManaged.contains(name)) return false;
+    // Champs de coordonnées (remplis par GPS).
+    if (isAutoVisibleCoordinate) return false;
+    // Champs libres optionnels (commentaire / observation).
+    if (name.contains('observ') ||
+        name.contains('commentaire') ||
+        name.contains('remarque') ||
+        name == 'detail' ||
+        name == 'note') {
+      return false;
+    }
+    return true;
+  }
 
   double? get numericMin => _toDouble(valeurMin);
   double? get numericMax => _toDouble(valeurMax);

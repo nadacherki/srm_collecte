@@ -242,6 +242,7 @@ class _HomePageState extends State<HomePage> {
   List<Polyline> _conduiteModePolylines = [];
   final Map<int, _ConduiteRegardNode> _conduiteRegardNodesById = {};
   final List<int> _conduiteSelectionHistoryNodeIds = <int>[];
+  final List<int> _conduiteRedoStackNodeIds = <int>[];
   final Set<String> _conduiteSegmentKeys = <String>{};
   double _conduitePreviewLengthM = 0.0;
   LatLng? _conduiteCurrentRegardPoint;
@@ -1206,223 +1207,231 @@ class _HomePageState extends State<HomePage> {
         0xFFF0F8FF,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            TopBarWidget(
-              agentName: widget.agentName,
-              onLogout: _showLogoutConfirmation,
-              onStartConduiteDrawing: (metier) =>
-                  _enterConduiteDrawingMode(metier),
-            ),
-            Expanded(
-              child: Stack(
-                children: [
-                  MapWidget(
-                    userPosition: userPosition ?? homeController.userPosition,
-                    gpsEnabled: gpsEnabled,
-                    useOnlineBasemap: _isOnlineDynamic,
-                    markers: filteredMarkers,
-                    polylines: filteredPolylines,
-                    polygons: filteredPolygons,
-                    onPolygonTap: _handlePolygonTap,
-                    onPolygonLongPress: _handlePolygonLongPress,
-                    onMapCreated: _onMapCreated,
-                    formMarkers: formMarkers,
-                    isSatellite: _isSatellite,
-                    onMapTypeChanged: (value) {
-                      setState(() {
-                        _isSatellite = value;
-                      });
-                    },
-                    onPolylineTap: _handlePolylineTap,
-                    onCameraIdle: null,
-                    offlineBasemapPath: _offlineBasemapPath,
-                    offlineBasemapFormat: _offlineBasemapFormat,
-                    basemapUnavailableMessage: _basemapUnavailableMessage,
-                    basemapCenter: _offlineBasemapCenter,
-                    basemapBounds: _offlineBasemapBounds,
-                    basemapDefaultZoom: _offlineBasemapDefaultZoom,
-                    basemapMinZoom: _offlineBasemapMinZoom,
-                    basemapMaxZoom: _offlineBasemapMaxZoom,
-                    showMapButtons: true,
-                    onMapTap: null,
-                    onUserInteraction: () {
-                      _autoCenterDisabledByUser = true;
-                    },
-                    onGpsButtonPressed: () {
-                      _autoCenterDisabledByUser = false;
-                    },
-                  ),
-                  LegendWidget(
-                    initialVisibility: _legendVisibility,
-                    onVisibilityChanged: _updateVisibilityFromLegend,
-                    allPolylines: filteredPolylines,
-                    allMarkers: filteredMarkers,
-                    polygonCount: _displayedPolygons.length,
-                    pointCountsByTable: _pointCountsByTable,
-                    anomalieCountsByTable: _anomalieCountsByTable,
-                    incompletCountsByTable: _incompletCountsByTable,
-                    referenceOverlayCounts: _referenceOverlayCounts,
-                    onExpandedChanged: (expanded) {
-                      setState(() => _isLegendExpanded = expanded);
-                    },
-                  ),
-                  if (isSyncing)
-                    BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: 3,
-                        sigmaY: 3,
-                      ),
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.2),
-                      ),
-                    ),
-
-                  if (isDownloading)
-                    BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: 3,
-                        sigmaY: 3,
-                      ),
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.2),
-                      ),
-                    ),
-
-                  Positioned(
-                    bottom: 280,
-                    right: 16,
-                    child: Visibility(
-                      visible: _canUseAdminGpsTools &&
-                          !_isLegendExpanded &&
-                          !_isConduiteDrawingMode,
-                      child: FloatingActionButton(
-                        onPressed: _showMockLocationDialogSafe,
-                        backgroundColor: homeController.isMockLocationEnabled
-                            ? Colors.teal
-                            : Colors.blueGrey,
-                        mini: true,
-                        heroTag: 'mock_gps_button',
-                        child: Icon(
-                          homeController.isMockLocationEnabled
-                              ? Icons.gps_fixed
-                              : Icons.edit_location_alt,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (!_isLegendExpanded)
-                    MapControlsWidget(
-                      controller: homeController,
-                      onAddPoint: addPointOfInterest,
-                      onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
-                      onStartPolygon: startPolygonCollection,
-                      onToggleLigne: toggleLigneCollection,
-                      onTogglePolygon: togglePolygonCollection,
-                      onUndoLigne: undoLignePoint,
-                      onRedoLigne: redoLignePoint,
-                      onUndoPolygon: undoPolygonPoint,
-                      onRedoPolygon: redoPolygonPoint,
-                      canRedoLigne: _ligneRedoPoints.isNotEmpty,
-                      canRedoPolygon: _polygonRedoPoints.isNotEmpty,
-                      onFinishLigne: finishLigneCollection,
-                      onFinishPolygon: finishPolygonCollection,
-                      onCancelLigne: cancelLigneCollection,
-                      onCancelPolygon: cancelPolygonCollection,
-                      onRefresh: _loadDisplayedPoints,
-                      isPolygonCollection: _isPolygonCollection,
-                    ),
-                  // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
-
-                  // Afficher le statut de ligne si active
-                  if (homeController.ligneCollection != null)
-                    LigneStatusWidget(
-                      collection: homeController.ligneCollection!,
-                      topOffset: 16,
-                    ),
-
-                  if (homeController.polygonCollection != null)
-                    PolygonStatusWidget(
-                      collection: homeController.polygonCollection!,
-                      topOffset:
-                          homeController.ligneCollection != null ? 70 : 16,
-                    ),
-
-                  // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
-                  // Remplacez le Positioned actuel par ceci :
-                  if (isDownloading)
-                    Positioned(
-                      top: 70, // Position sous la barre d'outils
-                      left: 0,
-                      right: 0,
-                      child: AnimatedSlide(
-                        duration: const Duration(
-                          milliseconds: 300,
-                        ),
-                        curve: Curves.easeOut,
-                        offset: isDownloading
-                            ? Offset.zero
-                            : const Offset(
-                                0,
-                                -1,
-                              ),
-                        child: AnimatedOpacity(
-                          duration: const Duration(
-                            milliseconds: 300,
-                          ),
-                          opacity: isDownloading ? 1.0 : 0.0,
-                          child: _buildProgressIndicator(),
-                        ),
-                      ),
-                    ),
-                  if (isSyncing)
-                    Positioned(
-                      top: 70, // Position sous la top bar
-                      left: 0,
-                      right: 0,
-                      child: AnimatedSlide(
-                        duration: const Duration(
-                          milliseconds: 300,
-                        ),
-                        curve: Curves.easeOut,
-                        offset: isSyncing
-                            ? Offset.zero
-                            : const Offset(
-                                0,
-                                -1,
-                              ),
-                        child: AnimatedOpacity(
-                          duration: const Duration(
-                            milliseconds: 300,
-                          ),
-                          opacity: isSyncing ? 1.0 : 0.0,
-                          child: _buildSyncProgressIndicator(),
-                        ),
-                      ),
-                    ),
-                ],
+        child: AbsorbPointer(
+          absorbing: isDownloading || isSyncing,
+          child: Column(
+            children: [
+              TopBarWidget(
+                agentName: widget.agentName,
+                onLogout: _showLogoutConfirmation,
+                onStartConduiteDrawing: (metier) =>
+                    _enterConduiteDrawingMode(metier),
               ),
-            ),
-            BottomStatusBarWidget(
-              gpsEnabled: gpsEnabled,
-              gpsSourceLabel: gpsSourceLabel,
-              gpsDetailsLine: gpsDetailsLine,
-              isOnline: _isOnlineDynamic,
-              lastSyncTime: _lastSyncTimeText,
-            ),
-            BottomButtonsWidget(
-              onSave: (!_isOnlineDynamic || isDownloading)
-                  ? null
-                  : _showSaveConfirmationDialog,
-              isSaveEnabled: _isOnlineDynamic && !isDownloading,
-              onSync: (!_isOnlineDynamic || isSyncing)
-                  ? null
-                  : _showSyncConfirmationDialog,
-              isSyncEnabled: _isOnlineDynamic && !isSyncing,
-              onMenu: handleMenuPress,
-            ),
-          ],
+              Expanded(
+                child: Stack(
+                  children: [
+                    MapWidget(
+                      userPosition: userPosition ?? homeController.userPosition,
+                      gpsEnabled: gpsEnabled,
+                      useOnlineBasemap: _isOnlineDynamic,
+                      markers: filteredMarkers,
+                      polylines: filteredPolylines,
+                      polygons: filteredPolygons,
+                      onPolygonTap: _handlePolygonTap,
+                      onPolygonLongPress: _handlePolygonLongPress,
+                      onMapCreated: _onMapCreated,
+                      formMarkers: formMarkers,
+                      isSatellite: _isSatellite,
+                      onMapTypeChanged: (value) {
+                        setState(() {
+                          _isSatellite = value;
+                        });
+                      },
+                      onPolylineTap: _handlePolylineTap,
+                      onCameraIdle: null,
+                      offlineBasemapPath: _offlineBasemapPath,
+                      offlineBasemapFormat: _offlineBasemapFormat,
+                      basemapUnavailableMessage: _basemapUnavailableMessage,
+                      basemapCenter: _offlineBasemapCenter,
+                      basemapBounds: _offlineBasemapBounds,
+                      basemapDefaultZoom: _offlineBasemapDefaultZoom,
+                      basemapMinZoom: _offlineBasemapMinZoom,
+                      basemapMaxZoom: _offlineBasemapMaxZoom,
+                      showMapButtons: true,
+                      onMapTap: (_, __) {
+                        if (_isLegendExpanded) {
+                          setState(() => _isLegendExpanded = false);
+                        }
+                      },
+                      onUserInteraction: () {
+                        _autoCenterDisabledByUser = true;
+                      },
+                      onGpsButtonPressed: () {
+                        _autoCenterDisabledByUser = false;
+                      },
+                    ),
+                    LegendWidget(
+                      initialVisibility: _legendVisibility,
+                      expanded: _isLegendExpanded,
+                      onVisibilityChanged: _updateVisibilityFromLegend,
+                      allPolylines: filteredPolylines,
+                      allMarkers: filteredMarkers,
+                      polygonCount: _displayedPolygons.length,
+                      pointCountsByTable: _pointCountsByTable,
+                      anomalieCountsByTable: _anomalieCountsByTable,
+                      incompletCountsByTable: _incompletCountsByTable,
+                      referenceOverlayCounts: _referenceOverlayCounts,
+                      onExpandedChanged: (expanded) {
+                        setState(() => _isLegendExpanded = expanded);
+                      },
+                    ),
+                    if (isSyncing)
+                      BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 3,
+                          sigmaY: 3,
+                        ),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.2),
+                        ),
+                      ),
+
+                    if (isDownloading)
+                      BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 3,
+                          sigmaY: 3,
+                        ),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.2),
+                        ),
+                      ),
+
+                    Positioned(
+                      bottom: 280,
+                      right: 16,
+                      child: Visibility(
+                        visible: _canUseAdminGpsTools &&
+                            !_isLegendExpanded &&
+                            !_isConduiteDrawingMode,
+                        child: FloatingActionButton(
+                          onPressed: _showMockLocationDialogSafe,
+                          backgroundColor: homeController.isMockLocationEnabled
+                              ? Colors.teal
+                              : Colors.blueGrey,
+                          mini: true,
+                          heroTag: 'mock_gps_button',
+                          child: Icon(
+                            homeController.isMockLocationEnabled
+                                ? Icons.gps_fixed
+                                : Icons.edit_location_alt,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!_isLegendExpanded)
+                      MapControlsWidget(
+                        controller: homeController,
+                        onAddPoint: addPointOfInterest,
+                        onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
+                        onStartPolygon: startPolygonCollection,
+                        onToggleLigne: toggleLigneCollection,
+                        onTogglePolygon: togglePolygonCollection,
+                        onUndoLigne: undoLignePoint,
+                        onRedoLigne: redoLignePoint,
+                        onUndoPolygon: undoPolygonPoint,
+                        onRedoPolygon: redoPolygonPoint,
+                        canRedoLigne: _ligneRedoPoints.isNotEmpty,
+                        canRedoPolygon: _polygonRedoPoints.isNotEmpty,
+                        onFinishLigne: finishLigneCollection,
+                        onFinishPolygon: finishPolygonCollection,
+                        onCancelLigne: cancelLigneCollection,
+                        onCancelPolygon: cancelPolygonCollection,
+                        onRefresh: _loadDisplayedPoints,
+                        isPolygonCollection: _isPolygonCollection,
+                      ),
+                    // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
+
+                    // Afficher le statut de ligne si active
+                    if (homeController.ligneCollection != null)
+                      LigneStatusWidget(
+                        collection: homeController.ligneCollection!,
+                        topOffset: 16,
+                      ),
+
+                    if (homeController.polygonCollection != null)
+                      PolygonStatusWidget(
+                        collection: homeController.polygonCollection!,
+                        topOffset:
+                            homeController.ligneCollection != null ? 70 : 16,
+                      ),
+
+                    // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
+                    // Remplacez le Positioned actuel par ceci :
+                    if (isDownloading)
+                      Positioned(
+                        top: 70, // Position sous la barre d'outils
+                        left: 0,
+                        right: 0,
+                        child: AnimatedSlide(
+                          duration: const Duration(
+                            milliseconds: 300,
+                          ),
+                          curve: Curves.easeOut,
+                          offset: isDownloading
+                              ? Offset.zero
+                              : const Offset(
+                                  0,
+                                  -1,
+                                ),
+                          child: AnimatedOpacity(
+                            duration: const Duration(
+                              milliseconds: 300,
+                            ),
+                            opacity: isDownloading ? 1.0 : 0.0,
+                            child: _buildProgressIndicator(),
+                          ),
+                        ),
+                      ),
+                    if (isSyncing)
+                      Positioned(
+                        top: 70, // Position sous la top bar
+                        left: 0,
+                        right: 0,
+                        child: AnimatedSlide(
+                          duration: const Duration(
+                            milliseconds: 300,
+                          ),
+                          curve: Curves.easeOut,
+                          offset: isSyncing
+                              ? Offset.zero
+                              : const Offset(
+                                  0,
+                                  -1,
+                                ),
+                          child: AnimatedOpacity(
+                            duration: const Duration(
+                              milliseconds: 300,
+                            ),
+                            opacity: isSyncing ? 1.0 : 0.0,
+                            child: _buildSyncProgressIndicator(),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              BottomStatusBarWidget(
+                gpsEnabled: gpsEnabled,
+                gpsSourceLabel: gpsSourceLabel,
+                gpsDetailsLine: gpsDetailsLine,
+                isOnline: _isOnlineDynamic,
+                lastSyncTime: _lastSyncTimeText,
+              ),
+              BottomButtonsWidget(
+                onSave: (!_isOnlineDynamic || isDownloading || isSyncing)
+                    ? null
+                    : _showSaveConfirmationDialog,
+                isSaveEnabled: _isOnlineDynamic && !isDownloading && !isSyncing,
+                onSync: (!_isOnlineDynamic || isSyncing || isDownloading)
+                    ? null
+                    : _showSyncConfirmationDialog,
+                isSyncEnabled: _isOnlineDynamic && !isSyncing && !isDownloading,
+                onMenu: handleMenuPress,
+              ),
+            ],
+          ),
         ),
       ),
     );

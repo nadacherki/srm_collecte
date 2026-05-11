@@ -1,14 +1,11 @@
 // lib/core/config/srm_config.dart
-// Configuration centrale des entités SRM (Eau Potable, Assainissement)
-// Configuration centrale des entites SRM
-// Chaque entité correspond à une table PostGIS (schéma ep, ass)
+// Configuration centrale des entités SRM (Eau Potable, Assainissement).
+// Chaque entité correspond à une table PostGIS (schémas ep, asst).
 //
-// ── SPRINT 6 — Modifications ──
-//  • uuid retiré de tous les fields (généré automatiquement par Uuid().v4())
-//  • requiredFields ajouté par entité (champs marqués * dans le formulaire)
-//  • isRequiredField() méthode utilitaire ajoutée
-//  • Les coordonnées coor_x / coor_y sont auto (GPS) → pas dans requiredFields
-//    mais le formulaire les affiche en readOnly avec suffixe GPS
+// Les champs obligatoires ne sont plus définis ici : ils sont dérivés
+// dynamiquement de la table public.attribut_config_mobile synchronisée
+// dans la SQLite locale au login. Voir AttributConfigMobileField.isRequired.
+// Les coordonnées coor_x / coor_y / coor_z sont auto-remplies par le GPS.
 
 class SrmConfig {
   static const Map<String, Map<String, dynamic>> config = {
@@ -55,7 +52,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_type", "ep_etat", "conformite_plan"],
         },
         "Vanne de Vidange": {
           "tableName": "vanne_de_vidange",
@@ -86,7 +82,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
         },
         "Ventouse": {
           "tableName": "ventouse",
@@ -118,7 +113,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_type", "conformite_plan"],
         },
         "Hydrant": {
           "tableName": "hydrant",
@@ -147,7 +141,6 @@ class SrmConfig {
             "ep_coor_z",
             "ep_conf_plan"
           ],
-          "requiredFields": ["ep_type", "ep_etat"],
           "fieldLabels": {
             "conform": "Conformité",
             "ep_conf_plan": "Conformité des plans",
@@ -180,7 +173,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
           "fieldLabels": {
             "mat_brts": "Matériau branchement",
           },
@@ -194,7 +186,6 @@ class SrmConfig {
           "typeField": null,
           "typeOptions": [],
           "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
-          "requiredFields": [],
           "fieldLabels": {
             "ep_coor_x": "X",
             "ep_coor_y": "Y",
@@ -210,7 +201,6 @@ class SrmConfig {
           "typeField": null,
           "typeOptions": [],
           "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
-          "requiredFields": [],
           "fieldLabels": {
             "ep_coor_x": "X",
             "ep_coor_y": "Y",
@@ -244,7 +234,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
         },
         "Compteur Réseau": {
           "tableName": "compteur_reseau",
@@ -281,7 +270,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_type", "conformite_plan"],
         },
         "Compteur Abonné": {
           "tableName": "compteur_abonne",
@@ -308,7 +296,6 @@ class SrmConfig {
             "ep_conf_plan",
             "mode_localisation"
           ],
-          "requiredFields": [],
           "readOnlyFields": [
             "abon",
             "nom",
@@ -344,7 +331,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_diam_in", "ep_diam_out", "conformite_plan"],
         },
         "Centre Tampon": {
           "tableName": "centre_tampon",
@@ -369,7 +355,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
         },
         "Obturateur": {
           "tableName": "obturateur",
@@ -395,7 +380,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
         },
         "Réducteur de Pression": {
           "tableName": "reducteur_de_pression",
@@ -421,7 +405,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
         },
         "Noeud": {
           "tableName": "noeud",
@@ -445,7 +428,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_num", "conformite_plan"],
         },
         "Réservoir": {
           "tableName": "reservoir",
@@ -474,12 +456,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": [
-            "ep_type",
-            "ep_capacite",
-            "ep_etat",
-            "conformite_plan"
-          ],
         },
         "Station de Pompage": {
           "tableName": "station_de_pompage",
@@ -504,12 +480,6 @@ class SrmConfig {
             "ep_coor_x",
             "ep_coor_y",
             "ep_coor_z",
-            "conformite_plan"
-          ],
-          "requiredFields": [
-            "ep_type",
-            "ep_nb_pompes",
-            "ep_etat",
             "conformite_plan"
           ],
         },
@@ -538,7 +508,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_profondeur", "ep_etat", "conformite_plan"],
         },
         "Puit": {
           "tableName": "puit",
@@ -564,7 +533,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_profondeur", "ep_etat", "conformite_plan"],
         },
         "Pompe": {
           "tableName": "pompe",
@@ -591,7 +559,6 @@ class SrmConfig {
             "ep_coor_z",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_type", "ep_etat", "conformite_plan"],
         },
         "Bache": {
           "tableName": "ep_bache",
@@ -615,7 +582,6 @@ class SrmConfig {
             "ep_coor_z",
             "mode_localisation"
           ],
-          "requiredFields": [],
           "fieldLabels": {
             "ep_section": "Section",
             "ep_capacite": "Capacite",
@@ -674,7 +640,6 @@ class SrmConfig {
             "anomalie_regard",
             "ep_observation"
           ],
-          "requiredFields": [],
           "readOnlyFields": [
             "ep_agent",
             "ep_sect_com",
@@ -745,7 +710,6 @@ class SrmConfig {
           "typeField": "type_anomalie",
           "typeOptions": [],
           "fields": ["type_anomalie"],
-          "requiredFields": [],
         },
         "TN": {
           "tableName": "tn",
@@ -756,7 +720,6 @@ class SrmConfig {
           "typeField": null,
           "typeOptions": [],
           "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z"],
-          "requiredFields": [],
           "fieldLabels": {
             "ep_coor_x": "X",
             "ep_coor_y": "Y",
@@ -773,7 +736,6 @@ class SrmConfig {
           "typeField": "type",
           "typeOptions": [],
           "fields": ["type"],
-          "requiredFields": [],
         },
         "Conduite Terrain": {
           "tableName": "conduite_terrain",
@@ -785,7 +747,6 @@ class SrmConfig {
           "typeField": null,
           "typeOptions": [],
           "fields": ["ep_diam", "ep_mat"],
-          "requiredFields": ["ep_diam", "ep_mat"],
         },
         "Branchement EP": {
           "tableName": "branchement",
@@ -811,7 +772,6 @@ class SrmConfig {
             "observation",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_diam", "ep_etat", "conformite_plan"],
         },
         "Traverse": {
           "tableName": "traverse",
@@ -835,7 +795,6 @@ class SrmConfig {
             "observation",
             "conformite_plan"
           ],
-          "requiredFields": ["ep_etat", "conformite_plan"],
         },
         "Autre Objet EP": {
           "tableName": "autre_objet",
@@ -846,7 +805,6 @@ class SrmConfig {
           "typeField": null,
           "typeOptions": [],
           "fields": ["ep_coor_x", "ep_coor_y", "ep_coor_z", "observation"],
-          "requiredFields": [],
           "fieldLabels": {
             "ep_coor_x": "X",
             "ep_coor_y": "Y",
@@ -899,7 +857,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "type_regard", "conformite_plan"],
         },
         "Regard Branchement": {
           "tableName": "asst_regard_branchement", "schema": "asst",
@@ -930,7 +887,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "conformite_plan"],
         },
         "Regards Borgnes": {
           "tableName": "ASS_BORGNE",
@@ -949,7 +905,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Bouches d'égout": {
           "tableName": "ASS_BOUCHE",
@@ -968,7 +923,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Déversoirs d'orage": {
           "tableName": "ASS_DEVERSOIR",
@@ -987,7 +941,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Exutoires": {
           "tableName": "ASS__EXUTOIRE",
@@ -1006,7 +959,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Canalisation ASS": {
           "tableName": "asst_canalisation", "schema": "asst",
@@ -1039,12 +991,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": [
-            "etat",
-            "type_conduite",
-            "diametre",
-            "conformite_plan"
-          ],
         },
         "Canalisation Réutilisation": {
           "tableName": "asst_canalisation_reutilisation", "schema": "asst",
@@ -1074,7 +1020,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "diametre", "conformite_plan"],
         },
         "Branchement ASS": {
           "tableName": "asst_branchement", "schema": "asst",
@@ -1099,7 +1044,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "diametre", "conformite_plan"],
         },
         "Caniveaux": {
           "tableName": "ASS_CANIVEAU",
@@ -1120,7 +1064,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Caniveau branchement": {
           "tableName": "ASS_CANIV_BRANCHE",
@@ -1141,7 +1084,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Collecteur bouche d'égout": {
           "tableName": "ASS_COL_BOUCHE",
@@ -1162,7 +1104,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["conformite_plan"],
         },
         "Bassin": {
           "tableName": "asst_bassin", "schema": "asst",
@@ -1191,7 +1132,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "type_bassin", "conformite_plan"],
         },
         "Ouvrage ASS": {
           "tableName": "asst_ouvrage", "schema": "asst",
@@ -1217,7 +1157,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "type_ouvrage", "conformite_plan"],
         },
         "Équipement ASS": {
           "tableName": "asst_equipement", "schema": "asst",
@@ -1240,7 +1179,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "type", "conformite_plan"],
         },
         "Station ASS": {
           "tableName": "asst_station", "schema": "asst",
@@ -1273,7 +1211,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "type_station", "conformite_plan"],
         },
         "Stations d'épuration": {
           "tableName": "ASS_STA_EPUR",
@@ -1303,7 +1240,6 @@ class SrmConfig {
             "centre",
             "commentaire"
           ],
-          "requiredFields": ["etat", "type_station", "conformite_plan"],
         },
       },
     },
@@ -1371,19 +1307,6 @@ class SrmConfig {
       return labels[field].toString();
     }
     return field.replaceAll('_', ' ');
-  }
-
-  /// ── NOUVEAU : retourne la liste des champs obligatoires ──
-  /// Les champs de coordonnées (coor_x / coor_y) ne sont pas inclus ici
-  /// car ils sont toujours remplis automatiquement par le GPS.
-  static List<String> getRequiredFields(String metier, String entity) {
-    final ec = getEntityConfig(metier, entity);
-    return ec != null ? List<String>.from(ec['requiredFields'] ?? []) : [];
-  }
-
-  /// ── NOUVEAU : retourne true si le champ est obligatoire ──
-  static bool isRequiredField(String metier, String entity, String field) {
-    return getRequiredFields(metier, entity).contains(field);
   }
 
   static List<String> getPointEntities(String metier) {

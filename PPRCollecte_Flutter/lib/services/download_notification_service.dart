@@ -37,6 +37,7 @@ class DownloadNotificationService {
     required String operation,
     required int processed,
     required int total,
+    String title = 'Téléchargement en cours',
   }) {
     if (!Platform.isAndroid) return;
 
@@ -56,7 +57,7 @@ class DownloadNotificationService {
     _lastOperation = operation;
 
     unawaited(_invokeSafely('updateDownloadNotification', {
-      'title': 'Téléchargement en cours',
+      'title': title,
       'text': '$operation ($processed/$total)',
       'progress': percent,
       'indeterminate': total <= 0,
@@ -64,11 +65,12 @@ class DownloadNotificationService {
   }
 
   static Future<void> complete({
+    String title = 'Téléchargement terminé',
     String text = 'Téléchargement terminé',
   }) async {
     if (!Platform.isAndroid) return;
     await _invokeSafely('finishDownloadNotification', {
-      'title': 'Téléchargement terminé',
+      'title': title,
       'text': text,
       'progress': 100,
       'indeterminate': false,
@@ -76,11 +78,12 @@ class DownloadNotificationService {
   }
 
   static Future<void> fail({
+    String title = 'Téléchargement interrompu',
     String text = 'Téléchargement interrompu',
   }) async {
     if (!Platform.isAndroid) return;
     await _invokeSafely('failDownloadNotification', {
-      'title': 'Téléchargement interrompu',
+      'title': title,
       'text': text,
       'progress': _lastProgress ?? 0,
       'indeterminate': false,

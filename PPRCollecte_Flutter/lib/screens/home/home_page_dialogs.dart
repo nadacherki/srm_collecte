@@ -189,7 +189,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '$displaySuccessCount donnée(s) synchronisée(s)',
+                    _syncSyncedDataText(displaySuccessCount),
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,
@@ -200,7 +200,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${result.failedCount} donnée(s) non synchronisée(s)',
+                    _syncUnsyncedDataText(result.failedCount),
                     style: const TextStyle(
                       color: Colors.red,
                       fontWeight: FontWeight.w600,
@@ -211,7 +211,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${result.warningCount} avertissement(s) sur le journal local',
+                    '${_syncWarningCountText(result.warningCount)} sur le journal local',
                     style: const TextStyle(
                       color: Colors.orange,
                       fontWeight: FontWeight.w600,
@@ -252,7 +252,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Détails techniques : ${result.failedCount} donnée(s) n'ont pas pu être envoyée(s).",
+                  'Détails techniques : ${_syncUnableToSendDataText(result.failedCount)}.',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ] else if (result.failedCount > 0) ...[

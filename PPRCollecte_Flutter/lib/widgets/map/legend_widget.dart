@@ -27,6 +27,7 @@ class LegendWidget extends StatefulWidget {
 
   /// Callback notifiant home_page quand la légende s'ouvre ou se ferme.
   final ValueChanged<bool>? onExpandedChanged;
+  final bool expanded;
 
   const LegendWidget({
     super.key,
@@ -40,6 +41,7 @@ class LegendWidget extends StatefulWidget {
     this.allMarkers = const [],
     this.polygonCount = 0,
     this.onExpandedChanged,
+    this.expanded = false,
   });
 
   @override
@@ -77,6 +79,7 @@ class _LegendWidgetState extends State<LegendWidget> {
   @override
   void initState() {
     super.initState();
+    _isExpanded = widget.expanded;
     _visibility = Map<String, bool>.from(widget.initialVisibility);
     _visibility.putIfAbsent('overlay_zones', () => true);
     _visibility.putIfAbsent('overlay_planche', () => false);
@@ -94,6 +97,21 @@ class _LegendWidgetState extends State<LegendWidget> {
     _anomalieFilterActive = _visibility['srm_anomalie'] == true;
     _incompletFilterActive = _visibility['srm_incomplet'] == true;
     _visibility.putIfAbsent(_vk(_readOnlyRegardMiroirTable), () => true);
+  }
+
+  @override
+  void didUpdateWidget(covariant LegendWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.expanded != widget.expanded &&
+        _isExpanded != widget.expanded) {
+      setState(() => _isExpanded = widget.expanded);
+    }
+  }
+
+  void _setExpanded(bool value) {
+    if (_isExpanded == value) return;
+    setState(() => _isExpanded = value);
+    widget.onExpandedChanged?.call(value);
   }
 
   void _toggle(String key, bool value) {
@@ -213,35 +231,62 @@ class _LegendWidgetState extends State<LegendWidget> {
   //  BUILD
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 135,
-      right: 10,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(
-                color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(),
-            if (_isExpanded) _buildBody(),
-          ],
-        ),
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const top = 135.0;
+          const bottomMargin = 12.0;
+          const headerHeight = 44.0;
+          final availableHeight = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : MediaQuery.sizeOf(context).height;
+          final maxWidgetHeight =
+              (availableHeight - top - bottomMargin).clamp(96.0, 640.0);
+          final maxBodyHeight =
+              (maxWidgetHeight - headerHeight).clamp(0.0, 520.0);
+
+          return Stack(
+            children: [
+              Positioned(
+                top: top,
+                right: 10,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: maxWidgetHeight.toDouble(),
+                    maxWidth: 292,
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHeader(),
+                        if (_isExpanded) _buildBody(maxBodyHeight.toDouble()),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildHeader() {
     return InkWell(
-      onTap: () {
-        setState(() => _isExpanded = !_isExpanded);
-        widget.onExpandedChanged?.call(_isExpanded);
-      },
+      onTap: () => _setExpanded(!_isExpanded),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -278,13 +323,13 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(double maxHeight) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Divider(height: 1, color: Colors.grey.shade300),
         Container(
-          constraints: const BoxConstraints(maxHeight: 520, maxWidth: 272),
+          constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 272),
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
           child: SingleChildScrollView(
             child: Column(

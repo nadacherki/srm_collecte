@@ -398,7 +398,7 @@ class AssStatistiqueConduite(models.Model):
 
     class Meta:
         managed = False
-        db_table = '"ass"."statistique_conduite"'
+        db_table = '"asst"."statistique_conduite"'
 
     def __str__(self):
         return f"Stat conduite ASS agent={self.id_agent} jour={self.jour}"
@@ -418,7 +418,7 @@ class AssStatistiqueConduiteSegment(models.Model):
 
     class Meta:
         managed = False
-        db_table = '"ass"."statistique_conduite_segment"'
+        db_table = '"asst"."statistique_conduite_segment"'
 
     def __str__(self):
         return (

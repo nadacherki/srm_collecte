@@ -13,7 +13,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
-from django.contrib.gis.geos import LineString, Point
+from django.contrib.gis.geos import GEOSGeometry, LineString, Point
 from django.db import connection, transaction
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.urls import reverse
@@ -1779,44 +1779,110 @@ def _coerce_conduite_node_point(node_payload, config, label):
     return Point(float(x), float(y), float(z if z is not None else 0.0), srid=26191)
 
 
+class _ConduiteRegardLite:
+    """Minimal regard-like object exposing only what the conduite flow needs.
+
+    Used for ASS where the Django model is out-of-sync with the actual
+    asst.ASS_REGARD table column names.
+    """
+
+    def __init__(self, fid, geom, coords):
+        self.fid = fid
+        self.geom = geom
+        for key, value in coords.items():
+            setattr(self, key, value)
+
+
+def _fetch_asst_regard_lite(*, fid=None, uuid_value=None):
+    """Raw SQL lookup against asst.ASS_REGARD (quoted-uppercase columns)."""
+    if fid is not None:
+        where = '"id" = %s'
+        params = [fid]
+    elif uuid_value:
+        where = '"uuid" = %s'
+        params = [uuid_value]
+    else:
+        return []
+
+    sql = f'''
+        SELECT
+            "id",
+            ST_AsEWKT("geom") AS geom_ewkt,
+            "ASS_COOR_X",
+            "ASS_COOR_Y",
+            "ASS_COOR_Z"
+        FROM "asst"."ASS_REGARD"
+        WHERE {where}
+        LIMIT 2
+    '''
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = []
+    for row in rows:
+        regard_id, geom_ewkt, x, y, z = row
+        geom = GEOSGeometry(geom_ewkt) if geom_ewkt else None
+        coords = {'ass_coor_x': x, 'ass_coor_y': y, 'ass_coor_z': z}
+        results.append(_ConduiteRegardLite(regard_id, geom, coords))
+    return results
+
+
 def _resolve_conduite_regard_node(node_payload, config):
     fid = node_payload.get('fid')
     uuid_value = (node_payload.get('uuid') or '').strip()
     label = (
         (node_payload.get('label') or '').strip()
         or (node_payload.get('ep_num') or '').strip()
+        or (node_payload.get('ass_num') or '').strip()
         or uuid_value
         or str(fid or '')
     )
     regard_model = config['regard_model']
     x_field, y_field, z_field = config['coord_fields']
+    use_raw_sql = config.get('schema') == 'asst'
+
+    def _hydrate_geom(regard, fallback_label):
+        if regard.geom is not None:
+            return regard
+        x = getattr(regard, x_field, None)
+        y = getattr(regard, y_field, None)
+        z = getattr(regard, z_field, None)
+        if x is not None and y is not None:
+            regard.geom = Point(
+                float(x),
+                float(y),
+                float(z if z is not None else 0.0),
+                srid=26191,
+            )
+        else:
+            regard.geom = _coerce_conduite_node_point(
+                node_payload, config, fallback_label
+            )
+        return regard
 
     if fid is not None:
+        if use_raw_sql:
+            matches = _fetch_asst_regard_lite(fid=fid)
+            if not matches:
+                raise ValidationError(
+                    {'nodes': [f'Regard introuvable sur le serveur pour fid={fid}.']}
+                )
+            return _hydrate_geom(matches[0], fid)
         try:
             regard = regard_model.objects.get(fid=fid)
         except regard_model.DoesNotExist as exc:
             raise ValidationError(
                 {'nodes': [f'Regard introuvable sur le serveur pour fid={fid}.']}
             ) from exc
-        if regard.geom is None:
-            x = getattr(regard, x_field, None)
-            y = getattr(regard, y_field, None)
-            z = getattr(regard, z_field, None)
-            if x is not None and y is not None:
-                regard.geom = Point(
-                    float(x),
-                    float(y),
-                    float(z if z is not None else 0.0),
-                    srid=26191,
-                )
-            else:
-                regard.geom = _coerce_conduite_node_point(node_payload, config, fid)
-        return regard
+        return _hydrate_geom(regard, fid)
 
     if uuid_value:
-        qs = regard_model.objects.filter(uuid=uuid_value)
-        count = qs.count()
-        if count == 0:
+        if use_raw_sql:
+            matches = _fetch_asst_regard_lite(uuid_value=uuid_value)
+        else:
+            matches = list(regard_model.objects.filter(uuid=uuid_value)[:2])
+        if not matches:
             raise ValidationError(
                 {
                     'nodes': [
@@ -1824,27 +1890,11 @@ def _resolve_conduite_regard_node(node_payload, config):
                     ]
                 }
             )
-        if count > 1:
+        if len(matches) > 1:
             raise ValidationError(
                 {'nodes': [f'UUID de regard ambigu sur le serveur: {uuid_value}.']}
             )
-        regard = qs.first()
-        if regard is None:
-            raise ValidationError({'nodes': [f'Regard {label} introuvable.']})
-        if regard.geom is None:
-            x = getattr(regard, x_field, None)
-            y = getattr(regard, y_field, None)
-            z = getattr(regard, z_field, None)
-            if x is not None and y is not None:
-                regard.geom = Point(
-                    float(x),
-                    float(y),
-                    float(z if z is not None else 0.0),
-                    srid=26191,
-                )
-            else:
-                regard.geom = _coerce_conduite_node_point(node_payload, config, label)
-        return regard
+        return _hydrate_geom(matches[0], label)
 
     raise ValidationError(
         {'nodes': ['Chaque regard doit fournir fid ou uuid pour la validation.']}

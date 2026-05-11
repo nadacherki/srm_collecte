@@ -2,7 +2,7 @@ part of 'home_page.dart';
 
 extension _HomePageAppActions on _HomePageState {
   Future<void> _performDownload() async {
-    if (isDownloading) return;
+    if (isDownloading || isSyncing) return;
 
     final reachable = await _refreshOnlineStatusForNetworkAction();
     if (!mounted) return;
@@ -253,7 +253,7 @@ extension _HomePageAppActions on _HomePageState {
   }
 
   Future<void> _performSync() async {
-    if (isSyncing) return;
+    if (isSyncing || isDownloading) return;
 
     final reachable = await _refreshOnlineStatusForNetworkAction();
     if (!mounted) return;
@@ -278,6 +278,14 @@ extension _HomePageAppActions on _HomePageState {
       _syncProcessedItems = 0;
       _syncTotalItems = 1;
     });
+    await DownloadNotificationService.start(
+      title: 'Synchronisation SRM',
+      text: 'Préparation de la synchronisation...',
+    );
+
+    var notificationResolved = false;
+    var syncFailureMessage =
+        'Synchronisation interrompue. Relancez pour reprendre.';
 
     try {
       final syncService = SyncService();
@@ -290,6 +298,14 @@ extension _HomePageAppActions on _HomePageState {
               processed.isNaN || processed.isInfinite ? 0 : processed;
           final safeTotal = total.isNaN || total.isInfinite ? 1 : total;
 
+          DownloadNotificationService.update(
+            title: 'Synchronisation en cours',
+            progress: safeProgress,
+            operation: currentOperation,
+            processed: safeProcessed,
+            total: safeTotal,
+          );
+
           if (mounted) {
             _setStateFromPart(() {
               _syncProgressValue = safeProgress;
@@ -300,6 +316,23 @@ extension _HomePageAppActions on _HomePageState {
           }
         },
       );
+
+      final notificationMessage = _syncNotificationMessage(result);
+      if (result.failedCount > 0) {
+        syncFailureMessage = notificationMessage;
+        await DownloadNotificationService.fail(
+          title: result.successCount > 0
+              ? 'Synchronisation partielle'
+              : 'Synchronisation échouée',
+          text: notificationMessage,
+        );
+      } else {
+        await DownloadNotificationService.complete(
+          title: 'Synchronisation terminée',
+          text: notificationMessage,
+        );
+      }
+      notificationResolved = true;
 
       if (result.successCount > 0) {
         final now = DateTime.now();
@@ -330,17 +363,63 @@ extension _HomePageAppActions on _HomePageState {
 
       _showSyncResult(result);
     } catch (e) {
+      syncFailureMessage = _syncErrorMessage(e);
+      await DownloadNotificationService.fail(
+        title: 'Synchronisation interrompue',
+        text: syncFailureMessage,
+      );
+      notificationResolved = true;
       if (mounted) {
         _setStateFromPart(() => isSyncing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur de synchronisation : $e'),
+            content: Text(syncFailureMessage),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
         );
       }
+    } finally {
+      if (!notificationResolved) {
+        await DownloadNotificationService.fail(
+          title: 'Synchronisation interrompue',
+          text: syncFailureMessage,
+        );
+      }
     }
+  }
+
+  String _syncNotificationMessage(SyncResult result) {
+    final displaySuccess =
+        result.displaySuccessCount < 0 ? 0 : result.displaySuccessCount;
+    if (displaySuccess == 0 &&
+        result.failedCount == 0 &&
+        result.warningCount == 0) {
+      return 'Aucune donnée à synchroniser';
+    }
+    if (result.failedCount > 0 && displaySuccess > 0) {
+      return 'Synchronisation partielle : ${_syncSyncedDataText(displaySuccess)}, ${_syncErrorCountText(result.failedCount)}';
+    }
+    if (result.failedCount > 0) {
+      return 'Synchronisation échouée : ${_syncErrorCountText(result.failedCount)}';
+    }
+    if (result.warningCount > 0) {
+      return 'Synchronisation terminée avec ${_syncWarningCountText(result.warningCount)}';
+    }
+    return 'Synchronisation terminée : ${_syncSyncedDataText(displaySuccess)}';
+  }
+
+  String _syncErrorMessage(Object error) {
+    var message = error.toString().trim();
+    message = message
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^FlutterError:\s*'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (message.isEmpty) {
+      return 'Synchronisation interrompue. Relancez pour reprendre.';
+    }
+    return 'Erreur de synchronisation : $message';
   }
 
   Future<void> _showMockLocationDialogSafe() {
@@ -563,4 +642,30 @@ extension _HomePageAppActions on _HomePageState {
       ),
     );
   }
+}
+
+String _syncSyncedDataText(int count) {
+  return count == 1
+      ? '1 donnée synchronisée'
+      : '$count données synchronisées';
+}
+
+String _syncUnsyncedDataText(int count) {
+  return count == 1
+      ? '1 donnée non synchronisée'
+      : '$count données non synchronisées';
+}
+
+String _syncUnableToSendDataText(int count) {
+  return count == 1
+      ? "1 donnée n'a pas pu être envoyée"
+      : "$count données n'ont pas pu être envoyées";
+}
+
+String _syncErrorCountText(int count) {
+  return count == 1 ? '1 erreur' : '$count erreurs';
+}
+
+String _syncWarningCountText(int count) {
+  return count == 1 ? 'un avertissement' : '$count avertissements';
 }

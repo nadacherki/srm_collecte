@@ -188,7 +188,7 @@ class DisplayedPointsService {
     void Function(Map<String, dynamic> row, Marker marker)? onMarkerCreated,
     String metier = 'Eau Potable',
     String entityType = 'Regard',
-    String tableName = 'regard',
+    String tableName = 'ep_regard_point',
   }) async {
     try {
       final db = await _dbHelper.database;
@@ -286,7 +286,7 @@ class DisplayedPointsService {
     required bool hasAnomalie,
     required bool hasIncomplet,
   }) {
-    final isRegard = tableName == 'regard' || tableName == 'regard_ep';
+    final isRegard = _isRegardTable(tableName);
     final isAlert = hasAnomalie || hasIncomplet;
 
     if (isRegard) {
@@ -302,7 +302,7 @@ class DisplayedPointsService {
     required String tableName,
   }) {
     final schema = SrmConfig.getMetierConfig(metier)?['schema']?.toString();
-    final isRegard = tableName == 'regard' || tableName == 'regard_ep';
+    final isRegard = _isRegardTable(tableName);
 
     if (isRegard && schema != null && schema.isNotEmpty) {
       final x = _toDouble(row['${schema}_coor_x']);
@@ -327,6 +327,15 @@ class DisplayedPointsService {
 
     final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
     return LatLng(wgs84.latitude, wgs84.longitude);
+  }
+
+  bool _isRegardTable(String tableName) {
+    return const {
+      'regard',
+      'regard_ep',
+      'ep_regard_point',
+      'asst_regard',
+    }.contains(tableName);
   }
 
   double? _toDouble(dynamic value) {

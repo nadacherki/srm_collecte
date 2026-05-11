@@ -227,10 +227,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final pendingPhotos = await _db.getPendingPhotoSyncItems(limit: 10000);
-    final failedPhotos = pendingPhotos.where((row) {
-      final error = row['last_error']?.toString().trim() ?? '';
-      return error.isNotEmpty;
-    }).length;
+    final failedPhotos = await _db.countFailedPhotoSyncItems();
     final pendingHistoryItems = await _db.countPendingLocalHistoryItems();
 
     return _LocalInventorySnapshot(
@@ -607,7 +604,17 @@ class _ProfilePageState extends State<ProfilePage> {
         _metricInt(_resumeMetrics, 'nb_objets_avec_photo_total');
     final photosUploaded =
         _metricInt(_resumeMetrics, 'nb_photos_uploadees_total');
+    final photosDeclared =
+        _metricInt(_resumeMetrics, 'nb_photos_renseignees_total');
     final photoCoverage = total > 0 ? (objectsWithPhoto * 100 / total) : 0.0;
+    final photoCoverageHelper = total > 0
+        ? _formatPercent(photoCoverage)
+        : (objectsWithPhoto > 0 ? 'activité photo serveur' : _formatPercent(0));
+    final photosUploadedHelper = objectsWithPhoto > 0
+        ? '$objectsWithPhoto ${objectsWithPhoto > 1 ? 'objets' : 'objet'} avec photo'
+        : photosDeclared > 0
+            ? '$photosDeclared ${photosDeclared > 1 ? 'renseignées' : 'renseignée'}'
+            : 'aucune photo serveur';
 
     return _buildSection(
       title: 'Qualité et complétude',
@@ -628,15 +635,14 @@ class _ProfilePageState extends State<ProfilePage> {
               label: 'Objets avec photo',
               value: '$objectsWithPhoto',
               color: const Color(0xFF1976D2),
-              helper: _formatPercent(photoCoverage),
+              helper: photoCoverageHelper,
             ),
             _buildStatCard(
               icon: Icons.cloud_upload_outlined,
               label: 'Photos uploadées',
               value: '$photosUploaded',
               color: const Color(0xFF27AE60),
-              helper:
-                  '${_metricInt(_resumeMetrics, 'nb_photos_renseignees_total')} renseignées',
+              helper: photosUploadedHelper,
             ),
             _buildStatCard(
               icon: Icons.rule_folder_outlined,
@@ -1105,6 +1111,14 @@ class _ProfilePageState extends State<ProfilePage> {
     required Color color,
   }) {
     final total = _metricInt(metrics, 'nb_objets_crees');
+    final hasActivity = total > 0 ||
+        _metricInt(metrics, 'nb_objets_anomalie') > 0 ||
+        _metricInt(metrics, 'nb_photos_uploadees') > 0 ||
+        _metricInt(metrics, 'nb_evenements_sync') > 0 ||
+        _metricInt(metrics, 'nb_objets_incomplets_signales') > 0 ||
+        _metricInt(metrics, 'nb_objets_incomplets_completes') > 0 ||
+        _metricInt(metrics, 'nb_modifications_terrain') > 0 ||
+        _metricInt(metrics, 'nb_validations_terrain') > 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1192,7 +1206,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-          if (total == 0)
+          if (!hasActivity)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(

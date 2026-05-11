@@ -210,10 +210,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   void initState() {
     super.initState();
     _fields = SrmConfig.getFields(widget.metier, widget.entityType);
-    _requiredFields = SrmConfig.getRequiredFields(
-      widget.metier,
-      widget.entityType,
-    );
+    // _requiredFields est alimenté par _loadAttributConfigMobileFields()
+    // depuis la SQLite locale (synchronisée au login). Pas de hardcoding.
     _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
     _typeField = SrmConfig.getEntityConfig(
       widget.metier,

@@ -6,7 +6,7 @@
 //
 // SPRINT 6 : Modifications
 //  1. uuid retiré du formulaire (généré automatiquement par Uuid().v4() dans _save)
-//  2. Champs obligatoires marqués * via SrmConfig.isRequiredField() + validator
+//  2. Champs obligatoires marqués * via AttributConfigMobileField.isRequired
 //  3. Champs auto (coordonnées GPS) affichés readOnly sans *
 //  4. Toggle "Objet Incomplet" : griser les champs + saisir raison depuis objet_incomplet
 //     (même principe que le Switch Anomalie existant)
@@ -161,8 +161,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     super.initState();
     _entityConfig = SrmConfig.getEntityConfig(widget.metier, widget.entityType);
     _fields = SrmConfig.getFields(widget.metier, widget.entityType);
-    _requiredFields = SrmConfig.getRequiredFields(
-        widget.metier, widget.entityType); // NOUVEAU
+    // _requiredFields est alimenté par _loadAttributConfigMobileFields()
+    // depuis la SQLite locale (synchronisée au login). Pas de hardcoding.
     _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
     _typeField = _entityConfig?['typeField'] as String?;
     _maxPhotos = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:srm_collecte/data/local/database_helper.dart';
+import 'package:srm_collecte/data/remote/api_service.dart';
+import 'package:srm_collecte/services/displayed_points_service.dart';
 
 void main() {
   setUpAll(() {
@@ -9,6 +11,7 @@ void main() {
   });
 
   tearDown(() async {
+    ApiService.userId = null;
     await DatabaseHelper.resetForTest();
   });
 
@@ -55,12 +58,14 @@ void main() {
       );
 
       expect(await helper.getPendingPhotoSyncItems(), hasLength(1));
+      expect(await helper.countFailedPhotoSyncItems(), 0);
 
       for (var i = 0; i < 5; i++) {
         await helper.markPhotoSyncItemFailed(id, 'upload failed');
       }
 
       expect(await helper.getPendingPhotoSyncItems(), isEmpty);
+      expect(await helper.countFailedPhotoSyncItems(), 1);
 
       final db = await helper.database;
       final row = (await db.query(
@@ -171,6 +176,34 @@ void main() {
           .single;
 
       expect(row['altitude_z_moy'], 42.75);
+    });
+
+    test('conduite mode can find today EP regard points', () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest();
+      ApiService.userId = 19;
+      final helper = DatabaseHelper();
+      final now = DateTime.now();
+
+      await helper.insertEntitySrm('ep_regard_point', {
+        'uuid': 'regard-today-1',
+        'id_agent_crea': 19,
+        'ep_coor_x': 359779.21,
+        'ep_coor_y': 368280.86,
+        'ep_coor_z': 145.90,
+        'date_collecte': now.toIso8601String(),
+        'synced': 0,
+      });
+
+      final markers =
+          await DisplayedPointsService().getDisplayedRegardMarkersForDay(
+        day: now,
+        onTapRegard: (_) {},
+        metier: 'Eau Potable',
+        entityType: 'Regard',
+        tableName: 'ep_regard_point',
+      );
+
+      expect(markers, hasLength(1));
     });
   });
 }

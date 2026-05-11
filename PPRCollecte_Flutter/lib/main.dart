@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:executor_lib/executor_lib.dart';
@@ -8,6 +9,7 @@ import 'screens/auth/login_page.dart';
 import 'screens/home/home_page.dart';
 import 'data/local/database_helper.dart';
 import 'data/remote/api_service.dart';
+import 'services/attribut_config_mobile_service.dart';
 import 'services/offline_basemap_service.dart';
 
 bool _isIgnorableAppError(Object error) {
@@ -86,6 +88,13 @@ class _SessionGateState extends State<SessionGate> {
     }
 
     _restoreApiServiceFromUser(user);
+
+    // Session restaurée (jusqu'à 7 jours sans re-login) : on rafraîchit
+    // silencieusement la config des formulaires depuis le serveur en
+    // background. Si offline, l'erreur est ignorée et la SQLite existante
+    // continue d'alimenter les formulaires.
+    unawaited(_refreshAttributConfigMobileSilently());
+
     final activeBasemap = await OfflineBasemapService().getActiveBasemap();
     final offlineBasemapPath = activeBasemap?['local_path']?.toString().trim();
     final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
@@ -102,6 +111,14 @@ class _SessionGateState extends State<SessionGate> {
               : null,
       onLogout: _logoutRestoredSession,
     );
+  }
+
+  Future<void> _refreshAttributConfigMobileSilently() async {
+    try {
+      await AttributConfigMobileService().refreshConfig();
+    } catch (e) {
+      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Refresh ignore au resume session: $e');
+    }
   }
 
   void _restoreApiServiceFromUser(Map<String, dynamic> user) {

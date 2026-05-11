@@ -42,7 +42,7 @@ const _conduiteEpConfig = _ConduiteMetierConfig(
   code: 'ep',
   metier: 'Eau Potable',
   entityType: 'Regard',
-  tableName: 'regard',
+  tableName: 'ep_regard_point',
   title: 'eau potable',
   shortLabel: 'EP',
   xField: 'ep_coor_x',
@@ -153,6 +153,7 @@ Future<void> _enterConduiteDrawingModeImpl(
       ..clear()
       ..addAll(regardNodes);
     state._conduiteSelectionHistoryNodeIds.clear();
+    state._conduiteRedoStackNodeIds.clear();
     state._conduiteSegmentKeys
       ..clear()
       ..addAll(frozenSegmentKeys);
@@ -195,6 +196,7 @@ void _exitConduiteDrawingModeImpl(_HomePageState state) {
     state._conduiteModePolylines = <Polyline>[];
     state._conduiteRegardNodesById.clear();
     state._conduiteSelectionHistoryNodeIds.clear();
+    state._conduiteRedoStackNodeIds.clear();
     state._conduiteSegmentKeys.clear();
     state._conduitePreviewLengthM = 0.0;
     state._conduiteCurrentRegardPoint = null;
@@ -257,6 +259,7 @@ void _handleConduiteRegardTapImpl(
   }
 
   state._conduiteSelectionHistoryNodeIds.add(nodeId);
+  state._conduiteRedoStackNodeIds.clear();
   _recomputeConduitePreviewFromHistory(state, statusText: statusText);
   _showConduiteModeSnack(state, statusText);
 }
@@ -376,6 +379,9 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
   final canUndo = !state._conduiteIsFrozenForDay &&
       !state._conduiteIsSaving &&
       state._conduiteSelectionHistoryNodeIds.isNotEmpty;
+  final canRedo = !state._conduiteIsFrozenForDay &&
+      !state._conduiteIsSaving &&
+      state._conduiteRedoStackNodeIds.isNotEmpty;
   final canFinishCurrentConduite = !state._conduiteIsFrozenForDay &&
       !state._conduiteIsSaving &&
       _currentConduiteNodeCount(state) >= 2 &&
@@ -471,6 +477,13 @@ Widget _buildConduiteModeHeaderImpl(_HomePageState state) {
               backgroundColor: const Color(0xFFE3F2FD),
               foregroundColor: const Color(0xFF0D47A1),
               onPressed: canUndo ? () => _handleConduiteUndoImpl(state) : null,
+            ),
+            _buildConduiteActionButton(
+              label: 'Redo',
+              icon: Icons.redo,
+              backgroundColor: const Color(0xFFE3F2FD),
+              foregroundColor: const Color(0xFF0D47A1),
+              onPressed: canRedo ? () => _handleConduiteRedoImpl(state) : null,
             ),
             _buildConduiteActionButton(
               label: 'Terminer',
@@ -611,6 +624,7 @@ void _handleConduiteUndoImpl(_HomePageState state) {
   }
 
   final removedNodeId = state._conduiteSelectionHistoryNodeIds.removeLast();
+  state._conduiteRedoStackNodeIds.add(removedNodeId);
   final removedNode = state._conduiteRegardNodesById[removedNodeId];
   final removedLabel = _isConduitePathSeparator(removedNodeId)
       ? 'Séparation de conduite'
@@ -625,6 +639,30 @@ void _handleConduiteUndoImpl(_HomePageState state) {
   final statusText = activeNode == null
       ? '$removedLabel retiré. Touchez un regard pour continuer.'
       : '$removedLabel retiré. ${_labelForConduiteNode(activeNode)} actif.';
+
+  _recomputeConduitePreviewFromHistory(state, statusText: statusText);
+  _showConduiteModeSnack(state, statusText);
+}
+
+void _handleConduiteRedoImpl(_HomePageState state) {
+  if (state._conduiteIsSaving || state._conduiteIsFrozenForDay) {
+    return;
+  }
+  if (state._conduiteRedoStackNodeIds.isEmpty) {
+    _showConduiteModeSnack(state, 'Rien à rétablir.');
+    return;
+  }
+
+  final restoredNodeId = state._conduiteRedoStackNodeIds.removeLast();
+  state._conduiteSelectionHistoryNodeIds.add(restoredNodeId);
+
+  final restoredNode = state._conduiteRegardNodesById[restoredNodeId];
+  final restoredLabel = _isConduitePathSeparator(restoredNodeId)
+      ? 'Séparation de conduite'
+      : restoredNode == null
+          ? 'Regard'
+          : _labelForConduiteNode(restoredNode);
+  final statusText = '$restoredLabel rétabli.';
 
   _recomputeConduitePreviewFromHistory(state, statusText: statusText);
   _showConduiteModeSnack(state, statusText);
@@ -869,6 +907,7 @@ void _applyConduiteServerSnapshot(
     state._conduiteIsSaving = false;
     state._conduiteIsFrozenForDay = payload['frozen'] == true;
     state._conduiteSelectionHistoryNodeIds.clear();
+    state._conduiteRedoStackNodeIds.clear();
     state._conduiteSegmentKeys
       ..clear()
       ..addAll(segmentKeys);
@@ -1160,7 +1199,7 @@ int? _resolveConduiteNodeId(Map<String, dynamic> row) {
 }
 
 String _labelForConduiteNode(_ConduiteRegardNode node) {
-  for (final key in ['ep_num', 'id_regard', 'objectid', 'uuid']) {
+  for (final key in ['ep_num', 'ass_num', 'id_regard', 'objectid']) {
     final value = node.row[key]?.toString().trim();
     if (value != null && value.isNotEmpty && value.toLowerCase() != 'null') {
       return 'Regard $value';
@@ -1169,7 +1208,7 @@ String _labelForConduiteNode(_ConduiteRegardNode node) {
   if (node.sourceFid != null) {
     return 'Regard #${node.sourceFid}';
   }
-  return 'Regard local #${node.nodeId}';
+  return 'Regard #${node.nodeId}';
 }
 
 void _showConduiteModeSnack(_HomePageState state, String message) {

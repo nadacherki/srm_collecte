@@ -2834,6 +2834,15 @@ class DatabaseHelper {
     );
   }
 
+  Future<int> countFailedPhotoSyncItems() async {
+    final db = await database;
+    return _countRowsIfTableExists(
+      db,
+      'photo_sync_queue',
+      where: "COALESCE(last_error, '') <> '' OR COALESCE(synced, 0) = -1",
+    );
+  }
+
   Future<int> countPendingLocalHistoryItems() async {
     final db = await database;
     final attributes = await _countRowsIfTableExists(
