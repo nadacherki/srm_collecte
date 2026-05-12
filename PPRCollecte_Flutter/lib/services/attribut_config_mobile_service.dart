@@ -15,6 +15,7 @@ class AttributConfigMobileField {
   final bool visible;
   final String contraintes;
   final bool nullable;
+  final bool obligatoire;
   final String valeurParDefaut;
   final String valeurMin;
   final String valeurMax;
@@ -33,6 +34,7 @@ class AttributConfigMobileField {
     required this.visible,
     required this.contraintes,
     required this.nullable,
+    required this.obligatoire,
     required this.valeurParDefaut,
     required this.valeurMin,
     required this.valeurMax,
@@ -53,6 +55,7 @@ class AttributConfigMobileField {
       visible: _toBool(row['visible']),
       contraintes: row['contraintes']?.toString().trim() ?? '',
       nullable: _toBool(row['nullable'], defaultValue: true),
+      obligatoire: _toBool(row['obligatoire'], defaultValue: true),
       valeurParDefaut: row['valeur_par_defaut']?.toString().trim() ?? '',
       valeurMin: row['valeur_min']?.toString().trim() ?? '',
       valeurMax: row['valeur_max']?.toString().trim() ?? '',
@@ -66,45 +69,10 @@ class AttributConfigMobileField {
   bool get isRequired {
     if (primaryKey) return false;
     if (!visible) return false;
-    final name = nomChamp.toLowerCase();
-    if (name == 'geom') return false;
-    // Champs auto-gérés ailleurs dans le formulaire ou par le système.
-    const autoManaged = {
-      'mode_localisation',
-      'anomalie',
-      'ep_anomalie',
-      'ass_anomalie',
-      'type_anomalie',
-      'anomalie_regard',
-      'anomalie_tamp',
-      'objet_incomplet',
-      'raison_incomplet',
-      'detail_raison_incomplet',
-      'photo_1',
-      'photo_2',
-      'photo_3',
-      'photo_4',
-      'created_at',
-      'updated_at',
-      'date_creation',
-      'date_modif',
-      'id_user_creat',
-      'id_user_modif',
-      'is_deleted',
-      'is_validated',
-    };
-    if (autoManaged.contains(name)) return false;
-    // Champs de coordonnées (remplis par GPS).
+    if (nomChamp.toLowerCase() == 'geom') return false;
     if (isAutoVisibleCoordinate) return false;
-    // Champs libres optionnels (commentaire / observation).
-    if (name.contains('observ') ||
-        name.contains('commentaire') ||
-        name.contains('remarque') ||
-        name == 'detail' ||
-        name == 'note') {
-      return false;
-    }
-    return true;
+    // Source de vérité : colonne `obligatoire` de public.attribut_config_mobile.
+    return obligatoire;
   }
 
   double? get numericMin => _toDouble(valeurMin);
@@ -194,11 +162,20 @@ class AttributConfigMobileService {
     required String metier,
     required String entityType,
     bool refreshIfEmpty = true,
+    bool forceRefresh = false,
   }) async {
     final nomMetier = nomMetierForMobileMetier(metier);
     final mobileTable = SrmConfig.getTableName(metier, entityType) ?? '';
     final nomTable = configTableForMobileTable(nomMetier, mobileTable);
     if (nomMetier.isEmpty || nomTable.isEmpty) return const [];
+
+    if (forceRefresh) {
+      try {
+        await refreshConfig(nomMetier: nomMetier, nomTable: nomTable);
+      } catch (_) {
+        // Hors ligne ou erreur reseau : on retombe sur le cache SQLite.
+      }
+    }
 
     var rows = await _db.getAttributConfigMobile(
       nomMetier: nomMetier,

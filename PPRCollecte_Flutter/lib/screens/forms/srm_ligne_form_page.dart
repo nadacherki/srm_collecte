@@ -308,6 +308,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           metier: widget.metier,
           entityType: widget.entityType,
           refreshIfEmpty: false,
+          forceRefresh: true,
         ),
         SrmFieldOptionService().getOptionsByField(
           tableSchema: nomMetier,

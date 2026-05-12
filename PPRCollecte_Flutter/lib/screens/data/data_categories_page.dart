@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'anomaly_treatment_page.dart';
 import 'srm_data_status_page.dart';
 
 class DataCategoriesPage extends StatelessWidget {
@@ -86,6 +87,25 @@ class DataCategoriesPage extends StatelessWidget {
                     icon: Icons.cloud_download,
                     color: const Color(0xFF4CAF50),
                   ),
+                  _buildCategoryCard(
+                    context,
+                    title: 'Traitement des anomalies',
+                    description:
+                        'Suivi exploitant et retours terrain à compléter',
+                    icon: Icons.construction,
+                    color: const Color(0xFFFF9800),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AnomalyTreatmentPage(
+                            isOnline: isOnline,
+                            agentName: agentName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -101,21 +121,23 @@ class DataCategoriesPage extends StatelessWidget {
     required String description,
     required IconData icon,
     required Color color,
+    VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SrmDataStatusPage(
-              title: title,
-              dataFilter: _getDataFilterType(title),
-              isOnline: isOnline,
-              agentName: agentName,
-            ),
-          ),
-        );
-      },
+      onTap: onTap ??
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SrmDataStatusPage(
+                  title: title,
+                  dataFilter: _getDataFilterType(title),
+                  isOnline: isOnline,
+                  agentName: agentName,
+                ),
+              ),
+            );
+          },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,

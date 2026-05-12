@@ -3,6 +3,7 @@ python tools/gps_simulator_bt.py --list
 
 # Mode statique (point fixe + jitter realiste 1.5 m)
 python tools/gps_simulator_bt.py --port COM3
+python tools/gps_simulator_bt.py --port COM3 --lat 34.68 --lon -1.908
 
 # Mode trajet anime en boucle a 25 km/h
 python tools/gps_simulator_bt.py --port COM3 --mode route `

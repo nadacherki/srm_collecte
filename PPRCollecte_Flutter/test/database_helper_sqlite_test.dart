@@ -205,5 +205,92 @@ void main() {
 
       expect(markers, hasLength(1));
     });
+
+    test('intervention anomaly summary separates exploitant and terrain states',
+        () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest(
+        includeSrmEntityTables: false,
+      );
+      final helper = DatabaseHelper();
+
+      await helper.upsertDownloadedInterventionAnomalieTerrain({
+        'id': 1,
+        'id_objet': 100,
+        'nom_table': 'ep.ep_vanne',
+        'statut': 'signale',
+        'responsable_actuel': 'exploitant',
+        'etat_exploitant': 'en_attente',
+        'etat_terrain': 'en_attente',
+      });
+      await helper.upsertDownloadedInterventionAnomalieTerrain({
+        'id': 2,
+        'id_objet': 101,
+        'nom_table': 'ep.ep_vanne',
+        'retour_terrain': true,
+        'statut': 'retour_terrain',
+        'responsable_actuel': 'terrain',
+        'etat_exploitant': 'traite',
+        'etat_terrain': 'en_attente',
+      });
+      await helper.upsertDownloadedInterventionAnomalieTerrain({
+        'id': 3,
+        'id_objet': 102,
+        'nom_table': 'ep.ep_vanne',
+        'retour_terrain': true,
+        'statut': 'terrain_traite',
+        'responsable_actuel': 'terrain',
+        'etat_exploitant': 'traite',
+        'etat_terrain': 'traite',
+      });
+
+      final summary = await helper.getInterventionAnomalieTreatmentSummary();
+      final waiting = await helper.getInterventionAnomalieTreatmentItems(
+        filter: 'en_attente_exploitant',
+      );
+      final returns = await helper.getInterventionAnomalieTreatmentItems(
+        filter: 'retour_terrain_a_faire',
+      );
+
+      expect(summary['en_attente_exploitant'], 1);
+      expect(summary['retour_terrain_a_faire'], 1);
+      expect(summary['retour_terrain_effectue'], 1);
+      expect(waiting.single['id_intervention'], 1);
+      expect(returns.single['id_intervention'], 2);
+    });
+
+    test('marking anomaly terrain return creates an unsynced local update',
+        () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest(
+        includeSrmEntityTables: false,
+      );
+      final helper = DatabaseHelper();
+
+      await helper.upsertDownloadedInterventionAnomalieTerrain({
+        'id': 10,
+        'id_objet': 500,
+        'nom_table': 'ep.ep_brc_pt',
+        'retour_terrain': true,
+        'statut': 'retour_terrain',
+        'responsable_actuel': 'terrain',
+        'etat_exploitant': 'traite',
+        'etat_terrain': 'en_attente',
+      });
+
+      final pending = await helper.getInterventionAnomalieTreatmentItems(
+        filter: 'retour_terrain_a_faire',
+      );
+      await helper.updateInterventionAnomalieTerrainLocal(
+        localId: pending.single['id'] as int,
+        etatTerrain: 'traite',
+      );
+
+      final unsynced = await helper.getUnsyncedInterventionAnomalieTerrain();
+      final summary = await helper.getInterventionAnomalieTreatmentSummary();
+
+      expect(unsynced, hasLength(1));
+      expect(unsynced.single['etat_terrain'], 'traite');
+      expect(summary['retour_terrain_a_faire'], 0);
+      expect(summary['retour_terrain_effectue'], 1);
+    });
   });
 }

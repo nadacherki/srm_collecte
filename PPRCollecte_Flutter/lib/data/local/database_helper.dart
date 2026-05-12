@@ -307,10 +307,16 @@ class DatabaseHelper {
         retour_terrain INTEGER DEFAULT 0,
         statut TEXT,
         responsable_actuel TEXT,
+        etat_exploitant TEXT DEFAULT 'en_attente',
+        commentaire_exploitant TEXT,
+        date_exploitant TEXT,
         etat_terrain TEXT DEFAULT 'en_attente',
         commentaire_terrain TEXT,
         date_terrain TEXT,
         id_user_terrain INTEGER,
+        etat_bureau TEXT DEFAULT 'en_attente',
+        commentaire_bureau TEXT,
+        date_bureau TEXT,
         date_creation TEXT,
         date_cloture TEXT,
         created_at TEXT,
@@ -332,10 +338,16 @@ class DatabaseHelper {
       'retour_terrain': 'INTEGER DEFAULT 0',
       'statut': 'TEXT',
       'responsable_actuel': 'TEXT',
+      'etat_exploitant': "TEXT DEFAULT 'en_attente'",
+      'commentaire_exploitant': 'TEXT',
+      'date_exploitant': 'TEXT',
       'etat_terrain': "TEXT DEFAULT 'en_attente'",
       'commentaire_terrain': 'TEXT',
       'date_terrain': 'TEXT',
       'id_user_terrain': 'INTEGER',
+      'etat_bureau': "TEXT DEFAULT 'en_attente'",
+      'commentaire_bureau': 'TEXT',
+      'date_bureau': 'TEXT',
       'date_creation': 'TEXT',
       'date_cloture': 'TEXT',
       'created_at': 'TEXT',
@@ -347,6 +359,11 @@ class DatabaseHelper {
       'last_error': 'TEXT',
     };
 
+    await _ensureColumns(
+      db,
+      tableName: 'intervention_anomalie',
+      columns: requiredColumns,
+    );
     await _assertColumnsPresent(
       db,
       tableName: 'intervention_anomalie',
@@ -692,12 +709,23 @@ class DatabaseHelper {
         visible INTEGER DEFAULT 0,
         contraintes TEXT,
         nullable INTEGER DEFAULT 1,
+        obligatoire INTEGER DEFAULT 1,
         valeur_par_defaut TEXT,
         valeur_min TEXT,
         valeur_max TEXT,
         reference_fk TEXT
       )
     ''');
+    final columns = await db.rawQuery(
+      'PRAGMA table_info(attribut_config_mobile_local)',
+    );
+    final names = columns.map((row) => row['name']?.toString()).toSet();
+    if (!names.contains('obligatoire')) {
+      await db.execute(
+        'ALTER TABLE attribut_config_mobile_local '
+        'ADD COLUMN obligatoire INTEGER DEFAULT 1',
+      );
+    }
     await db.execute('''
       CREATE INDEX IF NOT EXISTS attribut_config_mobile_local_lookup_idx
       ON attribut_config_mobile_local (nom_metier, nom_table, visible, ordre, id)
@@ -2491,10 +2519,16 @@ class DatabaseHelper {
       'retour_terrain': _truthyToInt(row['retour_terrain']),
       'statut': row['statut']?.toString(),
       'responsable_actuel': row['responsable_actuel']?.toString(),
+      'etat_exploitant': row['etat_exploitant']?.toString(),
+      'commentaire_exploitant': row['commentaire_exploitant']?.toString(),
+      'date_exploitant': row['date_exploitant']?.toString(),
       'etat_terrain': row['etat_terrain']?.toString(),
       'commentaire_terrain': row['commentaire_terrain']?.toString(),
       'date_terrain': row['date_terrain']?.toString(),
       'id_user_terrain': _asInt(row['id_user_terrain']),
+      'etat_bureau': row['etat_bureau']?.toString(),
+      'commentaire_bureau': row['commentaire_bureau']?.toString(),
+      'date_bureau': row['date_bureau']?.toString(),
       'date_creation': row['date_creation']?.toString(),
       'date_cloture': row['date_cloture']?.toString(),
       'created_at': row['created_at']?.toString(),
@@ -2571,10 +2605,16 @@ class DatabaseHelper {
       {
         'statut': remote['statut']?.toString(),
         'responsable_actuel': remote['responsable_actuel']?.toString(),
+        'etat_exploitant': remote['etat_exploitant']?.toString(),
+        'commentaire_exploitant': remote['commentaire_exploitant']?.toString(),
+        'date_exploitant': remote['date_exploitant']?.toString(),
         'etat_terrain': remote['etat_terrain']?.toString(),
         'commentaire_terrain': remote['commentaire_terrain']?.toString(),
         'date_terrain': remote['date_terrain']?.toString(),
         'id_user_terrain': _asInt(remote['id_user_terrain']),
+        'etat_bureau': remote['etat_bureau']?.toString(),
+        'commentaire_bureau': remote['commentaire_bureau']?.toString(),
+        'date_bureau': remote['date_bureau']?.toString(),
         'updated_at': remote['updated_at']?.toString(),
         'synced': 1,
         'downloaded': 1,
@@ -2598,6 +2638,133 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [localId],
     );
+  }
+
+  static const String _interventionActiveWhere =
+      "(statut IS NULL OR lower(statut) NOT IN ('cloture', 'annule'))";
+  static const String _interventionExploitantPendingWhere =
+      "lower(COALESCE(responsable_actuel, '')) = 'exploitant' "
+      "AND lower(COALESCE(etat_exploitant, 'en_attente')) NOT IN "
+      "('traite', 'traité', 'resolu', 'résolu', 'cloture', 'clôture')";
+  static const String _interventionTerrainReturnWhere =
+      "(COALESCE(retour_terrain, 0) = 1 "
+      "OR lower(COALESCE(responsable_actuel, '')) = 'terrain' "
+      "OR lower(COALESCE(etat_exploitant, '')) IN ('traite', 'traité')) "
+      "AND lower(COALESCE(etat_terrain, 'en_attente')) "
+      "NOT IN ('traite', 'traité')";
+  static const String _interventionTerrainDoneWhere =
+      "lower(COALESCE(etat_terrain, '')) IN ('traite', 'traité')";
+
+  Future<Map<String, int>> getInterventionAnomalieTreatmentSummary() async {
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final rows = await db.rawQuery('''
+      SELECT
+        COUNT(*) AS total_active,
+        SUM(CASE WHEN $_interventionExploitantPendingWhere
+            THEN 1 ELSE 0 END) AS en_attente_exploitant,
+        SUM(CASE WHEN $_interventionTerrainReturnWhere
+            THEN 1 ELSE 0 END) AS retour_terrain_a_faire,
+        SUM(CASE WHEN $_interventionTerrainDoneWhere
+            THEN 1 ELSE 0 END) AS retour_terrain_effectue
+      FROM intervention_anomalie
+      WHERE $_interventionActiveWhere
+    ''');
+    final row = rows.isEmpty ? const <String, dynamic>{} : rows.first;
+    return {
+      'total_active': _asInt(row['total_active']) ?? 0,
+      'en_attente_exploitant': _asInt(row['en_attente_exploitant']) ?? 0,
+      'retour_terrain_a_faire': _asInt(row['retour_terrain_a_faire']) ?? 0,
+      'retour_terrain_effectue': _asInt(row['retour_terrain_effectue']) ?? 0,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getInterventionAnomalieTreatmentItems({
+    String filter = 'retour_terrain_a_faire',
+    int limit = 500,
+  }) async {
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+
+    final where = switch (filter) {
+      'en_attente_exploitant' =>
+        '$_interventionActiveWhere AND ($_interventionExploitantPendingWhere)',
+      'retour_terrain_effectue' =>
+        '$_interventionActiveWhere AND ($_interventionTerrainDoneWhere)',
+      'all' => _interventionActiveWhere,
+      _ => '$_interventionActiveWhere AND ($_interventionTerrainReturnWhere)',
+    };
+
+    return await db.rawQuery('''
+      SELECT *
+      FROM intervention_anomalie
+      WHERE $where
+      ORDER BY
+        COALESCE(updated_at, date_exploitant, date_bureau, date_creation,
+                 date_collecte, '') DESC,
+        id DESC
+      LIMIT ?
+    ''', [limit]);
+  }
+
+  Future<Map<String, dynamic>?> getEntitySrmByIdOrUuid(
+    String tableName, {
+    int? idObjet,
+    String? uuidObjet,
+  }) async {
+    try {
+      _assertAllowedSrmTable(tableName);
+      final db = await database;
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName],
+      );
+      if (tables.isEmpty) return null;
+
+      final pragma = await db.rawQuery(
+        'PRAGMA table_info(${_quoteSqlIdentifier(tableName)})',
+      );
+      final columns = pragma.map((row) => row['name'].toString()).toSet();
+      final uuid = uuidObjet?.trim();
+      if (uuid != null && uuid.isNotEmpty) {
+        for (final column in ['uuid', 'uuid_objet']) {
+          if (!columns.contains(column)) continue;
+          final rows = await db.query(
+            tableName,
+            where: '$column = ?',
+            whereArgs: [uuid],
+            limit: 1,
+          );
+          if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+        }
+      }
+
+      if (idObjet != null) {
+        final pkColumns = pragma
+            .where((row) => (_asInt(row['pk']) ?? 0) > 0)
+            .map((row) => row['name'].toString());
+        final idColumns = <String>{
+          ...pkColumns,
+          'id',
+          'fid',
+          'gid',
+          'id_objet',
+        };
+        for (final column in idColumns) {
+          if (!columns.contains(column)) continue;
+          final rows = await db.query(
+            tableName,
+            where: '$column = ?',
+            whereArgs: [idObjet],
+            limit: 1,
+          );
+          if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ getEntitySrmByIdOrUuid $tableName: $e');
+    }
+    return null;
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedSrm(String tableName) async {
@@ -3406,6 +3573,7 @@ class DatabaseHelper {
             'visible': _toSqlBool(row['visible']),
             'contraintes': row['contraintes']?.toString(),
             'nullable': _toSqlBool(row['nullable'], defaultValue: true),
+            'obligatoire': _toSqlBool(row['obligatoire'], defaultValue: true),
             'valeur_par_defaut': row['valeur_par_defaut']?.toString(),
             'valeur_min': row['valeur_min']?.toString(),
             'valeur_max': row['valeur_max']?.toString(),

@@ -501,6 +501,10 @@ class ApiService {
     final items = await fetchData(
       'interventions-anomalies-terrain',
       updatedAfter: updatedAfter,
+      queryParameters: const {
+        'active_only': 'true',
+        'terrain_only': 'false',
+      },
     );
 
     return items.whereType<Map>().map((item) {
@@ -825,6 +829,7 @@ class ApiService {
   static Future<List<dynamic>> fetchData(
     String endpoint, {
     DateTime? updatedAfter,
+    Map<String, String>? queryParameters,
   }) async {
     final items = <dynamic>[];
     var page = 1;
@@ -834,6 +839,7 @@ class ApiService {
       final pageResult = await fetchDataPage(
         endpoint,
         updatedAfter: updatedAfter,
+        queryParameters: queryParameters,
         page: page,
       );
       items.addAll(pageResult.items);
@@ -850,9 +856,10 @@ class ApiService {
   static Future<ApiPageResult> fetchDataPage(
     String endpoint, {
     DateTime? updatedAfter,
+    Map<String, String>? queryParameters,
     int page = 1,
   }) async {
-    final params = <String, String>{};
+    final params = <String, String>{...?queryParameters};
     if (updatedAfter != null) {
       params['updated_after'] = updatedAfter.toUtc().toIso8601String();
     }

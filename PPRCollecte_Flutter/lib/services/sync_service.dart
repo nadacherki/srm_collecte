@@ -375,10 +375,14 @@ class SyncService {
     required String nowIso,
   }) async {
     const tableName = 'intervention_anomalie';
+    const scopeMetadataKey = 'intervention_anomalie_download_scope';
+    const scopeMetadataValue = 'active_all_v1';
     final startedAt = DateTime.now().toUtc();
-    final updatedAfter =
-        await dbHelper.getLastDownloadTimeForTable(tableName) ??
-            updatedAfterFallback;
+    final currentScope = await dbHelper.getAppMetadataValue(scopeMetadataKey);
+    final updatedAfter = currentScope == scopeMetadataValue
+        ? await dbHelper.getLastDownloadTimeForTable(tableName) ??
+            updatedAfterFallback
+        : null;
 
     onProgress?.call(
       (current - 1) / total,
@@ -401,6 +405,7 @@ class SyncService {
         result.entitySuccessCount++;
       }
       await dbHelper.saveLastDownloadTimeForTable(tableName, startedAt);
+      await dbHelper.saveAppMetadataValue(scopeMetadataKey, scopeMetadataValue);
       await dbHelper.saveDownloadTableStatus(
         tableName,
         status: 'completed',

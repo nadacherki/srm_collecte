@@ -255,6 +255,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           metier: widget.metier,
           entityType: widget.entityType,
           refreshIfEmpty: false,
+          forceRefresh: true,
         ),
         SrmFieldOptionService().getOptionsByField(
           tableSchema: nomMetier,
