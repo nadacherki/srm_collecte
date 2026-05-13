@@ -423,6 +423,12 @@ extension _HomePageAppActions on _HomePageState {
   }
 
   Future<void> _showMockLocationDialogSafe() {
+    // Admin : dialog "Position GPS mock" complet (saisie manuelle + acces NMEA).
+    // Non-admin : on saute la saisie manuelle et on ouvre directement la dialog
+    // "Pont NMEA" qui est leur seule source autorisee.
+    if (!_canUseAdminGpsTools) {
+      return _showNmeaBridgeDialog(this, ScaffoldMessenger.maybeOf(context));
+    }
     return _showMockLocationDialogSafeImpl(this);
   }
 
