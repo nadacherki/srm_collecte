@@ -303,6 +303,54 @@ class PhotoUploadSerializer(serializers.Serializer):
             )
         return False
 
+    def _read_tail(self, value, size, byte_count):
+        try:
+            position = value.tell()
+        except (AttributeError, OSError):
+            position = None
+        try:
+            value.seek(max(size - byte_count, 0))
+            tail = value.read(byte_count)
+        finally:
+            try:
+                value.seek(position or 0)
+            except (AttributeError, OSError):
+                pass
+        return tail
+
+    def _assert_file_complete(self, extension, value, size, header):
+        if extension in ('.jpg', '.jpeg'):
+            if not self._read_tail(value, size, 2).endswith(b'\xff\xd9'):
+                raise serializers.ValidationError(
+                    'Photo JPG incomplete ou corrompue'
+                )
+            return
+
+        if extension == '.png':
+            png_iend = b'\x00\x00\x00\x00IEND\xaeB`\x82'
+            if not self._read_tail(value, size, len(png_iend)).endswith(png_iend):
+                raise serializers.ValidationError(
+                    'Photo PNG incomplete ou corrompue'
+                )
+            return
+
+        if extension == '.webp':
+            if len(header) < 12:
+                raise serializers.ValidationError(
+                    'Photo WEBP incomplete ou corrompue'
+                )
+            riff_payload_size = int.from_bytes(header[4:8], byteorder='little')
+            if riff_payload_size + 8 > size:
+                raise serializers.ValidationError(
+                    'Photo WEBP incomplete ou corrompue'
+                )
+            return
+
+        if extension in ('.heic', '.heif') and size < 32:
+            raise serializers.ValidationError(
+                'Photo HEIC incomplete ou corrompue'
+            )
+
     def validate_file(self, value):
         file_name = getattr(value, 'name', '') or ''
         lowered = file_name.lower()
@@ -334,6 +382,7 @@ class PhotoUploadSerializer(serializers.Serializer):
         if not self._has_allowed_signature(extension, header):
             raise serializers.ValidationError('Signature fichier photo invalide')
 
+        self._assert_file_complete(extension, value, value.size, header)
         return value
 
 

@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import 'photo_validation_service.dart';
+
 class PhotoStorageService {
   static const String _photoRootFolder = 'srm_photos_pending';
 
@@ -37,6 +39,14 @@ class PhotoStorageService {
     final copied = await source.copy(destination.path);
     if (!await copied.exists()) {
       throw Exception('Copie locale de la photo impossible');
+    }
+    try {
+      await PhotoValidationService.validateStoredPhotoPath(copied.path);
+    } catch (_) {
+      if (await copied.exists()) {
+        await copied.delete();
+      }
+      rethrow;
     }
 
     return copied.path;

@@ -33,13 +33,24 @@ class PhotoValidationService {
 
   static String get maxPhotoSizeLabel => '5 Mo';
 
-  static Future<void> validatePickedPhoto(XFile picked) async {
-    final file = File(picked.path);
+  static Future<String> validatePickedPhoto(XFile picked) {
+    return validateStoredPhotoPath(picked.path);
+  }
+
+  static Future<String> validateStoredPhotoPath(String filePath) async {
+    final file = File(filePath);
     if (!await file.exists()) {
-      throw const PhotoValidationException('Photo introuvable sur l’appareil');
+      throw const PhotoValidationException('Photo introuvable sur l appareil');
     }
 
+    final sizeBefore = await file.length();
+    await Future<void>.delayed(const Duration(milliseconds: 30));
     final size = await file.length();
+    if (sizeBefore != size) {
+      throw const PhotoValidationException(
+        'Photo encore en cours d ecriture. Reessayez.',
+      );
+    }
     if (size <= 0) {
       throw const PhotoValidationException('Photo vide ou illisible');
     }
@@ -49,7 +60,7 @@ class PhotoValidationService {
       );
     }
 
-    final extension = p.extension(picked.path).toLowerCase();
+    final extension = p.extension(filePath).toLowerCase();
     if (!allowedExtensions.contains(extension)) {
       throw const PhotoValidationException(
         'Format photo non autorise. Utilisez JPG, PNG, WEBP ou HEIC',
@@ -60,7 +71,7 @@ class PhotoValidationService {
     final mimeType = _detectMimeType(header);
     if (mimeType == null || !allowedMimeTypes.contains(mimeType)) {
       throw const PhotoValidationException(
-        'Le fichier sélectionné n’est pas une image valide',
+        'Le fichier selectionne n est pas une image valide',
       );
     }
 
@@ -69,10 +80,28 @@ class PhotoValidationService {
         'Extension photo incoherente avec le contenu du fichier',
       );
     }
+
+    await _assertImageLooksComplete(file, size, header, mimeType);
+    return mimeType;
   }
 
   static Future<Uint8List> _readHeader(File file, int byteCount) async {
     final stream = file.openRead(0, byteCount);
+    final chunks = <int>[];
+    await for (final chunk in stream) {
+      chunks.addAll(chunk);
+    }
+    return Uint8List.fromList(chunks);
+  }
+
+  static Future<Uint8List> _readFooter(
+    File file,
+    int size,
+    int byteCount,
+  ) async {
+    if (size <= 0) return Uint8List(0);
+    final start = size > byteCount ? size - byteCount : 0;
+    final stream = file.openRead(start, size);
     final chunks = <int>[];
     await for (final chunk in stream) {
       chunks.addAll(chunk);
@@ -146,24 +175,85 @@ class PhotoValidationService {
     }
   }
 
-  // ── Détection de doublon ─────────────────────────────────────────────────
-  //
-  // Compare une photo nouvellement sélectionnée [candidate] contre toutes les
-  // photos déjà présentes dans le formulaire [existingPaths].
-  //
-  // Stratégie : deux photos sont considérées identiques si elles partagent
-  // le même chemin absolu OU si leurs empreintes binaires concordent
-  // (taille + 64 premiers octets + 64 derniers octets).  Cette approche
-  // fonctionne sans dépendance externe et couvre les cas où le même fichier
-  // est référencé par deux chemins différents (ex : cache temporaire).
-  //
-  // Retourne l'index (1-based) du slot déjà occupé par la même photo,
-  // ou null si aucun doublon n'est détecté.
+  static Future<void> _assertImageLooksComplete(
+    File file,
+    int size,
+    Uint8List header,
+    String mimeType,
+  ) async {
+    switch (mimeType) {
+      case 'image/jpeg':
+        final footer = await _readFooter(file, size, 2);
+        if (footer.length < 2 ||
+            footer[footer.length - 2] != 0xFF ||
+            footer[footer.length - 1] != 0xD9) {
+          throw const PhotoValidationException(
+            'Photo JPG incomplete ou corrompue',
+          );
+        }
+        return;
+      case 'image/png':
+        final footer = await _readFooter(file, size, 12);
+        const iendFooter = [
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x49,
+          0x45,
+          0x4E,
+          0x44,
+          0xAE,
+          0x42,
+          0x60,
+          0x82,
+        ];
+        if (footer.length < iendFooter.length) {
+          throw const PhotoValidationException(
+            'Photo PNG incomplete ou corrompue',
+          );
+        }
+        for (var i = 0; i < iendFooter.length; i++) {
+          if (footer[footer.length - iendFooter.length + i] != iendFooter[i]) {
+            throw const PhotoValidationException(
+              'Photo PNG incomplete ou corrompue',
+            );
+          }
+        }
+        return;
+      case 'image/webp':
+        if (header.length < 12) {
+          throw const PhotoValidationException(
+            'Photo WEBP incomplete ou corrompue',
+          );
+        }
+        final riffPayloadSize = header[4] |
+            (header[5] << 8) |
+            (header[6] << 16) |
+            (header[7] << 24);
+        if (riffPayloadSize + 8 > size) {
+          throw const PhotoValidationException(
+            'Photo WEBP incomplete ou corrompue',
+          );
+        }
+        return;
+      case 'image/heic':
+      case 'image/heif':
+        if (size < 32) {
+          throw const PhotoValidationException(
+            'Photo HEIC incomplete ou corrompue',
+          );
+        }
+        return;
+      default:
+        return;
+    }
+  }
+
   static Future<int?> findDuplicateSlot({
     required String candidatePath,
     required Map<int, String?> existingPaths,
-    int?
-        currentSlot, // slot en cours de remplacement (ignoré dans la comparaison)
+    int? currentSlot,
   }) async {
     final candidateFile = File(candidatePath);
     if (!await candidateFile.exists()) return null;
@@ -175,14 +265,9 @@ class PhotoValidationService {
     for (final entry in existingPaths.entries) {
       final slot = entry.key;
       final slotPath = entry.value;
-
-      // Ignorer le slot qu'on est en train de remplacer et les slots vides
       if (slot == currentSlot || slotPath == null) continue;
-
-      // 1) Comparaison rapide par chemin absolu
       if (slotPath == candidatePath) return slot;
 
-      // 2) Comparaison par empreinte binaire
       final slotFile = File(slotPath);
       if (!await slotFile.exists()) continue;
 
@@ -195,46 +280,32 @@ class PhotoValidationService {
       if (_fingerprintsMatch(candidateHeader, slotHeader)) return slot;
     }
 
-    return null; // aucun doublon
+    return null;
   }
 
-  /// Lit jusqu'à 64 octets au début ET 64 octets à la fin du fichier.
-  /// Cette empreinte légère suffit à discriminer des photos distinctes tout
-  /// en restant rapide (pas de lecture intégrale du fichier).
   static Future<_PhotoFingerprint> _readFingerprint(File file, int size) async {
     const sampleSize = 64;
     final header = await _readHeader(file, sampleSize);
-
-    Uint8List footer = Uint8List(0);
-    if (size > sampleSize) {
-      final start = size - sampleSize;
-      final stream = file.openRead(start, size);
-      final chunks = <int>[];
-      await for (final chunk in stream) {
-        chunks.addAll(chunk);
-      }
-      footer = Uint8List.fromList(chunks);
-    }
-
+    final footer = size > sampleSize
+        ? await _readFooter(file, size, sampleSize)
+        : Uint8List(0);
     return _PhotoFingerprint(size: size, header: header, footer: footer);
   }
 
   static bool _fingerprintsMatch(_PhotoFingerprint a, _PhotoFingerprint b) {
     if (a.size != b.size) return false;
     if (a.header.length != b.header.length) return false;
-    for (int i = 0; i < a.header.length; i++) {
+    for (var i = 0; i < a.header.length; i++) {
       if (a.header[i] != b.header[i]) return false;
     }
     if (a.footer.length != b.footer.length) return false;
-    for (int i = 0; i < a.footer.length; i++) {
+    for (var i = 0; i < a.footer.length; i++) {
       if (a.footer[i] != b.footer[i]) return false;
     }
     return true;
   }
 }
 
-/// Empreinte légère d'une photo pour détecter les doublons sans lire le
-/// fichier entier en mémoire.
 class _PhotoFingerprint {
   final int size;
   final Uint8List header;

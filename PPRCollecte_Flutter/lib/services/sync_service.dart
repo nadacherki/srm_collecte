@@ -13,6 +13,7 @@ import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
 import 'offline_orthophoto_service.dart';
 import 'photo_reference_service.dart';
+import 'photo_validation_service.dart';
 import 'projection_service.dart';
 import 'reference_overlay_sync_service.dart';
 
@@ -26,6 +27,9 @@ class SyncResult {
   String? interruptionMessage;
   final List<String> errors = [];
   final List<String> warnings = [];
+  String? syncSessionUuid;
+  String? syncSessionStatus;
+  Map<String, dynamic>? syncSessionLog;
 
   int get warningCount => warnings.length;
   int get displaySuccessCount => entitySuccessCount;
@@ -79,10 +83,14 @@ class SyncService {
   static const String _downloadInterruptedMessage =
       'Connexion interrompue. Vérifiez Internet puis relancez pour reprendre.';
 
+  static const String _syncInterruptedMessage =
+      'Connexion interrompue. Verifiez Internet puis relancez la synchronisation.';
+
   /// Cle app_metadata pour persister les lignes locales bloquees au sync par
   /// le pre-flight (champ NOT NULL manquant). Le dashboard mobile les expose
   /// pour permettre a l'agent de revenir les completer.
   static const String preflightSkipsKey = 'sync_preflight_skips_v1';
+  static const String syncSessionStateKey = 'sync_session_state_v1';
 
   /// Accumulateur reset au debut de chaque cycle de sync ; persiste en fin de
   /// cycle. Une entree = {table, endpoint, uuid, missing, metier, entity}.
@@ -107,11 +115,15 @@ class SyncService {
       return result;
     }
 
-    await _ensureOrthophotoCoverageForDownload(
+    final canContinueAfterOrthophoto =
+        await _ensureOrthophotoCoverageForDownload(
       result: result,
       onProgress: onProgress,
       total: total,
     );
+    if (!canContinueAfterOrthophoto || result.interrupted) {
+      return result;
+    }
 
     await _ensureReferenceOverlaysForDownload(result: result);
 
@@ -131,6 +143,22 @@ class SyncService {
           : DateTime.tryParse(statusUpdatedAfterRaw);
       final lastTableDownload =
           await dbHelper.getLastDownloadTimeForTable(info.table);
+      if (info.isReference &&
+          info.table == 'onep_db' &&
+          !canResumeTable &&
+          lastTableDownload != null &&
+          await dbHelper.countOnepDbRows() > 0) {
+        result.warnings.add(
+          'Référentiel ONEP déjà présent localement, téléchargement ignoré.',
+        );
+        onProgress?.call(
+          current / total,
+          'Référentiel ONEP déjà présent',
+          current,
+          total,
+        );
+        continue;
+      }
       final tableUpdatedAfter = (canResumeTable ? statusUpdatedAfter : null) ??
           lastTableDownload ??
           updatedAfter;
@@ -380,7 +408,7 @@ class SyncService {
     return true;
   }
 
-  Future<void> _ensureOrthophotoCoverageForDownload({
+  Future<bool> _ensureOrthophotoCoverageForDownload({
     required SyncResult result,
     required Function(double, String, int, int)? onProgress,
     required int total,
@@ -417,12 +445,35 @@ class SyncService {
                 '${downloadResult.alreadyCachedTiles} deja en cache.';
         result.warnings.add(downloadResult.warningMessage ?? message);
       } else {
+        final errorText = downloadResult.errorMessage ?? 'erreur inconnue';
+        if (_isNetworkInterruption(errorText)) {
+          result.failedCount++;
+          result.stopForInterruption(_downloadInterruptedMessage);
+          onProgress?.call(
+            1 / total,
+            'Téléchargement arrêté - connexion interrompue',
+            1,
+            total,
+          );
+          return false;
+        }
         result.warnings.add(
           'Orthophoto offline non mise a jour : '
-          '${downloadResult.errorMessage ?? "erreur inconnue"}',
+          '$errorText',
         );
       }
     } catch (e) {
+      if (_isNetworkInterruption(e)) {
+        result.failedCount++;
+        result.stopForInterruption(_downloadInterruptedMessage);
+        onProgress?.call(
+          1 / total,
+          'Téléchargement arrêté - connexion interrompue',
+          1,
+          total,
+        );
+        return false;
+      }
       result.warnings.add(
         'Orthophoto offline non mise a jour : ${_short(e)}',
       );
@@ -434,6 +485,7 @@ class SyncService {
       2,
       total,
     );
+    return true;
   }
 
   Future<void> _ensureReferenceOverlaysForDownload({
@@ -546,6 +598,11 @@ class SyncService {
     final total = tables.isEmpty ? 1 : tables.length;
     final nowIso = DateTime.now().toIso8601String();
     String? syncSessionUuid;
+    await _saveSyncSessionState(
+      status: 'starting',
+      result: result,
+      message: 'Preparation du journal de synchronisation',
+    );
 
     try {
       onProgress?.call(
@@ -555,16 +612,31 @@ class SyncService {
         total,
       );
       syncSessionUuid = await _createSyncManifestForPendingRows(tables);
+      result.syncSessionUuid = syncSessionUuid;
+      await _saveSyncSessionState(
+        syncSessionUuid: syncSessionUuid,
+        status: syncSessionUuid == null ? 'no_manifest' : 'manifest_created',
+        result: result,
+      );
     } catch (e) {
       result.failedCount++;
-      result.errors.add('Journal de synchronisation: ${_short(e)}');
+      if (_isNetworkInterruption(e)) {
+        result.stopForInterruption(_syncInterruptedMessage);
+      } else {
+        result.errors.add('Journal de synchronisation: ${_short(e)}');
+      }
+      await _saveSyncSessionState(
+        status: result.interrupted ? 'interrupted' : 'manifest_failed',
+        result: result,
+        message: _short(e),
+      );
       return result;
     }
 
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
       final current = index + 1;
-      if (await _syncRowsForTableV2(
+      final handled = await _syncRowsForTableV2(
         info: info,
         current: current,
         total: total,
@@ -572,7 +644,11 @@ class SyncService {
         result: result,
         onProgress: onProgress,
         syncSessionUuid: syncSessionUuid,
-      )) {
+      );
+      if (result.interrupted) {
+        break;
+      }
+      if (handled) {
         continue;
       }
 
@@ -670,20 +746,40 @@ class SyncService {
       );
     }
 
-    await _syncPendingConduiteValidations(
-      result,
-      syncSessionUuid: syncSessionUuid,
-    );
-    await _syncPendingTerrainInterventions(
-      result,
-      syncSessionUuid: syncSessionUuid,
-    );
-    await _processPendingPhotoQueue(
-      result,
-      syncSessionUuid: syncSessionUuid,
-    );
+    if (!result.interrupted) {
+      await _syncPendingConduiteValidations(
+        result,
+        syncSessionUuid: syncSessionUuid,
+      );
+    }
+    if (!result.interrupted) {
+      await _syncPendingTerrainInterventions(
+        result,
+        syncSessionUuid: syncSessionUuid,
+      );
+    }
+    if (!result.interrupted) {
+      await _processPendingPhotoQueue(
+        result,
+        syncSessionUuid: syncSessionUuid,
+      );
+    }
+    if (syncSessionUuid != null) {
+      await _verifySyncSessionLog(syncSessionUuid, result);
+    }
 
     await _persistPreflightSkips();
+    await _saveSyncSessionState(
+      syncSessionUuid: syncSessionUuid,
+      status: result.interrupted
+          ? 'interrupted'
+          : result.failedCount > 0
+              ? 'partial_or_failed'
+              : 'completed',
+      result: result,
+      message: result.interruptionMessage,
+      serverLog: result.syncSessionLog,
+    );
 
     return result;
   }
@@ -700,6 +796,108 @@ class SyncService {
     } catch (e) {
       debugPrint('[SYNC-PREFLIGHT] Persistence ignoree: $e');
     }
+  }
+
+  Future<void> _saveSyncSessionState({
+    String? syncSessionUuid,
+    required String status,
+    SyncResult? result,
+    String? message,
+    Map<String, dynamic>? serverLog,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'status': status,
+        'sync_session_uuid': syncSessionUuid,
+        'message': message,
+        'updated_at': DateTime.now().toIso8601String(),
+        if (result != null) ...{
+          'success_count': result.successCount,
+          'entity_success_count': result.entitySuccessCount,
+          'photo_success_count': result.photoSuccessCount,
+          'failed_count': result.failedCount,
+          'skipped_count': result.skippedCount,
+          'warning_count': result.warningCount,
+          'interrupted': result.interrupted,
+        },
+        if (serverLog != null) 'server_log': serverLog,
+      };
+      await dbHelper.saveAppMetadataValue(
+        syncSessionStateKey,
+        jsonEncode(payload),
+        eventType: 'SYNC_SESSION_STATE',
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('[SYNC-SESSION] Etat local ignore: $e');
+    }
+  }
+
+  Future<void> _verifySyncSessionLog(
+    String syncSessionUuid,
+    SyncResult result,
+  ) async {
+    try {
+      final status = await ApiService.fetchSyncSessionStatus(syncSessionUuid);
+      result.syncSessionUuid = syncSessionUuid;
+      result.syncSessionLog = status;
+      result.syncSessionStatus = status['statut']?.toString();
+
+      final totalItems = _asIntOrNull(status['total_items']) ?? 0;
+      final totalAttachments = _asIntOrNull(status['total_attachments']) ?? 0;
+      final receivedItems = _asIntOrNull(status['received_items']) ?? 0;
+      final receivedAttachments =
+          _asIntOrNull(status['received_attachments']) ?? 0;
+      final failedItems = _asIntOrNull(status['failed_items']) ?? 0;
+
+      if (failedItems > 0) {
+        result.warnings.add(
+          'Journal sync serveur: $failedItems item(s) en erreur.',
+        );
+      }
+      if (receivedItems < totalItems ||
+          receivedAttachments < totalAttachments) {
+        result.warnings.add(
+          'Journal sync serveur partiel: '
+          '$receivedItems/$totalItems donnees, '
+          '$receivedAttachments/$totalAttachments photos recues.',
+        );
+      }
+    } catch (e) {
+      result.warnings.add(
+        'Verification du journal sync impossible: ${_short(e)}',
+      );
+    }
+  }
+
+  void _recordPreflightSkip({
+    required _TableInfo info,
+    required String? uuid,
+    required List<String> missingRequired,
+  }) {
+    final normalizedUuid = uuid?.trim() ?? '';
+    final key = '${info.schema}.${info.table}:$normalizedUuid:'
+        '${missingRequired.join(",")}';
+    final alreadyRecorded = _currentSyncPreflightSkips.any((item) {
+      final itemUuid = item['uuid']?.toString().trim() ?? '';
+      final itemMissing = item['missing'];
+      final missingText = itemMissing is List ? itemMissing.join(',') : '';
+      return '${item['schema']}.${item['table']}:$itemUuid:$missingText' == key;
+    });
+    if (alreadyRecorded) {
+      return;
+    }
+
+    _currentSyncPreflightSkips.add({
+      'metier': info.metier,
+      'entity': info.entity,
+      'schema': info.schema,
+      'table': info.table,
+      'endpoint': info.endpoint,
+      'uuid': normalizedUuid.isEmpty ? null : normalizedUuid,
+      'missing': List<String>.from(missingRequired),
+      'ts': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<void> _syncPendingConduiteValidations(
@@ -760,6 +958,11 @@ class SyncService {
         result.successCount++;
         result.entitySuccessCount++;
       } catch (e) {
+        if (_isNetworkInterruption(e)) {
+          result.failedCount++;
+          result.stopForInterruption(_syncInterruptedMessage);
+          return;
+        }
         final message = 'Conduite $metier $jourText: ${_short(e)}';
         await dbHelper.markConduiteSyncItemFailed(localId, message);
         result.failedCount++;
@@ -808,6 +1011,11 @@ class SyncService {
         result.successCount++;
         result.entitySuccessCount++;
       } catch (e) {
+        if (_isNetworkInterruption(e)) {
+          result.failedCount++;
+          result.stopForInterruption(_syncInterruptedMessage);
+          return;
+        }
         final message = 'Intervention terrain #$idIntervention: ${_short(e)}';
         await dbHelper.markInterventionAnomalieTerrainFailed(localId, message);
         result.failedCount++;
@@ -916,25 +1124,7 @@ class SyncService {
     // Une ligne dont l'un de ces champs est vide ferait planter l'INSERT
     // serveur sur la contrainte NOT NULL, et l'audit trigger ferait
     // apparaitre un "ghost event" sans donnee persistee (cf. bug observe).
-    final nomMetierForConfig =
-        AttributConfigMobileService.nomMetierForMobileMetier(info.metier);
-    final configTable = AttributConfigMobileService.configTableForMobileTable(
-      nomMetierForConfig,
-      info.table,
-    );
-    List<String> requiredFieldNames = const [];
-    if (nomMetierForConfig.isNotEmpty && configTable.isNotEmpty) {
-      try {
-        requiredFieldNames = await AttributConfigMobileService(
-          databaseHelper: dbHelper,
-        ).getRequiredFieldNamesForTable(
-          nomMetier: nomMetierForConfig,
-          nomTable: configTable,
-        );
-      } catch (_) {
-        requiredFieldNames = const [];
-      }
-    }
+    final requiredFieldNames = await _requiredFieldNamesForInfo(info);
 
     for (final row in rows) {
       if (_isDownloadedRow(row)) {
@@ -969,16 +1159,11 @@ class SyncService {
             'champs obligatoires manquants : ${missingRequired.join(", ")}. '
             'Completez l\'objet puis relancez la synchronisation.',
           );
-          _currentSyncPreflightSkips.add({
-            'metier': info.metier,
-            'entity': info.entity,
-            'schema': info.schema,
-            'table': info.table,
-            'endpoint': info.endpoint,
-            'uuid': uuid,
-            'missing': List<String>.from(missingRequired),
-            'ts': DateTime.now().toIso8601String(),
-          });
+          _recordPreflightSkip(
+            info: info,
+            uuid: uuid,
+            missingRequired: missingRequired,
+          );
           continue;
         }
 
@@ -1022,6 +1207,11 @@ class SyncService {
         result.successCount++;
         result.entitySuccessCount++;
       } catch (e) {
+        if (_isNetworkInterruption(e)) {
+          result.failedCount++;
+          result.stopForInterruption(_syncInterruptedMessage);
+          return true;
+        }
         result.failedCount++;
         result.errors.add(_formatRowSyncError(info, row, e));
       }
@@ -1044,6 +1234,7 @@ class SyncService {
     final attachmentKeys = <String>{};
 
     for (final info in tables) {
+      final requiredFieldNames = await _requiredFieldNamesForInfo(info);
       final rows = await dbHelper.getUnsyncedSrm(info.table);
       for (final row in rows) {
         if (_isDownloadedRow(row)) {
@@ -1061,6 +1252,19 @@ class SyncService {
           strictMissing: false,
         );
         _sanitizePayloadForSync(info, payload);
+
+        final missingRequired = _missingRequiredFields(
+          payload: payload,
+          requiredFieldNames: requiredFieldNames,
+        );
+        if (missingRequired.isNotEmpty) {
+          _recordPreflightSkip(
+            info: info,
+            uuid: uuid,
+            missingRequired: missingRequired,
+          );
+          continue;
+        }
 
         items.add({
           'client_item_uuid': _clientItemUuid(info, row),
@@ -1532,6 +1736,29 @@ class SyncService {
   /// Verifie que toutes les colonnes serveur marquees NOT NULL ont une valeur
   /// dans le payload (case-insensitive sur la cle). Retourne la liste des
   /// noms de champs manquants, vide si tout est OK.
+  Future<List<String>> _requiredFieldNamesForInfo(_TableInfo info) async {
+    final nomMetierForConfig =
+        AttributConfigMobileService.nomMetierForMobileMetier(info.metier);
+    final configTable = AttributConfigMobileService.configTableForMobileTable(
+      nomMetierForConfig,
+      info.table,
+    );
+    if (nomMetierForConfig.isEmpty || configTable.isEmpty) {
+      return const [];
+    }
+
+    try {
+      return await AttributConfigMobileService(
+        databaseHelper: dbHelper,
+      ).getRequiredFieldNamesForTable(
+        nomMetier: nomMetierForConfig,
+        nomTable: configTable,
+      );
+    } catch (_) {
+      return const [];
+    }
+  }
+
   List<String> _missingRequiredFields({
     required Map<String, dynamic> payload,
     required List<String> requiredFieldNames,
@@ -1845,6 +2072,7 @@ class SyncService {
         if (!File(localPath).existsSync()) {
           throw Exception('Photo locale introuvable: $localPath');
         }
+        await PhotoValidationService.validateStoredPhotoPath(localPath);
 
         debugPrint('[PHOTO] Upload $tableName uuid=$uuidObjet slot=$photoSlot');
         // L'endpoint mobile (ex: 'ep/hydrants') sert au serveur a resoudre
@@ -1885,7 +2113,18 @@ class SyncService {
         );
         result.successCount++;
         result.photoSuccessCount++;
+      } on PhotoValidationException catch (e) {
+        await dbHelper.rejectPhotoSyncItem(id, e.message);
+        result.failedCount++;
+        result.errors.add(
+          'Photo $tableName#$uuidObjet:$photoSlot: ${e.message}',
+        );
       } catch (e) {
+        if (_isNetworkInterruption(e)) {
+          result.failedCount++;
+          result.stopForInterruption(_syncInterruptedMessage);
+          return;
+        }
         await dbHelper.markPhotoSyncItemFailed(id, _short(e));
         result.failedCount++;
         result.errors.add(

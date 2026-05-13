@@ -376,8 +376,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   String _configuredDefaultValueForField(String field) {
-    final defaultValue =
-        _attributConfigByField[field]?.valeurParDefaut.trim() ?? '';
+    final defaultValue = _configForField(field)?.valeurParDefaut.trim() ?? '';
     if (defaultValue.isEmpty) return '';
 
     final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
@@ -671,6 +670,15 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   bool _isCompteurAbonneAnomalieChoiceField(String field) =>
       _isEpCompteurAbonne && field.toLowerCase() == 'ep_anomalie';
 
+  bool get _hasCompteurAbonneInformativeAnomalie {
+    if (!_isEpCompteurAbonne) return false;
+    final value = (_controllers['ep_anomalie']?.text ?? '').trim();
+    return value.isNotEmpty && !_isNoAnomalieValue(value);
+  }
+
+  bool get _hasActiveAnomalie =>
+      _hasAnomalie || _hasCompteurAbonneInformativeAnomalie;
+
   bool _isObservationField(String field) {
     final normalized = field.toLowerCase();
     return normalized == 'observation' ||
@@ -694,7 +702,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   String? _validateAnomalieEvidence() {
-    if (!_hasAnomalie || _isObjetIncomplet) return null;
+    if (!_hasActiveAnomalie || _isObjetIncomplet) return null;
+    if (_hasCompteurAbonneInformativeAnomalie) return null;
     final fields = _anomalieEvidenceFields();
     if (fields.isEmpty) return null;
     for (final field in fields) {
@@ -703,9 +712,23 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return 'Veuillez renseigner le type, l\'observation ou le detail de l\'anomalie';
   }
 
+  AttributConfigMobileField? _configForField(String field) {
+    final direct = _attributConfigByField[field];
+    if (direct != null) return direct;
+    final normalized = field.trim().toLowerCase();
+    final lower = _attributConfigByField[normalized];
+    if (lower != null) return lower;
+    for (final entry in _attributConfigByField.entries) {
+      if (entry.key.trim().toLowerCase() == normalized) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
   bool _isConfiguredVisibleField(String field) {
-    final config = _attributConfigByField[field.toLowerCase()];
-    return config == null || config.visible;
+    final config = _configForField(field);
+    return config == null || config.visible || config.isAutoVisibleCoordinate;
   }
 
   bool _isObjetIncompletManagedField(String field) {
@@ -757,6 +780,15 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   @override
   bool isDraftFieldMeaningful(String field, String value) {
     if (!super.isDraftFieldMeaningful(field, value)) return false;
+    if (field == '__detail_raison') {
+      return _isObjetIncomplet && value.trim().isNotEmpty;
+    }
+    final config = _configForField(field);
+    if (config != null) {
+      if (!config.visible && !config.isAutoVisibleCoordinate) return false;
+    } else if (_attributConfigByField.isNotEmpty) {
+      return false;
+    }
     final defaultValue = _configuredDefaultValueForField(field).trim();
     return defaultValue.isEmpty || value.trim() != defaultValue;
   }
@@ -1309,6 +1341,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             '')
         .trim();
     data['ep_anomalie'] = value.isEmpty ? null : value;
+    // ep_brc_pt est exclue cote backend du cycle intervention_anomalie:
+    // cette anomalie reste informative terrain tout en gardant l'etat local.
     data['anomalie'] = value.isNotEmpty && !_isNoAnomalieValue(value) ? 1 : 0;
     data['type_anomalie'] = null;
   }
@@ -1525,7 +1559,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
     final rule = _fieldRule(field);
     final isRequired = !isCoord &&
-        !_hasAnomalie &&
+        !_hasActiveAnomalie &&
         (_requiredFields.contains(field) || rule.required);
     final label = _fieldLabel(field);
     final controller = _controllers[field]!;
@@ -1599,8 +1633,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             label,
             required: isRequired && !_isLocked && !_isObjetIncomplet,
             errorText: _fieldValidationErrors[field],
-          )
-              .copyWith(
+          ).copyWith(
             filled: fieldIsReadOnly,
             fillColor: fieldIsReadOnly ? Colors.grey.shade50 : null,
           ),
@@ -1685,7 +1718,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             ? null
             : (value) {
                 controller.text = value ?? '';
-                _clearFieldValidationError(field);
+                if (_isCompteurAbonneAnomalieChoiceField(field)) {
+                  setState(() {
+                    _fieldValidationErrors = <String, String>{};
+                  });
+                } else {
+                  _clearFieldValidationError(field);
+                }
                 if (widget.existingData == null) onFieldChanged();
               },
         validator: (_isObjetIncomplet || _isLocked || !isRequired)
@@ -1891,7 +1930,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final rule = _fieldRule(field);
 
     if (normalized.isEmpty) {
-      if (_hasAnomalie && !_isObjetIncomplet) return null;
+      if (_hasActiveAnomalie && !_isObjetIncomplet) return null;
       return rule.required || _requiredFields.contains(field)
           ? 'Champ obligatoire *'
           : null;
@@ -2254,6 +2293,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   // Section anomalie
   Widget _buildAnomalieSection() {
+    if (_isEpCompteurAbonne) {
+      return const SizedBox.shrink();
+    }
     final disabled = _isObjetIncomplet || _isLocked;
     return Opacity(
       opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
@@ -2311,8 +2353,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Les champs de l\'objet sont désactivés.\n'
-                    'Seule la position GPS et la raison sont enregistrées.',
+                    'Les champs obligatoires sont neutralises.\n'
+                    'Les valeurs deja saisies et les photos sont conservees.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -2341,10 +2383,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             // Si on active l'incomplet, on force l'anomalie à false
             if (v) {
               _hasAnomalie = false;
-              _typeAnomalie = null;
-              for (final field in _anomalieDetailFields()) {
-                _controllers[field]?.clear();
-              }
             }
           }),
           contentPadding: EdgeInsets.zero,
@@ -2624,8 +2662,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                           Expanded(
                             flex: 2,
                             child: ElevatedButton.icon(
-                              onPressed:
-                                  (_isSaving || _isLoadingFields) ? null : _save,
+                              onPressed: (_isSaving || _isLoadingFields)
+                                  ? null
+                                  : _save,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _isObjetIncomplet
                                     ? Colors.orange

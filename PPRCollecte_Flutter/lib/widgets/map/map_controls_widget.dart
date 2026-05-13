@@ -5,6 +5,7 @@ import '../../controllers/home_controller.dart';
 class MapControlsWidget extends StatelessWidget {
   final HomeController controller;
   final VoidCallback onAddPoint;
+  final VoidCallback onAddStandalonePoint;
   final VoidCallback onStartLigne;
   final VoidCallback onStartPolygon;
   final VoidCallback onToggleLigne;
@@ -27,6 +28,7 @@ class MapControlsWidget extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onAddPoint,
+    required this.onAddStandalonePoint,
     required this.onStartLigne,
     required this.onStartPolygon,
     required this.onToggleLigne,
@@ -95,6 +97,9 @@ class MapControlsWidget extends StatelessWidget {
                       ? [
                           if (showAddPointForLigne)
                             _buildPointControls(compact: true),
+                          if (showAddPointForLigne) SizedBox(width: gap),
+                          if (showAddPointForLigne)
+                            _buildStandalonePointControl(),
                           if (showAddPointForLigne) SizedBox(width: gap),
                           _buildLigneControls(),
                         ]
@@ -209,6 +214,21 @@ class MapControlsWidget extends StatelessWidget {
       onPressed: onAddPoint,
       elevation: 6,
       highlightElevation: 12,
+    );
+  }
+
+  Widget _buildStandalonePointControl() {
+    return Tooltip(
+      message: 'Lever un objet point',
+      child: FloatingActionButton(
+        heroTag: 'standalonePointDuringTraceBtn',
+        mini: true,
+        backgroundColor: const Color(0xFFE53E3E),
+        foregroundColor: Colors.white,
+        onPressed: onAddStandalonePoint,
+        elevation: 4,
+        child: const Icon(Icons.place, size: 20),
+      ),
     );
   }
 

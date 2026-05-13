@@ -151,7 +151,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   LatLng? userPosition;
   bool gpsEnabled = true;
   String gpsSourceLabel = 'téléphone';
@@ -167,6 +167,7 @@ class _HomePageState extends State<HomePage> {
   List<Polyline> _finishedLines = [];
   List<Marker> formMarkers = [];
   Map<String, dynamic>? _geometryEditLineItem;
+  Map<String, dynamic>? _geometryEditPolygonItem;
   bool isSyncing = false;
   bool isDownloading = false;
   SyncResult? lastSyncResult;
@@ -296,6 +297,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _offlineBasemapPath = widget.initialOfflineBasemapPath;
     _offlineBasemapFormat = widget.initialOfflineBasemapFormat;
     _basemapUnavailableMessage = _offlineBasemapPath == null
@@ -550,6 +552,10 @@ class _HomePageState extends State<HomePage> {
   void _startOnlineWatcher() => _startOnlineWatcherImpl(this);
 
   bool _isSrmTableVisible(String tableName) {
+    if (tableName == 'ep_regard') {
+      return _isSrmTableVisible('ep_regard_point');
+    }
+
     final entityKey = 'srm_$tableName';
     if (_legendVisibility.containsKey(entityKey)) {
       return _legendVisibility[entityKey] != false;
@@ -945,6 +951,9 @@ class _HomePageState extends State<HomePage> {
 // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS) ===
   Future<void> addPointOfInterest() => _addPointOfInterestImpl();
 
+  Future<void> addStandalonePointDuringTrace() =>
+      _addStandalonePointDuringTraceImpl();
+
   // === SPRINT 5 : COLLECTE LIGNE SRM ===
   Future<void> startLigneSrmCollection() => _startLigneSrmCollectionImpl();
 
@@ -1032,10 +1041,70 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     homeController.dispose();
     _onlineWatchTimer?.cancel();
     _nmeaBridgeWatchTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (homeController.ligneCollection?.isActive ?? false) {
+        final edit = _geometryEditLineItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+          });
+        } else {
+          final sel = _pendingSrmLigneSelection;
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': sel?.metier,
+            'srmEntityType': sel?.entityType,
+            'srmTitleApp': sel?.titleApp,
+            'srmTableName': sel?.tableName,
+            'srmSchema': sel?.schema,
+          });
+        }
+      } else if (homeController.polygonCollection?.isActive ?? false) {
+        final edit = _geometryEditPolygonItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+            'isPolygonCollection': true,
+            'polygonEntityType': edit['source_entity'],
+          });
+        } else {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': _pendingSrmPolygoneMetier,
+            'srmEntityType': _pendingSrmPolygoneEntityType,
+            'srmTitleApp': _pendingSrmPolygoneTitleApp,
+            'isPolygonCollection': _isPolygonCollection,
+            'polygonEntityType': _polygonEntityType,
+          });
+        }
+      }
+      unawaited(
+        homeController.persistActiveCollectionDraft(
+          reason: 'app_${state.name}',
+        ),
+      );
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshMobileConfigAfterReconnectImpl(this));
+    }
   }
 
   @override
@@ -1340,6 +1409,7 @@ class _HomePageState extends State<HomePage> {
                       MapControlsWidget(
                         controller: homeController,
                         onAddPoint: addPointOfInterest,
+                        onAddStandalonePoint: addStandalonePointDuringTrace,
                         onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
                         onStartPolygon: startPolygonCollection,
                         onToggleLigne: toggleLigneCollection,
@@ -1446,6 +1516,7 @@ class _HomePageState extends State<HomePage> {
                     : _showSyncConfirmationDialog,
                 isSyncEnabled: _isOnlineDynamic && !isSyncing && !isDownloading,
                 onMenu: handleMenuPress,
+                isMenuEnabled: !isDownloading && !isSyncing,
               ),
             ],
           ),

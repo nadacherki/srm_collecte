@@ -61,7 +61,8 @@ void main() {
   });
 
   group('capture location guard', () {
-    test('points and lines require GPS/mock plus Z before capture', () {
+    test('points and lines require external GNSS, Z, and reliable accuracy',
+        () {
       expect(
         CaptureLocationGuard.canCapture(gpsEnabled: false, altitude: null),
         isFalse,
@@ -71,8 +72,34 @@ void main() {
         isFalse,
       );
       expect(
-        CaptureLocationGuard.canCapture(gpsEnabled: true, altitude: 42.3),
+        CaptureLocationGuard.canCapture(
+          gpsEnabled: true,
+          altitude: 42.3,
+          accuracyMeters: 2.0,
+          sourceLabel: 'GNSS externe',
+          allowInternalSources: false,
+        ),
         isTrue,
+      );
+      expect(
+        CaptureLocationGuard.canCapture(
+          gpsEnabled: true,
+          altitude: 42.3,
+          accuracyMeters: 8.0,
+          sourceLabel: 'GNSS externe',
+          allowInternalSources: false,
+        ),
+        isFalse,
+      );
+      expect(
+        CaptureLocationGuard.canCapture(
+          gpsEnabled: true,
+          altitude: 42.3,
+          accuracyMeters: 2.0,
+          sourceLabel: 'téléphone',
+          allowInternalSources: false,
+        ),
+        isFalse,
       );
       expect(CaptureLocationGuard.missingGpsMessage, 'Veuillez activer le GPS');
     });

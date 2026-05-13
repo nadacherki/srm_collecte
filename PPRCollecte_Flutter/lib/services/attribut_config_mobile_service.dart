@@ -65,10 +65,11 @@ class AttributConfigMobileField {
 
   bool get isRequired {
     if (primaryKey) return false;
-    if (!visible) return false;
     if (nomChamp.toLowerCase() == 'geom') return false;
     if (isAutoVisibleCoordinate) return false;
-    // Source de verite: nullable=false signifie champ requis cote mobile.
+    // Source de verite: nullable=false signifie champ requis dans le payload.
+    // Un champ invisible reste donc obligatoire cote sync; le formulaire le
+    // remplit avec sa valeur par defaut ou une sentinelle typee si necessaire.
     return !nullable;
   }
 
@@ -97,7 +98,7 @@ class AttributConfigMobileField {
     if (type.contains('uuid')) {
       return '00000000-0000-0000-0000-000000000000';
     }
-    return '';
+    return 'NON_RENSEIGNE';
   }
 
   bool get isAutoVisibleCoordinate {

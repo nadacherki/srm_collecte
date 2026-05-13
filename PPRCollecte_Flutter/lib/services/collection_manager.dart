@@ -472,6 +472,51 @@ class CollectionManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> persistActiveCollectionAsPausedDraft({
+    String reason = 'lifecycle',
+  }) async {
+    var collectionType = '';
+    var pointCount = 0;
+
+    if (_ligneCollection?.isActive ?? false) {
+      _ligneCollection = _ligneCollection!.copyWith(
+        status: CollectionStatus.paused,
+      );
+      collectionType = 'ligne';
+      pointCount = _ligneCollection!.points.length;
+    } else if (_polygonCollection?.isActive ?? false) {
+      _polygonCollection = _polygonCollection!.copyWith(
+        status: CollectionStatus.paused,
+      );
+      collectionType = 'polygon';
+      pointCount = _polygonCollection!.points.length;
+    } else if (_ligneCollection?.isPaused ?? false) {
+      collectionType = 'ligne';
+      pointCount = _ligneCollection!.points.length;
+    } else if (_polygonCollection?.isPaused ?? false) {
+      collectionType = 'polygon';
+      pointCount = _polygonCollection!.points.length;
+    }
+
+    if (collectionType.isEmpty) {
+      return;
+    }
+
+    _collectionService.stopCollection();
+    await _savePausedDraft();
+    await DatabaseHelper().recordLocalEvent(
+      eventType: 'AUTO_PAUSE_COLLECTION_DRAFT',
+      tableName: 'app_metadata',
+      cleLigne: 'paused_collection_draft',
+      payload: {
+        'collection_type': collectionType,
+        'point_count': pointCount,
+        'reason': reason,
+      },
+    );
+    notifyListeners();
+  }
+
   void cancelPolygonCollection() {
     if (_polygonCollection == null) return;
     _polygonCollection = null;

@@ -10,7 +10,9 @@ import 'screens/home/home_page.dart';
 import 'data/local/database_helper.dart';
 import 'data/remote/api_service.dart';
 import 'services/attribut_config_mobile_service.dart';
+import 'services/formulaire_config_mobile_service.dart';
 import 'services/offline_basemap_service.dart';
+import 'services/srm_field_option_service.dart';
 
 bool _isIgnorableAppError(Object error) {
   return error is CancellationException || error.toString() == 'Cancelled';
@@ -93,7 +95,7 @@ class _SessionGateState extends State<SessionGate> {
     // silencieusement la config des formulaires depuis le serveur en
     // background. Si offline, l'erreur est ignorée et la SQLite existante
     // continue d'alimenter les formulaires.
-    unawaited(_refreshAttributConfigMobileSilently());
+    unawaited(_refreshMobileFormConfigSilently());
 
     final activeBasemap = await OfflineBasemapService().getActiveBasemap();
     final offlineBasemapPath = activeBasemap?['local_path']?.toString().trim();
@@ -113,11 +115,15 @@ class _SessionGateState extends State<SessionGate> {
     );
   }
 
-  Future<void> _refreshAttributConfigMobileSilently() async {
+  Future<void> _refreshMobileFormConfigSilently() async {
     try {
-      await AttributConfigMobileService().refreshConfig();
+      await Future.wait<dynamic>([
+        FormulaireConfigMobileService().refreshConfig(),
+        AttributConfigMobileService().refreshConfig(),
+        SrmFieldOptionService().refreshOptions(),
+      ]);
     } catch (e) {
-      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Refresh ignore au resume session: $e');
+      debugPrint('[MOBILE-FORM-CONFIG] Refresh ignore au resume session: $e');
     }
   }
 

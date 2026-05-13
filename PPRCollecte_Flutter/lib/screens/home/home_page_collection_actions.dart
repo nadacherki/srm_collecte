@@ -2,15 +2,41 @@ part of 'home_page.dart';
 
 extension _HomePageCollectionActions on _HomePageState {
   bool _ensureGpsReadyForCapture() {
-    if (CaptureLocationGuard.canCapture(
+    final accuracyMeters = homeController.gpsAccuracy?.toDouble();
+    final role = (ApiService.userRole ?? '').trim().toLowerCase();
+    final reason = CaptureLocationGuard.blockReason(
       gpsEnabled: homeController.gpsEnabled,
       altitude: homeController.currentAltitude,
-    )) {
+      accuracyMeters: accuracyMeters,
+      sourceLabel: homeController.gpsSourceLabel,
+      allowInternalSources: role == 'admin',
+    );
+    if (reason == null) {
       return true;
     }
 
+    unawaited(
+      DatabaseHelper().recordLocalEvent(
+        eventType: 'CAPTURE_BLOCKED_LOCATION',
+        tableName: 'app_metadata',
+        cleLigne: 'capture_location_guard',
+        payload: {
+          'reason': reason,
+          'gps_enabled': homeController.gpsEnabled,
+          'altitude_available': homeController.currentAltitude != null,
+          'accuracy_m': accuracyMeters,
+          'source': homeController.gpsSourceLabel,
+          'role': role,
+          'threshold_m': CaptureLocationGuard.maxCaptureAccuracyMeters,
+        },
+      ),
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(CaptureLocationGuard.missingGpsMessage)),
+      SnackBar(
+        content: Text(reason),
+        backgroundColor: Colors.red,
+      ),
     );
     return false;
   }
@@ -43,6 +69,15 @@ extension _HomePageCollectionActions on _HomePageState {
       return;
     }
     _polygonRedoPoints.clear();
+
+    final geometryEditItem = _geometryEditPolygonItem;
+    if (geometryEditItem != null) {
+      await _saveEditedPolygonGeometryImpl(
+        result: result,
+        geometryEditItem: geometryEditItem,
+      );
+      return;
+    }
 
     _setStateFromPart(() {
       _pendingPolygonPreviewPoints = List<LatLng>.from(result.points);
@@ -155,6 +190,7 @@ extension _HomePageCollectionActions on _HomePageState {
       _pendingSrmPolygoneMetier = null;
       _pendingSrmPolygoneEntityType = null;
       _pendingSrmPolygoneTitleApp = null;
+      _geometryEditPolygonItem = null;
       homeController.collectedPolylines.clear();
       collectedPolylines.clear();
     });
@@ -208,6 +244,74 @@ extension _HomePageCollectionActions on _HomePageState {
     );
     if (!mounted) return;
     _refreshAfterNavigation();
+  }
+
+  Future<void> _addStandalonePointDuringTraceImpl() async {
+    final wasLineActive = homeController.ligneCollection?.isActive ?? false;
+    final wasPolygonActive =
+        homeController.polygonCollection?.isActive ?? false;
+
+    if (wasLineActive) {
+      final edit = _geometryEditLineItem;
+      if (edit != null) {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': edit['source_metier'],
+          'srmEntityType': edit['source_entity'],
+          'srmTitleApp': edit['source_title'],
+          'srmTableName': edit['source_table'],
+          'geometryEdit': true,
+          'sourceId': edit['id'],
+        });
+      } else {
+        final sel = _pendingSrmLigneSelection;
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': sel?.metier,
+          'srmEntityType': sel?.entityType,
+          'srmTitleApp': sel?.titleApp,
+          'srmTableName': sel?.tableName,
+          'srmSchema': sel?.schema,
+        });
+      }
+      homeController.toggleLigneCollection();
+    } else if (wasPolygonActive) {
+      final edit = _geometryEditPolygonItem;
+      if (edit != null) {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': edit['source_metier'],
+          'srmEntityType': edit['source_entity'],
+          'srmTitleApp': edit['source_title'],
+          'srmTableName': edit['source_table'],
+          'geometryEdit': true,
+          'sourceId': edit['id'],
+          'isPolygonCollection': true,
+          'polygonEntityType': edit['source_entity'],
+        });
+      } else {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': _pendingSrmPolygoneMetier,
+          'srmEntityType': _pendingSrmPolygoneEntityType,
+          'srmTitleApp': _pendingSrmPolygoneTitleApp,
+          'isPolygonCollection': _isPolygonCollection,
+          'polygonEntityType': _polygonEntityType,
+        });
+      }
+      homeController.togglePolygonCollection();
+    }
+
+    try {
+      await _addPointOfInterestImpl();
+    } finally {
+      if (mounted) {
+        if (wasLineActive &&
+            (homeController.ligneCollection?.isPaused ?? false)) {
+          homeController.toggleLigneCollection();
+        } else if (wasPolygonActive &&
+            (homeController.polygonCollection?.isPaused ?? false)) {
+          homeController.togglePolygonCollection();
+        }
+        _setStateFromPart(() {});
+      }
+    }
   }
 
   void _undoLignePointImpl() {
@@ -457,13 +561,27 @@ extension _HomePageCollectionActions on _HomePageState {
   void _togglePolygonCollectionImpl() {
     try {
       if (homeController.polygonCollection?.isActive ?? false) {
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': _pendingSrmPolygoneMetier,
-          'srmEntityType': _pendingSrmPolygoneEntityType,
-          'srmTitleApp': _pendingSrmPolygoneTitleApp,
-          'isPolygonCollection': _isPolygonCollection,
-          'polygonEntityType': _polygonEntityType,
-        });
+        final edit = _geometryEditPolygonItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+            'isPolygonCollection': true,
+            'polygonEntityType': edit['source_entity'],
+          });
+        } else {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': _pendingSrmPolygoneMetier,
+            'srmEntityType': _pendingSrmPolygoneEntityType,
+            'srmTitleApp': _pendingSrmPolygoneTitleApp,
+            'isPolygonCollection': _isPolygonCollection,
+            'polygonEntityType': _polygonEntityType,
+          });
+        }
       }
       homeController.togglePolygonCollection();
       _setStateFromPart(() {});
@@ -480,14 +598,26 @@ extension _HomePageCollectionActions on _HomePageState {
   void _toggleLigneCollectionImpl() {
     try {
       if (homeController.ligneCollection?.isActive ?? false) {
-        final sel = _pendingSrmLigneSelection;
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': sel?.metier,
-          'srmEntityType': sel?.entityType,
-          'srmTitleApp': sel?.titleApp,
-          'srmTableName': sel?.tableName,
-          'srmSchema': sel?.schema,
-        });
+        final edit = _geometryEditLineItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+          });
+        } else {
+          final sel = _pendingSrmLigneSelection;
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': sel?.metier,
+            'srmEntityType': sel?.entityType,
+            'srmTitleApp': sel?.titleApp,
+            'srmTableName': sel?.tableName,
+            'srmSchema': sel?.schema,
+          });
+        }
       }
       homeController.toggleLigneCollection();
     } catch (e) {
@@ -753,6 +883,7 @@ extension _HomePageCollectionActions on _HomePageState {
           'srmTitleApp': geometryEditItem['source_title'],
           'srmTableName': tableName,
           'geometryEdit': true,
+          'sourceId': id,
         },
       );
       _geometryEditLineItem = geometryEditItem;
@@ -764,5 +895,156 @@ extension _HomePageCollectionActions on _HomePageState {
         ),
       );
     }
+  }
+
+  Future<void> _saveEditedPolygonGeometryImpl({
+    required CollectionResult result,
+    required Map<String, dynamic> geometryEditItem,
+  }) async {
+    final tableName = geometryEditItem['source_table']?.toString() ?? '';
+    final id = _dynamicToIntImpl(geometryEditItem['id']) ?? result.id;
+    final points = result.points;
+    if (tableName.isEmpty || id <= 0 || points.length < 3) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de polygone invalide.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final closedCoordinates = points
+        .map((p) => <double>[p.longitude, p.latitude])
+        .toList(growable: true);
+    if (closedCoordinates.isNotEmpty) {
+      closedCoordinates.add(List<double>.from(closedCoordinates.first));
+    }
+
+    final centroidLat =
+        points.map((p) => p.latitude).reduce((a, b) => a + b) / points.length;
+    final centroidLng =
+        points.map((p) => p.longitude).reduce((a, b) => a + b) / points.length;
+    final projection = ProjectionService();
+    final centroidProjected = projection.wgs84ToMerchich(
+      longitude: centroidLng,
+      latitude: centroidLat,
+    );
+
+    final metier = geometryEditItem['source_metier']?.toString();
+    final entityType = geometryEditItem['source_entity']?.toString();
+    final fields = (metier != null && entityType != null)
+        ? SrmConfig.getFields(metier, entityType)
+        : const <String>[];
+    final xField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_x'),
+      orElse: () => '',
+    );
+    final yField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_y'),
+      orElse: () => '',
+    );
+
+    final data = <String, dynamic>{
+      'points_json': jsonEncode(closedCoordinates),
+      'nb_points': points.length,
+      'superficie_ha': _polygonAreaHectaresImpl(points),
+      'latitude_gps': centroidLat,
+      'longitude_gps': centroidLng,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+      'mode_localisation': 'gnss',
+    };
+    if (xField.isNotEmpty) {
+      data[xField] = centroidProjected.x;
+    }
+    if (yField.isNotEmpty) {
+      data[yField] = centroidProjected.y;
+    }
+
+    try {
+      await DatabaseHelper().updateEntitySrm(
+        tableName,
+        id,
+        data,
+        recordHistory: true,
+      );
+
+      _geometryEditPolygonItem = null;
+      _polygonRedoPoints.clear();
+      _pendingSrmPolygoneMetier = null;
+      _pendingSrmPolygoneEntityType = null;
+      _pendingSrmPolygoneTitleApp = null;
+      await _refreshAfterNavigation();
+      await _loadDisplayedPolygons();
+
+      if (!mounted) return;
+      _setStateFromPart(() {
+        _isPolygonCollection = false;
+        _polygonEntityType = null;
+        _pendingPolygonPreviewPoints = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de polygone mise à jour.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      final sourceEntity =
+          geometryEditItem['source_entity']?.toString() ?? 'Polygone';
+      homeController.collectionManager.restorePolygonCollection({
+        'id': result.id,
+        'entityType': sourceEntity,
+        'points':
+            points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+        'startTime': result.startTime.toIso8601String(),
+        'lastPointTime': result.endTime.toIso8601String(),
+        'totalDistance': result.totalDistance,
+      });
+      homeController.collectionManager.setSrmMetadata({
+        'srmMetier': geometryEditItem['source_metier'],
+        'srmEntityType': geometryEditItem['source_entity'],
+        'srmTitleApp': geometryEditItem['source_title'],
+        'srmTableName': tableName,
+        'geometryEdit': true,
+        'sourceId': id,
+        'isPolygonCollection': true,
+        'polygonEntityType': sourceEntity,
+      });
+      await homeController.persistActiveCollectionDraft(
+        reason: 'polygon_geometry_update_failed',
+      );
+      _geometryEditPolygonItem = geometryEditItem;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur édition géométrie : $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  double _polygonAreaHectaresImpl(List<LatLng> points) {
+    if (points.length < 3) return 0.0;
+    final projection = ProjectionService();
+    final projected = points
+        .map(
+          (p) => projection.wgs84ToMerchich(
+            longitude: p.longitude,
+            latitude: p.latitude,
+          ),
+        )
+        .toList();
+
+    var areaM2 = 0.0;
+    for (var i = 0; i < projected.length; i++) {
+      final current = projected[i];
+      final next = projected[(i + 1) % projected.length];
+      areaM2 += (current.x * next.y) - (next.x * current.y);
+    }
+    return areaM2.abs() / 2 / 10000;
   }
 }

@@ -318,7 +318,9 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       return LatLng(directLat, directLng);
     }
 
-    final schema = SrmConfig.getSchema(metier, entityType);
+    final schema = item['source_schema']?.toString().trim().isNotEmpty == true
+        ? item['source_schema'].toString().trim()
+        : SrmConfig.getSchema(metier, entityType);
     if (schema != null && schema.isNotEmpty) {
       final x = _toDouble(item['${schema}_coor_x']);
       final y = _toDouble(item['${schema}_coor_y']);
@@ -447,6 +449,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   List<String> _metiers = [];
   List<String> _entitesDisponibles = [];
   Map<String, String> _entityTitlesByEntity = {};
+  Map<String, List<String>> _entitiesByMetier = {};
 
   @override
   void initState() {
@@ -540,23 +543,28 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       final loginId = await _dbHelper.resolveLoginId();
       final items = <Map<String, dynamic>>[];
       final entityTitlesByEntity = <String, String>{};
-      final titleByMetier = <String, Map<String, String>>{};
+      final entitiesByMetier = <String, List<String>>{};
       final formulaireConfigService = FormulaireConfigMobileService();
 
       for (final metier in SrmConfig.getMetiers()) {
-        var titleByTable = titleByMetier[metier];
-        if (titleByTable == null) {
-          titleByTable = await formulaireConfigService.getTitleByMobileTable(
-            mobileMetier: metier,
-            refreshIfEmpty: false,
-          );
-          titleByMetier[metier] = titleByTable;
+        final entities = await _dataEntitiesForMetier(
+          metier,
+          formulaireConfigService,
+        );
+        if (entities.isEmpty) {
+          continue;
         }
-        for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
-          final tableName = SrmConfig.getTableName(metier, entity);
-          if (tableName == null || tableName.isEmpty) continue;
-          final entityTitle = titleByTable[tableName] ?? entity;
-          entityTitlesByEntity[entity] = entityTitle;
+        entitiesByMetier[metier] = [
+          for (final entity in entities) entity.entityType,
+        ];
+
+        for (final entity in entities) {
+          final tableName = entity.tableName.trim();
+          if (tableName.isEmpty) continue;
+          final entityTitle = entity.titleApp.trim().isNotEmpty
+              ? entity.titleApp.trim()
+              : entity.entityType;
+          entityTitlesByEntity[entity.entityType] = entityTitle;
 
           final rows = await _dbHelper.getEntitiesSrm(tableName);
           for (final row in rows) {
@@ -564,15 +572,12 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
 
             final item = Map<String, dynamic>.from(row);
             item['source_table'] = tableName;
+            item['source_schema'] = entity.schema;
             item['source_metier'] = metier;
-            item['source_entity'] = entity;
+            item['source_entity'] = entity.entityType;
             item['source_title'] = entityTitle;
             item['display_title'] = _buildDisplayTitle(entityTitle, item);
-
-            // Geometrie depuis config
-            final config = SrmConfig.getEntityConfig(metier, entity);
-            item['geometry_type'] =
-                config?['geometryType'] as String? ?? 'Point';
+            item['geometry_type'] = _geometryTypeForEntity(entity);
 
             items.add(item);
           }
@@ -593,7 +598,16 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       setState(() {
         _allData = items;
         _entityTitlesByEntity = entityTitlesByEntity;
-        _applyFilters();
+        _entitiesByMetier = entitiesByMetier;
+        _metiers = entitiesByMetier.keys.toList();
+        if (_filterMetier != null && !_metiers.contains(_filterMetier)) {
+          _filterMetier = null;
+          _filterEntite = null;
+          _entitesDisponibles = [];
+        } else {
+          _updateEntitesDisponibles();
+        }
+        _filteredData = _filterItems(items);
         _isLoading = false;
       });
     } catch (e) {
@@ -612,9 +626,40 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     }
   }
 
-  // Application des filtres
-  void _applyFilters() {
-    List<Map<String, dynamic>> result = List.from(_allData);
+  Future<List<FormulaireConfigMobileEntity>> _dataEntitiesForMetier(
+    String metier,
+    FormulaireConfigMobileService service,
+  ) async {
+    final entities = <FormulaireConfigMobileEntity>[];
+    final seenTables = <String>{};
+
+    for (final geometryFilter in const ['point', 'line', 'polygon']) {
+      final configured = await service.getMobileEntities(
+        mobileMetier: metier,
+        geometryFilter: geometryFilter,
+        refreshIfEmpty: false,
+      );
+      for (final entity in configured) {
+        final key = '${entity.schema}.${entity.tableName}'.toLowerCase();
+        if (seenTables.add(key)) {
+          entities.add(entity);
+        }
+      }
+    }
+
+    return entities;
+  }
+
+  String _geometryTypeForEntity(FormulaireConfigMobileEntity entity) {
+    if (entity.isPolygon) return 'Polygon';
+    if (entity.isLine) return 'LineString';
+    return 'Point';
+  }
+
+  List<Map<String, dynamic>> _filterItems(
+    List<Map<String, dynamic>> source,
+  ) {
+    List<Map<String, dynamic>> result = List.from(source);
 
     // Filtre metier
     if (_filterMetier != null) {
@@ -658,11 +703,12 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     // Filtre objet incomplet
     if (_filterIncomplet != null) {
       result = result
-          .where((item) => SrmStatusFlags.hasIncomplet(item) == _filterIncomplet)
+          .where(
+              (item) => SrmStatusFlags.hasIncomplet(item) == _filterIncomplet)
           .toList();
     }
 
-    setState(() => _filteredData = result);
+    return result;
   }
 
   // Mise a jour entites disponibles selon metier choisi
@@ -671,7 +717,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       _entitesDisponibles = [];
       _filterEntite = null;
     } else {
-      _entitesDisponibles = SrmConfig.getEntitiesForMetier(_filterMetier!);
+      _entitesDisponibles = _entitiesByMetier[_filterMetier!] ?? [];
       if (!_entitesDisponibles.contains(_filterEntite)) {
         _filterEntite = null;
       }
@@ -688,7 +734,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       _filterAnomalie = null;
       _filterIncomplet = null;
       _entitesDisponibles = [];
-      _applyFilters();
+      _filteredData = _filterItems(_allData);
     });
   }
 
@@ -724,7 +770,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     if (range != null) {
       setState(() {
         _filterDateRange = range;
-        _applyFilters();
+        _filteredData = _filterItems(_allData);
       });
     }
   }
@@ -982,8 +1028,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                       Icon(Icons.warning_amber_rounded,
                           size: 16, color: accent),
                       SizedBox(width: 6),
-                      Text('Avec anomalies',
-                          style: TextStyle(fontSize: 13)),
+                      Text('Avec anomalies', style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 ),
@@ -994,8 +1039,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                       Icon(Icons.check_circle_outline,
                           size: 16, color: Color(0xFF27AE60)),
                       SizedBox(width: 6),
-                      Text('Sans anomalies',
-                          style: TextStyle(fontSize: 13)),
+                      Text('Sans anomalies', style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 ),
@@ -1003,7 +1047,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               onChanged: (val) {
                 setState(() {
                   _filterAnomalie = val;
-                  _applyFilters();
+                  _filteredData = _filterItems(_allData);
                 });
               },
             ),
@@ -1051,8 +1095,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                     children: [
                       Icon(Icons.edit_note, size: 16, color: accent),
                       SizedBox(width: 6),
-                      Text('Incomplets',
-                          style: TextStyle(fontSize: 13)),
+                      Text('Incomplets', style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 ),
@@ -1060,11 +1103,9 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                   value: false,
                   child: Row(
                     children: [
-                      Icon(Icons.task_alt,
-                          size: 16, color: Color(0xFF27AE60)),
+                      Icon(Icons.task_alt, size: 16, color: Color(0xFF27AE60)),
                       SizedBox(width: 6),
-                      Text('Complets',
-                          style: TextStyle(fontSize: 13)),
+                      Text('Complets', style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 ),
@@ -1072,7 +1113,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               onChanged: (val) {
                 setState(() {
                   _filterIncomplet = val;
-                  _applyFilters();
+                  _filteredData = _filterItems(_allData);
                 });
               },
             ),
@@ -1145,7 +1186,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                 setState(() {
                   _filterMetier = val;
                   _updateEntitesDisponibles();
-                  _applyFilters();
+                  _filteredData = _filterItems(_allData);
                 });
               },
             ),
@@ -1213,7 +1254,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               onChanged: (val) {
                 setState(() {
                   _filterGeometrie = val;
-                  _applyFilters();
+                  _filteredData = _filterItems(_allData);
                 });
               },
             ),
@@ -1268,7 +1309,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
               onChanged: (val) {
                 setState(() {
                   _filterEntite = val;
-                  _applyFilters();
+                  _filteredData = _filterItems(_allData);
                 });
               },
             ),
@@ -1321,7 +1362,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
                 onTap: () {
                   setState(() {
                     _filterDateRange = null;
-                    _applyFilters();
+                    _filteredData = _filterItems(_allData);
                   });
                 },
                 child:

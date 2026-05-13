@@ -3,9 +3,11 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.gis.geos import Polygon
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
+from .serializers import PhotoUploadSerializer
 from . import views
 
 
@@ -154,3 +156,51 @@ class OrthophotoApiTests(SimpleTestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response["Content-Type"], "image/tiff")
             self.assertEqual(b"".join(response.streaming_content), b"tile-0")
+
+
+class PhotoUploadSerializerTests(SimpleTestCase):
+    def _payload(self, uploaded_file):
+        return {
+            "schema_name": "ep",
+            "table_name": "ep_vanne",
+            "uuid_objet": "uuid-photo",
+            "photo_slot": 1,
+            "file": uploaded_file,
+        }
+
+    def test_accepts_valid_small_jpg(self):
+        uploaded_file = SimpleUploadedFile(
+            "photo.jpg",
+            b"\xff\xd8\xff\x00\x01\x02\xff\xd9",
+            content_type="image/jpeg",
+        )
+        serializer = PhotoUploadSerializer(data=self._payload(uploaded_file))
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_rejects_truncated_jpg(self):
+        uploaded_file = SimpleUploadedFile(
+            "photo.jpg",
+            b"\xff\xd8\xff\x00\x01\x02",
+            content_type="image/jpeg",
+        )
+        serializer = PhotoUploadSerializer(data=self._payload(uploaded_file))
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("file", serializer.errors)
+
+    def test_rejects_oversized_photo(self):
+        payload = (
+            b"\xff\xd8\xff"
+            + (b"\x00" * (PhotoUploadSerializer.max_photo_bytes + 1))
+            + b"\xff\xd9"
+        )
+        uploaded_file = SimpleUploadedFile(
+            "photo.jpg",
+            payload,
+            content_type="image/jpeg",
+        )
+        serializer = PhotoUploadSerializer(data=self._payload(uploaded_file))
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("file", serializer.errors)

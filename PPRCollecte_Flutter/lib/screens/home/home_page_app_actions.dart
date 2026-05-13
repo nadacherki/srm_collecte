@@ -102,9 +102,9 @@ extension _HomePageAppActions on _HomePageState {
       );
 
       final snackBarMessage = alreadyDownloaded
-          ? 'Aucune nouvelle donnée à télécharger'
+          ? 'Données des zones affectées déjà à jour'
           : nothingAvailable
-              ? 'Aucune donnée disponible pour votre compte'
+              ? 'Aucune donnée dans les zones affectées à votre compte'
               : result.interrupted
                   ? (result.interruptionMessage ??
                       'Connexion interrompue. Téléchargement arrêté.')
@@ -650,9 +650,7 @@ extension _HomePageAppActions on _HomePageState {
 }
 
 String _syncSyncedDataText(int count) {
-  return count == 1
-      ? '1 donnée synchronisée'
-      : '$count données synchronisées';
+  return count == 1 ? '1 donnée synchronisée' : '$count données synchronisées';
 }
 
 String _syncUnsyncedDataText(int count) {

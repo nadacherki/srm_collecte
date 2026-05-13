@@ -29,6 +29,14 @@ void main() {
         isTrue,
       );
       expect(
+        SrmStatusFlags.hasAnomalie({'ep_anomalie': 'Non'}),
+        isFalse,
+      );
+      expect(
+        SrmStatusFlags.hasAnomalie({'ep_anomalie': 'Fraude compteur'}),
+        isTrue,
+      );
+      expect(
         SrmStatusFlags.hasIncomplet({'objet_incomplet': 1}),
         isTrue,
       );

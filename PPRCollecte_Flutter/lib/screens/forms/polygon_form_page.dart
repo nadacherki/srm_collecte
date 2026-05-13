@@ -518,7 +518,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
 
   String _regardEpConfiguredDefaultValueForField(String field) {
     final defaultValue =
-        _regardEpConfigByField[field]?.valeurParDefaut.trim() ?? '';
+        _regardEpConfigForField(field)?.valeurParDefaut.trim() ?? '';
     if (defaultValue.isEmpty) return '';
 
     final options = _regardEpOptions[field] ?? const <SrmFieldChoice>[];
@@ -527,6 +527,25 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       return '';
     }
     return defaultValue;
+  }
+
+  AttributConfigMobileField? _regardEpConfigForField(String field) {
+    final direct = _regardEpConfigByField[field];
+    if (direct != null) return direct;
+    final normalized = field.trim().toLowerCase();
+    final lower = _regardEpConfigByField[normalized];
+    if (lower != null) return lower;
+    for (final entry in _regardEpConfigByField.entries) {
+      if (entry.key.trim().toLowerCase() == normalized) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  bool _isRegardEpConfiguredVisibleField(String field) {
+    final config = _regardEpConfigForField(field);
+    return config == null || config.visible || config.isAutoVisibleCoordinate;
   }
 
   String _stringifyRegardEpValue(String field, dynamic value) {
@@ -590,6 +609,19 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   bool _isRegardEpAnomalieActive() {
     final value = _regardEpControllers['ep_anomalie']?.text.trim() ?? '';
     return value == '1' || value.toLowerCase() == 'true';
+  }
+
+  bool _isRegardEpAnomalieDetailField(String field) {
+    return field == 'anomalie_tamp' ||
+        field == 'anomalie_regard' ||
+        field == 'type_anomalie';
+  }
+
+  bool _shouldRelaxRegardEpRequiredField(String field) {
+    return _isRegardEpAnomalieActive() &&
+        !_isObjetIncomplet &&
+        field != 'ep_anomalie' &&
+        !_isRegardEpAnomalieDetailField(field);
   }
 
   String? _defaultRegardEpOptionCode(
@@ -830,6 +862,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         final fields = _regardEpConfigByField.isNotEmpty
             ? _regardEpConfigByField.keys.toList()
             : SrmConfig.getFields(widget.metier, widget.entityType);
+        final regardAnomalieActive =
+            !_isObjetIncomplet && _isRegardEpAnomalieActive();
 
         final data = <String, dynamic>{
           'uuid': _regardEpUuid,
@@ -839,8 +873,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           'ep_coor_y': double.tryParse(_yMerchich.toStringAsFixed(3)),
           'id_agent_crea':
               widget.existingData?['id_agent_crea'] ?? ApiService.userId,
-          'anomalie': (_hasAnomalie || _isRegardEpAnomalieActive()) ? 1 : 0,
-          'type_anomalie': _hasAnomalie ? _typeAnomalie : null,
+          'anomalie': regardAnomalieActive ? 1 : 0,
+          'type_anomalie': regardAnomalieActive ? _typeAnomalie : null,
           'objet_incomplet': _isObjetIncomplet ? 1 : 0,
           'synced': 0,
           'date_collecte':
@@ -860,6 +894,13 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           if (normalized != null) {
             data[field] = normalized;
           }
+        }
+
+        if (!regardAnomalieActive) {
+          data['ep_anomalie'] = 0;
+          data['type_anomalie'] = null;
+          data['anomalie_tamp'] = null;
+          data['anomalie_regard'] = null;
         }
 
         if ((data['ep_adresse'] == null ||
@@ -1662,7 +1703,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     final label = _labelForRegardEpField(field);
     final options = _regardEpOptions[field] ?? const <SrmFieldChoice>[];
     final isReadOnly = _isRegardEpReadOnlyField(field);
-    final isRequired = _regardEpRequiredFields.contains(field);
+    final isRequired = !_isObjetIncomplet &&
+        _regardEpRequiredFields.contains(field) &&
+        !_shouldRelaxRegardEpRequiredField(field);
     final rule =
         SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
 
@@ -1963,6 +2006,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   ) {
     final normalized = (value ?? '').trim();
     if (normalized.isEmpty) {
+      if (_shouldRelaxRegardEpRequiredField(field)) return null;
       return isRequired || rule.required ? 'Champ requis' : null;
     }
     if (rule.maxLength != null && normalized.length > rule.maxLength!) {
@@ -2415,7 +2459,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Les champs du formulaire sont neutralisés.\nSeule la géométrie et la raison sont conservées.',
+                    'Les champs obligatoires sont neutralises.\n'
+                    'Les valeurs deja saisies sont conservees.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -2463,7 +2508,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
               }
               if (value) {
                 _hasAnomalie = false;
-                _typeAnomalie = null;
+                _regardEpControllers['ep_anomalie']?.text = '0';
               }
             }),
           ),
@@ -2599,6 +2644,27 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       'observation': _observationController.text,
       '__detail_raison': _detailRaisonController.text,
     };
+  }
+
+  @override
+  bool isDraftFieldMeaningful(String field, String value) {
+    if (!super.isDraftFieldMeaningful(field, value)) return false;
+    if (field == '__detail_raison') {
+      return _isObjetIncomplet && value.trim().isNotEmpty;
+    }
+
+    if (_isRegardEp) {
+      if (!_isRegardEpConfiguredVisibleField(field)) return false;
+      if (_regardEpConfigForField(field) == null &&
+          _regardEpConfigByField.isNotEmpty) {
+        return false;
+      }
+      final defaultValue =
+          _regardEpConfiguredDefaultValueForField(field).trim();
+      return defaultValue.isEmpty || value.trim() != defaultValue;
+    }
+
+    return true;
   }
 
   @override

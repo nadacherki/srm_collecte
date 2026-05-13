@@ -77,6 +77,14 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _refreshMobileFormConfigSilently() async {
+    await Future.wait<void>([
+      _refreshFormulaireConfigMobileSilently(),
+      _refreshAttributConfigMobileSilently(),
+      _refreshSrmFieldOptionsSilently(),
+    ]);
+  }
+
   Future<void> _refreshCommunesSilently() async {
     try {
       await CommuneSyncService().refreshCommunes();
@@ -265,9 +273,7 @@ class _LoginPageState extends State<LoginPage> {
       // on bascule en background sans bloquer l'UI.
       final basemapFuture = _refreshBasemapCatalogSilently();
       final metricsFuture = _refreshPublicMetricsSilently();
-      unawaited(_refreshAttributConfigMobileSilently());
-      unawaited(_refreshFormulaireConfigMobileSilently());
-      unawaited(_refreshSrmFieldOptionsSilently());
+      final mobileFormConfigFuture = _refreshMobileFormConfigSilently();
       unawaited(_refreshCommunesSilently());
       unawaited(_refreshReferenceOverlaysSilently());
 
@@ -284,6 +290,15 @@ class _LoginPageState extends State<LoginPage> {
       final metricsError = await metricsFuture;
       if (metricsError != null && metricsError.trim().isNotEmpty) {
         debugPrint('[METRICS] Non chargees au login: $metricsError');
+      }
+      try {
+        await mobileFormConfigFuture.timeout(const Duration(seconds: 8));
+      } on TimeoutException {
+        debugPrint(
+          '[MOBILE-FORM-CONFIG] Refresh encore en cours au login; cache local conserve',
+        );
+      } catch (e) {
+        debugPrint('[MOBILE-FORM-CONFIG] Refresh ignore au login: $e');
       }
 
       final fullName = userData['nom_complet'] ?? 'Agent SRM';

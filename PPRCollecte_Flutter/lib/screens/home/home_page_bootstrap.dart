@@ -69,7 +69,7 @@ void _restorePausedCollectionImpl(
       state.homeController.collectionManager.restoreLigneCollection(draft);
       if (srmMeta != null && srmMeta['geometryEdit'] == true) {
         state._geometryEditLineItem = {
-          'id': draft['id'],
+          'id': srmMeta['sourceId'] ?? draft['id'],
           'source_metier': srmMeta['srmMetier'],
           'source_entity': srmMeta['srmEntityType'],
           'source_title': srmMeta['srmTitleApp'],
@@ -94,7 +94,23 @@ void _restorePausedCollectionImpl(
 
     case 'polygon':
       state.homeController.collectionManager.restorePolygonCollection(draft);
-      if (srmMeta != null) {
+      if (srmMeta != null && srmMeta['geometryEdit'] == true) {
+        state._geometryEditPolygonItem = {
+          'id': srmMeta['sourceId'] ?? draft['id'],
+          'source_metier': srmMeta['srmMetier'],
+          'source_entity': srmMeta['srmEntityType'],
+          'source_title': srmMeta['srmTitleApp'],
+          'source_table': srmMeta['srmTableName'],
+          'geometry_type': 'Polygon',
+        };
+        state._pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
+        state._pendingSrmPolygoneEntityType =
+            srmMeta['srmEntityType'] as String?;
+        state._pendingSrmPolygoneTitleApp = srmMeta['srmTitleApp'] as String?;
+        state._isPolygonCollection = true;
+        state._polygonEntityType = srmMeta['polygonEntityType'] as String? ??
+            srmMeta['srmEntityType'] as String?;
+      } else if (srmMeta != null) {
         state._pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
         state._pendingSrmPolygoneEntityType =
             srmMeta['srmEntityType'] as String?;
@@ -460,34 +476,39 @@ bool _applyNmeaBridgeFixToMapImpl(
 
   final nativeLat = _asDoubleOrNullImpl(nativeLocation?['latitude']);
   final nativeLon = _asDoubleOrNullImpl(nativeLocation?['longitude']);
-  if (nativeLat == null ||
-      nativeLon == null ||
-      nativeLat.abs() > 90 ||
-      nativeLon.abs() > 180) {
+  final normalizedPosition = _normalizeGnssCoordinatesImpl(
+    nativeLocation: nativeLocation!,
+    latitude: nativeLat,
+    longitude: nativeLon,
+  );
+  if (normalizedPosition == null) {
     return false;
   }
 
-  final accuracy = _asDoubleOrNullImpl(nativeLocation?['accuracy']);
-  final altitude = _asDoubleOrNullImpl(nativeLocation?['altitude']);
-  final speed = _asDoubleOrNullImpl(nativeLocation?['speed']);
-  final bearing = _asDoubleOrNullImpl(nativeLocation?['bearing']);
-  final hdop = _asDoubleOrNullImpl(nativeLocation?['hdop']);
-  final fixQuality = _asIntOrNullImpl(nativeLocation?['fixQuality']);
-  final satellites = _asIntOrNullImpl(nativeLocation?['satellites']);
+  final accuracy = _asDoubleOrNullImpl(nativeLocation['accuracy']);
+  final altitude = _asDoubleOrNullImpl(nativeLocation['altitude']);
+  final speed = _asDoubleOrNullImpl(nativeLocation['speed']);
+  final bearing = _asDoubleOrNullImpl(nativeLocation['bearing']);
+  final hdop = _asDoubleOrNullImpl(nativeLocation['hdop']);
+  final fixQuality = _asIntOrNullImpl(nativeLocation['fixQuality']);
+  final satellites = _asIntOrNullImpl(nativeLocation['satellites']);
   final timestamp = _asIntOrNullImpl(
-    nativeLocation?['nmeaReceivedAt'] ?? nativeLocation?['time'],
+    nativeLocation['nmeaReceivedAt'] ?? nativeLocation['time'],
   );
-  final mockInjectedAt = _asIntOrNullImpl(nativeLocation?['mockInjectedAt']);
-  final nmea = nativeLocation?['nmea']?.toString() ?? status.lastNmea;
+  final mockInjectedAt = _asIntOrNullImpl(nativeLocation['mockInjectedAt']);
+  final nmea = nativeLocation['nmea']?.toString() ?? status.lastNmea;
   final bluetoothName =
-      nativeLocation?['bluetoothName']?.toString() ?? status.bluetoothName;
-  final bluetoothAddress = nativeLocation?['bluetoothAddress']?.toString() ??
-      status.bluetoothAddress;
-  final target = LatLng(nativeLat, nativeLon);
+      nativeLocation['bluetoothName']?.toString() ?? status.bluetoothName;
+  final bluetoothAddress =
+      nativeLocation['bluetoothAddress']?.toString() ?? status.bluetoothAddress;
+  final target = LatLng(
+    normalizedPosition.latitude,
+    normalizedPosition.longitude,
+  );
 
   state.homeController.applyNmeaBridgeLocation(
-    latitude: nativeLat,
-    longitude: nativeLon,
+    latitude: target.latitude,
+    longitude: target.longitude,
     accuracy: accuracy,
     altitude: altitude,
     speed: speed,
@@ -512,6 +533,72 @@ bool _applyNmeaBridgeFixToMapImpl(
         '[NMEA] Carte recentree sur fix GNSS externe source=nmea_bridge');
   }
   return true;
+}
+
+({double latitude, double longitude})? _normalizeGnssCoordinatesImpl({
+  required Map<String, dynamic> nativeLocation,
+  required double? latitude,
+  required double? longitude,
+}) {
+  if (latitude != null &&
+      longitude != null &&
+      latitude.abs() <= 90 &&
+      longitude.abs() <= 180) {
+    return (latitude: latitude, longitude: longitude);
+  }
+
+  final explicitX = _firstDoubleValueImpl(nativeLocation, const [
+    'x',
+    'X',
+    'easting',
+    'E',
+    'merchich_x',
+    'coor_x',
+  ]);
+  final explicitY = _firstDoubleValueImpl(nativeLocation, const [
+    'y',
+    'Y',
+    'northing',
+    'N',
+    'merchich_y',
+    'coor_y',
+  ]);
+
+  double? x = explicitX;
+  double? y = explicitY;
+  if (x == null &&
+      y == null &&
+      latitude != null &&
+      longitude != null &&
+      (latitude.abs() > 90 || longitude.abs() > 180)) {
+    x = longitude;
+    y = latitude;
+  }
+
+  if (x == null || y == null || !_looksLikeProjectedXyImpl(x, y)) {
+    return null;
+  }
+
+  final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
+  if (wgs84.latitude.abs() > 90 || wgs84.longitude.abs() > 180) {
+    return null;
+  }
+  return (latitude: wgs84.latitude, longitude: wgs84.longitude);
+}
+
+double? _firstDoubleValueImpl(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = _asDoubleOrNullImpl(data[key]);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+bool _looksLikeProjectedXyImpl(double x, double y) {
+  return x.abs() > 180 &&
+      y.abs() > 90 &&
+      x.abs() < 2000000 &&
+      y.abs() < 2000000;
 }
 
 bool _isNmeaBridgeDisconnectedStatus(String status) {

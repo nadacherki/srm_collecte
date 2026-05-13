@@ -819,6 +819,44 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> fetchSyncSessionStatus(
+    String syncUuid,
+  ) async {
+    final cleanSyncUuid = syncUuid.trim();
+    if (cleanSyncUuid.isEmpty) {
+      throw Exception('sync_uuid manquant');
+    }
+
+    final uri = Uri.parse('$baseUrl/api/sync/session/$cleanSyncUuid/');
+    try {
+      final response = await http
+          .get(uri, headers: _headers())
+          .timeout(const Duration(seconds: 20));
+      final body = utf8.decode(response.bodyBytes);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        throw Exception('Reponse statut sync invalide');
+      }
+
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur statut sync ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout statut sync');
+    } on SocketException {
+      throw Exception('Erreur reseau statut sync');
+    } on FormatException {
+      throw Exception('Reponse statut sync invalide');
+    }
+  }
+
   static Future<Map<String, dynamic>> uploadPhoto({
     required String schemaName,
     required String tableName,

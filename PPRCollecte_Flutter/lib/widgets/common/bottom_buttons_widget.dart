@@ -4,9 +4,10 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 class BottomButtonsWidget extends StatelessWidget {
   final VoidCallback? onSave;
   final VoidCallback? onSync;
-  final VoidCallback onMenu;
+  final VoidCallback? onMenu;
   final bool isSaveEnabled;
   final bool isSyncEnabled;
+  final bool isMenuEnabled;
 
   const BottomButtonsWidget({
     super.key,
@@ -15,6 +16,7 @@ class BottomButtonsWidget extends StatelessWidget {
     required this.onMenu,
     this.isSaveEnabled = true,
     this.isSyncEnabled = true,
+    this.isMenuEnabled = true,
   });
 
   @override
@@ -66,6 +68,8 @@ class BottomButtonsWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 167, 94, 196),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                disabledForegroundColor: Colors.white70,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
@@ -73,7 +77,7 @@ class BottomButtonsWidget extends StatelessWidget {
               icon: const Icon(Icons.analytics, size: 18), // 📊
               label: const Text("Données",
                   style: TextStyle(fontWeight: FontWeight.w500)),
-              onPressed: onMenu,
+              onPressed: isMenuEnabled ? onMenu : null,
             ),
           ),
         ],

@@ -3147,6 +3147,27 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> rejectPhotoSyncItem(int id, String errorMessage) async {
+    final db = await database;
+    await db.update(
+      'photo_sync_queue',
+      {
+        'synced': -1,
+        'retry_count': 5,
+        'last_error': errorMessage,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await recordLocalEvent(
+      eventType: 'PHOTO_SYNC_REJECTED',
+      tableName: 'photo_sync_queue',
+      idObjet: id,
+      payload: {'error': errorMessage},
+    );
+  }
+
   Future<void> updatePhotoReferenceByUuid(
       String tableName, String uuid, int photoSlot, String photoReference,
       {bool recordHistory = false}) async {
@@ -3769,6 +3790,13 @@ class DatabaseHelper {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  Future<int> countOnepDbRows() async {
+    final db = await database;
+    await _createOnepDbLocalTable(db);
+    final result = await db.rawQuery('SELECT COUNT(*) AS total FROM onep_db');
+    return _asInt(result.first['total']) ?? 0;
   }
 
   Future<Map<String, dynamic>?> findOnepCustomerLocal({

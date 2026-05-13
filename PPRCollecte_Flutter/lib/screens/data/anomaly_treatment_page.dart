@@ -11,6 +11,7 @@ import '../../services/srm_status_flags.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
 import '../forms/polygon_form_page.dart';
 import '../forms/srm_ligne_form_page.dart';
+import '../home/home_page.dart';
 
 class AnomalyTreatmentPage extends StatefulWidget {
   final bool isOnline;
@@ -280,6 +281,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
     final ref = _resolveObjectRef(row);
     final statusColor = _statusColor(row);
     final isReturn = _requiresTerrainReturn(row);
+    final isDone = _isTerrainDone(row);
     final title = ref?.title ?? _cleanObjectLabel(row);
 
     return Container(
@@ -358,11 +360,21 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _openLinkedObject(row),
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  label: Text(isReturn ? 'Compléter l’objet' : 'Voir l’objet'),
+                  onPressed: () => _goToLinkedObjectOnMap(row),
+                  icon: const Icon(Icons.center_focus_strong, size: 18),
+                  label: const Text('Voir sur carte'),
                 ),
               ),
+              if (!isDone) const SizedBox(width: 8),
+              if (!isDone)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openLinkedObject(row),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label:
+                        Text(isReturn ? 'Compléter l’objet' : 'Voir l’objet'),
+                  ),
+                ),
             ],
           ),
         ],
@@ -464,12 +476,31 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
       ..['geometry_type'] = ref.geometryType;
 
     final saved = await _openFormForItem(editable, ref);
-    if (saved == true && _requiresTerrainReturn(intervention)) {
+    if (saved == true) {
       final refreshedItem = await _dbHelper.getEntitySrmByIdOrUuid(
         ref.tableName,
         idObjet: _toInt(intervention['id_objet']),
         uuidObjet: intervention['uuid_objet']?.toString(),
       );
+      if (refreshedItem != null && !SrmStatusFlags.hasAnomalie(refreshedItem)) {
+        final localId = _toInt(intervention['id']);
+        if (localId != null && !_isTerrainDone(intervention)) {
+          await _dbHelper.updateInterventionAnomalieTerrainLocal(
+            localId: localId,
+            etatTerrain: 'traite',
+            commentaireTerrain: intervention['commentaire_terrain']?.toString(),
+          );
+          _showMessage('Anomalie marquee comme completee cote terrain.');
+        }
+        await _load();
+        return;
+      }
+
+      if (!_requiresTerrainReturn(intervention)) {
+        await _load();
+        return;
+      }
+
       if (refreshedItem != null && SrmStatusFlags.hasIncomplet(refreshedItem)) {
         _showMessage(
           'Objet encore incomplet : le retour terrain reste à faire.',
@@ -477,17 +508,44 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
         await _load();
         return;
       }
-      final localId = _toInt(intervention['id']);
-      if (localId != null) {
-        await _dbHelper.updateInterventionAnomalieTerrainLocal(
-          localId: localId,
-          etatTerrain: 'traite',
-          commentaireTerrain: intervention['commentaire_terrain']?.toString(),
-        );
-        _showMessage('Retour terrain marqué comme effectué.');
-      }
       await _load();
     }
+  }
+
+  Future<void> _goToLinkedObjectOnMap(Map<String, dynamic> intervention) async {
+    final ref = _resolveObjectRef(intervention);
+    if (ref == null) {
+      _showMessage('Objet lie non reconnu sur ce telephone.');
+      return;
+    }
+
+    final item = await _dbHelper.getEntitySrmByIdOrUuid(
+      ref.tableName,
+      idObjet: _toInt(intervention['id_objet']),
+      uuidObjet: intervention['uuid_objet']?.toString(),
+    );
+    if (item == null) {
+      _showMessage(
+        'Objet lie non disponible localement. Telechargez les donnees puis reessayez.',
+      );
+      return;
+    }
+
+    final editable = Map<String, dynamic>.from(item)
+      ..['source_table'] = ref.tableName
+      ..['source_metier'] = ref.metier
+      ..['source_entity'] = ref.entity
+      ..['source_title'] = ref.title
+      ..['geometry_type'] = ref.geometryType;
+    final target = _buildMapFocusTarget(editable, ref);
+    if (target == null) {
+      _showMessage('Aucune geometrie exploitable pour cet objet.');
+      return;
+    }
+
+    HomePage.pendingFocusTarget = target;
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   Future<bool?> _openFormForItem(
@@ -616,6 +674,87 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
       if (points.isNotEmpty) return points.first;
     }
     return null;
+  }
+
+  MapFocusTarget? _buildMapFocusTarget(
+    Map<String, dynamic> item,
+    _LinkedObjectRef ref,
+  ) {
+    final label = _focusLabel(item, ref);
+    final id = _text(item['uuid'] ?? item['uuid_objet'] ?? item['id']);
+
+    if (ref.geometryType == 'LineString') {
+      var points = _decodeGeometryPoints(
+        item['points_json'] ?? item['geometry_geojson'] ?? item['geom'],
+      );
+      if (points.length < 2) {
+        points = _resolveLineEndpointPoints(item);
+      }
+      if (points.length < 2) return null;
+      return MapFocusTarget.polyline(
+        polyline: points,
+        label: label,
+        id: id.isEmpty ? null : id,
+      );
+    }
+
+    if (ref.geometryType == 'Polygon') {
+      final points = [
+        ..._decodeGeometryPoints(
+          item['points_json'] ?? item['geometry_geojson'] ?? item['geom'],
+        ),
+      ];
+      if (points.length < 3) return null;
+      if (points.first.latitude != points.last.latitude ||
+          points.first.longitude != points.last.longitude) {
+        points.add(points.first);
+      }
+      return MapFocusTarget.polyline(
+        polyline: points,
+        label: label,
+        id: id.isEmpty ? null : id,
+      );
+    }
+
+    final point = _resolvePointLatLng(item: item, ref: ref);
+    if (point == null) return null;
+    return MapFocusTarget.point(
+      point: point,
+      label: label,
+      id: id.isEmpty ? null : id,
+    );
+  }
+
+  List<LatLng> _resolveLineEndpointPoints(Map<String, dynamic> item) {
+    const endpointGroups = [
+      ['start_lng', 'start_lat', 'end_lng', 'end_lat'],
+      ['x_debut', 'y_debut', 'x_fin', 'y_fin'],
+      ['lon_debut', 'lat_debut', 'lon_fin', 'lat_fin'],
+      ['longitude_debut', 'latitude_debut', 'longitude_fin', 'latitude_fin'],
+    ];
+
+    for (final group in endpointGroups) {
+      final x1 = _toDouble(item[group[0]]);
+      final y1 = _toDouble(item[group[1]]);
+      final x2 = _toDouble(item[group[2]]);
+      final y2 = _toDouble(item[group[3]]);
+      if (x1 != null && y1 != null && x2 != null && y2 != null) {
+        return [
+          _toWgs84LatLng(x: x1, y: y1),
+          _toWgs84LatLng(x: x2, y: y2),
+        ];
+      }
+    }
+
+    return const [];
+  }
+
+  String _focusLabel(Map<String, dynamic> item, _LinkedObjectRef ref) {
+    final display = _text(item['display_title']);
+    if (display.isNotEmpty) return display;
+    final title = ref.title.trim();
+    if (title.isNotEmpty) return title;
+    return _cleanObjectLabel(item);
   }
 
   List<LatLng> _decodeGeometryPoints(dynamic rawPoints) {

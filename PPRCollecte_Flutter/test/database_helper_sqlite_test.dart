@@ -121,6 +121,25 @@ void main() {
       expect(rows.single['remote_path'], 'remote/photo.jpg');
     });
 
+    test('invalid photo queue items are rejected without retry loop', () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest(
+        includeSrmEntityTables: false,
+      );
+      final helper = DatabaseHelper();
+      final id = await helper.enqueuePhotoSyncItem(
+        schemaName: 'ep',
+        tableName: 'ep_vanne',
+        uuidObjet: 'uuid-photo-invalid',
+        photoSlot: 1,
+        localPath: 'C:/tmp/corrupt.jpg',
+      );
+
+      await helper.rejectPhotoSyncItem(id, 'Photo corrompue');
+
+      expect(await helper.getPendingPhotoSyncItems(), isEmpty);
+      expect(await helper.countFailedPhotoSyncItems(), 1);
+    });
+
     test('critical SRM local tables include expected server columns', () async {
       final db = await DatabaseHelper.openInMemoryDatabaseForTest();
 

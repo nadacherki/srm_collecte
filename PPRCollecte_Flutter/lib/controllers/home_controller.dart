@@ -688,6 +688,15 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> persistActiveCollectionDraft({
+    String reason = 'lifecycle',
+  }) async {
+    await _collectionManager.persistActiveCollectionAsPausedDraft(
+      reason: reason,
+    );
+    notifyListeners();
+  }
+
   void cancelLigneCollection() {
     _collectionManager.cancelLigneCollection();
     _activeLineCode = null;

@@ -171,4 +171,53 @@ void main() {
       );
     });
   });
+
+  group('PhotoValidationService file validation', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('srm_photo_valid_');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('accepts a small valid JPG signature and footer', () async {
+      final photo = File('${tempDir.path}/ok.jpg');
+      await photo.writeAsBytes([0xFF, 0xD8, 0xFF, 1, 2, 3, 0xFF, 0xD9]);
+
+      expect(
+        await PhotoValidationService.validateStoredPhotoPath(photo.path),
+        'image/jpeg',
+      );
+    });
+
+    test('rejects oversized, mime-mismatched and truncated photos', () async {
+      final oversized = File('${tempDir.path}/big.jpg');
+      await oversized.writeAsBytes(
+        List<int>.filled(PhotoValidationService.maxPhotoBytes + 1, 0),
+      );
+      await expectLater(
+        PhotoValidationService.validateStoredPhotoPath(oversized.path),
+        throwsA(isA<PhotoValidationException>()),
+      );
+
+      final mismatched = File('${tempDir.path}/bad.png');
+      await mismatched.writeAsBytes([0xFF, 0xD8, 0xFF, 1, 2, 3, 0xFF, 0xD9]);
+      await expectLater(
+        PhotoValidationService.validateStoredPhotoPath(mismatched.path),
+        throwsA(isA<PhotoValidationException>()),
+      );
+
+      final truncated = File('${tempDir.path}/truncated.jpg');
+      await truncated.writeAsBytes([0xFF, 0xD8, 0xFF, 1, 2, 3]);
+      await expectLater(
+        PhotoValidationService.validateStoredPhotoPath(truncated.path),
+        throwsA(isA<PhotoValidationException>()),
+      );
+    });
+  });
 }

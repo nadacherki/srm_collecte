@@ -663,7 +663,7 @@ bool _supportsGeometryEditImpl(Map<String, dynamic>? item) {
     return false;
   }
   final geoType = item['geometry_type']?.toString() ?? 'Point';
-  return geoType == 'Point' || geoType == 'LineString';
+  return geoType == 'Point' || geoType == 'LineString' || geoType == 'Polygon';
 }
 
 List<LatLng> _decodeGeometryPointsFromLooseStringImpl(String raw) {
@@ -850,6 +850,10 @@ Future<void> _editMapGeometryImpl(
     await _startLineGeometryEditImpl(state, item);
     return;
   }
+  if (geoType == 'Polygon') {
+    await _startPolygonGeometryEditImpl(state, item);
+    return;
+  }
 
   if (!state.mounted) return;
   ScaffoldMessenger.of(state.context).showSnackBar(
@@ -872,6 +876,7 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
   if (metier == null || entityType == null || tableName == null || id == null) {
     return;
   }
+  if (!state._ensureGpsReadyForCapture()) return;
 
   final target = state.userPosition ?? state.homeController.userPosition;
   final confirm = await showDialog<bool>(
@@ -1024,6 +1029,7 @@ Future<void> _startLineGeometryEditImpl(
       'srmTitleApp': item['source_title'],
       'srmTableName': tableName,
       'geometryEdit': true,
+      'sourceId': id,
     },
   );
   state.homeController.toggleLigneCollection();
@@ -1034,6 +1040,97 @@ Future<void> _startLineGeometryEditImpl(
     const SnackBar(
       content: Text(
         'Mode édition géométrie activé. Ajustez la ligne puis validez.',
+      ),
+      backgroundColor: Color(0xFF1976D2),
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
+
+Future<void> _startPolygonGeometryEditImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (state.homeController.hasActiveCollection ||
+      state.homeController.hasPausedCollection) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Terminez ou annulez le tracé en cours avant de modifier ce polygone.',
+        ),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final tableName = item['source_table']?.toString();
+  final id = _dynamicToIntImpl(item['id']);
+  if (metier == null || entityType == null || tableName == null || id == null) {
+    return;
+  }
+
+  final points = _decodeGeometryPointsImpl(item['points_json']);
+  if (points.length > 1 &&
+      points.first.latitude == points.last.latitude &&
+      points.first.longitude == points.last.longitude) {
+    points.removeLast();
+  }
+  if (points.length < 3) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Géométrie de polygone invalide.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  state._geometryEditPolygonItem = Map<String, dynamic>.from(item)
+    ..['source_metier'] = metier
+    ..['source_entity'] = entityType
+    ..['source_title'] = item['source_title']
+    ..['source_table'] = tableName;
+  state._pendingSrmPolygoneMetier = metier;
+  state._pendingSrmPolygoneEntityType = entityType;
+  state._pendingSrmPolygoneTitleApp = item['source_title']?.toString();
+  state._polygonRedoPoints.clear();
+  state._setStateFromPart(() {
+    state._isPolygonCollection = true;
+    state._polygonEntityType = entityType;
+    state._pendingPolygonPreviewPoints = null;
+  });
+
+  state.homeController.collectionManager.setSrmMetadata({
+    'srmMetier': metier,
+    'srmEntityType': entityType,
+    'srmTitleApp': item['source_title'],
+    'srmTableName': tableName,
+    'geometryEdit': true,
+    'sourceId': id,
+    'isPolygonCollection': true,
+    'polygonEntityType': entityType,
+  });
+  state.homeController.collectionManager.restorePolygonCollection({
+    'id': id,
+    'entityType': entityType,
+    'points':
+        points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+    'startTime': DateTime.tryParse(item['date_collecte']?.toString() ?? '')
+            ?.toIso8601String() ??
+        DateTime.now().toIso8601String(),
+    'lastPointTime': DateTime.now().toIso8601String(),
+    'totalDistance': 0.0,
+  });
+  state.homeController.togglePolygonCollection();
+
+  if (!state.mounted) return;
+  ScaffoldMessenger.of(state.context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Mode édition géométrie activé. Ajustez le polygone puis validez.',
       ),
       backgroundColor: Color(0xFF1976D2),
       duration: Duration(seconds: 3),

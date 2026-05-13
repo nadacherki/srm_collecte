@@ -108,8 +108,7 @@ void _showOverlappingPointsSheet({
                       tappedLat,
                       tappedLng,
                     );
-                    final tableName =
-                        (data['table_name'] ?? '').toString();
+                    final tableName = (data['table_name'] ?? '').toString();
                     final iconWidget = hasAnomalie
                         ? CustomMarkerIcons.getAnomalieMarkerWidget(
                             tableName,
@@ -1128,6 +1127,9 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
       Map<String, int> target,
     ) {
       for (final entry in source.entries) {
+        if (entry.key == _epRegardMiroirOverlayTable) {
+          continue;
+        }
         target[entry.key] = (target[entry.key] ?? 0) + entry.value.length;
       }
     }

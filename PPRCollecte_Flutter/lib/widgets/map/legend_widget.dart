@@ -50,6 +50,7 @@ class LegendWidget extends StatefulWidget {
 
 class _LegendWidgetState extends State<LegendWidget> {
   static const String _readOnlyRegardMiroirTable = 'ep_regard';
+  static const String _regardPointTable = 'ep_regard_point';
   late Map<String, bool> _visibility;
   bool _isExpanded = false;
   bool _anomalieFilterActive = false;
@@ -96,7 +97,10 @@ class _LegendWidgetState extends State<LegendWidget> {
     }
     _anomalieFilterActive = _visibility['srm_anomalie'] == true;
     _incompletFilterActive = _visibility['srm_incomplet'] == true;
-    _visibility.putIfAbsent(_vk(_readOnlyRegardMiroirTable), () => true);
+    _visibility.putIfAbsent(
+      _vk(_readOnlyRegardMiroirTable),
+      () => _visibility[_vk(_regardPointTable)] ?? true,
+    );
   }
 
   @override
@@ -117,6 +121,11 @@ class _LegendWidgetState extends State<LegendWidget> {
   void _toggle(String key, bool value) {
     setState(() {
       _visibility[key] = value;
+      if (key == _vk(_regardPointTable)) {
+        _visibility[_vk(_readOnlyRegardMiroirTable)] = value;
+      } else if (key == _vk(_readOnlyRegardMiroirTable)) {
+        _visibility[_vk(_regardPointTable)] = value;
+      }
       widget.onVisibilityChanged(Map.from(_visibility));
     });
   }
@@ -727,12 +736,6 @@ class _LegendWidgetState extends State<LegendWidget> {
               children: [
                 ...SrmConfig.getEntitiesForMetier(metier)
                     .map((e) => _buildEntityRow(metier, e, color)),
-                if (metier == 'Eau Potable')
-                  _buildReadOnlyPolygonRow(
-                    label: 'Regard miroir',
-                    tableName: _readOnlyRegardMiroirTable,
-                    color: const Color(0xFF2E7D32),
-                  ),
               ],
             ),
           ),
@@ -893,70 +896,6 @@ class _LegendWidgetState extends State<LegendWidget> {
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildReadOnlyPolygonRow({
-    required String label,
-    required String tableName,
-    required Color color,
-  }) {
-    final visKey = _vk(tableName);
-    final isVisible = _visibility[visKey] ?? true;
-    final count = _countForTable(tableName);
-    final anomalies = _anomaliesForTable(tableName);
-    final incomplets = _incompletForTable(tableName);
-    final displayColor = isVisible ? color : Colors.grey.shade300;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: Checkbox(
-              value: isVisible,
-              onChanged: (v) => _toggle(visKey, v ?? false),
-              activeColor: color,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          const SizedBox(width: 5),
-          _polygonSymbol(
-            displayColor,
-            hasAnomalie: anomalies > 0,
-            hasIncomplet: incomplets > 0,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isVisible ? Colors.grey.shade700 : Colors.grey.shade400,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (incomplets > 0) ...[
-            _badge(incomplets,
-                color: const Color(0xFFF57C00),
-                icon: Icons.edit_off,
-                small: true),
-            const SizedBox(width: 3),
-          ],
-          if (anomalies > 0) ...[
-            _badge(anomalies,
-                color: const Color(0xFFD32F2F),
-                icon: Icons.warning_amber_rounded,
-                small: true),
-            const SizedBox(width: 3),
-          ],
-          if (count > 0) _badge(count, color: color, small: true),
-        ],
       ),
     );
   }

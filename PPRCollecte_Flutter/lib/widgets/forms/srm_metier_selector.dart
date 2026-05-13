@@ -85,6 +85,10 @@ class _MetierSheet extends StatelessWidget {
     for (final e in entities) {
       final c = SrmConfig.getEntityConfig(metier, e);
       if (c == null) continue;
+      final tableName = c['tableName']?.toString() ?? '';
+      if (!FormulaireConfigMobileService.isSelectableFormTable(tableName)) {
+        continue;
+      }
       if (geometryFilter == 'point' &&
           c['isLine'] != true &&
           c['isPolygon'] != true) {
@@ -97,13 +101,21 @@ class _MetierSheet extends StatelessWidget {
   }
 
   int _staticCount(String metier) {
+    bool isSelectableEntity(String entity) {
+      final config = SrmConfig.getEntityConfig(metier, entity);
+      final tableName = config?['tableName']?.toString() ?? '';
+      return FormulaireConfigMobileService.isSelectableFormTable(tableName);
+    }
+
     if (geometryFilter == 'line') {
-      return SrmConfig.getLineEntities(metier).length;
+      return SrmConfig.getLineEntities(metier).where(isSelectableEntity).length;
     }
     if (geometryFilter == 'polygon') {
-      return SrmConfig.getPolygonEntities(metier).length;
+      return SrmConfig.getPolygonEntities(metier)
+          .where(isSelectableEntity)
+          .length;
     }
-    return SrmConfig.getPointEntities(metier).length;
+    return SrmConfig.getPointEntities(metier).where(isSelectableEntity).length;
   }
 
   String get _geoLabel {

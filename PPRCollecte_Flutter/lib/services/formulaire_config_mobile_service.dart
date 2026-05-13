@@ -108,8 +108,18 @@ class FormulaireConfigMobileEntity {
 class FormulaireConfigMobileService {
   final DatabaseHelper _db;
 
+  static const Set<String> _nonSelectableFormTables = {
+    'ep_regard',
+  };
+
   FormulaireConfigMobileService({DatabaseHelper? databaseHelper})
       : _db = databaseHelper ?? DatabaseHelper();
+
+  static bool isSelectableFormTable(String tableName) {
+    final normalized = tableName.trim().toLowerCase();
+    return normalized.isNotEmpty &&
+        !_nonSelectableFormTables.contains(normalized);
+  }
 
   Future<Map<String, dynamic>> refreshConfig({
     String? nomMetier,
@@ -251,6 +261,9 @@ class FormulaireConfigMobileService {
           nomMetier,
           row.nomTable,
         );
+        if (!isSelectableFormTable(mobileTable)) {
+          continue;
+        }
         final entity = fallbackByTable[mobileTable];
         if (entity == null) {
           continue;
@@ -327,6 +340,9 @@ class FormulaireConfigMobileService {
       final config = SrmConfig.getEntityConfig(mobileMetier, entity);
       if (config == null) continue;
       final tableName = config['tableName']?.toString() ?? '';
+      if (!isSelectableFormTable(tableName)) {
+        continue;
+      }
       final visibleRow = visibleByMobileTable[tableName];
       if (nomMetier.isNotEmpty && visibleRow == null) {
         continue;
@@ -369,7 +385,7 @@ class FormulaireConfigMobileService {
       );
     }
     return result
-        .where((entity) => entity.tableName.trim().isNotEmpty)
+        .where((entity) => isSelectableFormTable(entity.tableName))
         .toList();
   }
 

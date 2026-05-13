@@ -50,6 +50,15 @@ void main() {
           'visible': false,
           'download_mobile': true,
         },
+        {
+          'id': 4,
+          'nom_metier': 'ep',
+          'nom_table': 'ep_regard',
+          'titre_app': 'Regard miroir',
+          'ordre': 3,
+          'visible': true,
+          'download_mobile': true,
+        },
       ]);
 
       final service = FormulaireConfigMobileService(databaseHelper: helper);
@@ -69,10 +78,22 @@ void main() {
         entities.map((entity) => entity.tableName),
         isNot(contains('ep_conduite')),
       );
+      expect(
+        entities.map((entity) => entity.tableName),
+        isNot(contains('ep_regard')),
+      );
       expect(entities.single.titleApp, 'Vanne terrain');
       expect(
         downloadable.map((item) => item.nomTable),
         containsAll({'ep_vanne', 'onep_db'}),
+      );
+      expect(
+        FormulaireConfigMobileService.isSelectableFormTable('ep_regard'),
+        isFalse,
+      );
+      expect(
+        FormulaireConfigMobileService.isSelectableFormTable('ep_regard_point'),
+        isTrue,
       );
     });
 
@@ -117,6 +138,26 @@ void main() {
         'nullable': true,
       });
       expect(optionalField.isRequired, isFalse);
+    });
+
+    test('nullable false remains required even when field is hidden', () {
+      final hiddenRequired = AttributConfigMobileField.fromMap({
+        'id': 12,
+        'nom_metier': 'ep',
+        'nom_table': 'ep_brc_pt',
+        'nom_champ': 'legacy_code',
+        'type_champ': 'varchar(400)',
+        'primary_key': false,
+        'foreign_key': false,
+        'ordre': 99,
+        'titre_app': 'Legacy code',
+        'visible': false,
+        'contraintes': '',
+        'nullable': false,
+      });
+
+      expect(hiddenRequired.isRequired, isTrue);
+      expect(hiddenRequired.fallbackValueForInvisibleNotNull, 'NON_RENSEIGNE');
     });
 
     test('liste_choix code is stored value, label is mobile alias, ordered',

@@ -174,9 +174,23 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     return 'Veuillez renseigner le type, l\'observation ou le detail de l\'anomalie';
   }
 
+  AttributConfigMobileField? _configForField(String field) {
+    final direct = _attributConfigByField[field];
+    if (direct != null) return direct;
+    final normalized = field.trim().toLowerCase();
+    final lower = _attributConfigByField[normalized];
+    if (lower != null) return lower;
+    for (final entry in _attributConfigByField.entries) {
+      if (entry.key.trim().toLowerCase() == normalized) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
   bool _isConfiguredVisibleField(String field) {
-    final config = _attributConfigByField[field.toLowerCase()];
-    return config == null || config.visible;
+    final config = _configForField(field);
+    return config == null || config.visible || config.isAutoVisibleCoordinate;
   }
 
   bool _isObjetIncompletManagedField(String field) {
@@ -446,8 +460,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   String _configuredDefaultValueForField(String field) {
-    final defaultValue =
-        _attributConfigByField[field]?.valeurParDefaut.trim() ?? '';
+    final defaultValue = _configForField(field)?.valeurParDefaut.trim() ?? '';
     if (defaultValue.isEmpty) return '';
 
     final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
@@ -556,6 +569,15 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   @override
   bool isDraftFieldMeaningful(String field, String value) {
     if (!super.isDraftFieldMeaningful(field, value)) return false;
+    if (field == '__detail_raison') {
+      return _isObjetIncomplet && value.trim().isNotEmpty;
+    }
+    final config = _configForField(field);
+    if (config != null) {
+      if (!config.visible && !config.isAutoVisibleCoordinate) return false;
+    } else if (_attributConfigByField.isNotEmpty) {
+      return false;
+    }
     final defaultValue = _configuredDefaultValueForField(field).trim();
     return defaultValue.isEmpty || value.trim() != defaultValue;
   }
@@ -1238,8 +1260,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             isExpanded: true,
             items: [
               _kEmptyChoiceMenuItem,
-              ..._typeOptions
-                  .map((o) => DropdownMenuItem<String>(value: o, child: Text(o))),
+              ..._typeOptions.map(
+                  (o) => DropdownMenuItem<String>(value: o, child: Text(o))),
             ],
             onChanged: isDisabled
                 ? null
@@ -1348,12 +1370,12 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           isExpanded: true,
           items: items,
           onChanged: isDisabled
-                ? null
-                : (value) {
-                    controller.text = value ?? '';
-                    _clearFieldValidationError(field);
-                    if (widget.existingData == null) onFieldChanged();
-                  },
+              ? null
+              : (value) {
+                  controller.text = value ?? '';
+                  _clearFieldValidationError(field);
+                  if (widget.existingData == null) onFieldChanged();
+                },
           validator: isDisabled || !isRequired
               ? null
               : (value) =>
@@ -1897,8 +1919,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Les champs de l\'objet sont désactivés.\n'
-                    'Seuls le tracé GPS et la raison sont enregistrés.',
+                    'Les champs obligatoires sont neutralises.\n'
+                    'Les valeurs deja saisies et les photos sont conservees.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -1924,10 +1946,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
             }
             if (v) {
               _hasAnomalie = false;
-              _typeAnomalie = null;
-              for (final field in _anomalieDetailFields()) {
-                _controllers[field]?.clear();
-              }
             }
           }),
           contentPadding: EdgeInsets.zero,
@@ -2153,8 +2171,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                           Expanded(
                             flex: 2,
                             child: ElevatedButton.icon(
-                              onPressed:
-                                  (_isSaving || _isLoadingFields) ? null : _save,
+                              onPressed: (_isSaving || _isLoadingFields)
+                                  ? null
+                                  : _save,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _isObjetIncomplet
                                     ? Colors.orange

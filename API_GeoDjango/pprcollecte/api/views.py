@@ -3428,28 +3428,34 @@ def reference_planches_overlay_view(request):
 
 @api_view(['GET'])
 def reference_fond_plan_overlay_view(request):
+    user_id = _resolve_request_user_id(request)
+    zone_filter_sql, zone_filter_params = _user_zone_geom_filter_sql(
+        'ST_CurveToLine(public.fond_plan.geom)', user_id,
+    )
+    extra_where = f"\n              AND {zone_filter_sql}" if zone_filter_sql else ""
     return _paged_reference_overlay_response(
         request,
-        count_sql="""
+        count_sql=f"""
             SELECT COUNT(*)
             FROM public.fond_plan
-            WHERE geom IS NOT NULL
-              AND coalesce(visible, 1) = 1
+            WHERE public.fond_plan.geom IS NOT NULL
+              AND coalesce(public.fond_plan.visible, 1) = 1{extra_where}
         """,
-        data_sql="""
+        data_sql=f"""
             SELECT
-                fid,
-                layer,
-                color,
-                linewidth,
-                ST_AsGeoJSON(ST_Force2D(ST_CurveToLine(geom)), 6)
+                public.fond_plan.fid,
+                public.fond_plan.layer,
+                public.fond_plan.color,
+                public.fond_plan.linewidth,
+                ST_AsGeoJSON(ST_Force2D(ST_CurveToLine(public.fond_plan.geom)), 6)
                     AS geometry_geojson
             FROM public.fond_plan
-            WHERE geom IS NOT NULL
-              AND coalesce(visible, 1) = 1
-            ORDER BY layer NULLS LAST, fid
+            WHERE public.fond_plan.geom IS NOT NULL
+              AND coalesce(public.fond_plan.visible, 1) = 1{extra_where}
+            ORDER BY public.fond_plan.layer NULLS LAST, public.fond_plan.fid
             LIMIT %s OFFSET %s
         """,
+        params=zone_filter_params,
     )
 
 

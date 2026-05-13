@@ -60,6 +60,26 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
       final remaining = result.errors.length - errorsToShow.length;
       final warningsToShow = result.warnings.take(10).toList();
       final remainingWarnings = result.warnings.length - warningsToShow.length;
+      final syncLog = result.syncSessionLog;
+      final syncSessionUuid = result.syncSessionUuid;
+      String? syncJournalText;
+      if (syncLog != null) {
+        final status = syncLog['statut']?.toString().trim();
+        final receivedItems = syncLog['received_items'] ?? 0;
+        final totalItems = syncLog['total_items'] ?? 0;
+        final receivedAttachments = syncLog['received_attachments'] ?? 0;
+        final totalAttachments = syncLog['total_attachments'] ?? 0;
+        final failedItems = syncLog['failed_items'] ?? 0;
+        syncJournalText =
+            'Journal serveur : ${status?.isNotEmpty == true ? status : "statut inconnu"} '
+            '· données $receivedItems/$totalItems '
+            '· photos $receivedAttachments/$totalAttachments'
+            '${failedItems == 0 ? "" : " · erreurs $failedItems"}';
+      } else if (syncSessionUuid != null && syncSessionUuid.isNotEmpty) {
+        syncJournalText =
+            'Journal serveur : ${result.syncSessionStatus ?? "vérification indisponible"} '
+            '· session $syncSessionUuid';
+      }
 
       bool isConnectionError(String error) {
         final lower = error.toLowerCase();
@@ -218,6 +238,21 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                     ),
                   ),
                 ),
+              if (syncJournalText != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Text(
+                    syncJournalText,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
               if (hasConnectionErrors && result.successCount > 0) ...[
                 const SizedBox(height: 10),
                 Container(
@@ -416,7 +451,7 @@ void _showDownloadResultImpl(
       return AlertDialog(
         title: Text(
           alreadyDownloaded
-              ? 'Aucune nouvelle donnée à télécharger'
+              ? 'Données déjà à jour'
               : nothingAvailable
                   ? 'Aucune donnée disponible'
                   : result.interrupted
@@ -435,11 +470,13 @@ void _showDownloadResultImpl(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (alreadyDownloaded) ...[
-                const Text('Toutes les données sont déjà à jour.'),
+                const Text(
+                  'Toutes les données des zones affectées à votre compte sont déjà téléchargées.',
+                ),
               ],
               if (nothingAvailable) ...[
                 const Text(
-                  "Aucune donnée n'a été trouvée pour votre compte.",
+                  "Aucune donnée n'a été trouvée dans les zones affectées à votre compte.",
                 ),
               ],
               if (result.interrupted) ...[
@@ -462,7 +499,8 @@ void _showDownloadResultImpl(
                   result.successCount > 0)
                 Text('${result.successCount} nouvelles données téléchargées'),
               if (!nothingAvailable && result.skippedCount > 0)
-                Text('${result.skippedCount} données ignorées (format invalide)'),
+                Text(
+                    '${result.skippedCount} données ignorées (format invalide)'),
               if (result.failedCount > 0)
                 Text(
                   networkOnlyFailure
