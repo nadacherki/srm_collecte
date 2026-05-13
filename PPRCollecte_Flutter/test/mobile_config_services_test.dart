@@ -101,6 +101,22 @@ void main() {
       expect(field.valeurParDefaut, '20');
       expect(field.numericMin, 15);
       expect(field.numericMax, 400);
+
+      final optionalField = AttributConfigMobileField.fromMap({
+        'id': 11,
+        'nom_metier': 'ep',
+        'nom_table': 'ep_brc_pt',
+        'nom_champ': 'observation',
+        'type_champ': 'text',
+        'primary_key': false,
+        'foreign_key': false,
+        'ordre': 4,
+        'titre_app': 'Observation',
+        'visible': true,
+        'contraintes': '',
+        'nullable': true,
+      });
+      expect(optionalField.isRequired, isFalse);
     });
 
     test('liste_choix code is stored value, label is mobile alias, ordered',

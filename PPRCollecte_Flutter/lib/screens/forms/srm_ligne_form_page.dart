@@ -83,6 +83,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   List<String> _requiredFields = [];
   Map<String, AttributConfigMobileField> _attributConfigByField = {};
   Map<String, List<SrmFieldChoice>> _choicesByField = {};
+  Map<String, String> _fieldValidationErrors = {};
   // True tant que la config dynamique des champs n'est pas chargee :
   // evite le flash entre les SrmConfig en dur et la config serveur.
   bool _isLoadingFields = true;
@@ -140,6 +141,38 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   bool _isAnomalieManagedField(String field) =>
       _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+
+  bool _isObservationField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'observation' ||
+        normalized == 'ep_observation' ||
+        normalized == 'ass_observation' ||
+        normalized.endsWith('_observation');
+  }
+
+  List<String> _anomalieEvidenceFields() {
+    final candidates = <String>{
+      ..._anomalieDetailFields(),
+      ..._fields.where(_isObservationField),
+      ..._controllers.keys.where(_isObservationField),
+      ..._attributConfigByField.keys.where(_isObservationField),
+    };
+    return candidates
+        .where((field) =>
+            !_isAnomalieFlagField(field) && _isConfiguredVisibleField(field))
+        .toList()
+      ..sort();
+  }
+
+  String? _validateAnomalieEvidence() {
+    if (!_hasAnomalie || _isObjetIncomplet) return null;
+    final fields = _anomalieEvidenceFields();
+    if (fields.isEmpty) return null;
+    for (final field in fields) {
+      if ((_controllers[field]?.text.trim() ?? '').isNotEmpty) return null;
+    }
+    return 'Veuillez renseigner le type, l\'observation ou le detail de l\'anomalie';
+  }
 
   bool _isConfiguredVisibleField(String field) {
     final config = _attributConfigByField[field.toLowerCase()];
@@ -748,14 +781,79 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
   }
 
+  void _clearFieldValidationError(String field) {
+    if (!_fieldValidationErrors.containsKey(field)) return;
+    setState(() {
+      _fieldValidationErrors = Map<String, String>.from(_fieldValidationErrors)
+        ..remove(field);
+    });
+  }
+
+  Map<String, String> _collectFieldValidationErrors() {
+    if (_isObjetIncomplet || _isLocked) return const {};
+    final errors = <String, String>{};
+    for (final field in _fields) {
+      if (_isWorkflowManagedField(field)) continue;
+      final error = _validateField(field, _controllers[field]?.text);
+      if (error != null) {
+        errors[field] = error;
+      }
+    }
+    return errors;
+  }
+
+  void _showValidationSummary(Map<String, String> errors) {
+    if (!mounted || errors.isEmpty) return;
+    final labels = errors.keys.map(_fieldLabel).take(4).join(', ');
+    final remaining = errors.length - errors.keys.take(4).length;
+    final suffix = remaining > 0 ? ' (+$remaining)' : '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Champs obligatoires manquants : $labels$suffix'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  bool _validateBeforeSave() {
+    if (_isLoadingFields || _formKey.currentState == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Formulaire en cours de préparation. Réessayez.'),
+        backgroundColor: Colors.orange,
+      ));
+      return false;
+    }
+
+    FocusScope.of(context).unfocus();
+    final errors = _collectFieldValidationErrors();
+    setState(() {
+      _fieldValidationErrors = errors;
+    });
+    final mountedFieldsValid = _formKey.currentState?.validate() ?? true;
+    if (errors.isNotEmpty || !mountedFieldsValid) {
+      _showValidationSummary(errors);
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _save() async {
-    if (_isLocked) return;
-    if (!_isObjetIncomplet && !_formKey.currentState!.validate()) return;
+    if (_isLocked || _isSaving) return;
+    if (!_isObjetIncomplet && !_validateBeforeSave()) return;
     if (_isObjetIncomplet && _raisonIncomplet == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text(
           'Veuillez sélectionner une raison pour l\'objet incomplet',
         ),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    final anomalieEvidenceError = _validateAnomalieEvidence();
+    if (anomalieEvidenceError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(anomalieEvidenceError),
         backgroundColor: Colors.orange,
       ));
       return;
@@ -838,6 +936,26 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           debugPrint('id_commune via geom ignore: $e');
         }
       }
+
+      // Champs invisibles : remplissage automatique depuis valeur_par_defaut
+      // configurée côté serveur (n'écrase jamais une valeur déjà résolue).
+      // Pour les invisibles NOT NULL sans valeur_par_defaut, injection d'une
+      // sentinelle typée pour éviter une violation NOT NULL côté serveur.
+      for (final entry in _attributConfigByField.entries) {
+        final field = entry.key;
+        final config = entry.value;
+        if (config.visible) continue;
+        if (config.primaryKey) continue;
+        if (field.toLowerCase() == 'geom') continue;
+        if (data.containsKey(field) && data[field] != null) continue;
+        final defaultValue = config.valeurParDefaut.trim();
+        if (defaultValue.isNotEmpty) {
+          data[field] = _normalizeFieldValue(field, defaultValue);
+        } else if (!config.nullable) {
+          data[field] = config.fallbackValueForInvisibleNotNull;
+        }
+      }
+
       late final int localId;
       if (widget.existingData != null && widget.existingData!['id'] != null) {
         final existingId = widget.existingData!['id'] is int
@@ -1089,6 +1207,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     final shouldFade = isDisabled && !isCoordField && !isDistanceField;
     final isRequired = !isCoordField &&
         !isDistanceField &&
+        !_hasAnomalie &&
         (_requiredFields.contains(field) || rule.required);
     final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
 
@@ -1111,14 +1230,23 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
           child: DropdownButtonFormField<String>(
             initialValue: controller.text.isEmpty ? null : controller.text,
-            decoration: _deco(label, required: isRequired && !isDisabled),
+            decoration: _deco(
+              label,
+              required: isRequired && !isDisabled,
+              errorText: _fieldValidationErrors[field],
+            ),
             isExpanded: true,
             items: [
               _kEmptyChoiceMenuItem,
               ..._typeOptions
                   .map((o) => DropdownMenuItem<String>(value: o, child: Text(o))),
             ],
-            onChanged: isDisabled ? null : (v) => controller.text = v ?? '',
+            onChanged: isDisabled
+                ? null
+                : (v) {
+                    controller.text = v ?? '';
+                    _clearFieldValidationError(field);
+                  },
             validator: isDisabled || !isRequired
                 ? null
                 : (v) => (v == null || v.isEmpty) ? 'Champ requis' : null,
@@ -1150,8 +1278,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
         child: TextFormField(
           controller: controller,
-          decoration:
-              _deco(label, required: isRequired && !isDisabled).copyWith(
+          decoration: _deco(
+            label,
+            required: isRequired && !isDisabled,
+            errorText: _fieldValidationErrors[field],
+          ).copyWith(
             filled: isDisabled,
             fillColor: isDisabled ? Colors.grey.shade50 : null,
           ),
@@ -1160,6 +1291,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           maxLength: rule.maxLength,
           inputFormatters: _inputFormatters(rule),
           readOnly: isDisabled,
+          onChanged:
+              isDisabled ? null : (_) => _clearFieldValidationError(field),
           validator:
               isDisabled ? null : (value) => _validateField(field, value),
         ),
@@ -1204,19 +1337,23 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         opacity: shouldFade ? (_isLocked ? 0.55 : 0.35) : 1.0,
         child: DropdownButtonFormField<String>(
           initialValue: currentValue.isEmpty ? null : currentValue,
-          decoration:
-              _deco(label, required: isRequired && !isDisabled).copyWith(
+          decoration: _deco(
+            label,
+            required: isRequired && !isDisabled,
+            errorText: _fieldValidationErrors[field],
+          ).copyWith(
             filled: isDisabled,
             fillColor: isDisabled ? Colors.grey.shade50 : null,
           ),
           isExpanded: true,
           items: items,
           onChanged: isDisabled
-              ? null
-              : (value) {
-                  controller.text = value ?? '';
-                  if (widget.existingData == null) onFieldChanged();
-                },
+                ? null
+                : (value) {
+                    controller.text = value ?? '';
+                    _clearFieldValidationError(field);
+                    if (widget.existingData == null) onFieldChanged();
+                  },
           validator: isDisabled || !isRequired
               ? null
               : (value) =>
@@ -1226,7 +1363,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     );
   }
 
-  InputDecoration _deco(String label, {bool required = false}) =>
+  InputDecoration _deco(
+    String label, {
+    bool required = false,
+    String? errorText,
+  }) =>
       InputDecoration(
         label: required
             ? RichText(
@@ -1251,6 +1392,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         isDense: true,
+        errorText: errorText,
       );
 
   SrmFieldRule _fieldRule(String field) {
@@ -1416,6 +1558,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     final rule = _fieldRule(field);
 
     if (normalized.isEmpty) {
+      if (_hasAnomalie && !_isObjetIncomplet) return null;
       return rule.required || _requiredFields.contains(field)
           ? 'Champ requis'
           : null;
@@ -1668,7 +1811,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         label: _fieldLabel(field),
         controller: controller,
         choices: choices,
-        isRequired: _attributConfigByField[field]?.isRequired ?? false,
+        isRequired: false,
         isDisabled: _isLocked,
         shouldFade: _isLocked,
       );
@@ -1687,13 +1830,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         validator: _isLocked
             ? null
             : (value) {
-                final config = _attributConfigByField[field];
-                if (_hasAnomalie &&
-                    config != null &&
-                    config.isRequired &&
-                    (value ?? '').trim().isEmpty) {
-                  return 'Champ requis';
-                }
                 return _validateField(field, value);
               },
       ),
@@ -1918,7 +2054,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
               IconButton(
                 icon: const Icon(Icons.check),
                 tooltip: 'Enregistrer',
-                onPressed: _save,
+                onPressed: (_isLoadingFields || _isLocked) ? null : _save,
               ),
           ],
         ),
@@ -2017,7 +2153,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                           Expanded(
                             flex: 2,
                             child: ElevatedButton.icon(
-                              onPressed: _isSaving ? null : _save,
+                              onPressed:
+                                  (_isSaving || _isLoadingFields) ? null : _save,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _isObjetIncomplet
                                     ? Colors.orange

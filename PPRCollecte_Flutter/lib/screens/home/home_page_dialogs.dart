@@ -462,7 +462,7 @@ void _showDownloadResultImpl(
                   result.successCount > 0)
                 Text('${result.successCount} nouvelles données téléchargées'),
               if (!nothingAvailable && result.skippedCount > 0)
-                Text('${result.skippedCount} données déjà à jour'),
+                Text('${result.skippedCount} données ignorées (format invalide)'),
               if (result.failedCount > 0)
                 Text(
                   networkOnlyFailure

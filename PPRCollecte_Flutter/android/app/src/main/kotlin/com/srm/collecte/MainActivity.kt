@@ -35,6 +35,9 @@ class MainActivity: FlutterActivity() {
     private var lastLocationPayload: Map<String, Any?>? = null
     private var currentBluetoothName: String? = null
     private var currentBluetoothAddress: String? = null
+    private var lastGstAccuracy: Float? = null
+    private var lastGstAccuracyAtMs: Long = 0L
+    private val gstFreshnessWindowMs: Long = 5_000L
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -481,11 +484,36 @@ class MainActivity: FlutterActivity() {
         val parts = body.split(",")
         if (parts.isEmpty()) return null
         val type = parts[0].uppercase(Locale.US)
+        if (type.endsWith("GST")) {
+            cacheGstAccuracy(parts)
+            return null
+        }
         return when {
             type.endsWith("GGA") -> parseGga(parts)
             type.endsWith("RMC") -> parseRmc(parts)
             else -> null
         }
+    }
+
+    private fun cacheGstAccuracy(parts: List<String>) {
+        if (parts.size < 9) return
+        val sigmaLat = parts[6].toFloatOrNull() ?: return
+        val sigmaLon = parts[7].toFloatOrNull() ?: return
+        val radial = kotlin.math.sqrt(
+            (sigmaLat * sigmaLat + sigmaLon * sigmaLon).toDouble()
+        ).toFloat()
+        if (radial.isNaN() || radial <= 0f) return
+        lastGstAccuracy = radial
+        lastGstAccuracyAtMs = System.currentTimeMillis()
+    }
+
+    private fun resolveAccuracy(hdop: Float?): Float {
+        val gstAge = System.currentTimeMillis() - lastGstAccuracyAtMs
+        val cached = lastGstAccuracy
+        if (cached != null && gstAge in 0..gstFreshnessWindowMs) {
+            return cached.coerceAtLeast(0.001f)
+        }
+        return ((hdop ?: 0.2f) * 2.0f).coerceAtLeast(0.2f)
     }
 
     private fun parseGga(parts: List<String>): ParsedNmeaLocation? {
@@ -503,7 +531,7 @@ class MainActivity: FlutterActivity() {
             latitude = latitude,
             longitude = longitude,
             altitude = altitude,
-            accuracy = ((hdop ?: 0.2f) * 2.0f).coerceAtLeast(0.2f),
+            accuracy = resolveAccuracy(hdop),
             speed = null,
             bearing = null,
             fixQuality = fixQuality,

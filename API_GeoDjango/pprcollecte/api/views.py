@@ -14,7 +14,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.gis.geos import GEOSGeometry, LineString, Point
-from django.db import connection, transaction
+from django.db import DatabaseError, connection, transaction
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -259,6 +259,104 @@ def _mobile_table_columns(schema_name, table_name):
             [schema_name, table_name],
         )
         return [row[0] for row in cursor.fetchall()]
+
+
+def _mobile_constraint_record(schema_name, table_name, constraint_name):
+    if not constraint_name:
+        return None
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT c.contype, pg_get_constraintdef(c.oid)
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE n.nspname = %s
+              AND t.relname = %s
+              AND c.conname = %s
+            LIMIT 1
+            """,
+            [schema_name, table_name, constraint_name],
+        )
+        row = cursor.fetchone()
+    return row
+
+
+def _mobile_required_constraint_column(schema_name, table_name, constraint_name):
+    row = _mobile_constraint_record(schema_name, table_name, constraint_name)
+    if not row:
+        return None
+    constraint_type, definition = row
+    if constraint_type != 'c':
+        return None
+    definition = definition or ''
+    match = re.search(r'\(?\b"?([A-Za-z_][A-Za-z0-9_]*)"?\s+IS\s+NOT\s+NULL\b', definition)
+    return match.group(1) if match else None
+
+
+def _mobile_write_error_detail(exc, schema_name, table_name):
+    message = str(exc)
+    cause = getattr(exc, '__cause__', None)
+    diag = getattr(cause, 'diag', None)
+    constraint_name = (getattr(diag, 'constraint_name', None) or '').strip()
+
+    constraint_type = None
+    if constraint_name:
+        record = _mobile_constraint_record(schema_name, table_name, constraint_name)
+        constraint_type = record[0] if record else None
+
+    check_match = re.search(r'violates check constraint "([^"]+)"', message)
+    check_constraint = (
+        constraint_name
+        if constraint_type == 'c'
+        else (check_match.group(1) if check_match else '')
+    )
+    if check_constraint:
+        column = _mobile_required_constraint_column(
+            schema_name,
+            table_name,
+            check_constraint,
+        )
+        if column:
+            return (
+                f'Champ obligatoire manquant pour {schema_name}.{table_name}: '
+                f'{column}. Completez le formulaire, ou signalez une anomalie '
+                'si l objet ne peut pas etre renseigne normalement.'
+            )
+        return f'Ecriture serveur rejetee par une contrainte de {schema_name}.{table_name}.'
+
+    notnull_match = re.search(
+        r'null value in column "([^"]+)"[^"]*violates not-null constraint',
+        message,
+    )
+    if notnull_match:
+        return (
+            f'Champ obligatoire manquant pour {schema_name}.{table_name}: '
+            f'{notnull_match.group(1)}. Completez le formulaire, ou signalez '
+            'une anomalie si l objet ne peut pas etre renseigne normalement.'
+        )
+
+    fk_match = re.search(r'violates foreign key constraint "([^"]+)"', message)
+    if fk_match or constraint_type == 'f':
+        return (
+            f'Reference invalide pour {schema_name}.{table_name}: '
+            f'{constraint_name or fk_match.group(1)}.'
+        )
+
+    unique_match = re.search(r'violates unique constraint "([^"]+)"', message)
+    if unique_match or constraint_type == 'u':
+        return (
+            f'Objet deja present sur le serveur pour {schema_name}.{table_name}: '
+            f'{constraint_name or unique_match.group(1)}.'
+        )
+
+    print(
+        f'[SRM-MOBILE-WRITE-ERR] {schema_name}.{table_name} '
+        f'constraint_name={constraint_name!r} constraint_type={constraint_type!r} '
+        f'message={message!r}',
+        flush=True,
+    )
+    return f'Ecriture serveur impossible pour {schema_name}.{table_name}.'
 
 
 def _mobile_pk_column(columns):
@@ -1145,6 +1243,21 @@ def mobile_srm_table_view(request, endpoint):
         if 'geom' in columns:
             where_parts.append(pg_sql.SQL('geom IS NOT NULL'))
 
+            # Restriction par affectation : si X-User-Id est present, on ne
+            # renvoie que les objets intersectant les zones actives de l'agent.
+            # La reference geom doit etre QUALIFIEE pour eviter que PostgreSQL
+            # la resolve sur public.zone.geom dans la sous-requete EXISTS.
+            user_id = _resolve_request_user_id(request)
+            qualified_geom_expr = (
+                f'"{schema_name}"."{table_name}"."geom"'
+            )
+            zone_filter_sql, zone_filter_params = _user_zone_geom_filter_sql(
+                qualified_geom_expr, user_id,
+            )
+            if zone_filter_sql is not None:
+                where_parts.append(pg_sql.SQL(zone_filter_sql))
+                params.extend(zone_filter_params)
+
         where_sql = (
             pg_sql.SQL(' WHERE ') + pg_sql.SQL(' AND ').join(where_parts)
             if where_parts
@@ -1206,6 +1319,8 @@ def mobile_srm_table_view(request, endpoint):
         )
 
     geometry_value = writable.pop('geom', None)
+    if isinstance(geometry_value, (dict, list)):
+        geometry_value = json.dumps(geometry_value)
     sync_session_uuid, sync_client_item_uuid = _extract_sync_meta(request.data)
     audit_user_id = _mobile_audit_user_id(writable, payload, request.data)
 
@@ -1230,70 +1345,76 @@ def mobile_srm_table_view(request, endpoint):
             existing = cursor.fetchone()
             existing_pk = existing[0] if existing else None
 
-    with transaction.atomic():
-        _set_local_audit_context(
-            user_id=audit_user_id,
-            source=_history_source_for_request(
-                request,
-                sync_session_uuid=sync_session_uuid,
-                default='mobile',
-            ),
-            action='update' if existing_pk is not None else 'insert',
-        )
-        with connection.cursor() as cursor:
-            if existing_pk is not None:
-                assignments = [
-                    pg_sql.SQL('{} = %s').format(pg_sql.Identifier(column))
-                    for column in writable
-                ]
-                params = list(writable.values())
-                if geometry_value is not None:
-                    assignments.append(
-                        pg_sql.SQL(
-                            '{} = ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)'
-                        ).format(pg_sql.Identifier('geom'))
+    try:
+        with transaction.atomic():
+            _set_local_audit_context(
+                user_id=audit_user_id,
+                source=_history_source_for_request(
+                    request,
+                    sync_session_uuid=sync_session_uuid,
+                    default='mobile',
+                ),
+                action='update' if existing_pk is not None else 'insert',
+            )
+            with connection.cursor() as cursor:
+                if existing_pk is not None:
+                    assignments = [
+                        pg_sql.SQL('{} = %s').format(pg_sql.Identifier(column))
+                        for column in writable
+                    ]
+                    params = list(writable.values())
+                    if geometry_value is not None:
+                        assignments.append(
+                            pg_sql.SQL(
+                                '{} = ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)'
+                            ).format(pg_sql.Identifier('geom'))
+                        )
+                        params.append(geometry_value)
+                    params.append(existing_pk)
+                    update_query = pg_sql.SQL(
+                        'UPDATE {} SET {} WHERE {} = %s RETURNING {}'
+                    ).format(
+                        qualified,
+                        pg_sql.SQL(', ').join(assignments),
+                        pg_sql.Identifier(pk_column),
+                        pg_sql.Identifier(pk_column),
                     )
-                    params.append(geometry_value)
-                params.append(existing_pk)
-                update_query = pg_sql.SQL(
-                    'UPDATE {} SET {} WHERE {} = %s RETURNING {}'
-                ).format(
-                    qualified,
-                    pg_sql.SQL(', ').join(assignments),
-                    pg_sql.Identifier(pk_column),
-                    pg_sql.Identifier(pk_column),
-                )
-                cursor.execute(update_query, params)
-                pk_value = cursor.fetchone()[0]
-            else:
-                insert_columns = [pg_sql.Identifier(column) for column in writable]
-                placeholders = [pg_sql.SQL('%s') for _ in writable]
-                params = list(writable.values())
-                if geometry_value is not None:
-                    insert_columns.append(pg_sql.Identifier('geom'))
-                    placeholders.append(
-                        pg_sql.SQL('ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)')
+                    cursor.execute(update_query, params)
+                    pk_value = cursor.fetchone()[0]
+                else:
+                    insert_columns = [pg_sql.Identifier(column) for column in writable]
+                    placeholders = [pg_sql.SQL('%s') for _ in writable]
+                    params = list(writable.values())
+                    if geometry_value is not None:
+                        insert_columns.append(pg_sql.Identifier('geom'))
+                        placeholders.append(
+                            pg_sql.SQL('ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)')
+                        )
+                        params.append(geometry_value)
+
+                    insert_query = pg_sql.SQL(
+                        'INSERT INTO {} ({}) VALUES ({}) RETURNING {}'
+                    ).format(
+                        qualified,
+                        pg_sql.SQL(', ').join(insert_columns),
+                        pg_sql.SQL(', ').join(placeholders),
+                        pg_sql.Identifier(pk_column),
                     )
-                    params.append(geometry_value)
+                    cursor.execute(insert_query, params)
+                    pk_value = cursor.fetchone()[0]
 
-                insert_query = pg_sql.SQL(
-                    'INSERT INTO {} ({}) VALUES ({}) RETURNING {}'
-                ).format(
-                    qualified,
-                    pg_sql.SQL(', ').join(insert_columns),
-                    pg_sql.SQL(', ').join(placeholders),
-                    pg_sql.Identifier(pk_column),
-                )
-                cursor.execute(insert_query, params)
-                pk_value = cursor.fetchone()[0]
-
-        row = _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value)
-        _upsert_intervention_anomalie_for_mobile_row(
-            schema_name=schema_name,
-            table_name=table_name,
-            pk_value=pk_value,
-            row=row or {},
-            id_user=audit_user_id,
+            row = _mobile_fetch_row(schema_name, table_name, columns, pk_column, pk_value)
+            _upsert_intervention_anomalie_for_mobile_row(
+                schema_name=schema_name,
+                table_name=table_name,
+                pk_value=pk_value,
+                row=row or {},
+                id_user=audit_user_id,
+            )
+    except DatabaseError as exc:
+        return Response(
+            {'detail': _mobile_write_error_detail(exc, schema_name, table_name)},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     response_uuid = None
@@ -2389,6 +2510,58 @@ def _parse_bool_value(raw_value, default=False):
     return str(raw_value).strip().lower() not in {'0', 'false', 'no', 'off'}
 
 
+def _resolve_request_user_id(request):
+    """Lit le header X-User-Id pour identifier l'agent appelant.
+
+    Retourne un int > 0 ou None (header absent / invalide). Quand None
+    est retourne, les vues ne doivent PAS filtrer par zone (compat avec
+    audits, scripts admin, et anciens clients qui n'envoient pas le header).
+    """
+    raw = request.META.get('HTTP_X_USER_ID')
+    if raw is None:
+        return None
+    raw = str(raw).strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _user_zone_geom_filter_sql(geom_expr, user_id):
+    """Fragment SQL pour restreindre ``geom_expr`` aux zones actives de l'agent.
+
+    ``geom_expr`` DOIT etre une reference QUALIFIEE (avec nom de table ou
+    alias, ex. ``public.planche.geom`` ou ``"ep"."ep_vanne".geom``). Sans
+    qualification, PostgreSQL resout l'identifiant ``geom`` sur la zone
+    interne (parce que ``public.zone`` a aussi une colonne ``geom``), donc
+    ``ST_Intersects`` compare la zone a elle-meme et le filtre devient
+    permissif. La qualification force la correlation avec la table externe.
+
+    Renvoie ``(sql_fragment, params)``. ``sql_fragment`` vaut ``None`` si
+    ``user_id`` est ``None`` (aucun filtrage) ; sinon c'est un ``EXISTS``
+    parametre qui matche les lignes intersectant l'union spatiale des zones
+    actives de l'agent.
+    """
+    if user_id is None:
+        return None, []
+    sql_fragment = (
+        f"EXISTS (\n"
+        f"    SELECT 1\n"
+        f"    FROM public.zone AS __srm_zone\n"
+        f"    JOIN public.zone_utilisateur AS __srm_zu\n"
+        f"      ON __srm_zu.id_zone = __srm_zone.id_zone\n"
+        f"    WHERE __srm_zu.id_user = %s\n"
+        f"      AND COALESCE(__srm_zu.actif, false) = true\n"
+        f"      AND __srm_zone.geom IS NOT NULL\n"
+        f"      AND ST_Intersects({geom_expr}, __srm_zone.geom)\n"
+        f")"
+    )
+    return sql_fragment, [user_id]
+
+
 def _request_param(request, name):
     request_data = getattr(request, 'data', None)
     value = request_data.get(name) if request_data is not None and hasattr(request_data, 'get') else None
@@ -2730,23 +2903,29 @@ def _paged_reference_overlay_response(request, *, count_sql, data_sql, params=No
 
 @api_view(['GET'])
 def reference_planches_overlay_view(request):
+    user_id = _resolve_request_user_id(request)
+    zone_filter_sql, zone_filter_params = _user_zone_geom_filter_sql(
+        'public.planche.geom', user_id,
+    )
+    extra_where = f"\n              AND {zone_filter_sql}" if zone_filter_sql else ""
     return _paged_reference_overlay_response(
         request,
-        count_sql="""
+        count_sql=f"""
             SELECT COUNT(*)
             FROM public.planche
-            WHERE geom IS NOT NULL
+            WHERE public.planche.geom IS NOT NULL{extra_where}
         """,
-        data_sql="""
+        data_sql=f"""
             SELECT
-                id,
-                numero,
-                ST_AsGeoJSON(ST_Force2D(geom), 6) AS geometry_geojson
+                public.planche.id,
+                public.planche.numero,
+                ST_AsGeoJSON(ST_Force2D(public.planche.geom), 6) AS geometry_geojson
             FROM public.planche
-            WHERE geom IS NOT NULL
-            ORDER BY numero NULLS LAST, id NULLS LAST
+            WHERE public.planche.geom IS NOT NULL{extra_where}
+            ORDER BY public.planche.numero NULLS LAST, public.planche.id NULLS LAST
             LIMIT %s OFFSET %s
         """,
+        params=zone_filter_params,
     )
 
 
@@ -3300,6 +3479,16 @@ class ZoneViewSet(viewsets.ReadOnlyModelViewSet):
         etat = self.request.query_params.get('etat')
         if etat:
             qs = qs.filter(etat=etat)
+        # Filtrage par affectation : si le header X-User-Id est present,
+        # on ne renvoie que les zones actives de cet agent. Sans header
+        # (audits, scripts admin), on renvoie toutes les zones.
+        user_id = _resolve_request_user_id(self.request)
+        if user_id is not None:
+            assigned_zone_ids = ZoneUtilisateur.objects.filter(
+                id_user=user_id,
+                actif=True,
+            ).values_list('id_zone', flat=True)
+            qs = qs.filter(id_zone__in=assigned_zone_ids)
         return qs
 
 
@@ -3685,7 +3874,6 @@ def attribut_config_mobile_view(request):
             COALESCE(visible, false) AS visible,
             contraintes,
             COALESCE(nullable, true) AS nullable,
-            COALESCE(obligatoire, true) AS obligatoire,
             valeur_par_defaut,
             valeur_min,
             valeur_max,
@@ -3707,7 +3895,6 @@ def attribut_config_mobile_view(request):
         'visible',
         'contraintes',
         'nullable',
-        'obligatoire',
         'valeur_par_defaut',
         'valeur_min',
         'valeur_max',
@@ -3733,7 +3920,6 @@ def _fetch_attribut_config_mobile_row(attr_id):
         'visible',
         'contraintes',
         'nullable',
-        'obligatoire',
         'valeur_par_defaut',
         'valeur_min',
         'valeur_max',
@@ -3755,7 +3941,6 @@ def _fetch_attribut_config_mobile_row(attr_id):
                 COALESCE(visible, false) AS visible,
                 contraintes,
                 COALESCE(nullable, true) AS nullable,
-                COALESCE(obligatoire, true) AS obligatoire,
                 valeur_par_defaut,
                 valeur_min,
                 valeur_max,

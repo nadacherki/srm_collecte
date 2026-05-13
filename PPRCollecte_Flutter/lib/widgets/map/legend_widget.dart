@@ -196,6 +196,9 @@ class _LegendWidgetState extends State<LegendWidget> {
       .where((entry) => entry.key != _readOnlyRegardMiroirTable)
       .fold(0, (sum, entry) => sum + entry.value);
 
+  int get _zoneOverlayCount =>
+      widget.referenceOverlayCounts['overlay_zones'] ?? 0;
+
   bool _isMetierFullyChecked(String metier) {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
       final t = SrmConfig.getTableName(metier, e);
@@ -299,11 +302,25 @@ class _LegendWidgetState extends State<LegendWidget> {
               color: Colors.blue.shade700,
             ),
             const SizedBox(width: 8),
-            const Text('Légende',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Flexible(
+              child: Text(
+                'Légende',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ),
             if (_totalObjects > 0) ...[
               const SizedBox(width: 6),
               _badge(_totalObjects, color: Colors.grey.shade600),
+            ],
+            if (_zoneOverlayCount > 0) ...[
+              const SizedBox(width: 4),
+              _badge(
+                _zoneOverlayCount,
+                color: const Color(0xFF1565C0),
+                icon: Icons.crop_square,
+              ),
             ],
             // Badge anomalie toujours visible dans le header si des anomalies existent
             if (_totalIncompletes > 0) ...[

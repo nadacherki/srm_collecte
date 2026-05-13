@@ -79,6 +79,18 @@ def collect_physical_columns(schemas: list[str]) -> dict[tuple[str, str], dict[s
             a.attname AS column_name,
             pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
             a.attnotnull AS not_null,
+            (
+                a.attnotnull OR EXISTS (
+                    SELECT 1
+                    FROM pg_catalog.pg_constraint con
+                    WHERE con.conrelid = c.oid
+                      AND con.contype = 'c'
+                      AND (
+                        con.conname = ('srm_nn_' || substr(md5(a.attname), 1, 16))
+                        OR con.conname = ('srm_req_' || substr(md5(a.attname), 1, 16))
+                      )
+                )
+            ) AS not_null_enforced,
             a.attnum AS ordinal_position
         FROM pg_catalog.pg_attribute a
         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
@@ -242,7 +254,9 @@ def build_audit(schemas: list[str]) -> dict[str, Any]:
                     attribute_id=attr.get("id"),
                 )
 
-            physical_required = bool_from_db(physical_row["not_null"])
+            physical_required = bool_from_db(
+                physical_row.get("not_null_enforced", physical_row["not_null"])
+            )
             configured_nullable = bool_from_db(attr.get("nullable"))
             if configured_nullable is not None and physical_required == configured_nullable:
                 add_issue(

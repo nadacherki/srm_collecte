@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
+import 'attribut_config_mobile_service.dart';
 import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
 import 'photo_reference_service.dart';
@@ -76,6 +77,15 @@ class SyncService {
   final Map<String, int> _serverIdsByLocalObjectKey = {};
   static const String _downloadInterruptedMessage =
       'Connexion interrompue. Vérifiez Internet puis relancez pour reprendre.';
+
+  /// Cle app_metadata pour persister les lignes locales bloquees au sync par
+  /// le pre-flight (champ NOT NULL manquant). Le dashboard mobile les expose
+  /// pour permettre a l'agent de revenir les completer.
+  static const String preflightSkipsKey = 'sync_preflight_skips_v1';
+
+  /// Accumulateur reset au debut de chaque cycle de sync ; persiste en fin de
+  /// cycle. Une entree = {table, endpoint, uuid, missing, metier, entity}.
+  final List<Map<String, dynamic>> _currentSyncPreflightSkips = [];
 
   Future<SyncResult> downloadAllData({
     Function(double, String, int, int)? onProgress,
@@ -167,6 +177,14 @@ class SyncService {
             final map = _normalizeRemoteItem(item);
             if (map == null) {
               result.skippedCount++;
+              if (result.warnings.length < 100) {
+                result.warnings.add(
+                  '${info.table}: item ignoré (normalisation échouée) ${_itemPreview(item)}',
+                );
+              }
+              debugPrint(
+                '[SYNC-DL] ${info.table}: skip normalize_failed item=$item',
+              );
               continue;
             }
 
@@ -181,6 +199,15 @@ class SyncService {
             final uuid = map['uuid']?.toString();
             if (uuid == null || uuid.isEmpty) {
               result.skippedCount++;
+              final localId = map['id'] ?? map['id_objet'] ?? '?';
+              if (result.warnings.length < 100) {
+                result.warnings.add(
+                  '${info.table}: item ignoré (UUID manquant, id=$localId)',
+                );
+              }
+              debugPrint(
+                '[SYNC-DL] ${info.table}: skip uuid_missing id=$localId map=$map',
+              );
               continue;
             }
 
@@ -444,6 +471,11 @@ class SyncService {
   Future<SyncResult> syncAllDataSequential({
     Function(double, String, int, int)? onProgress,
   }) async {
+    // Reset des skips preflight pour ce cycle : on regenere la liste
+    // complete a chaque sync (les rows synchronisees disparaissent
+    // automatiquement, les rows toujours incompletes restent listees).
+    _currentSyncPreflightSkips.clear();
+
     final tables = (await _collectSrmTables())
         .where((table) => !table.isReference)
         .toList();
@@ -588,7 +620,23 @@ class SyncService {
       syncSessionUuid: syncSessionUuid,
     );
 
+    await _persistPreflightSkips();
+
     return result;
+  }
+
+  Future<void> _persistPreflightSkips() async {
+    try {
+      await dbHelper.saveAppMetadataValue(
+        preflightSkipsKey,
+        jsonEncode({
+          'ts': DateTime.now().toIso8601String(),
+          'items': _currentSyncPreflightSkips,
+        }),
+      );
+    } catch (e) {
+      debugPrint('[SYNC-PREFLIGHT] Persistence ignoree: $e');
+    }
   }
 
   Future<void> _syncPendingConduiteValidations(
@@ -801,6 +849,30 @@ class SyncService {
       return true;
     }
 
+    // Pre-flight : liste des colonnes NOT NULL exposees au mobile.
+    // Une ligne dont l'un de ces champs est vide ferait planter l'INSERT
+    // serveur sur la contrainte NOT NULL, et l'audit trigger ferait
+    // apparaitre un "ghost event" sans donnee persistee (cf. bug observe).
+    final nomMetierForConfig =
+        AttributConfigMobileService.nomMetierForMobileMetier(info.metier);
+    final configTable = AttributConfigMobileService.configTableForMobileTable(
+      nomMetierForConfig,
+      info.table,
+    );
+    List<String> requiredFieldNames = const [];
+    if (nomMetierForConfig.isNotEmpty && configTable.isNotEmpty) {
+      try {
+        requiredFieldNames = await AttributConfigMobileService(
+          databaseHelper: dbHelper,
+        ).getRequiredFieldNamesForTable(
+          nomMetier: nomMetierForConfig,
+          nomTable: configTable,
+        );
+      } catch (_) {
+        requiredFieldNames = const [];
+      }
+    }
+
     for (final row in rows) {
       if (_isDownloadedRow(row)) {
         result.skippedCount++;
@@ -822,6 +894,30 @@ class SyncService {
           );
         }
         _sanitizePayloadForSync(info, payload);
+
+        final missingRequired = _missingRequiredFields(
+          payload: payload,
+          requiredFieldNames: requiredFieldNames,
+        );
+        if (missingRequired.isNotEmpty) {
+          result.failedCount++;
+          result.errors.add(
+            'Sync ${info.table} (uuid=${uuid ?? "?"}): '
+            'champs obligatoires manquants : ${missingRequired.join(", ")}. '
+            'Completez l\'objet puis relancez la synchronisation.',
+          );
+          _currentSyncPreflightSkips.add({
+            'metier': info.metier,
+            'entity': info.entity,
+            'schema': info.schema,
+            'table': info.table,
+            'endpoint': info.endpoint,
+            'uuid': uuid,
+            'missing': List<String>.from(missingRequired),
+            'ts': DateTime.now().toIso8601String(),
+          });
+          continue;
+        }
 
         final response = await ApiService.postData(
           info.endpoint,
@@ -1192,6 +1288,12 @@ class SyncService {
     return raw;
   }
 
+  String _itemPreview(dynamic item) {
+    final s = item.toString();
+    if (s.length <= 80) return s;
+    return '${s.substring(0, 80)}…';
+  }
+
   Map<String, dynamic>? _normalizeSyncResponseItem(dynamic item) {
     if (item is! Map) return null;
 
@@ -1364,6 +1466,59 @@ class SyncService {
         value.contains('broken pipe');
   }
 
+  /// Verifie que toutes les colonnes serveur marquees NOT NULL ont une valeur
+  /// dans le payload (case-insensitive sur la cle). Retourne la liste des
+  /// noms de champs manquants, vide si tout est OK.
+  List<String> _missingRequiredFields({
+    required Map<String, dynamic> payload,
+    required List<String> requiredFieldNames,
+  }) {
+    if (requiredFieldNames.isEmpty) return const [];
+    if (_hasRequiredFieldWorkflowException(payload)) return const [];
+    final lowerPayload = <String, dynamic>{
+      for (final entry in payload.entries) entry.key.toLowerCase(): entry.value,
+    };
+    final missing = <String>[];
+    for (final name in requiredFieldNames) {
+      final value = lowerPayload[name.toLowerCase()];
+      if (value == null) {
+        missing.add(name);
+        continue;
+      }
+      if (value is String && value.trim().isEmpty) {
+        missing.add(name);
+      }
+    }
+    return missing;
+  }
+
+  bool _hasRequiredFieldWorkflowException(Map<String, dynamic> payload) {
+    for (final key in const [
+      'anomalie',
+      'ep_anomalie',
+      'ass_anomalie',
+      'objet_incomplet',
+    ]) {
+      final value = payload[key] ?? payload[key.toUpperCase()];
+      if (_isWorkflowTruthy(value)) return true;
+    }
+    return false;
+  }
+
+  bool _isWorkflowTruthy(dynamic value) {
+    if (value == null) return false;
+    final normalized = value.toString().trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    return !{
+      '0',
+      'false',
+      'f',
+      'no',
+      'non',
+      'n',
+    }.contains(normalized);
+  }
+
   void _sanitizePayloadForSync(
     _TableInfo info,
     Map<String, dynamic> payload,
@@ -1384,7 +1539,8 @@ class SyncService {
       return;
     }
 
-    if (info.schema == 'ep' && info.table == 'regard') {
+    if (info.schema == 'ep' &&
+        (info.table == 'regard' || info.table == 'ep_regard_point')) {
       _normalizeRegardPayload(payload);
       return;
     }

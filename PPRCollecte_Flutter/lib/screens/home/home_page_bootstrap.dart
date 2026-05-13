@@ -193,14 +193,23 @@ void _startOnlineWatcherImpl(_HomePageState state) {
 }
 
 Future<void> _checkOnlineStatusImpl(_HomePageState state) async {
-  final reachable = await _isApiReachableForStatusImpl();
-  await _applyOnlineStatusImpl(state, reachable);
+  final checks = await Future.wait<bool>([
+    _isApiReachableForStatusImpl(),
+    _isOnlineBasemapReachableImpl(),
+  ]);
+  await _applyOnlineStatusImpl(state, checks[0]);
+  _applyOnlineBasemapStatusImpl(state, checks[1]);
 }
 
 Future<bool> _refreshOnlineStatusForNetworkActionImpl(
     _HomePageState state) async {
-  final reachable = await _isApiReachableForStatusImpl();
+  final checks = await Future.wait<bool>([
+    _isApiReachableForStatusImpl(),
+    _isOnlineBasemapReachableImpl(),
+  ]);
+  final reachable = checks[0];
   await _applyOnlineStatusImpl(state, reachable);
+  _applyOnlineBasemapStatusImpl(state, checks[1]);
   return reachable;
 }
 
@@ -223,6 +232,18 @@ Future<void> _applyOnlineStatusImpl(
       unawaited(_refreshMobileConfigAfterReconnectImpl(state));
     }
   }
+}
+
+void _applyOnlineBasemapStatusImpl(
+  _HomePageState state,
+  bool reachable,
+) {
+  if (!state.mounted) return;
+  if (reachable == state._canUseOnlineBasemap) return;
+
+  state._setStateFromPart(() {
+    state._canUseOnlineBasemap = reachable;
+  });
 }
 
 Future<void> _refreshMobileConfigAfterReconnectImpl(
@@ -267,7 +288,7 @@ Future<void> _refreshMobileConfigAfterReconnectImpl(
       _runReconnectRefreshStep(
         'METRICS',
         PublicMetricsCacheService().prefetchForCurrentSession(
-            requestTimeout: const Duration(seconds: 4)),
+            requestTimeout: const Duration(seconds: 15)),
       ),
     ]);
     await state._loadReferenceOverlays();
@@ -521,6 +542,22 @@ Future<bool> _isApiReachableForStatusImpl() async {
     final host = uri.host;
     final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
 
+    return _canConnectSocketImpl(host, port);
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> _isOnlineBasemapReachableImpl() async {
+  final checks = await Future.wait<bool>([
+    _canConnectSocketImpl('tile.openstreetmap.org', 443),
+    _canConnectSocketImpl('mt1.google.com', 443),
+  ]);
+  return checks.any((reachable) => reachable);
+}
+
+Future<bool> _canConnectSocketImpl(String host, int port) async {
+  try {
     final socket = await Socket.connect(
       host,
       port,

@@ -232,6 +232,7 @@ class _HomePageState extends State<HomePage> {
   double? _offlineBasemapMinZoom;
   double? _offlineBasemapMaxZoom;
   late bool _isOnlineDynamic;
+  late bool _canUseOnlineBasemap;
   Timer? _onlineWatchTimer;
   bool _mobileConfigAutoRefreshRunning = false;
   DateTime? _lastMobileConfigAutoRefreshAt;
@@ -311,6 +312,7 @@ class _HomePageState extends State<HomePage> {
     _loadDisplayedSrmLines();
     _loadDownloadedLineOverlays();
     _isOnlineDynamic = widget.isOnline;
+    _canUseOnlineBasemap = widget.isOnline;
     homeController.setSyncAvailability(_isOnlineDynamic);
     _loadLastSyncTime();
     _startOnlineWatcher();
@@ -1090,7 +1092,7 @@ class _HomePageState extends State<HomePage> {
                     MapWidget(
                       userPosition: userPosition ?? homeController.userPosition,
                       gpsEnabled: false,
-                      useOnlineBasemap: _isOnlineDynamic,
+                      useOnlineBasemap: _canUseOnlineBasemap,
                       markers: filteredMarkers,
                       polylines: filteredPolylines,
                       polygons: filteredPolygons,
@@ -1227,7 +1229,7 @@ class _HomePageState extends State<HomePage> {
                     MapWidget(
                       userPosition: userPosition ?? homeController.userPosition,
                       gpsEnabled: gpsEnabled,
-                      useOnlineBasemap: _isOnlineDynamic,
+                      useOnlineBasemap: _canUseOnlineBasemap,
                       markers: filteredMarkers,
                       polylines: filteredPolylines,
                       polygons: filteredPolygons,

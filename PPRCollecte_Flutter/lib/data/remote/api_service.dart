@@ -1265,6 +1265,9 @@ class ApiService {
   static Map<String, String> _headers() => {
         'Content-Type': 'application/json',
         if (authToken != null) 'Authorization': 'Bearer $authToken',
+        // Identifie l'agent appelant pour le filtrage par zone d'affectation
+        // cote serveur (zones, planches, donnees EP/ASS).
+        if (userId != null) 'X-User-Id': userId!.toString(),
       };
 
   static String _formatDateParam(DateTime date) {

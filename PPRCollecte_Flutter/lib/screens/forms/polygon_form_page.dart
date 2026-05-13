@@ -885,6 +885,29 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           data['ep_date_insertion'] ??= _formatDateOnly(now);
         }
 
+        // Champs invisibles : remplissage automatique depuis valeur_par_defaut
+        // configurée côté serveur (n'écrase jamais une valeur déjà résolue).
+        // Pour les invisibles NOT NULL sans valeur_par_defaut, injection d'une
+        // sentinelle typée pour éviter une violation NOT NULL côté serveur.
+        for (final entry in _regardEpConfigByField.entries) {
+          final field = entry.key;
+          final config = entry.value;
+          if (config.visible) continue;
+          if (config.primaryKey) continue;
+          if (field.toLowerCase() == 'geom') continue;
+          if (data.containsKey(field) && data[field] != null) continue;
+          final defaultValue = config.valeurParDefaut.trim();
+          if (defaultValue.isNotEmpty) {
+            final normalized =
+                _normalizeRegardEpFieldValue(field, defaultValue);
+            if (normalized != null) {
+              data[field] = normalized;
+            }
+          } else if (!config.nullable) {
+            data[field] = config.fallbackValueForInvisibleNotNull;
+          }
+        }
+
         late final int localId;
         if (_isEditing) {
           final existingId = widget.existingData!['id'] is int

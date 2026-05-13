@@ -58,8 +58,7 @@ class BottomStatusBarWidget extends StatelessWidget {
               child: Text(
                 details,
                 textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                softWrap: true,
                 style: const TextStyle(
                   fontSize: 11,
                   height: 1.15,

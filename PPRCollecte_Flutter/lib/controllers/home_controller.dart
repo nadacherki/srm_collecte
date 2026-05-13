@@ -288,7 +288,7 @@ class HomeController extends ChangeNotifier {
       'X=${projected.x.toStringAsFixed(2)}',
       'Y=${projected.y.toStringAsFixed(2)}',
       'Z=${_formatOptionalDouble(altitude, decimals: 2)} m',
-      'Précision=${_formatOptionalDouble(accuracy, decimals: 2)} m',
+      'Précision=${_formatOptionalDouble(accuracy, decimals: 3)} m',
       if (satellites != null) 'Sat=$satellites',
       if (fixQuality != null) 'Fix=$fixQuality',
       if (hdop != null) 'HDOP=${hdop.toStringAsFixed(2)}',

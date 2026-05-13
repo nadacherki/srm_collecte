@@ -95,9 +95,13 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<String?> _refreshPublicMetricsSilently() async {
     try {
+      // Les vues SQL agregees (UNION sur toutes les tables EP/ASS) peuvent
+      // depasser 4s sur emulateur ou en debug. 15s laisse une marge realiste
+      // tout en restant tolerable au login. En cas d'echec, le profil
+      // declenche un refresh sans timeout a l'ouverture.
       final snapshot = await PublicMetricsCacheService()
           .prefetchForCurrentSession(
-              requestTimeout: const Duration(seconds: 4));
+              requestTimeout: const Duration(seconds: 15));
       if (snapshot.hasAnyData) {
         final error = snapshot.error?.trim();
         if (error != null && error.isNotEmpty) {

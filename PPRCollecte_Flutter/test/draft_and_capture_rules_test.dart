@@ -16,6 +16,7 @@ void main() {
           'ep_agent_crea': 'ETAFAT',
           'ep_date_insertion': '2026-05-11',
           'ep_conf_plan': 'Objet decouvert',
+          'mode_localisation': 'Levé topographique',
           'anomalie': 'Non',
           'ep_anomalie': '0',
         },

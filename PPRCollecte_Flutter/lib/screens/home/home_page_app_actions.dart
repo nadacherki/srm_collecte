@@ -115,8 +115,8 @@ extension _HomePageAppActions on _HomePageState {
                       : partialFailure
                           ? 'Téléchargement partiel : ${result.successCount} nouvelles, ${result.failedCount} erreurs'
                           : result.successCount > 0
-                              ? 'Téléchargement : ${result.successCount} nouvelles, ${result.skippedCount} déjà à jour'
-                              : 'Toutes les données sont déjà à jour (${result.skippedCount})';
+                              ? 'Téléchargement : ${result.successCount} nouvelles, ${result.skippedCount} ignorées (format invalide)'
+                              : 'Toutes les données reçues sont ignorées (format invalide) (${result.skippedCount})';
 
       final snackBarColor = alreadyDownloaded
           ? Colors.blue

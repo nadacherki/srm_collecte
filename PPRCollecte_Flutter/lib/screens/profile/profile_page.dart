@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -7,6 +8,7 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/public_metrics_cache_service.dart';
+import '../../services/sync_service.dart';
 
 class ProfilePage extends StatefulWidget {
   static const String startConduiteDrawingEpResult =
@@ -61,17 +63,46 @@ class _ProfilePageState extends State<ProfilePage> {
   DateTime? _metricsFetchedAt;
   String? _metricsError;
 
+  /// Lignes locales que le sync a refuse de pousser car un champ
+  /// nullable=false etait vide. Cf. SyncService._missingRequiredFields.
+  /// Chaque entree : {metier, entity, schema, table, endpoint, uuid, missing, ts}.
+  List<Map<String, dynamic>> _preflightSkips = const [];
+
   bool get _hasServerMetrics =>
       _resumeMetrics != null ||
       _dayMetrics != null ||
       _weekMetrics != null ||
       _monthMetrics != null;
 
-  bool get _hasPeriodMetrics =>
-      _dayMetrics != null || _weekMetrics != null || _monthMetrics != null;
-
   bool get _usesCachedMetricsAfterRefreshError =>
       _metricsError != null && _hasServerMetrics;
+
+  /// Activite locale = file d'attente > 0 OU skips preflight > 0 OU erreurs
+  /// photo > 0. Conditionne l'affichage de la section [6] : on cache la
+  /// section si rien n'est en attente (UI moins charge en regime normal).
+  bool get _hasLocalSyncActivity =>
+      _localPendingNew > 0 ||
+      _localPendingUpdates > 0 ||
+      _localPendingPhotos > 0 ||
+      _localFailedPhotos > 0 ||
+      _localPendingHistory > 0 ||
+      _preflightSkips.isNotEmpty;
+
+  /// Vrai quand tout est strictement vide : aucune donnee terrain cote serveur,
+  /// rien d'enregistre localement et aucune file d'attente. Permet d'afficher
+  /// un message explicite plutot que des cartes de 0 muettes (qui font croire
+  /// que le dashboard est casse).
+  bool get _shouldShowEmptyDashboardBanner {
+    if (!_hasServerMetrics) return false;
+    final serverTotal = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
+    final hasLocalStock = (_totalEP + _totalASS) > 0;
+    final hasQueued = _localPendingNew > 0 ||
+        _localPendingUpdates > 0 ||
+        _localPendingPhotos > 0 ||
+        _localFailedPhotos > 0 ||
+        _localPendingHistory > 0;
+    return serverTotal == 0 && !hasLocalStock && !hasQueued;
+  }
 
   @override
   void initState() {
@@ -96,9 +127,11 @@ class _ProfilePageState extends State<ProfilePage> {
         _metricsCache.loadSnapshot(
           agentId: activeAgentId,
         ),
+        _loadPreflightSkips(),
       ]);
       final inventory = results[0] as _LocalInventorySnapshot;
       final cachedMetrics = results[1] as PublicMetricsCacheSnapshot;
+      final preflightSkips = results[2] as List<Map<String, dynamic>>;
 
       if (!mounted) return;
 
@@ -112,6 +145,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _role = _coalesceText(ApiService.userRole, currentUser?['role']);
 
         _activeAgentId = activeAgentId;
+        _preflightSkips = preflightSkips;
 
         _totalEP = inventory.totalEP;
         _totalASS = inventory.totalASS;
@@ -173,6 +207,26 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       _metricsError = freshMetrics.error;
     });
+  }
+
+  /// Lit l'app_metadata `sync_preflight_skips_v1` ecrit par SyncService a la
+  /// fin de chaque cycle. Renvoie [] si pas de cache, json invalide ou
+  /// structure inattendue (jamais d'exception remontee a l'UI).
+  Future<List<Map<String, dynamic>>> _loadPreflightSkips() async {
+    try {
+      final raw = await _db.getAppMetadataValue(SyncService.preflightSkipsKey);
+      if (raw == null || raw.trim().isEmpty) return const [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const [];
+      final items = decoded['items'];
+      if (items is! List) return const [];
+      return items
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<_LocalInventorySnapshot> _loadLocalInventorySnapshot() async {
@@ -316,28 +370,43 @@ class _ProfilePageState extends State<ProfilePage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // [1] Identite
                   _buildProfileCard(),
                   const SizedBox(height: 16),
+                  // Empty state global si rien a montrer
+                  if (_shouldShowEmptyDashboardBanner) ...[
+                    _buildEmptyDashboardBanner(),
+                    const SizedBox(height: 16),
+                  ],
+                  // [2] Aujourd'hui (jour courant + cumul du jour, CTA sync)
+                  if (_hasServerMetrics) ...[
+                    _buildTodaySection(),
+                    const SizedBox(height: 16),
+                  ],
+                  // [3] Ma collecte cumulee (totaux + qualite + dates)
                   if (_resumeMetrics != null) ...[
-                    _buildPublicOverviewSection(),
-                    const SizedBox(height: 16),
-                    _buildPublicQualitySection(),
+                    _buildCumulativeSection(),
                     const SizedBox(height: 16),
                   ],
-                  if (_hasPeriodMetrics) ...[
-                    _buildPublicPeriodsSection(),
+                  // [4] Tendance recente : 7j et 30j
+                  if (_resumeMetrics != null) ...[
+                    _buildTrendSection(),
                     const SizedBox(height: 16),
                   ],
+                  // Cas metriques indisponibles : on signale au lieu de
+                  // sauter silencieusement.
                   if (!_hasServerMetrics) ...[
                     _buildMetricsUnavailableSection(),
                     const SizedBox(height: 16),
                   ],
-                  _buildLocalMetierSection(),
+                  // [5] Donnees sur ce telephone (stock par metier + geom)
+                  _buildLocalDataSection(),
                   const SizedBox(height: 16),
-                  _buildLocalGeometrySection(),
-                  const SizedBox(height: 16),
-                  _buildLocalSyncSection(),
-                  const SizedBox(height: 24),
+                  // [6] File d'attente sync (uniquement si activite)
+                  if (_hasLocalSyncActivity) ...[
+                    _buildLocalSyncSection(),
+                    const SizedBox(height: 16),
+                  ],
                   _buildLogoutButton(),
                   const SizedBox(height: 16),
                 ],
@@ -505,14 +574,74 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPublicOverviewSection() {
-    final serverTotal = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
-    final estimatedTotal = serverTotal + _localPendingNew;
-    final recentWeek = _metricInt(_resumeMetrics, 'nb_objets_7j');
-    final activeDays = _metricInt(_resumeMetrics, 'nb_jours_actifs');
-
+  /// [2] AUJOURD'HUI : focus sur le jour courant. Cards "crees aujourd'hui"
+  /// (serveur) + "a synchroniser maintenant" (local). Sub-line dernière sync.
+  Widget _buildTodaySection() {
+    final createdToday = _metricInt(_dayMetrics, 'nb_objets_crees');
+    final pendingNow = _localPendingNew + _localPendingUpdates;
     return _buildSection(
-      title: 'Travail terrain',
+      title: "Aujourd'hui",
+      color: const Color(0xFF1976D2),
+      headerTrailing: Text(
+        _formatDateLabel(
+          _dayMetrics?['jour'] ?? DateTime.now().toIso8601String(),
+        ),
+        style: const TextStyle(fontSize: 12, color: Color(0xFF666666)),
+      ),
+      children: [
+        _buildStatsGrid(
+          childAspectRatio: 1.45,
+          children: [
+            _buildStatCard(
+              icon: Icons.add_location_alt_outlined,
+              label: "Créés aujourd'hui",
+              value: '$createdToday',
+              color: const Color(0xFF1976D2),
+              helper: 'serveur (id_user_creat)',
+            ),
+            _buildStatCard(
+              icon: Icons.outbox_outlined,
+              label: 'À synchroniser',
+              value: '$pendingNow',
+              color: const Color(0xFF27AE60),
+              helper: _localPendingUpdates > 0
+                  ? '$_localPendingNew nouv. + $_localPendingUpdates modif.'
+                  : 'nouveaux objets locaux',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildInfoRow(
+          Icons.sync_outlined,
+          'Dernière synchro métriques',
+          _formatDateTimeLabel(_metricsFetchedAt),
+        ),
+        if (_usesCachedMetricsAfterRefreshError)
+          _buildInfoRow(
+            Icons.cloud_off_outlined,
+            'Source métriques',
+            'Cache local (serveur indisponible)',
+          ),
+      ],
+    );
+  }
+
+  /// [3] MA COLLECTE CUMULÉE : totaux serveur depuis l'arrivée de l'agent +
+  /// qualité (anomalies, photos) + dates d'activite. Fusion de l'ancien
+  /// "Travail terrain" + "Qualite et completude".
+  Widget _buildCumulativeSection() {
+    final total = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
+    final anomalies = _metricInt(_resumeMetrics, 'nb_objets_anomalie_total');
+    final anomalyRate =
+        _metricDouble(_resumeMetrics, 'taux_anomalie_global_pct');
+    final photosUploaded =
+        _metricInt(_resumeMetrics, 'nb_photos_uploadees_total');
+    final objectsWithPhoto =
+        _metricInt(_resumeMetrics, 'nb_objets_avec_photo_total');
+    final activeDays = _metricInt(_resumeMetrics, 'nb_jours_actifs');
+    final photoCoverage = total > 0 ? (objectsWithPhoto * 100 / total) : 0.0;
+    return _buildSection(
+      title: 'Ma collecte cumulée',
       color: const Color(0xFF1B4F72),
       headerTrailing: const Icon(
         Icons.cloud_done_outlined,
@@ -525,35 +654,33 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             _buildStatCard(
               icon: Icons.layers_outlined,
-              label: 'Total terrain',
-              value: '$estimatedTotal',
+              label: 'Total créés',
+              value: '$total',
               color: const Color(0xFF1B4F72),
-              helper: _localPendingNew > 0
-                  ? 'serveur + $_localPendingNew en attente'
-                  : 'cumul serveur',
+              helper: 'cumul serveur',
             ),
             _buildStatCard(
-              icon: Icons.cloud_done_outlined,
-              label: 'Reçu serveur',
-              value: '$serverTotal',
-              color: const Color(0xFF1976D2),
-              helper: 'historique agent',
+              icon: Icons.report_problem_outlined,
+              label: 'Anomalies',
+              value: '$anomalies',
+              color: const Color(0xFFE74C3C),
+              helper: _formatPercent(anomalyRate),
             ),
             _buildStatCard(
-              icon: Icons.outbox_outlined,
-              label: 'Attente locale',
-              value: '$_localPendingNew',
+              icon: Icons.cloud_upload_outlined,
+              label: 'Photos uploadées',
+              value: '$photosUploaded',
               color: const Color(0xFF27AE60),
-              helper: _localPendingUpdates > 0
-                  ? '+ $_localPendingUpdates modification(s)'
-                  : 'nouveaux objets',
+              helper: objectsWithPhoto > 0
+                  ? '$objectsWithPhoto objet${objectsWithPhoto > 1 ? 's' : ''} avec photo (${_formatPercent(photoCoverage)})'
+                  : 'aucun objet avec photo',
             ),
             _buildStatCard(
-              icon: Icons.insights_outlined,
-              label: '7 derniers jours',
-              value: '$recentWeek',
+              icon: Icons.event_available_outlined,
+              label: 'Jours avec activité',
+              value: '$activeDays',
               color: const Color(0xFF8E44AD),
-              helper: 'serveur cumulé',
+              helper: 'création + sync + modif.',
             ),
           ],
         ),
@@ -568,24 +695,8 @@ class _ProfilePageState extends State<ProfilePage> {
           'Dernière activité',
           _formatDateLabel(_resumeMetrics?['derniere_activite']),
         ),
-        _buildInfoRow(
-          Icons.event_available_outlined,
-          'Jours actifs',
-          '$activeDays',
-        ),
-        _buildInfoRow(
-          Icons.sync_outlined,
-          'Métriques mises à jour',
-          _formatDateTimeLabel(_metricsFetchedAt),
-        ),
-        if (_usesCachedMetricsAfterRefreshError)
-          _buildInfoRow(
-            Icons.cloud_off_outlined,
-            'Source métriques',
-            'Cache local (serveur indisponible)',
-          ),
         if (_buildOverviewBadges().isNotEmpty) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -596,103 +707,35 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPublicQualitySection() {
-    final total = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
-    final anomalies = _metricInt(_resumeMetrics, 'nb_objets_anomalie_total');
-    final anomalyRate =
-        _metricDouble(_resumeMetrics, 'taux_anomalie_global_pct');
-    final objectsWithPhoto =
-        _metricInt(_resumeMetrics, 'nb_objets_avec_photo_total');
-    final photosUploaded =
-        _metricInt(_resumeMetrics, 'nb_photos_uploadees_total');
-    final photosDeclared =
-        _metricInt(_resumeMetrics, 'nb_photos_renseignees_total');
-    final photoCoverage = total > 0 ? (objectsWithPhoto * 100 / total) : 0.0;
-    final photoCoverageHelper = total > 0
-        ? _formatPercent(photoCoverage)
-        : (objectsWithPhoto > 0 ? 'activité photo serveur' : _formatPercent(0));
-    final photosUploadedHelper = objectsWithPhoto > 0
-        ? '$objectsWithPhoto ${objectsWithPhoto > 1 ? 'objets' : 'objet'} avec photo'
-        : photosDeclared > 0
-            ? '$photosDeclared ${photosDeclared > 1 ? 'renseignées' : 'renseignée'}'
-            : 'aucune photo serveur';
-
+  /// [4] TENDANCE RÉCENTE : 7j vs 30j (focus court terme). Remplace la
+  /// section "Periodes en cours" qui dupliquait deja "Aujourd'hui" et
+  /// presentait semaine/mois en double avec 7j/30j.
+  Widget _buildTrendSection() {
+    final recentWeek = _metricInt(_resumeMetrics, 'nb_objets_7j');
+    final recentMonth = _metricInt(_resumeMetrics, 'nb_objets_30j');
     return _buildSection(
-      title: 'Qualité et complétude',
-      color: const Color(0xFF8E44AD),
+      title: 'Tendance récente',
+      color: const Color(0xFF16A085),
       children: [
         _buildStatsGrid(
           childAspectRatio: 1.45,
           children: [
             _buildStatCard(
-              icon: Icons.report_problem_outlined,
-              label: 'Objets anomalie',
-              value: '$anomalies',
-              color: const Color(0xFFE74C3C),
-              helper: _formatPercent(anomalyRate),
+              icon: Icons.insights_outlined,
+              label: '7 derniers jours',
+              value: '$recentWeek',
+              color: const Color(0xFF8E44AD),
+              helper: 'objets créés',
             ),
             _buildStatCard(
-              icon: Icons.photo_library_outlined,
-              label: 'Objets avec photo',
-              value: '$objectsWithPhoto',
-              color: const Color(0xFF1976D2),
-              helper: photoCoverageHelper,
-            ),
-            _buildStatCard(
-              icon: Icons.cloud_upload_outlined,
-              label: 'Photos uploadées',
-              value: '$photosUploaded',
-              color: const Color(0xFF27AE60),
-              helper: photosUploadedHelper,
-            ),
-            _buildStatCard(
-              icon: Icons.rule_folder_outlined,
-              label: 'Incomplets en solde',
-              value:
-                  '${_metricInt(_resumeMetrics, 'nb_objets_incomplets_signales_total') - _metricInt(_resumeMetrics, 'nb_objets_incomplets_completes_total')}',
+              icon: Icons.calendar_month_outlined,
+              label: '30 derniers jours',
+              value: '$recentMonth',
               color: const Color(0xFFF39C12),
-              helper:
-                  '${_metricInt(_resumeMetrics, 'nb_objets_incomplets_completes_total')} complétés',
+              helper: 'objets créés',
             ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildPublicPeriodsSection() {
-    return _buildSection(
-      title: 'Périodes en cours',
-      color: const Color(0xFF16A085),
-      children: [
-        if (_dayMetrics != null)
-          _buildPeriodCard(
-            title: 'Aujourd\'hui',
-            subtitle: _formatDateLabel(
-              _dayMetrics?['jour'] ?? DateTime.now().toIso8601String(),
-            ),
-            metrics: _dayMetrics,
-            color: const Color(0xFF1976D2),
-          ),
-        if (_dayMetrics != null && _weekMetrics != null)
-          const SizedBox(height: 12),
-        if (_weekMetrics != null)
-          _buildPeriodCard(
-            title: 'Semaine',
-            subtitle: _weekPeriodLabel(),
-            metrics: _weekMetrics,
-            color: const Color(0xFF27AE60),
-          ),
-        if ((_dayMetrics != null || _weekMetrics != null) &&
-            _monthMetrics != null)
-          const SizedBox(height: 12),
-        if (_monthMetrics != null)
-          _buildPeriodCard(
-            title: 'Mois',
-            subtitle: _monthPeriodLabel(),
-            metrics: _monthMetrics,
-            color: const Color(0xFFF39C12),
-          ),
       ],
     );
   }
@@ -719,12 +762,54 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${_metricsError!} Aucun cache serveur n’est disponible sur ce téléphone pour cet agent.';
   }
 
-  Widget _buildLocalMetierSection() {
-    final total = _totalEP + _totalASS;
-
+  Widget _buildEmptyDashboardBanner() {
+    final role = _role.trim().toLowerCase();
+    final isFieldAgent =
+        role.isEmpty || role == 'editeur_terrain' || role == 'agent';
+    final message = isFieldAgent
+        ? "Vous n'avez encore collecte aucun objet terrain. "
+            'Ouvrez la carte et placez votre premier point pour demarrer.'
+        : "Aucune collecte enregistree sur ce compte. Les compteurs serveur "
+            'restent a zero tant que vous ne creez pas d\'objets.';
     return _buildSection(
-      title: 'Stock présent sur ce téléphone par métier',
+      title: 'Aucune activite terrain pour le moment',
       color: const Color(0xFF1B4F72),
+      headerTrailing: const Icon(
+        Icons.info_outline,
+        size: 18,
+        color: Color(0xFF1B4F72),
+      ),
+      children: [
+        Text(
+          message,
+          style: const TextStyle(fontSize: 14, color: Color(0xFF333333)),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Les cartes ci-dessous afficheront vos statistiques des '
+          'que la premiere donnee sera synchronisee.',
+          style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+        ),
+      ],
+    );
+  }
+
+  /// [5] DONNÉES SUR CE TÉLÉPHONE : tout ce qui est dans la SQLite locale,
+  /// independamment du workflow de sync. Fusion de l'ancien
+  /// "Stock par metier" + "Stock par geometrie".
+  Widget _buildLocalDataSection() {
+    final total = _totalEP + _totalASS;
+    return _buildSection(
+      title: 'Données sur ce téléphone',
+      color: const Color(0xFF1B4F72),
+      headerTrailing: Text(
+        '$total objet${total > 1 ? 's' : ''}',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1B4F72),
+        ),
+      ),
       children: [
         _buildMetierBar(
           'Eau Potable',
@@ -739,42 +824,7 @@ class _ProfilePageState extends State<ProfilePage> {
           total,
           const Color(0xFF27AE60),
         ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1B4F72).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.smartphone_outlined,
-                size: 20,
-                color: Color(0xFF1B4F72),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Présents sur ce téléphone : $total objet${total > 1 ? 's' : ''}',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B4F72),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocalGeometrySection() {
-    return _buildSection(
-      title: 'Stock présent sur ce téléphone par géométrie',
-      color: const Color(0xFF8E44AD),
-      children: [
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -871,13 +921,19 @@ class _ProfilePageState extends State<ProfilePage> {
                 'Historique local en attente : $_localPendingHistory événement(s).',
           ),
         ],
-        if (pendingTransport == 0 && _localPendingHistory == 0) ...[
+        if (pendingTransport == 0 &&
+            _localPendingHistory == 0 &&
+            _preflightSkips.isEmpty) ...[
           const SizedBox(height: 12),
           _buildNoticeCard(
             icon: Icons.verified_outlined,
             color: const Color(0xFF27AE60),
             text: 'Aucune donnée locale en attente sur ce téléphone.',
           ),
+        ],
+        if (_preflightSkips.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildPreflightSkipsTile(),
         ],
         const SizedBox(height: 12),
         Column(
@@ -916,6 +972,90 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Tile expandable listant les lignes locales que le sync a refuse de
+  /// pousser (champ NOT NULL vide). L'agent doit revenir les completer puis
+  /// relancer la sync. Source : SyncService.preflightSkipsKey persiste en fin
+  /// de chaque cycle de sync.
+  Widget _buildPreflightSkipsTile() {
+    const accent = Color(0xFFE74C3C);
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: const Icon(Icons.warning_amber_outlined, color: accent),
+          title: Text(
+            'À compléter avant sync (${_preflightSkips.length})',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+          ),
+          subtitle: const Text(
+            'Champ obligatoire vide → le serveur a refusé l\'enregistrement.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF666666)),
+          ),
+          children: _preflightSkips
+              .map((item) => _buildPreflightSkipEntry(item, accent))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreflightSkipEntry(Map<String, dynamic> item, Color accent) {
+    final entity = (item['entity'] ?? item['table'] ?? '?').toString();
+    final uuid = (item['uuid'] ?? '').toString();
+    final shortUuid = uuid.length > 8 ? uuid.substring(0, 8) : (uuid.isEmpty ? '?' : uuid);
+    final missingRaw = item['missing'];
+    final missing = missingRaw is List
+        ? missingRaw.map((e) => e.toString()).join(', ')
+        : missingRaw?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.fiber_manual_record, size: 8, color: accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$entity · uuid $shortUuid…',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                if (missing.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Manque : $missing',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1112,141 +1252,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPeriodCard({
-    required String title,
-    required String subtitle,
-    required Map<String, dynamic>? metrics,
-    required Color color,
-  }) {
-    final total = _metricInt(metrics, 'nb_objets_crees');
-    final hasActivity = total > 0 ||
-        _metricInt(metrics, 'nb_objets_anomalie') > 0 ||
-        _metricInt(metrics, 'nb_photos_uploadees') > 0 ||
-        _metricInt(metrics, 'nb_evenements_sync') > 0 ||
-        _metricInt(metrics, 'nb_objets_incomplets_signales') > 0 ||
-        _metricInt(metrics, 'nb_objets_incomplets_completes') > 0 ||
-        _metricInt(metrics, 'nb_modifications_terrain') > 0 ||
-        _metricInt(metrics, 'nb_validations_terrain') > 0;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF666666),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '$total',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                    const Text(
-                      'objets',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF666666),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildMiniMetric('Points', _metricInt(metrics, 'nb_points')),
-              _buildMiniMetric('Lignes', _metricInt(metrics, 'nb_lignes')),
-              _buildMiniMetric('Surfaces', _metricInt(metrics, 'nb_surfaces')),
-              _buildMiniMetric(
-                'Anomalies',
-                _metricInt(metrics, 'nb_objets_anomalie'),
-              ),
-              _buildMiniMetric(
-                'Photos',
-                _metricInt(metrics, 'nb_photos_uploadees'),
-              ),
-              _buildMiniMetric(
-                'Syncs',
-                _metricInt(metrics, 'nb_evenements_sync'),
-              ),
-            ],
-          ),
-          if (!hasActivity)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                'Aucune activité tracée sur cette période pour le moment.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: color.withValues(alpha: 0.85),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniMetric(String label, int value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$label : $value',
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF333333),
-        ),
-      ),
-    );
-  }
 
   Widget _buildNoticeCard({
     required IconData icon,
@@ -1303,12 +1308,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   List<Widget> _buildOverviewBadges() {
+    // Note : "30 derniers jours" est deja affiche en stat card depuis la
+    // refonte profil ; on garde ici uniquement les badges complementaires
+    // (modifs terrain, sessions sync) pour eviter la redondance visuelle.
     final badges = <Widget>[];
 
     final modifications =
         _metricInt(_resumeMetrics, 'nb_modifications_terrain_total');
     final syncs = _metricInt(_resumeMetrics, 'nb_evenements_sync_total');
-    final last30Days = _metricInt(_resumeMetrics, 'nb_objets_30j');
 
     if (modifications > 0) {
       badges.add(
@@ -1323,14 +1330,6 @@ class _ProfilePageState extends State<ProfilePage> {
         _buildBadge(
           label: 'Syncs : $syncs',
           color: const Color(0xFF27AE60),
-        ),
-      );
-    }
-    if (last30Days > 0) {
-      badges.add(
-        _buildBadge(
-          label: '30 jours : $last30Days',
-          color: const Color(0xFFF39C12),
         ),
       );
     }
@@ -1558,63 +1557,6 @@ class _ProfilePageState extends State<ProfilePage> {
     return '$date à $hour:$minute';
   }
 
-  String _weekPeriodLabel() {
-    if (_weekMetrics != null) {
-      final start = _formatShortDate(_weekMetrics?['semaine_debut']);
-      final end = _formatShortDate(_weekMetrics?['semaine_fin']);
-      if (start != '—' && end != '—') {
-        return '$start - $end';
-      }
-    }
-
-    final now = DateTime.now();
-    final monday = now.subtract(Duration(days: now.weekday - 1));
-    final sunday = monday.add(const Duration(days: 6));
-    return '${_formatShortDate(monday.toIso8601String())} - ${_formatShortDate(sunday.toIso8601String())}';
-  }
-
-  String _monthPeriodLabel() {
-    if (_monthMetrics != null) {
-      return _formatMonthYear(_monthMetrics?['mois']);
-    }
-    return _formatMonthYear(DateTime.now().toIso8601String());
-  }
-
-  String _formatShortDate(dynamic rawValue) {
-    final text = rawValue?.toString().trim() ?? '';
-    if (text.isEmpty) return '—';
-
-    final parsed = DateTime.tryParse(text);
-    if (parsed == null) return text;
-    final day = parsed.day.toString().padLeft(2, '0');
-    final month = parsed.month.toString().padLeft(2, '0');
-    return '$day/$month';
-  }
-
-  String _formatMonthYear(dynamic rawValue) {
-    final text = rawValue?.toString().trim() ?? '';
-    if (text.isEmpty) return '—';
-
-    final parsed = DateTime.tryParse(text);
-    if (parsed == null) return text;
-
-    const months = <String>[
-      'janvier',
-      'février',
-      'mars',
-      'avril',
-      'mai',
-      'juin',
-      'juillet',
-      'août',
-      'septembre',
-      'octobre',
-      'novembre',
-      'décembre',
-    ];
-
-    return '${months[parsed.month - 1]} ${parsed.year}';
-  }
 }
 
 class _LocalInventorySnapshot {

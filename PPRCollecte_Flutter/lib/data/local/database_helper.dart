@@ -709,23 +709,12 @@ class DatabaseHelper {
         visible INTEGER DEFAULT 0,
         contraintes TEXT,
         nullable INTEGER DEFAULT 1,
-        obligatoire INTEGER DEFAULT 1,
         valeur_par_defaut TEXT,
         valeur_min TEXT,
         valeur_max TEXT,
         reference_fk TEXT
       )
     ''');
-    final columns = await db.rawQuery(
-      'PRAGMA table_info(attribut_config_mobile_local)',
-    );
-    final names = columns.map((row) => row['name']?.toString()).toSet();
-    if (!names.contains('obligatoire')) {
-      await db.execute(
-        'ALTER TABLE attribut_config_mobile_local '
-        'ADD COLUMN obligatoire INTEGER DEFAULT 1',
-      );
-    }
     await db.execute('''
       CREATE INDEX IF NOT EXISTS attribut_config_mobile_local_lookup_idx
       ON attribut_config_mobile_local (nom_metier, nom_table, visible, ordre, id)
@@ -3573,7 +3562,6 @@ class DatabaseHelper {
             'visible': _toSqlBool(row['visible']),
             'contraintes': row['contraintes']?.toString(),
             'nullable': _toSqlBool(row['nullable'], defaultValue: true),
-            'obligatoire': _toSqlBool(row['obligatoire'], defaultValue: true),
             'valeur_par_defaut': row['valeur_par_defaut']?.toString(),
             'valeur_min': row['valeur_min']?.toString(),
             'valeur_max': row['valeur_max']?.toString(),

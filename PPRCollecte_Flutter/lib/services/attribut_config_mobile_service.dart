@@ -15,7 +15,6 @@ class AttributConfigMobileField {
   final bool visible;
   final String contraintes;
   final bool nullable;
-  final bool obligatoire;
   final String valeurParDefaut;
   final String valeurMin;
   final String valeurMax;
@@ -34,7 +33,6 @@ class AttributConfigMobileField {
     required this.visible,
     required this.contraintes,
     required this.nullable,
-    required this.obligatoire,
     required this.valeurParDefaut,
     required this.valeurMin,
     required this.valeurMax,
@@ -55,7 +53,6 @@ class AttributConfigMobileField {
       visible: _toBool(row['visible']),
       contraintes: row['contraintes']?.toString().trim() ?? '',
       nullable: _toBool(row['nullable'], defaultValue: true),
-      obligatoire: _toBool(row['obligatoire'], defaultValue: true),
       valeurParDefaut: row['valeur_par_defaut']?.toString().trim() ?? '',
       valeurMin: row['valeur_min']?.toString().trim() ?? '',
       valeurMax: row['valeur_max']?.toString().trim() ?? '',
@@ -71,14 +68,37 @@ class AttributConfigMobileField {
     if (!visible) return false;
     if (nomChamp.toLowerCase() == 'geom') return false;
     if (isAutoVisibleCoordinate) return false;
-    // Source de vérité : colonne `obligatoire` de public.attribut_config_mobile.
-    return obligatoire;
+    // Source de verite: nullable=false signifie champ requis cote mobile.
+    return !nullable;
   }
 
   double? get numericMin => _toDouble(valeurMin);
   double? get numericMax => _toDouble(valeurMax);
   DateTime? get dateMin => _toDate(valeurMin);
   DateTime? get dateMax => _toDate(valeurMax);
+
+  /// Valeur sentinelle minimale pour un champ invisible NOT NULL sans
+  /// valeur_par_defaut configurée. Le but est d'éviter un rejet serveur
+  /// (NOT NULL violation) tout en restant typé selon la colonne SQL.
+  dynamic get fallbackValueForInvisibleNotNull {
+    final type = typeChamp.toLowerCase();
+    if (type.contains('serial') || type.contains('int')) return 0;
+    if (type.contains('numeric') ||
+        type.contains('decimal') ||
+        type.contains('real') ||
+        type.contains('double') ||
+        type.contains('float')) {
+      return 0.0;
+    }
+    if (type.contains('bool')) return 0;
+    if (type.contains('date') || type.contains('timestamp')) {
+      return DateTime.now().toIso8601String();
+    }
+    if (type.contains('uuid')) {
+      return '00000000-0000-0000-0000-000000000000';
+    }
+    return '';
+  }
 
   bool get isAutoVisibleCoordinate {
     final prefix = _coordinatePrefixForMetier(nomMetier);
@@ -190,6 +210,30 @@ class AttributConfigMobileService {
     }
 
     return rows.map(AttributConfigMobileField.fromMap).toList();
+  }
+
+  /// Liste des nom_champ marques `nullable = false` dans la config serveur
+  /// (= colonnes physiques NOT NULL exposees au mobile). Sert au sync_service
+  /// pour bloquer le POST d'une ligne ou un de ces champs serait null/vide :
+  /// l'INSERT serveur planterait sur la contrainte NOT NULL et l'audit
+  /// trigger ferait apparaitre un "ghost event" sans donnee persistee.
+  Future<List<String>> getRequiredFieldNamesForTable({
+    required String nomMetier,
+    required String nomTable,
+  }) async {
+    final fields = await getFieldsForConfigTable(
+      nomMetier: nomMetier,
+      nomTable: nomTable,
+      refreshIfEmpty: true,
+    );
+    final required = <String>[];
+    for (final f in fields) {
+      if (f.primaryKey) continue;
+      if (f.nomChamp.toLowerCase() == 'geom') continue;
+      if (f.isAutoVisibleCoordinate) continue;
+      if (!f.nullable) required.add(f.nomChamp);
+    }
+    return required;
   }
 
   Future<List<AttributConfigMobileField>> getFieldsForConfigTable({

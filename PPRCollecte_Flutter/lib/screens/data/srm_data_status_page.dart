@@ -7,6 +7,7 @@ import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/projection_service.dart';
+import '../../services/srm_status_flags.dart';
 import '../../widgets/lists/data_list_view.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
 import '../forms/srm_ligne_form_page.dart';
@@ -438,6 +439,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
   String? _filterGeometrie; // 'Point' | 'LineString' | 'Polygon' | null
   String? _filterEntite; // nom entite, null = tous
   DateTimeRange? _filterDateRange;
+  bool? _filterAnomalie; // null = tous, true = avec, false = sans
+  bool? _filterIncomplet; // null = tous, true = incomplets, false = complets
   bool _filtersVisible = false;
 
   // Listes pour les dropdowns
@@ -645,6 +648,20 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       }).toList();
     }
 
+    // Filtre anomalie
+    if (_filterAnomalie != null) {
+      result = result
+          .where((item) => SrmStatusFlags.hasAnomalie(item) == _filterAnomalie)
+          .toList();
+    }
+
+    // Filtre objet incomplet
+    if (_filterIncomplet != null) {
+      result = result
+          .where((item) => SrmStatusFlags.hasIncomplet(item) == _filterIncomplet)
+          .toList();
+    }
+
     setState(() => _filteredData = result);
   }
 
@@ -668,6 +685,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       _filterGeometrie = null;
       _filterEntite = null;
       _filterDateRange = null;
+      _filterAnomalie = null;
+      _filterIncomplet = null;
       _entitesDisponibles = [];
       _applyFilters();
     });
@@ -679,6 +698,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     if (_filterGeometrie != null) count++;
     if (_filterEntite != null) count++;
     if (_filterDateRange != null) count++;
+    if (_filterAnomalie != null) count++;
+    if (_filterIncomplet != null) count++;
     return count;
   }
 
@@ -905,10 +926,159 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
             const SizedBox(height: 8),
           ],
 
-          // Ligne 3 : Date
+          // Ligne 3 : Anomalie + Incomplet
+          Row(
+            children: [
+              Expanded(child: _buildAnomalieDropdown()),
+              const SizedBox(width: 8),
+              Expanded(child: _buildIncompletDropdown()),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Ligne 4 : Date
           _buildDateFilter(),
         ],
       ),
+    );
+  }
+
+  // Filtre anomalie
+  Widget _buildAnomalieDropdown() {
+    const accent = Color(0xFFE74C3C);
+    final isActive = _filterAnomalie != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Anomalies',
+            style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isActive ? accent : const Color(0xFFDDDDDD),
+              width: isActive ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: isActive ? accent.withValues(alpha: 0.06) : Colors.white,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<bool?>(
+              value: _filterAnomalie,
+              isExpanded: true,
+              hint: const Text('Tous',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: const [
+                DropdownMenuItem<bool?>(
+                  value: null,
+                  child: Text('Tous', style: TextStyle(fontSize: 13)),
+                ),
+                DropdownMenuItem<bool?>(
+                  value: true,
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          size: 16, color: accent),
+                      SizedBox(width: 6),
+                      Text('Avec anomalies',
+                          style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem<bool?>(
+                  value: false,
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_outline,
+                          size: 16, color: Color(0xFF27AE60)),
+                      SizedBox(width: 6),
+                      Text('Sans anomalies',
+                          style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _filterAnomalie = val;
+                  _applyFilters();
+                });
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Filtre objet incomplet
+  Widget _buildIncompletDropdown() {
+    const accent = Color(0xFFFF9800);
+    final isActive = _filterIncomplet != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Saisie',
+            style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isActive ? accent : const Color(0xFFDDDDDD),
+              width: isActive ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: isActive ? accent.withValues(alpha: 0.06) : Colors.white,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<bool?>(
+              value: _filterIncomplet,
+              isExpanded: true,
+              hint: const Text('Tous',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: const [
+                DropdownMenuItem<bool?>(
+                  value: null,
+                  child: Text('Tous', style: TextStyle(fontSize: 13)),
+                ),
+                DropdownMenuItem<bool?>(
+                  value: true,
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_note, size: 16, color: accent),
+                      SizedBox(width: 6),
+                      Text('Incomplets',
+                          style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem<bool?>(
+                  value: false,
+                  child: Row(
+                    children: [
+                      Icon(Icons.task_alt,
+                          size: 16, color: Color(0xFF27AE60)),
+                      SizedBox(width: 6),
+                      Text('Complets',
+                          style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _filterIncomplet = val;
+                  _applyFilters();
+                });
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
