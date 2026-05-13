@@ -473,6 +473,11 @@ void _showDownloadResultImpl(
                 const Text(
                   'Toutes les données des zones affectées à votre compte sont déjà téléchargées.',
                 ),
+                if (result.updatedCount > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                      '${result.updatedCount} objet(s) rafraîchi(s) (modifications serveur)'),
+                ],
               ],
               if (nothingAvailable) ...[
                 const Text(
@@ -498,6 +503,12 @@ void _showDownloadResultImpl(
                   !fullFailure &&
                   result.successCount > 0)
                 Text('${result.successCount} nouvelles données téléchargées'),
+              if (!nothingAvailable &&
+                  !alreadyDownloaded &&
+                  !fullFailure &&
+                  result.updatedCount > 0)
+                Text(
+                    '${result.updatedCount} objet(s) déjà présents rafraîchi(s)'),
               if (!nothingAvailable && result.skippedCount > 0)
                 Text(
                     '${result.skippedCount} données ignorées (format invalide)'),

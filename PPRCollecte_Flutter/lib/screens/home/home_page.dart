@@ -64,6 +64,7 @@ import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
 import '../../services/srm_field_option_service.dart';
 import '../../services/commune_sync_service.dart';
+import '../../services/zone_sync_service.dart';
 import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
@@ -172,7 +173,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool isDownloading = false;
   SyncResult? lastSyncResult;
   double _progressValue = 0.0;
-  String _currentOperation = "Préparation de la sauvegarde...";
+  String _currentOperation = "Préparation du téléchargement...";
   int _totalItems = 0;
   int _processedItems = 0;
   double _syncProgressValue = 0.0;

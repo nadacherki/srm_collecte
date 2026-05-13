@@ -8,12 +8,15 @@ import 'photo_validation_service.dart';
 
 class PhotoStorageService {
   static const String _photoRootFolder = 'srm_photos_pending';
+  static const Duration orphanRetention = Duration(days: 7);
+  static const int workflowPhotoSlotLimit = 2;
 
   static Future<String> persistPickedPhoto({
     required XFile picked,
     required String schemaName,
     required String tableName,
     required int photoSlot,
+    String photoContext = 'collecte_initiale',
   }) async {
     final source = File(picked.path);
     if (!await source.exists()) {
@@ -27,13 +30,15 @@ class PhotoStorageService {
         _photoRootFolder,
         _safePathPart(schemaName),
         _safePathPart(tableName),
+        _safePathPart(photoContext),
       ),
     );
     await destinationDir.create(recursive: true);
 
     final extension = _safeExtension(picked.path);
     final timestamp = DateTime.now().toUtc().microsecondsSinceEpoch;
-    final fileName = 'photo_${photoSlot}_$timestamp$extension';
+    final contextPart = _safePathPart(photoContext);
+    final fileName = 'photo_${contextPart}_${photoSlot}_$timestamp$extension';
     final destination = File(path.join(destinationDir.path, fileName));
 
     final copied = await source.copy(destination.path);
@@ -50,6 +55,49 @@ class PhotoStorageService {
     }
 
     return copied.path;
+  }
+
+  static Future<void> deleteLocalPhotoReference(String? reference) async {
+    final raw = reference?.trim() ?? '';
+    if (raw.isEmpty) return;
+
+    final filePath =
+        raw.startsWith('file://') ? Uri.parse(raw).toFilePath() : raw;
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {
+      // Best effort cleanup only: a failed delete must not block form saving.
+    }
+  }
+
+  static Future<int> cleanupOldPendingPhotos({
+    Duration retention = orphanRetention,
+    DateTime? now,
+    Set<String> protectedPaths = const {},
+  }) async {
+    final supportDir = await getApplicationSupportDirectory();
+    final root = Directory(path.join(supportDir.path, _photoRootFolder));
+    if (!await root.exists()) return 0;
+
+    final threshold = (now ?? DateTime.now().toUtc()).subtract(retention);
+    var deleted = 0;
+    await for (final entity in root.list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      try {
+        if (protectedPaths.contains(entity.path)) continue;
+        final modified = await entity.lastModified();
+        if (modified.toUtc().isBefore(threshold)) {
+          await entity.delete();
+          deleted++;
+        }
+      } catch (_) {
+        // Best effort cleanup only.
+      }
+    }
+    return deleted;
   }
 
   static String _safeExtension(String filePath) {

@@ -2,7 +2,7 @@
 // ── SPRINT 3 : DatabaseHelper SRM ──
 // Tables SQLite miroirs de PostgreSQL :
 //   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom, prenom, role)
-// Version DB: 22
+// Version DB: 23
 
 import 'dart:io';
 import 'dart:convert';
@@ -15,6 +15,7 @@ import '../../core/config/srm_server_columns.dart';
 import '../remote/api_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/password_hash_service.dart';
+import '../../services/photo_storage_service.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -32,7 +33,7 @@ class DatabaseHelper {
     await resetForTest();
     final db = await openDatabase(
       inMemoryDatabasePath,
-      version: 22,
+      version: 23,
       onCreate: (db, version) async {
         await _instance._createAllTables(
           db,
@@ -82,6 +83,49 @@ class DatabaseHelper {
     }
   }
 
+  Future<void> _cleanupOldPendingPhotosIfNeeded(Database db) async {
+    const key = 'photo_pending_cleanup_last_run';
+    final rows = await db.query(
+      'app_metadata',
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    final lastRun = rows.isEmpty
+        ? null
+        : DateTime.tryParse(rows.first['value']?.toString() ?? '');
+    final now = DateTime.now().toUtc();
+    if (lastRun != null && now.difference(lastRun.toUtc()).inHours < 24) {
+      return;
+    }
+
+    try {
+      final queuedRows = await db.query(
+        'photo_sync_queue',
+        columns: ['local_path'],
+        where: "COALESCE(local_path, '') <> ''",
+      );
+      final protectedPaths = queuedRows
+          .map((row) => row['local_path']?.toString().trim() ?? '')
+          .where((path) => path.isNotEmpty)
+          .toSet();
+      final deleted = await PhotoStorageService.cleanupOldPendingPhotos(
+        now: now,
+        protectedPaths: protectedPaths,
+      );
+      await db.insert(
+        'app_metadata',
+        {'key': key, 'value': now.toIso8601String()},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      if (deleted > 0) {
+        debugPrint('[PHOTO] $deleted fichier(s) pending ancien(s) nettoye(s)');
+      }
+    } catch (e) {
+      debugPrint('[PHOTO] Nettoyage pending ignore: $e');
+    }
+  }
+
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'srm_collecte.db');
@@ -97,7 +141,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 22,
+      version: 23,
       onCreate: (db, version) async {
         debugPrint('🆕 Création tables v$version');
         await _createAllTables(db);
@@ -110,6 +154,7 @@ class DatabaseHelper {
         debugPrint('🔌 DB ouverte');
         await _migrateExistingSrmTables(db);
         await _createConduiteSyncQueueTable(db);
+        await _cleanupOldPendingPhotosIfNeeded(db);
       },
     );
   }
@@ -222,6 +267,7 @@ class DatabaseHelper {
       CREATE TABLE IF NOT EXISTS objet_incomplet (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_incomplet INTEGER,
+        uuid TEXT,
         nom_table TEXT,
         id_objet INTEGER,
         detail_raison TEXT,
@@ -239,6 +285,7 @@ class DatabaseHelper {
 
     final requiredColumns = {
       'id_incomplet': 'INTEGER',
+      'uuid': 'TEXT',
       'nom_table': 'TEXT',
       'id_objet': 'INTEGER',
       'detail_raison': 'TEXT',
@@ -253,11 +300,32 @@ class DatabaseHelper {
       'date_sync': 'TEXT',
     };
 
+    await _ensureColumns(
+      db,
+      tableName: 'objet_incomplet',
+      columns: requiredColumns,
+    );
     await _assertColumnsPresent(
       db,
       tableName: 'objet_incomplet',
       columns: requiredColumns.keys,
     );
+
+    final missingUuidRows = await db.query(
+      'objet_incomplet',
+      columns: ['id'],
+      where: "uuid IS NULL OR trim(uuid) = ''",
+    );
+    for (final row in missingUuidRows) {
+      final id = row['id'];
+      if (id == null) continue;
+      await db.update(
+        'objet_incomplet',
+        {'uuid': const Uuid().v4()},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
 
     // Migration legacy : ancienne colonne 'nom_classe' a copier vers 'nom_table'.
     // Verifier d'abord la presence de la colonne pour eviter un log SQLite
@@ -394,7 +462,7 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<void> _createPhotoSyncQueueTable(Database db) async {
+  Future<void> _createPhotoSyncQueueTable(DatabaseExecutor db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS photo_sync_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -402,6 +470,8 @@ class DatabaseHelper {
         table_name TEXT NOT NULL,
         uuid_objet TEXT NOT NULL,
         photo_slot INTEGER NOT NULL,
+        photo_context TEXT NOT NULL DEFAULT 'collecte_initiale',
+        id_intervention_anomalie INTEGER DEFAULT 0,
         local_path TEXT NOT NULL,
         remote_path TEXT,
         date_prise_reelle TEXT,
@@ -410,8 +480,18 @@ class DatabaseHelper {
         retry_count INTEGER DEFAULT 0,
         last_error TEXT,
         created_at TEXT,
-        updated_at TEXT,
-        UNIQUE(schema_name, table_name, uuid_objet, photo_slot)
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_photo_sync_queue_context_slot
+      ON photo_sync_queue (
+        schema_name,
+        table_name,
+        uuid_objet,
+        photo_context,
+        id_intervention_anomalie,
+        photo_slot
       )
     ''');
   }
@@ -1156,11 +1236,63 @@ class DatabaseHelper {
     if (existing.isEmpty) return;
 
     final existingCols = existing.map((r) => r['name'] as String).toSet();
+    if (!existingCols.contains('photo_context') ||
+        !existingCols.contains('id_intervention_anomalie')) {
+      await db.transaction((txn) async {
+        await txn.execute(
+          'ALTER TABLE photo_sync_queue RENAME TO photo_sync_queue_legacy',
+        );
+        await _createPhotoSyncQueueTable(txn);
+        await txn.execute('''
+          INSERT INTO photo_sync_queue (
+            id,
+            schema_name,
+            table_name,
+            uuid_objet,
+            photo_slot,
+            photo_context,
+            id_intervention_anomalie,
+            local_path,
+            remote_path,
+            date_prise_reelle,
+            id_agent_crea,
+            synced,
+            retry_count,
+            last_error,
+            created_at,
+            updated_at
+          )
+          SELECT
+            id,
+            schema_name,
+            table_name,
+            uuid_objet,
+            photo_slot,
+            'collecte_initiale',
+            0,
+            local_path,
+            remote_path,
+            date_prise_reelle,
+            id_agent_crea,
+            synced,
+            retry_count,
+            last_error,
+            created_at,
+            updated_at
+          FROM photo_sync_queue_legacy
+        ''');
+        await txn.execute('DROP TABLE photo_sync_queue_legacy');
+      });
+      return _migratePhotoSyncQueueTable(db);
+    }
+
     final requiredColumns = <String, String>{
       'schema_name': 'TEXT',
       'table_name': 'TEXT',
       'uuid_objet': 'TEXT',
       'photo_slot': 'INTEGER',
+      'photo_context': 'TEXT',
+      'id_intervention_anomalie': 'INTEGER',
       'local_path': 'TEXT',
       'remote_path': 'TEXT',
       'date_prise_reelle': 'TEXT',
@@ -1642,7 +1774,7 @@ class DatabaseHelper {
     }
   }
 
-  Future<int> upsertDownloadedEntitySrm(
+  Future<({int id, bool wasInserted})> upsertDownloadedEntitySrm(
       String tableName, Map<String, dynamic> data,
       {bool recordHistory = false}) async {
     _assertAllowedSrmTable(tableName);
@@ -1693,8 +1825,8 @@ class DatabaseHelper {
             afterRow: afterRow,
           );
         }
-        debugPrint('SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid');
-        return localId is int ? localId : 0;
+        debugPrint('SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid (UPDATE)');
+        return (id: localId is int ? localId : 0, wasInserted: false);
       }
     }
 
@@ -1711,8 +1843,8 @@ class DatabaseHelper {
         row: insertedRow,
       );
     }
-    debugPrint('SRM upsertDownloadedEntitySrm -> $tableName (ID: $id)');
-    return id;
+    debugPrint('SRM upsertDownloadedEntitySrm -> $tableName (INSERT id=$id)');
+    return (id: id, wasInserted: true);
   }
 
   Future<List<Map<String, dynamic>>> getEntities(String tableName) async {
@@ -2460,6 +2592,7 @@ class DatabaseHelper {
       'date_signalement': existing?['date_signalement'] ?? nowIso,
       'id_agent_incomplet': ApiService.userId,
       'statut': 'A_COMPLETER',
+      'uuid': existing?['uuid'] ?? const Uuid().v4(),
       'date_completion': null,
       'id_agent_completement': null,
       'synced': 0,
@@ -2953,15 +3086,26 @@ class DatabaseHelper {
     required String uuidObjet,
     required int photoSlot,
     required String localPath,
+    String photoContext = 'collecte_initiale',
+    int idInterventionAnomalie = 0,
     int? idAgentCrea,
   }) async {
     final db = await database;
     final nowIso = DateTime.now().toIso8601String();
+    final cleanContext = _normalizePhotoContext(photoContext);
     final existing = await db.query(
       'photo_sync_queue',
-      where:
-          'schema_name = ? AND table_name = ? AND uuid_objet = ? AND photo_slot = ?',
-      whereArgs: [schemaName, tableName, uuidObjet, photoSlot],
+      where: 'schema_name = ? AND table_name = ? AND uuid_objet = ? '
+          'AND photo_context = ? AND COALESCE(id_intervention_anomalie, 0) = ? '
+          'AND photo_slot = ?',
+      whereArgs: [
+        schemaName,
+        tableName,
+        uuidObjet,
+        cleanContext,
+        idInterventionAnomalie,
+        photoSlot,
+      ],
       limit: 1,
     );
     if (existing.isNotEmpty && _toInt(existing.first['synced']) == 1) {
@@ -2973,6 +3117,8 @@ class DatabaseHelper {
       'table_name': tableName,
       'uuid_objet': uuidObjet,
       'photo_slot': photoSlot,
+      'photo_context': cleanContext,
+      'id_intervention_anomalie': idInterventionAnomalie,
       'local_path': localPath,
       'id_agent_crea': idAgentCrea,
       'synced': 0,
@@ -2987,12 +3133,14 @@ class DatabaseHelper {
       await recordLocalEvent(
         eventType: 'ENQUEUE_PHOTO_SYNC',
         tableName: 'photo_sync_queue',
-        cleLigne: '$tableName|$uuidObjet|$photoSlot',
+        cleLigne: '$tableName|$uuidObjet|$cleanContext|$photoSlot',
         uuidObjet: uuidObjet,
         payload: {
           'schema_name': schemaName,
           'table_name': tableName,
           'photo_slot': photoSlot,
+          'photo_context': cleanContext,
+          'id_intervention_anomalie': idInterventionAnomalie,
         },
       );
       return id;
@@ -3008,15 +3156,31 @@ class DatabaseHelper {
     await recordLocalEvent(
       eventType: 'ENQUEUE_PHOTO_SYNC',
       tableName: 'photo_sync_queue',
-      cleLigne: '$tableName|$uuidObjet|$photoSlot',
+      cleLigne: '$tableName|$uuidObjet|$cleanContext|$photoSlot',
       uuidObjet: uuidObjet,
       payload: {
         'schema_name': schemaName,
         'table_name': tableName,
         'photo_slot': photoSlot,
+        'photo_context': cleanContext,
+        'id_intervention_anomalie': idInterventionAnomalie,
       },
     );
     return existingId;
+  }
+
+  String _normalizePhotoContext(String value) {
+    final normalized = value.trim().toLowerCase();
+    switch (normalized) {
+      case 'anomalie_avant':
+      case 'retour_terrain_apres':
+      case 'incomplet_initial':
+      case 'incomplet_complement':
+      case 'collecte_initiale':
+        return normalized;
+      default:
+        return 'collecte_initiale';
+    }
   }
 
   Future<void> cancelPhotoSyncItem({
@@ -3024,15 +3188,113 @@ class DatabaseHelper {
     required String tableName,
     required String uuidObjet,
     required int photoSlot,
+    String photoContext = 'collecte_initiale',
+    int idInterventionAnomalie = 0,
   }) async {
     final db = await database;
+    final cleanContext = _normalizePhotoContext(photoContext);
     await db.delete(
       'photo_sync_queue',
-      where:
-          'schema_name = ? AND table_name = ? AND uuid_objet = ? AND photo_slot = ? '
+      where: 'schema_name = ? AND table_name = ? AND uuid_objet = ? '
+          'AND photo_context = ? AND COALESCE(id_intervention_anomalie, 0) = ? '
+          'AND photo_slot = ? '
           'AND COALESCE(synced, 0) != 1',
-      whereArgs: [schemaName, tableName, uuidObjet, photoSlot],
+      whereArgs: [
+        schemaName,
+        tableName,
+        uuidObjet,
+        cleanContext,
+        idInterventionAnomalie,
+        photoSlot,
+      ],
     );
+  }
+
+  Future<List<Map<String, dynamic>>> getPhotoSyncItemsForObject({
+    required String schemaName,
+    required String tableName,
+    required String uuidObjet,
+    String? photoContext,
+    int? idInterventionAnomalie,
+  }) async {
+    final db = await database;
+    final where = StringBuffer(
+      'schema_name = ? AND table_name = ? AND uuid_objet = ?',
+    );
+    final args = <Object?>[schemaName, tableName, uuidObjet];
+    if (photoContext != null && photoContext.trim().isNotEmpty) {
+      where.write(' AND photo_context = ?');
+      args.add(_normalizePhotoContext(photoContext));
+    }
+    if (idInterventionAnomalie != null) {
+      where.write(' AND COALESCE(id_intervention_anomalie, 0) = ?');
+      args.add(idInterventionAnomalie);
+    }
+    return db.query(
+      'photo_sync_queue',
+      where: where.toString(),
+      whereArgs: args,
+      orderBy:
+          'photo_context ASC, id_intervention_anomalie ASC, photo_slot ASC',
+    );
+  }
+
+  Future<int> resolveInterventionAnomalieIdForObject({
+    required String schemaName,
+    required String tableName,
+    String? uuidObjet,
+    int? idObjet,
+  }) async {
+    final cleanUuid = uuidObjet?.trim() ?? '';
+    if (cleanUuid.isEmpty && idObjet == null) return 0;
+
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final schema = schemaName.trim().toLowerCase();
+    final table = tableName.trim().toLowerCase();
+    final qualifiedTable = schema.isEmpty ? table : '$schema.$table';
+    final tableSuffix = schema.isEmpty ? null : '$schema.%';
+
+    final whereParts = <String>[
+      _interventionActiveWhere,
+      if (cleanUuid.isNotEmpty) 'uuid_objet = ?' else 'id_objet = ?',
+      if (schema.isNotEmpty || table.isNotEmpty)
+        '''
+        (
+          lower(COALESCE(nom_table, '')) = ?
+          OR lower(COALESCE(nom_table, '')) = ?
+          OR lower(COALESCE(nom_classe, '')) = ?
+          ${tableSuffix == null ? '' : "OR lower(COALESCE(nom_table, '')) LIKE ?"}
+        )
+        ''',
+    ];
+    final args = <Object?>[
+      if (cleanUuid.isNotEmpty) cleanUuid else idObjet,
+      if (schema.isNotEmpty || table.isNotEmpty) ...[
+        table,
+        qualifiedTable,
+        table,
+        if (tableSuffix != null) tableSuffix,
+      ],
+    ];
+
+    final rows = await db.rawQuery('''
+      SELECT id_intervention
+      FROM intervention_anomalie
+      WHERE ${whereParts.join(' AND ')}
+      ORDER BY
+        CASE
+          WHEN $_interventionTerrainReturnWhere THEN 0
+          WHEN $_interventionExploitantPendingWhere THEN 1
+          ELSE 2
+        END,
+        COALESCE(updated_at, date_exploitant, date_bureau, date_creation,
+                 date_collecte, '') DESC,
+        id DESC
+      LIMIT 1
+    ''', args);
+    if (rows.isEmpty) return 0;
+    return _asInt(rows.first['id_intervention']) ?? 0;
   }
 
   Future<List<Map<String, dynamic>>> getPendingPhotoSyncItems({
@@ -3097,17 +3359,22 @@ class DatabaseHelper {
     int id, {
     required String remotePath,
     String? datePriseReelle,
+    int? idInterventionAnomalie,
   }) async {
     final db = await database;
+    final updates = <String, dynamic>{
+      'synced': 1,
+      'remote_path': remotePath,
+      'date_prise_reelle': datePriseReelle,
+      'last_error': null,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (idInterventionAnomalie != null && idInterventionAnomalie > 0) {
+      updates['id_intervention_anomalie'] = idInterventionAnomalie;
+    }
     await db.update(
       'photo_sync_queue',
-      {
-        'synced': 1,
-        'remote_path': remotePath,
-        'date_prise_reelle': datePriseReelle,
-        'last_error': null,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
+      updates,
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -3117,6 +3384,8 @@ class DatabaseHelper {
       idObjet: id,
       payload: {
         'remote_path': remotePath,
+        if (idInterventionAnomalie != null && idInterventionAnomalie > 0)
+          'id_intervention_anomalie': idInterventionAnomalie,
         if (datePriseReelle != null && datePriseReelle.isNotEmpty)
           'date_prise_reelle': datePriseReelle,
       },

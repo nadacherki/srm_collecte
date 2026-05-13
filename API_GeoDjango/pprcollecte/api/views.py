@@ -438,6 +438,7 @@ def _attach_mobile_photo_refs(rows, schema_name, table_name):
             WHERE nom_schema = %s
               AND nom_table = %s
               AND actif = true
+              AND contexte_photo = 'collecte_initiale'
               AND num_photo BETWEEN 1 AND 4
               AND uuid_objet = ANY(%s)
             ORDER BY uuid_objet, num_photo
@@ -1214,8 +1215,12 @@ def mobile_srm_table_view(request, endpoint):
             timestamp_parts = []
             timestamp_params = []
             if filter_column:
+                # Strictement > : sinon les objets dont date_modification == updated_after
+                # (cas frequent quand le client renvoie l'horodatage de fin du DL
+                # precedent) sont re-renvoyes a chaque cycle et le mobile annonce
+                # de fausses "nouvelles donnees".
                 timestamp_parts.append(
-                    pg_sql.SQL('{} >= %s').format(pg_sql.Identifier(filter_column))
+                    pg_sql.SQL('{} > %s').format(pg_sql.Identifier(filter_column))
                 )
                 timestamp_params.append(parsed_updated_after)
             if 'uuid' in columns:
@@ -1549,6 +1554,8 @@ def _ensure_objet_photo_schema():
                 nom_schema VARCHAR(20) NOT NULL,
                 nom_table VARCHAR(100) NOT NULL,
                 num_photo SMALLINT NOT NULL,
+                contexte_photo VARCHAR(40) NOT NULL DEFAULT 'collecte_initiale',
+                id_intervention_anomalie INTEGER NOT NULL DEFAULT 0,
                 nom_fichier VARCHAR(255) NOT NULL,
                 chemin_relatif TEXT NOT NULL,
                 hash_sha256 CHAR(64),
@@ -1565,7 +1572,24 @@ def _ensure_objet_photo_schema():
             """
             ALTER TABLE public.objet_photo
                 ADD COLUMN IF NOT EXISTS date_prise_reelle timestamptz,
-                ADD COLUMN IF NOT EXISTS date_upload timestamptz
+                ADD COLUMN IF NOT EXISTS date_upload timestamptz,
+                ADD COLUMN IF NOT EXISTS contexte_photo varchar(40),
+                ADD COLUMN IF NOT EXISTS id_intervention_anomalie integer
+            """
+        )
+        cursor.execute(
+            """
+            UPDATE public.objet_photo
+            SET contexte_photo = 'collecte_initiale'
+            WHERE contexte_photo IS NULL OR btrim(contexte_photo) = '';
+            UPDATE public.objet_photo
+            SET id_intervention_anomalie = 0
+            WHERE id_intervention_anomalie IS NULL;
+            ALTER TABLE public.objet_photo
+                ALTER COLUMN contexte_photo SET DEFAULT 'collecte_initiale',
+                ALTER COLUMN contexte_photo SET NOT NULL,
+                ALTER COLUMN id_intervention_anomalie SET DEFAULT 0,
+                ALTER COLUMN id_intervention_anomalie SET NOT NULL
             """
         )
         cursor.execute(
@@ -1581,17 +1605,38 @@ def _ensure_objet_photo_schema():
                         ADD CONSTRAINT objet_photo_num_photo_check
                         CHECK (num_photo BETWEEN 1 AND 4);
                 END IF;
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'objet_photo_context_check'
+                ) THEN
+                    ALTER TABLE public.objet_photo
+                        ADD CONSTRAINT objet_photo_context_check
+                        CHECK (
+                            contexte_photo IN (
+                                'collecte_initiale',
+                                'anomalie_avant',
+                                'retour_terrain_apres',
+                                'incomplet_initial',
+                                'incomplet_complement'
+                            )
+                        );
+                END IF;
             END $$;
             """
         )
         cursor.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS
-                objet_photo_nom_schema_nom_table_uuid_objet_num_photo_key
+            ALTER TABLE public.objet_photo
+                DROP CONSTRAINT IF EXISTS objet_photo_nom_schema_nom_table_uuid_objet_num_photo_key;
+            DROP INDEX IF EXISTS public.objet_photo_nom_schema_nom_table_uuid_objet_num_photo_key;
+            CREATE UNIQUE INDEX IF NOT EXISTS objet_photo_context_slot_key
                 ON public.objet_photo (
                     nom_schema,
                     nom_table,
                     uuid_objet,
+                    contexte_photo,
+                    id_intervention_anomalie,
                     num_photo
                 )
             """
@@ -2495,7 +2540,17 @@ def _mark_sync_item_received_for_table(
     _refresh_sync_session_counters(session)
 
 
-def _mark_sync_attachment_received(*, sync_uuid, schema_name, table_name, uuid_objet, photo_slot, remote_path):
+def _mark_sync_attachment_received(
+    *,
+    sync_uuid,
+    schema_name,
+    table_name,
+    uuid_objet,
+    photo_slot,
+    remote_path,
+    photo_context='collecte_initiale',
+    id_intervention_anomalie=0,
+):
     if not sync_uuid or not uuid_objet:
         return
 
@@ -2510,6 +2565,8 @@ def _mark_sync_attachment_received(*, sync_uuid, schema_name, table_name, uuid_o
         nom_schema=schema_name,
         nom_table=table_name,
         uuid_objet=uuid_objet,
+        photo_context=photo_context or 'collecte_initiale',
+        id_intervention_anomalie=id_intervention_anomalie or 0,
         photo_slot=photo_slot,
         defaults={'statut': 'pending', 'last_activity_at': now},
     )
@@ -2530,6 +2587,53 @@ def _mark_sync_attachment_received(*, sync_uuid, schema_name, table_name, uuid_o
         ]
     )
     _refresh_sync_session_counters(session)
+
+
+def _resolve_photo_intervention_anomalie_id(
+    *,
+    schema_name,
+    table_name,
+    uuid_objet,
+    photo_context,
+    id_intervention_anomalie,
+):
+    explicit_id = _parse_positive_int_value(id_intervention_anomalie)
+    if explicit_id:
+        return explicit_id
+    if photo_context == 'collecte_initiale':
+        return 0
+    uuid_text = (uuid_objet or '').strip()
+    if not uuid_text:
+        return 0
+
+    nom_table = f'{schema_name}.{table_name}'
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id
+            FROM public.intervention_anomalie
+            WHERE uuid_objet = %s
+              AND nom_table = %s
+              AND COALESCE(statut, '') NOT IN ('cloture', 'annule')
+            ORDER BY
+              CASE
+                WHEN COALESCE(retour_terrain, false) = true
+                  OR lower(COALESCE(responsable_actuel, '')) = 'terrain'
+                  OR lower(COALESCE(etat_exploitant, '')) IN ('traite', 'traité')
+                THEN 0
+                WHEN lower(COALESCE(responsable_actuel, '')) = 'exploitant'
+                THEN 1
+                ELSE 2
+              END,
+              COALESCE(updated_at, date_exploitant, date_bureau, date_creation,
+                       created_at) DESC NULLS LAST,
+              id DESC
+            LIMIT 1
+            """,
+            [uuid_text, nom_table],
+        )
+        row = cursor.fetchone()
+    return int(row[0]) if row else 0
 
 
 def _parse_bool_value(raw_value, default=False):
@@ -3588,6 +3692,20 @@ def sync_manifest_view(request):
             nom_table = str(attachment.get('nom_table') or attachment.get('table_name') or '').strip().lower()
             uuid_objet = str(attachment.get('uuid_objet') or attachment.get('uuid') or '').strip()
             photo_slot = _parse_positive_int_value(attachment.get('photo_slot'))
+            photo_context = (
+                str(
+                    attachment.get('photo_context')
+                    or attachment.get('contexte_photo')
+                    or 'collecte_initiale'
+                )
+                .strip()
+                .lower()
+                or 'collecte_initiale'
+            )
+            id_intervention_anomalie = (
+                _parse_positive_int_value(attachment.get('id_intervention_anomalie'))
+                or 0
+            )
             if not nom_schema or not nom_table or not uuid_objet or photo_slot is None:
                 ignored_attachments += 1
                 continue
@@ -3597,6 +3715,8 @@ def sync_manifest_view(request):
                 nom_schema=nom_schema,
                 nom_table=nom_table,
                 uuid_objet=uuid_objet,
+                photo_context=photo_context,
+                id_intervention_anomalie=id_intervention_anomalie,
                 photo_slot=photo_slot,
             ).first()
             defaults = {
@@ -3611,6 +3731,8 @@ def sync_manifest_view(request):
                     nom_schema=nom_schema,
                     nom_table=nom_table,
                     uuid_objet=uuid_objet,
+                    photo_context=photo_context,
+                    id_intervention_anomalie=id_intervention_anomalie,
                     photo_slot=photo_slot,
                     statut='pending',
                     **defaults,
@@ -3675,6 +3797,8 @@ def sync_session_status_view(request, sync_uuid):
             'nom_table',
             'uuid_objet',
             'photo_slot',
+            'photo_context',
+            'id_intervention_anomalie',
             'statut',
             'attempts',
             'last_error',
@@ -3698,6 +3822,8 @@ def photo_upload_view(request):
     table_name = data['table_name'].strip()
     uuid_objet = data['uuid_objet'].strip()
     photo_slot = data['photo_slot']
+    photo_context = data.get('photo_context') or 'collecte_initiale'
+    id_intervention_anomalie = data.get('id_intervention_anomalie') or 0
     endpoint_hint = (data.get('endpoint') or '').strip().strip('/').lower()
     sync_session_uuid = (data.get('sync_session_uuid') or '').strip()
     uploaded_file = data['file']
@@ -3733,10 +3859,24 @@ def photo_upload_view(request):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+    id_intervention_anomalie = _resolve_photo_intervention_anomalie_id(
+        schema_name=schema_name,
+        table_name=table_name,
+        uuid_objet=uuid_objet,
+        photo_context=photo_context,
+        id_intervention_anomalie=id_intervention_anomalie,
+    )
+
     safe_uuid = re.sub(r'[^A-Za-z0-9._-]+', '_', uuid_objet)
+    safe_context = re.sub(r'[^A-Za-z0-9._-]+', '_', photo_context)
     extension = Path(uploaded_file.name).suffix.lower()
-    file_name = f'{safe_uuid}_{photo_slot}{extension}'
-    relative_dir = Path('srm_photos') / schema_name / table_name
+    intervention_part = (
+        f'_{id_intervention_anomalie}'
+        if id_intervention_anomalie
+        else ''
+    )
+    file_name = f'{safe_uuid}_{safe_context}{intervention_part}_{photo_slot}{extension}'
+    relative_dir = Path('srm_photos') / schema_name / table_name / safe_context
     absolute_dir = Path(settings.MEDIA_ROOT) / relative_dir
     absolute_dir.mkdir(parents=True, exist_ok=True)
 
@@ -3744,13 +3884,10 @@ def photo_upload_view(request):
         nom_schema=schema_name,
         nom_table=table_name,
         uuid_objet=uuid_objet,
+        contexte_photo=photo_context,
+        id_intervention_anomalie=id_intervention_anomalie,
         num_photo=photo_slot,
     ).first()
-    previous_file_to_delete = None
-    if existing_photo and existing_photo.chemin_relatif:
-        previous_file = Path(settings.MEDIA_ROOT) / existing_photo.chemin_relatif
-        if previous_file.exists() and previous_file.name != file_name:
-            previous_file_to_delete = previous_file
 
     final_path = absolute_dir / file_name
     temp_path = absolute_dir / f'.tmp_{file_name}'
@@ -3764,6 +3901,63 @@ def photo_upload_view(request):
     os.replace(temp_path, final_path)
 
     relative_path = (relative_dir / file_name).as_posix()
+    uploaded_hash = sha256.hexdigest()
+    if existing_photo is not None:
+        if (existing_photo.hash_sha256 or '').strip() == uploaded_hash:
+            final_path.unlink(missing_ok=True)
+            _mark_sync_attachment_received(
+                sync_uuid=sync_session_uuid,
+                schema_name=schema_name,
+                table_name=table_name,
+                uuid_objet=uuid_objet,
+                photo_slot=photo_slot,
+                remote_path=existing_photo.chemin_relatif,
+                photo_context=photo_context,
+                id_intervention_anomalie=id_intervention_anomalie,
+            )
+            return Response(
+                {
+                    'success': True,
+                    'duplicate': True,
+                    'schema_name': schema_name,
+                    'table_name': table_name,
+                    'uuid_objet': uuid_objet,
+                    'photo_slot': photo_slot,
+                    'photo_context': photo_context,
+                    'contexte_photo': photo_context,
+                    'id_intervention_anomalie': id_intervention_anomalie,
+                    'field_name': f'photo_{photo_slot}',
+                    'storage_table': 'public.objet_photo',
+                    'relative_path': existing_photo.chemin_relatif,
+                    'media_url': request.build_absolute_uri(
+                        f'{settings.MEDIA_URL}{existing_photo.chemin_relatif}'
+                    ),
+                    'date_prise_reelle': (
+                        existing_photo.date_prise_reelle.isoformat()
+                        if existing_photo.date_prise_reelle else None
+                    ),
+                    'date_upload': (
+                        existing_photo.date_upload.isoformat()
+                        if existing_photo.date_upload else None
+                    ),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        final_path.unlink(missing_ok=True)
+        return Response(
+            {
+                'error': (
+                    'Photo deja synchronisee pour ce contexte et ce slot. '
+                    'Ajoutez une nouvelle photo dans un slot libre ou un autre contexte.'
+                ),
+                'code': 'PHOTO_SLOT_ALREADY_SYNCED',
+                'photo_context': photo_context,
+                'photo_slot': photo_slot,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
     captured_at = _extract_photo_taken_at(final_path)
     uploaded_at = timezone.now()
     with transaction.atomic():
@@ -3779,11 +3973,13 @@ def photo_upload_view(request):
             nom_schema=schema_name,
             nom_table=table_name,
             uuid_objet=uuid_objet,
+            contexte_photo=photo_context,
+            id_intervention_anomalie=id_intervention_anomalie,
             num_photo=photo_slot,
             defaults={
                 'nom_fichier': file_name,
                 'chemin_relatif': relative_path,
-                'hash_sha256': sha256.hexdigest(),
+                'hash_sha256': uploaded_hash,
                 'mime_type': getattr(uploaded_file, 'content_type', '') or None,
                 'taille_octets': getattr(uploaded_file, 'size', None),
                 'id_agent_crea': data.get('id_agent_crea'),
@@ -3793,9 +3989,6 @@ def photo_upload_view(request):
             },
         )
 
-    if previous_file_to_delete is not None:
-        previous_file_to_delete.unlink(missing_ok=True)
-
     _mark_sync_attachment_received(
         sync_uuid=sync_session_uuid,
         schema_name=schema_name,
@@ -3803,6 +3996,8 @@ def photo_upload_view(request):
         uuid_objet=uuid_objet,
         photo_slot=photo_slot,
         remote_path=relative_path,
+        photo_context=photo_context,
+        id_intervention_anomalie=id_intervention_anomalie,
     )
 
     media_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{relative_path}')
@@ -3813,6 +4008,9 @@ def photo_upload_view(request):
             'table_name': table_name,
             'uuid_objet': uuid_objet,
             'photo_slot': photo_slot,
+            'photo_context': photo_context,
+            'contexte_photo': photo_context,
+            'id_intervention_anomalie': id_intervention_anomalie,
             'field_name': f'photo_{photo_slot}',
             'storage_table': 'public.objet_photo',
             'relative_path': relative_path,
@@ -4109,7 +4307,7 @@ class ObjetIncompletViewSet(viewsets.ModelViewSet):
         qs = ObjetIncomplet.objects.all().order_by('-date_signalement', '-id_incomplet')
         query_params = self.request.query_params
 
-        for param in ('nom_table', 'statut'):
+        for param in ('nom_table', 'statut', 'uuid'):
             value = query_params.get(param)
             if value not in (None, ''):
                 qs = qs.filter(**{param: value})
@@ -4127,6 +4325,12 @@ class ObjetIncompletViewSet(viewsets.ModelViewSet):
 
     def _find_existing_for_payload(self, serializer):
         data = serializer.validated_data
+        payload_uuid = data.get('uuid')
+        if payload_uuid not in (None, ''):
+            existing = ObjetIncomplet.objects.filter(uuid=payload_uuid).first()
+            if existing is not None:
+                return existing
+
         raw_id = self.request.data.get('id_incomplet')
         id_incomplet = _parse_positive_int_value(raw_id)
         if id_incomplet is not None:
@@ -4261,17 +4465,28 @@ class InterventionAnomalieTerrainViewSet(viewsets.ModelViewSet):
 class ObjetPhotoViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ObjetPhoto.objects.all()
     serializer_class = ObjetPhotoSerializer
+    http_method_names = ['get', 'head', 'options']
 
     def get_queryset(self):
         qs = ObjetPhoto.objects.all().order_by(
             'nom_schema',
             'nom_table',
             'uuid_objet',
+            'contexte_photo',
+            'id_intervention_anomalie',
             'num_photo',
         )
         nom_schema = (self.request.query_params.get('nom_schema') or '').strip()
         nom_table = (self.request.query_params.get('nom_table') or '').strip()
         uuid_objet = (self.request.query_params.get('uuid_objet') or '').strip()
+        contexte_photo = (
+            self.request.query_params.get('contexte_photo')
+            or self.request.query_params.get('photo_context')
+            or ''
+        ).strip()
+        id_intervention_anomalie = _parse_positive_int_value(
+            self.request.query_params.get('id_intervention_anomalie')
+        )
 
         if nom_schema:
             qs = qs.filter(nom_schema=nom_schema)
@@ -4279,6 +4494,10 @@ class ObjetPhotoViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(nom_table=nom_table)
         if uuid_objet:
             qs = qs.filter(uuid_objet=uuid_objet)
+        if contexte_photo:
+            qs = qs.filter(contexte_photo=contexte_photo)
+        if id_intervention_anomalie:
+            qs = qs.filter(id_intervention_anomalie=id_intervention_anomalie)
         return qs
 
 

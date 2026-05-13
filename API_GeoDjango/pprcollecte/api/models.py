@@ -13,6 +13,8 @@ Organisation :
 Toutes les géométries sont en EPSG:26191 (Merchich Nord).
 """
 
+import uuid
+
 from django.contrib.gis.db import models
 
 from .metrics_models import (
@@ -190,6 +192,7 @@ class HistoriqueAction(models.Model):
 
 class ObjetIncomplet(models.Model):
     id_incomplet = models.AutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True)
     nom_table = models.CharField(max_length=255)
     id_objet = models.IntegerField()
     detail_raison = models.TextField(null=True, blank=True)
@@ -240,6 +243,8 @@ class ObjetPhoto(models.Model):
     nom_schema = models.CharField(max_length=20)
     nom_table = models.CharField(max_length=100)
     num_photo = models.SmallIntegerField()
+    contexte_photo = models.CharField(max_length=40, default='collecte_initiale')
+    id_intervention_anomalie = models.IntegerField(default=0)
     nom_fichier = models.CharField(max_length=255)
     chemin_relatif = models.TextField()
     hash_sha256 = models.CharField(max_length=64, null=True, blank=True)
@@ -255,7 +260,10 @@ class ObjetPhoto(models.Model):
         db_table = 'objet_photo'
 
     def __str__(self):
-        return f"{self.nom_schema}.{self.nom_table} {self.uuid_objet} photo {self.num_photo}"
+        return (
+            f"{self.nom_schema}.{self.nom_table} {self.uuid_objet} "
+            f"{self.contexte_photo} photo {self.num_photo}"
+        )
 
 
 class SyncSession(models.Model):
@@ -328,6 +336,8 @@ class SyncSessionAttachment(models.Model):
     nom_table = models.CharField(max_length=100)
     uuid_objet = models.CharField(max_length=254)
     photo_slot = models.SmallIntegerField()
+    photo_context = models.CharField(max_length=40, default='collecte_initiale')
+    id_intervention_anomalie = models.IntegerField(default=0)
     local_path = models.TextField(null=True, blank=True)
     sha256 = models.CharField(max_length=64, null=True, blank=True)
     taille_octets = models.BigIntegerField(null=True, blank=True)
@@ -345,7 +355,7 @@ class SyncSessionAttachment(models.Model):
     def __str__(self):
         return (
             f"{self.sync_session.sync_uuid} {self.nom_schema}.{self.nom_table} "
-            f"{self.uuid_objet} photo {self.photo_slot}"
+            f"{self.uuid_objet} {self.photo_context} photo {self.photo_slot}"
         )
 
 

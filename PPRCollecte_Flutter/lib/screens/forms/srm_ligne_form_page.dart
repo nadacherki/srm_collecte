@@ -71,6 +71,34 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   final _detailRaisonController = TextEditingController();
   final _picker = ImagePicker();
   final Map<int, String?> _photoPaths = {1: null, 2: null, 3: null, 4: null};
+  final Map<int, String?> _anomaliePhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<int, String?> _retourTerrainPhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<int, String?> _incompletPhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<int, String?> _incompletComplementPhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<String, Map<int, String?>> _initialWorkflowPhotoPaths = {};
+  bool _wasAnomalieAtOpen = false;
+  bool _wasObjetIncompletAtOpen = false;
+  int _workflowInterventionId = 0;
 
   bool _hasAnomalie = false;
   String? _typeAnomalie;
@@ -110,6 +138,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       : widget.metier == 'Assainissement'
           ? 'ASS'
           : 'SRM';
+
+  static const String _photoContextAnomalieAvant = 'anomalie_avant';
+  static const String _photoContextRetourTerrain = 'retour_terrain_apres';
+  static const String _photoContextIncompletInitial = 'incomplet_initial';
+  static const String _photoContextIncompletComplement = 'incomplet_complement';
 
   bool _isTruthyFlag(dynamic value) {
     if (value == null) return false;
@@ -319,6 +352,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
+      _wasAnomalieAtOpen = _hasAnomalie;
+      _wasObjetIncompletAtOpen = _isObjetIncomplet;
       for (int i = 1; i <= _photoSlotCount; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
@@ -331,6 +366,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       );
       _isLocked = FormLockService.isLocked(widget.existingData!);
       _restoreLinkedObjetIncompletDetails();
+      _loadWorkflowPhotoQueues();
     }
 
     if (widget.existingData == null) {
@@ -653,8 +689,19 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     });
   }
 
-  Future<void> _pickPhoto(int index) async {
-    if (!PhotoSlotService.canPickSlot(_photoPaths, index, _photoSlotCount)) {
+  Future<void> _pickPhoto(
+    int index, {
+    Map<int, String?>? targetPaths,
+    String photoContext = 'collecte_initiale',
+    int? maxSlots,
+  }) async {
+    final paths = targetPaths ?? _photoPaths;
+    final slotLimit = maxSlots ??
+        (targetPaths == null
+            ? _photoSlotCount
+            : _workflowPhotoSlotCount(photoContext));
+    final previousPath = paths[index]?.trim();
+    if (!PhotoSlotService.canPickSlot(paths, index, slotLimit)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Ajoutez les photos dans l'ordre."),
@@ -701,7 +748,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
     final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
       candidatePath: picked.path,
-      existingPaths: _photoPaths,
+      existingPaths: paths,
       currentSlot: index,
     );
     if (duplicateSlot != null) {
@@ -742,6 +789,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         schemaName: _metierCode.toLowerCase(),
         tableName: tableName,
         photoSlot: index,
+        photoContext: photoContext,
       );
     } catch (e) {
       if (!mounted) return;
@@ -755,31 +803,44 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
 
     if (!mounted) return;
+    if (PhotoReferenceService.isLocalReference(previousPath)) {
+      await PhotoStorageService.deleteLocalPhotoReference(previousPath);
+    }
     setState(() {
-      _photoPaths[index] = durablePath;
-      _photoPaths.addAll(
+      paths[index] = durablePath;
+      paths.addAll(
         PhotoSlotService.compact(
-          _photoPaths,
-          _photoSlotCount,
+          paths,
+          slotLimit,
           isLockedReference: PhotoReferenceService.isRemoteReference,
         ),
       );
     });
-    if (widget.existingData == null) onFieldChanged();
+    if (targetPaths == null && widget.existingData == null) onFieldChanged();
   }
 
-  void _removePhoto(int index) {
+  Future<void> _removePhoto(
+    int index, {
+    Map<int, String?>? targetPaths,
+    int? maxSlots,
+  }) async {
+    final paths = targetPaths ?? _photoPaths;
+    final slotLimit = maxSlots ?? _photoSlotCount;
+    final removedPath = paths[index]?.trim();
     setState(() {
-      _photoPaths.addAll(
+      paths.addAll(
         PhotoSlotService.removeAndCompact(
-          _photoPaths,
+          paths,
           index,
-          _photoSlotCount,
+          slotLimit,
           isLockedReference: PhotoReferenceService.isRemoteReference,
         ),
       );
     });
-    if (widget.existingData == null) onFieldChanged();
+    if (PhotoReferenceService.isLocalReference(removedPath)) {
+      await PhotoStorageService.deleteLocalPhotoReference(removedPath);
+    }
+    if (targetPaths == null && widget.existingData == null) onFieldChanged();
   }
 
   Future<void> _cancelRemovedLocalPhotoUploadsAfterSave(
@@ -798,6 +859,190 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           tableName: _tableName,
           uuidObjet: uuid,
           photoSlot: slot,
+        );
+        await PhotoStorageService.deleteLocalPhotoReference(previous);
+      }
+    }
+  }
+
+  Map<int, String?> _workflowPhotoMapForContext(String photoContext) {
+    switch (photoContext) {
+      case _photoContextAnomalieAvant:
+        return _anomaliePhotoPaths;
+      case _photoContextRetourTerrain:
+        return _retourTerrainPhotoPaths;
+      case _photoContextIncompletInitial:
+        return _incompletPhotoPaths;
+      case _photoContextIncompletComplement:
+        return _incompletComplementPhotoPaths;
+      default:
+        return _anomaliePhotoPaths;
+    }
+  }
+
+  int _workflowPhotoSlotCount(String photoContext) {
+    if (_photoSlotCount <= PhotoStorageService.workflowPhotoSlotLimit) {
+      return _photoSlotCount;
+    }
+    return PhotoStorageService.workflowPhotoSlotLimit;
+  }
+
+  Future<void> _loadWorkflowPhotoQueues() async {
+    final uuid = widget.existingData?['uuid']?.toString().trim() ?? '';
+    if (uuid.isEmpty || _tableName.isEmpty) return;
+
+    try {
+      final db = DatabaseHelper();
+      final resolvedInterventionId =
+          await db.resolveInterventionAnomalieIdForObject(
+        schemaName: _metierCode.toLowerCase(),
+        tableName: _tableName,
+        uuidObjet: uuid,
+      );
+      var queueInterventionId = resolvedInterventionId;
+      var rows = await db.getPhotoSyncItemsForObject(
+        schemaName: _metierCode.toLowerCase(),
+        tableName: _tableName,
+        uuidObjet: uuid,
+        idInterventionAnomalie: queueInterventionId,
+      );
+      if (resolvedInterventionId != 0 && rows.isEmpty) {
+        queueInterventionId = 0;
+        rows = await db.getPhotoSyncItemsForObject(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          idInterventionAnomalie: queueInterventionId,
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _workflowInterventionId = queueInterventionId;
+        for (final row in rows) {
+          final photoContext =
+              row['photo_context']?.toString().trim() ?? 'collecte_initiale';
+          if (photoContext == 'collecte_initiale') continue;
+          final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
+          if (slot == null || slot < 1 || slot > 4) continue;
+          final remote = row['remote_path']?.toString().trim() ?? '';
+          final local = row['local_path']?.toString().trim() ?? '';
+          final value = remote.isNotEmpty ? remote : local;
+          if (value.isEmpty) continue;
+          _workflowPhotoMapForContext(photoContext)[slot] = value;
+        }
+        for (final context in const [
+          _photoContextAnomalieAvant,
+          _photoContextRetourTerrain,
+          _photoContextIncompletInitial,
+          _photoContextIncompletComplement,
+        ]) {
+          final paths = _workflowPhotoMapForContext(context);
+          paths.addAll(PhotoSlotService.compact(
+            paths,
+            _workflowPhotoSlotCount(context),
+            isLockedReference: PhotoReferenceService.isRemoteReference,
+          ));
+          _initialWorkflowPhotoPaths[context] = Map<int, String?>.from(paths);
+        }
+      });
+    } catch (e) {
+      debugPrint('Photos workflow ignorees: $e');
+    }
+  }
+
+  Future<void> _enqueueWorkflowPhotosAfterSave({
+    required DatabaseHelper dbHelper,
+    required String uuid,
+  }) async {
+    if (uuid.trim().isEmpty || _tableName.isEmpty) return;
+    final resolvedInterventionId =
+        await dbHelper.resolveInterventionAnomalieIdForObject(
+      schemaName: _metierCode.toLowerCase(),
+      tableName: _tableName,
+      uuidObjet: uuid,
+    );
+    final interventionId = _workflowInterventionId != 0
+        ? _workflowInterventionId
+        : resolvedInterventionId;
+
+    final allWorkflowPhotos = <String, Map<int, String?>>{
+      _photoContextAnomalieAvant: _anomaliePhotoPaths,
+      _photoContextRetourTerrain: _retourTerrainPhotoPaths,
+      _photoContextIncompletInitial: _incompletPhotoPaths,
+      _photoContextIncompletComplement: _incompletComplementPhotoPaths,
+    };
+    final activeContexts = <String>{
+      if (_hasAnomalie && !_isObjetIncomplet) _photoContextAnomalieAvant,
+      if (_wasAnomalieAtOpen && !_hasAnomalie) _photoContextRetourTerrain,
+      if (_isObjetIncomplet) _photoContextIncompletInitial,
+      if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
+        _photoContextIncompletComplement,
+    };
+
+    for (final entry in allWorkflowPhotos.entries) {
+      if (activeContexts.contains(entry.key)) continue;
+      for (var slot = 1; slot <= _photoSlotCount; slot++) {
+        final current = entry.value[slot]?.trim() ?? '';
+        if (!PhotoReferenceService.isLocalReference(current)) continue;
+        await dbHelper.cancelPhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+          photoContext: entry.key,
+          idInterventionAnomalie: interventionId,
+        );
+        await PhotoStorageService.deleteLocalPhotoReference(current);
+      }
+    }
+
+    for (final entry in allWorkflowPhotos.entries) {
+      if (!activeContexts.contains(entry.key)) continue;
+      final slotLimit = _workflowPhotoSlotCount(entry.key);
+      final initial =
+          _initialWorkflowPhotoPaths[entry.key] ?? const <int, String?>{};
+      for (var slot = 1; slot <= _photoSlotCount; slot++) {
+        final previous = initial[slot]?.trim() ?? '';
+        final current = entry.value[slot]?.trim() ?? '';
+        if (slot > slotLimit) {
+          if (PhotoReferenceService.isLocalReference(current)) {
+            await dbHelper.cancelPhotoSyncItem(
+              schemaName: _metierCode.toLowerCase(),
+              tableName: _tableName,
+              uuidObjet: uuid,
+              photoSlot: slot,
+              photoContext: entry.key,
+              idInterventionAnomalie: interventionId,
+            );
+            await PhotoStorageService.deleteLocalPhotoReference(current);
+          }
+          continue;
+        }
+        if (previous.isNotEmpty &&
+            current != previous &&
+            !PhotoReferenceService.isRemoteReference(previous)) {
+          await dbHelper.cancelPhotoSyncItem(
+            schemaName: _metierCode.toLowerCase(),
+            tableName: _tableName,
+            uuidObjet: uuid,
+            photoSlot: slot,
+            photoContext: entry.key,
+            idInterventionAnomalie: interventionId,
+          );
+        }
+        if (current.isEmpty ||
+            !PhotoReferenceService.isLocalReference(current)) {
+          continue;
+        }
+        await dbHelper.enqueuePhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+          photoContext: entry.key,
+          idInterventionAnomalie: interventionId,
+          localPath: PhotoReferenceService.toLocalFilePath(current),
+          idAgentCrea: ApiService.userId,
         );
       }
     }
@@ -1017,6 +1262,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       }
 
       await _cancelRemovedLocalPhotoUploadsAfterSave(dbHelper);
+      await _enqueueWorkflowPhotosAfterSave(
+        dbHelper: dbHelper,
+        uuid: data['uuid']?.toString() ?? '',
+      );
 
       if (mounted) {
         await clearDraftAfterSave();
@@ -1708,7 +1957,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   Widget _buildPhotoSection() {
     if (_photoSlotCount == 0) return const SizedBox.shrink();
-    final disabled = _isObjetIncomplet || _isLocked;
+    final disabled = _isObjetIncomplet ||
+        _hasAnomalie ||
+        _wasAnomalieAtOpen ||
+        _wasObjetIncompletAtOpen ||
+        _isLocked;
     final visibleSlotCount = PhotoSlotService.visibleSlotCount(
       _photoPaths,
       _photoSlotCount,
@@ -1806,6 +2059,152 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
               ),
             );
           }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowPhotoSection({
+    required String title,
+    required String subtitle,
+    required String photoContext,
+    required Map<int, String?> photoPaths,
+    Color color = Colors.red,
+  }) {
+    final maxWorkflowPhotos = _workflowPhotoSlotCount(photoContext);
+    if (maxWorkflowPhotos == 0) return const SizedBox.shrink();
+    final disabled = _isLocked;
+    final visibleSlotCount = PhotoSlotService.visibleSlotCount(
+      photoPaths,
+      maxWorkflowPhotos,
+      allowAdd: !disabled,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.photo_camera_outlined, color: color, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(visibleSlotCount, (i) {
+                  final idx = i + 1;
+                  final path = photoPaths[idx];
+                  final isRemotePhoto = path != null &&
+                      PhotoReferenceService.isRemoteReference(path);
+                  final canEditSlot = !disabled &&
+                      !isRemotePhoto &&
+                      PhotoSlotService.canPickSlot(
+                        photoPaths,
+                        idx,
+                        maxWorkflowPhotos,
+                      );
+                  return GestureDetector(
+                    onTap: canEditSlot
+                        ? () => _pickPhoto(
+                              idx,
+                              targetPaths: photoPaths,
+                              photoContext: photoContext,
+                              maxSlots: maxWorkflowPhotos,
+                            )
+                        : null,
+                    child: Opacity(
+                      opacity: disabled ? 0.55 : 1.0,
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: color.withValues(alpha: 0.45),
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.white,
+                            ),
+                            child: path != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: _buildPhotoPreview(path),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_a_photo,
+                                        color: color.withValues(alpha: 0.55),
+                                      ),
+                                      Text(
+                                        'Photo $idx',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: color.withValues(alpha: 0.75),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                          if (path != null && canEditSlot)
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () => _removePhoto(
+                                  idx,
+                                  targetPaths: photoPaths,
+                                  maxSlots: maxWorkflowPhotos,
+                                ),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -2147,6 +2546,42 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                     _buildAnomalieSection(),
                     if (!_isLocked) _buildObjetIncompletSection(),
                     _buildPhotoSection(),
+                    if (_hasAnomalie)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos anomalie',
+                        subtitle:
+                            'Preuves separees des photos generales. Elles ne seront pas ecrasees apres synchronisation.',
+                        photoContext: _photoContextAnomalieAvant,
+                        photoPaths: _anomaliePhotoPaths,
+                        color: Colors.red,
+                      ),
+                    if (_wasAnomalieAtOpen && !_hasAnomalie)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos retour terrain',
+                        subtitle:
+                            'Ajoutez les preuves apres traitement sans remplacer les photos anomalie.',
+                        photoContext: _photoContextRetourTerrain,
+                        photoPaths: _retourTerrainPhotoPaths,
+                        color: Colors.green,
+                      ),
+                    if (_isObjetIncomplet)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos objet incomplet',
+                        subtitle:
+                            'Preuves de l\'incompletude separees des photos generales.',
+                        photoContext: _photoContextIncompletInitial,
+                        photoPaths: _incompletPhotoPaths,
+                        color: Colors.orange,
+                      ),
+                    if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos complement',
+                        subtitle:
+                            'Preuves ajoutees lors du completement de l\'objet.',
+                        photoContext: _photoContextIncompletComplement,
+                        photoPaths: _incompletComplementPhotoPaths,
+                        color: Colors.blueGrey,
+                      ),
                     const SizedBox(height: 24),
                     Row(
                       children: [

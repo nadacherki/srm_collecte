@@ -23,6 +23,7 @@ class SyncResult {
   int photoSuccessCount = 0;
   int failedCount = 0;
   int skippedCount = 0;
+  int updatedCount = 0;
   bool interrupted = false;
   String? interruptionMessage;
   final List<String> errors = [];
@@ -253,14 +254,18 @@ class SyncService {
             map['synced'] = 1;
             map['date_sync'] = nowIso;
 
-            await dbHelper.upsertDownloadedEntitySrm(
+            final upsertRes = await dbHelper.upsertDownloadedEntitySrm(
               info.table,
               map,
               recordHistory: false,
             );
             downloadedForTable++;
-            result.successCount++;
-            result.entitySuccessCount++;
+            if (upsertRes.wasInserted) {
+              result.successCount++;
+              result.entitySuccessCount++;
+            } else {
+              result.updatedCount++;
+            }
           }
 
           final followingPage = pageResult.nextPage;
@@ -1364,6 +1369,12 @@ class SyncService {
       final uuidObjet = item['uuid_objet']?.toString().trim() ?? '';
       final localPath = item['local_path']?.toString().trim() ?? '';
       final photoSlot = _asIntOrNull(item['photo_slot']);
+      final photoContext =
+          item['photo_context']?.toString().trim().isNotEmpty == true
+              ? item['photo_context'].toString().trim()
+              : 'collecte_initiale';
+      final idInterventionAnomalie =
+          _asIntOrNull(item['id_intervention_anomalie']) ?? 0;
       if (photoSlot == null) {
         continue;
       }
@@ -1375,6 +1386,8 @@ class SyncService {
         uuidObjet: uuidObjet,
         photoSlot: photoSlot,
         localPath: localPath,
+        photoContext: photoContext,
+        idInterventionAnomalie: idInterventionAnomalie,
       );
     }
 
@@ -1917,6 +1930,10 @@ class SyncService {
       if (idIncomplet != null) {
         patch['id_incomplet'] = idIncomplet;
       }
+      final responseUuid = normalizedResponse?['uuid']?.toString().trim();
+      if (responseUuid != null && responseUuid.isNotEmpty) {
+        patch['uuid'] = responseUuid;
+      }
       return patch;
     }
 
@@ -2058,6 +2075,12 @@ class SyncService {
       final uuidObjet = item['uuid_objet']?.toString().trim() ?? '';
       final localPath = item['local_path']?.toString().trim() ?? '';
       final photoSlot = _asIntOrNull(item['photo_slot']);
+      final photoContext =
+          item['photo_context']?.toString().trim().isNotEmpty == true
+              ? item['photo_context'].toString().trim()
+              : 'collecte_initiale';
+      final idInterventionAnomalie =
+          _asIntOrNull(item['id_intervention_anomalie']) ?? 0;
 
       if (id == null ||
           schemaName.isEmpty ||
@@ -2085,6 +2108,8 @@ class SyncService {
           uuidObjet: uuidObjet,
           photoSlot: photoSlot,
           localPath: localPath,
+          photoContext: photoContext,
+          idInterventionAnomalie: idInterventionAnomalie,
           idAgentCrea: _asIntOrNull(item['id_agent_crea']),
           syncSessionUuid: syncSessionUuid,
           endpoint: endpoint,
@@ -2100,17 +2125,21 @@ class SyncService {
         await dbHelper.markPhotoSyncItemSynced(
           id,
           remotePath: remotePath,
+          idInterventionAnomalie:
+              _asIntOrNull(response['id_intervention_anomalie']),
           datePriseReelle: (datePriseReelle == null || datePriseReelle.isEmpty)
               ? null
               : datePriseReelle,
         );
-        await dbHelper.updatePhotoReferenceByUuid(
-          tableName,
-          uuidObjet,
-          photoSlot,
-          remotePath,
-          recordHistory: false,
-        );
+        if (photoContext == 'collecte_initiale') {
+          await dbHelper.updatePhotoReferenceByUuid(
+            tableName,
+            uuidObjet,
+            photoSlot,
+            remotePath,
+            recordHistory: false,
+          );
+        }
         result.successCount++;
         result.photoSuccessCount++;
       } on PhotoValidationException catch (e) {
@@ -2187,6 +2216,8 @@ class SyncService {
     required String uuidObjet,
     required int photoSlot,
     required String localPath,
+    String photoContext = 'collecte_initiale',
+    int idInterventionAnomalie = 0,
   }) {
     final schema = schemaName.trim();
     final table = tableName.trim();
@@ -2196,7 +2227,10 @@ class SyncService {
       return;
     }
 
-    final key = '$schema|$table|$uuid|$photoSlot';
+    final context =
+        photoContext.trim().isEmpty ? 'collecte_initiale' : photoContext.trim();
+    final key =
+        '$schema|$table|$uuid|$context|$idInterventionAnomalie|$photoSlot';
     if (!attachmentKeys.add(key)) {
       return;
     }
@@ -2206,6 +2240,8 @@ class SyncService {
       'nom_table': table,
       'uuid_objet': uuid,
       'photo_slot': photoSlot,
+      'photo_context': context,
+      'id_intervention_anomalie': idInterventionAnomalie,
       'local_path': path,
       'taille_octets': _fileSizeOrNull(path),
     });

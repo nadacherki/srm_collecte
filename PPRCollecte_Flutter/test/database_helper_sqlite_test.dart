@@ -121,6 +121,106 @@ void main() {
       expect(rows.single['remote_path'], 'remote/photo.jpg');
     });
 
+    test('photo queue allows separate workflow contexts for same slot',
+        () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest(
+        includeSrmEntityTables: false,
+      );
+      final helper = DatabaseHelper();
+
+      final initialId = await helper.enqueuePhotoSyncItem(
+        schemaName: 'ep',
+        tableName: 'ep_vanne',
+        uuidObjet: 'uuid-photo-context',
+        photoSlot: 1,
+        localPath: 'C:/tmp/initial.jpg',
+      );
+      final anomalyId = await helper.enqueuePhotoSyncItem(
+        schemaName: 'ep',
+        tableName: 'ep_vanne',
+        uuidObjet: 'uuid-photo-context',
+        photoSlot: 1,
+        photoContext: 'anomalie_avant',
+        localPath: 'C:/tmp/anomaly.jpg',
+      );
+
+      final db = await helper.database;
+      final rows = await db.query(
+        'photo_sync_queue',
+        where: 'uuid_objet = ?',
+        whereArgs: ['uuid-photo-context'],
+        orderBy: 'photo_context ASC',
+      );
+
+      expect(initialId, isNot(equals(anomalyId)));
+      expect(rows, hasLength(2));
+      expect(
+          rows.map((row) => row['photo_context']),
+          containsAll([
+            'collecte_initiale',
+            'anomalie_avant',
+          ]));
+    });
+
+    test('photo workflow resolves and stores intervention anomaly id',
+        () async {
+      await DatabaseHelper.openInMemoryDatabaseForTest(
+        includeSrmEntityTables: false,
+      );
+      final helper = DatabaseHelper();
+      final db = await helper.database;
+
+      await helper.upsertDownloadedInterventionAnomalieTerrain({
+        'id': 77,
+        'id_intervention': 77,
+        'id_objet': 12,
+        'nom_classe': 'ep_vanne',
+        'nom_table': 'ep.ep_vanne',
+        'uuid_objet': 'uuid-photo-cycle',
+        'statut': 'signale',
+        'responsable_actuel': 'exploitant',
+        'etat_exploitant': 'en_attente',
+      });
+
+      final resolvedId = await helper.resolveInterventionAnomalieIdForObject(
+        schemaName: 'ep',
+        tableName: 'ep_vanne',
+        uuidObjet: 'uuid-photo-cycle',
+      );
+      expect(resolvedId, 77);
+
+      final photoId = await helper.enqueuePhotoSyncItem(
+        schemaName: 'ep',
+        tableName: 'ep_vanne',
+        uuidObjet: 'uuid-photo-cycle',
+        photoSlot: 1,
+        photoContext: 'anomalie_avant',
+        localPath: 'C:/tmp/anomaly-cycle.jpg',
+      );
+      await helper.markPhotoSyncItemSynced(
+        photoId,
+        remotePath: 'remote/anomaly-cycle.jpg',
+        idInterventionAnomalie: resolvedId,
+      );
+
+      final scopedRows = await helper.getPhotoSyncItemsForObject(
+        schemaName: 'ep',
+        tableName: 'ep_vanne',
+        uuidObjet: 'uuid-photo-cycle',
+        photoContext: 'anomalie_avant',
+        idInterventionAnomalie: resolvedId,
+      );
+      final stored = (await db.query(
+        'photo_sync_queue',
+        where: 'id = ?',
+        whereArgs: [photoId],
+      ))
+          .single;
+
+      expect(scopedRows, hasLength(1));
+      expect(stored['id_intervention_anomalie'], 77);
+    });
+
     test('invalid photo queue items are rejected without retry loop', () async {
       await DatabaseHelper.openInMemoryDatabaseForTest(
         includeSrmEntityTables: false,

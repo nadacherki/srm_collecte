@@ -251,10 +251,37 @@ class LoginRequestSerializer(serializers.Serializer):
 
 
 class PhotoUploadSerializer(serializers.Serializer):
+    allowed_photo_contexts = {
+        'collecte_initiale',
+        'anomalie_avant',
+        'retour_terrain_apres',
+        'incomplet_initial',
+        'incomplet_complement',
+    }
+
     schema_name = serializers.CharField(max_length=20, trim_whitespace=True)
     table_name = serializers.CharField(max_length=100, trim_whitespace=True)
     uuid_objet = serializers.CharField(max_length=254, trim_whitespace=True)
     photo_slot = serializers.IntegerField(min_value=1, max_value=4)
+    photo_context = serializers.CharField(
+        max_length=40,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
+    contexte_photo = serializers.CharField(
+        max_length=40,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
+    id_intervention_anomalie = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+    )
     endpoint = serializers.CharField(
         max_length=120,
         required=False,
@@ -276,6 +303,23 @@ class PhotoUploadSerializer(serializers.Serializer):
         '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'
     }
     max_photo_bytes = 5 * 1024 * 1024
+
+    def validate(self, attrs):
+        context = (
+            attrs.pop('photo_context', None)
+            or attrs.pop('contexte_photo', None)
+            or 'collecte_initiale'
+        )
+        context = str(context).strip().lower() or 'collecte_initiale'
+        if context not in self.allowed_photo_contexts:
+            raise serializers.ValidationError({
+                'photo_context': 'Contexte photo non autorise'
+            })
+        attrs['photo_context'] = context
+        attrs['id_intervention_anomalie'] = attrs.get(
+            'id_intervention_anomalie'
+        ) or 0
+        return attrs
 
     def _has_allowed_signature(self, extension, header):
         if extension in ('.jpg', '.jpeg'):

@@ -177,6 +177,33 @@ class PhotoUploadSerializerTests(SimpleTestCase):
         serializer = PhotoUploadSerializer(data=self._payload(uploaded_file))
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["photo_context"], "collecte_initiale")
+
+    def test_accepts_contextual_anomaly_photo(self):
+        uploaded_file = SimpleUploadedFile(
+            "photo.jpg",
+            b"\xff\xd8\xff\x00\x01\x02\xff\xd9",
+            content_type="image/jpeg",
+        )
+        payload = self._payload(uploaded_file)
+        payload["photo_context"] = "anomalie_avant"
+        serializer = PhotoUploadSerializer(data=payload)
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["photo_context"], "anomalie_avant")
+
+    def test_rejects_unknown_photo_context(self):
+        uploaded_file = SimpleUploadedFile(
+            "photo.jpg",
+            b"\xff\xd8\xff\x00\x01\x02\xff\xd9",
+            content_type="image/jpeg",
+        )
+        payload = self._payload(uploaded_file)
+        payload["photo_context"] = "slot_libre"
+        serializer = PhotoUploadSerializer(data=payload)
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("photo_context", serializer.errors)
 
     def test_rejects_truncated_jpg(self):
         uploaded_file = SimpleUploadedFile(

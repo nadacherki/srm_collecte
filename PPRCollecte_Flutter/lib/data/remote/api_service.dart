@@ -863,6 +863,8 @@ class ApiService {
     required String uuidObjet,
     required int photoSlot,
     required String localPath,
+    String photoContext = 'collecte_initiale',
+    int idInterventionAnomalie = 0,
     int? idAgentCrea,
     String? syncSessionUuid,
     String? endpoint,
@@ -878,6 +880,9 @@ class ApiService {
     request.fields['table_name'] = tableName;
     request.fields['uuid_objet'] = uuidObjet;
     request.fields['photo_slot'] = photoSlot.toString();
+    request.fields['photo_context'] = photoContext;
+    request.fields['id_intervention_anomalie'] =
+        idInterventionAnomalie.toString();
     final cleanEndpoint = endpoint?.trim() ?? '';
     if (cleanEndpoint.isNotEmpty) {
       request.fields['endpoint'] = cleanEndpoint;

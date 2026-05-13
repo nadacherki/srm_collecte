@@ -21,6 +21,53 @@ extension _HomePageAppActions on _HomePageState {
       return;
     }
 
+    // Pre-check : refresh des affectations depuis le serveur puis verification
+    // qu'au moins une zone est affectee a l'agent. Sans cette garantie le
+    // serveur renverrait 0 objet (filtre _user_zone_geom_filter_sql) et l'UI
+    // afficherait un message ambigu.
+    try {
+      await ZoneSyncService().refreshZonesForCurrentUser();
+    } catch (e) {
+      debugPrint('[_performDownload] zone refresh failed: $e');
+    }
+    if (!mounted) return;
+
+    final affectations = await DatabaseHelper().getZoneUtilisateursLocal(
+      idUser: ApiService.userId,
+      activeOnly: true,
+    );
+    if (!mounted) return;
+
+    if (affectations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aucune zone affectée à votre compte. Contactez l\'administrateur.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 5),
+        ),
+      );
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Aucune zone affectée'),
+          content: const Text(
+            "Votre compte n'a aucune zone d'affectation active.\n\n"
+            "Aucune donnée terrain ne peut être téléchargée tant qu'un administrateur "
+            "ne vous a pas attribué au moins une zone via l'interface back-office.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     _setStateFromPart(() {
       isDownloading = true;
       _progressValue = 0.0;
