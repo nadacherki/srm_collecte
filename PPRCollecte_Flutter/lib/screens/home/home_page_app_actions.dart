@@ -423,7 +423,6 @@ extension _HomePageAppActions on _HomePageState {
   }
 
   Future<void> _showMockLocationDialogSafe() {
-    if (!_canUseAdminGpsTools) return Future.value();
     return _showMockLocationDialogSafeImpl(this);
   }
 

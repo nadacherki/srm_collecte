@@ -136,6 +136,24 @@ BASEMAP_REGIONAL_ATTRIBUTION = (
     ).strip()
     or "© Protomaps © OpenStreetMap contributors"
 )
+ORTHOPHOTO_ROOT = (
+    Path(os.environ.get("ORTHOPHOTO_ROOT", "").strip())
+    if os.environ.get("ORTHOPHOTO_ROOT", "").strip()
+    else MEDIA_ROOT / "orthophotos"
+)
+if not ORTHOPHOTO_ROOT.is_absolute():
+    ORTHOPHOTO_ROOT = (BASE_DIR / ORTHOPHOTO_ROOT).resolve()
+ORTHOPHOTO_ACTIVE_ID = (
+    os.environ.get("ORTHOPHOTO_ACTIVE_ID", "active").strip() or "active"
+)
+ORTHOPHOTO_MIN_ZOOM = int(os.environ.get("ORTHOPHOTO_MIN_ZOOM", "17"))
+ORTHOPHOTO_MAX_ZOOM = int(os.environ.get("ORTHOPHOTO_MAX_ZOOM", "22"))
+ORTHO_MAX_TILES_PER_AGENT_ZONE = int(
+    os.environ.get("ORTHO_MAX_TILES_PER_AGENT_ZONE", "25000")
+)
+ORTHO_MAX_AGENT_BYTES = int(
+    os.environ.get("ORTHO_MAX_AGENT_BYTES", str(4 * 1024 * 1024 * 1024))
+)
 REGARD_MIROIR_SQUARE_SIZE_METERS = float(
     os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "24.0")
 )

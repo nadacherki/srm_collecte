@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 
+import '../data/remote/api_service.dart';
 import '../services/location_service.dart';
 import '../services/collection_manager.dart';
 import '../models/collection_models.dart';
@@ -39,6 +40,12 @@ class HomeController extends ChangeNotifier {
     _collectionManager.addListener(_onCollectionChanged);
   }
 
+  /// Seul l'admin peut utiliser le GPS du téléphone et le mock interne.
+  /// Les autres rôles (editeur_terrain, etc.) doivent obligatoirement
+  /// passer par un récepteur GNSS externe Bluetooth.
+  bool get _canUseInternalGpsSources =>
+      (ApiService.userRole ?? '').trim().toLowerCase() == 'admin';
+
   // Getters pour les nouvelles collectes
   LigneCollection? get ligneCollection => _collectionManager.ligneCollection;
   bool get hasActiveCollection => _collectionManager.hasActiveCollection;
@@ -71,6 +78,11 @@ class HomeController extends ChangeNotifier {
     double accuracy = 1.0,
     double altitude = 0.0,
   }) {
+    if (!_canUseInternalGpsSources) {
+      throw StateError(
+        'Mock interne reserve aux administrateurs. Utilisez le recepteur GNSS externe.',
+      );
+    }
     if (latitude.abs() > 90 || longitude.abs() > 180) {
       throw Exception('Coordonnées mock invalides');
     }
@@ -102,6 +114,14 @@ class HomeController extends ChangeNotifier {
     await _locationService.clearMockLocation();
     _currentAltitude = null;
 
+    if (!_canUseInternalGpsSources) {
+      // Non-admin : ne jamais retomber sur le GPS du telephone.
+      // Le pipeline GNSS externe reprendra la main quand un fix arrivera.
+      lastSync = _formatTimeNow();
+      notifyListeners();
+      return;
+    }
+
     try {
       final loc = await _locationService.getCurrent();
       if (loc.latitude != null && loc.longitude != null) {
@@ -132,6 +152,11 @@ class HomeController extends ChangeNotifier {
   Future<EnrichedLocation?> refreshFromDeviceGps({
     bool disableInternalMock = true,
   }) async {
+    if (!_canUseInternalGpsSources) {
+      // Non-admin : pas d'usage du GPS interne du telephone.
+      // Le pipeline NMEA externe est la seule source autorisee.
+      return null;
+    }
     if (disableInternalMock) {
       await _locationService.clearMockLocation();
     }
@@ -485,11 +510,19 @@ class HomeController extends ChangeNotifier {
         final lon = loc.longitude!;
         if (lat.abs() > 90 || lon.abs() > 180) return;
 
+        final isGnssExterneFix = gpsSourceLabel.startsWith('GNSS externe');
+        // Non-admin : seules les positions issues du pipeline GNSS externe
+        // (label "GNSS externe...", deja pose par le polling du pont NMEA)
+        // sont acceptees. Le GPS natif du telephone est ignore.
+        if (!_canUseInternalGpsSources && !isGnssExterneFix) {
+          return;
+        }
+
         userPosition = LatLng(lat, lon);
         _currentAltitude = loc.altitude;
         gpsAccuracy =
             loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
-        if (!gpsSourceLabel.startsWith('GNSS externe')) {
+        if (!isGnssExterneFix) {
           gpsSourceLabel = 'téléphone';
           gpsDetailsLine = _buildPositionDetailsLine(
             latitude: lat,

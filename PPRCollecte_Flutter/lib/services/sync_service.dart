@@ -11,6 +11,7 @@ import '../data/remote/api_service.dart';
 import 'attribut_config_mobile_service.dart';
 import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
+import 'offline_orthophoto_service.dart';
 import 'photo_reference_service.dart';
 import 'projection_service.dart';
 import 'reference_overlay_sync_service.dart';
@@ -92,7 +93,7 @@ class SyncService {
   }) async {
     final tables = await _collectSrmTables();
     final result = SyncResult();
-    final total = tables.length + 2;
+    final total = tables.length + 3;
     final nowIso = DateTime.now().toIso8601String();
     final downloadStartedAt = DateTime.now().toUtc();
     final updatedAfter = await dbHelper.getLastDownloadTime();
@@ -106,11 +107,17 @@ class SyncService {
       return result;
     }
 
+    await _ensureOrthophotoCoverageForDownload(
+      result: result,
+      onProgress: onProgress,
+      total: total,
+    );
+
     await _ensureReferenceOverlaysForDownload(result: result);
 
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
-      final current = index + 2;
+      final current = index + 3;
       final tableStartedAt = DateTime.now().toUtc();
       final tableStatus = await dbHelper.getDownloadTableStatus(info.table);
       final statusText =
@@ -288,7 +295,7 @@ class SyncService {
     await _downloadTerrainInterventions(
       result: result,
       onProgress: onProgress,
-      current: tables.length + 2,
+      current: tables.length + 3,
       total: total,
       updatedAfterFallback: updatedAfter,
       nowIso: nowIso,
@@ -371,6 +378,62 @@ class SyncService {
       total,
     );
     return true;
+  }
+
+  Future<void> _ensureOrthophotoCoverageForDownload({
+    required SyncResult result,
+    required Function(double, String, int, int)? onProgress,
+    required int total,
+  }) async {
+    onProgress?.call(
+      1 / total,
+      'Telechargement orthophoto offline',
+      1,
+      total,
+    );
+
+    try {
+      final downloadResult =
+          await OfflineOrthophotoService().ensureAgentOrthophotoDownloaded(
+        onProgress: (progress, operation, processed, totalTiles) {
+          final clamped = progress.isNaN || progress.isInfinite
+              ? 0.0
+              : progress.clamp(0.0, 1.0).toDouble();
+          onProgress?.call(
+            (1 + clamped) / total,
+            operation,
+            processed,
+            totalTiles,
+          );
+        },
+      );
+      if (downloadResult.success) {
+        final message = downloadResult.partial
+            ? 'Orthophoto offline partielle: '
+                '${downloadResult.downloadedTiles} telechargees, '
+                '${downloadResult.alreadyCachedTiles} deja en cache.'
+            : 'Orthophoto offline: '
+                '${downloadResult.downloadedTiles} telechargees, '
+                '${downloadResult.alreadyCachedTiles} deja en cache.';
+        result.warnings.add(downloadResult.warningMessage ?? message);
+      } else {
+        result.warnings.add(
+          'Orthophoto offline non mise a jour : '
+          '${downloadResult.errorMessage ?? "erreur inconnue"}',
+        );
+      }
+    } catch (e) {
+      result.warnings.add(
+        'Orthophoto offline non mise a jour : ${_short(e)}',
+      );
+    }
+
+    onProgress?.call(
+      2 / total,
+      'Orthophoto offline verifiee',
+      2,
+      total,
+    );
   }
 
   Future<void> _ensureReferenceOverlaysForDownload({

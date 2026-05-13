@@ -799,10 +799,9 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
       return;
     }
 
-    try {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!state.mounted) return;
-
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!state.mounted) return;
+      try {
         state.homeController.setMockPosition(
           latitude: lat,
           longitude: lon,
@@ -821,16 +820,15 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
             backgroundColor: Colors.teal,
           ),
         );
-      });
-    } catch (e) {
-      if (!state.mounted) return;
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+      } catch (e) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
   } finally {
     latitudeController.dispose();
     longitudeController.dispose();
@@ -994,16 +992,18 @@ Future<void> _showNmeaBridgeDialog(
                             },
                           ),
                         ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: nmeaController,
-                        minLines: 2,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          labelText: 'Test manuel NMEA GGA/RMC',
-                          border: OutlineInputBorder(),
+                      if (state._canUseAdminGpsTools) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: nmeaController,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Test manuel NMEA GGA/RMC',
+                            border: OutlineInputBorder(),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -1043,34 +1043,36 @@ Future<void> _showNmeaBridgeDialog(
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text('Fermer'),
                 ),
-                ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      final pushed = await bridge.pushNmea(nmeaController.text);
-                      final currentStatus = await bridge.getStatus();
-                      _applyNmeaBridgeFixToMapImpl(state, currentStatus);
-                      final lat = pushed['latitude'];
-                      final lon = pushed['longitude'];
-                      if (dialogContext.mounted) {
-                        Navigator.of(dialogContext).pop();
+                if (state._canUseAdminGpsTools)
+                  ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        final pushed =
+                            await bridge.pushNmea(nmeaController.text);
+                        final currentStatus = await bridge.getStatus();
+                        _applyNmeaBridgeFixToMapImpl(state, currentStatus);
+                        final lat = pushed['latitude'];
+                        final lon = pushed['longitude'];
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                        messenger?.showSnackBar(
+                          SnackBar(
+                            content: Text('NMEA injecte: $lat, $lon'),
+                            backgroundColor: Colors.teal,
+                          ),
+                        );
+                      } catch (e) {
+                        messenger?.showSnackBar(
+                          SnackBar(
+                            content: Text(_friendlyNmeaBridgeError(e)),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
                       }
-                      messenger?.showSnackBar(
-                        SnackBar(
-                          content: Text('NMEA injecte: $lat, $lon'),
-                          backgroundColor: Colors.teal,
-                        ),
-                      );
-                    } catch (e) {
-                      messenger?.showSnackBar(
-                        SnackBar(
-                          content: Text(_friendlyNmeaBridgeError(e)),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Injecter'),
-                ),
+                    },
+                    child: const Text('Injecter'),
+                  ),
               ],
             );
           },

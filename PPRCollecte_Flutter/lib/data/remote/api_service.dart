@@ -167,6 +167,67 @@ class ApiService {
     return data;
   }
 
+  /// GET /api/orthophotos/agent/manifest/
+  static Future<Map<String, dynamic>> fetchOrthophotoAgentManifest() async {
+    final url = Uri.parse('$baseUrl/api/orthophotos/agent/manifest/');
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractApiErrorMessage(
+          utf8.decode(response.bodyBytes),
+          'Erreur GET orthophoto manifest: ${response.statusCode}',
+        ),
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Reponse manifest orthophoto invalide');
+    }
+    return data;
+  }
+
+  /// GET /api/orthophotos/agent/tiles/
+  static Future<Map<String, dynamic>> fetchOrthophotoAgentTiles({
+    int page = 1,
+    int pageSize = 500,
+    int? z,
+    int? x,
+    int? y,
+  }) async {
+    final queryParameters = <String, String>{
+      'page': page.toString(),
+      'page_size': pageSize.toString(),
+      if (z != null) 'z': z.toString(),
+      if (x != null) 'x': x.toString(),
+      if (y != null) 'y': y.toString(),
+    };
+    final url = Uri.parse('$baseUrl/api/orthophotos/agent/tiles/').replace(
+      queryParameters: queryParameters,
+    );
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractApiErrorMessage(
+          utf8.decode(response.bodyBytes),
+          'Erreur GET orthophoto tiles: ${response.statusCode}',
+        ),
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Reponse tuiles orthophoto invalide');
+    }
+    return data;
+  }
+
   static Future<List<Map<String, dynamic>>> fetchSrmFieldOptions({
     String? tableSchema,
     String? tableName,

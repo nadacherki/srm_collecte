@@ -13,7 +13,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
-from django.contrib.gis.geos import GEOSGeometry, LineString, Point
+from django.contrib.gis.geos import GEOSGeometry, LineString, Point, Polygon
 from django.db import DatabaseError, connection, transaction
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.urls import reverse
@@ -1318,6 +1318,34 @@ def mobile_srm_table_view(request, endpoint):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Neutraliser les expressions SQL recopiees telles quelles depuis
+    # attribut_config_mobile.valeur_par_defaut (ex. "CURRENT_TIMESTAMP",
+    # "now()"). PostgreSQL ne les evalue pas dans un INSERT parametre :
+    # on les retire du payload pour que le DEFAULT au niveau colonne
+    # s'applique a la place.
+    _SQL_EXPR_STRING_DEFAULTS = {
+        'current_timestamp',
+        'current_timestamp()',
+        'now',
+        'now()',
+        'current_date',
+        'current_date()',
+        'current_time',
+        'current_time()',
+        'localtimestamp',
+        'localtimestamp()',
+        'localtime',
+        'localtime()',
+        'transaction_timestamp()',
+        'statement_timestamp()',
+        'clock_timestamp()',
+    }
+    for _col, _val in list(writable.items()):
+        if isinstance(_val, str):
+            _norm = _val.strip().rstrip(';').lower()
+            if _norm in _SQL_EXPR_STRING_DEFAULTS:
+                writable.pop(_col, None)
+
     geometry_value = writable.pop('geom', None)
     if isinstance(geometry_value, (dict, list)):
         geometry_value = json.dumps(geometry_value)
@@ -2618,6 +2646,475 @@ def _regional_basemap_manifest():
         'attribution': settings.BASEMAP_REGIONAL_ATTRIBUTION,
         'format': 'pmtiles',
     }
+
+
+# =====================================================================
+#  ORTHOPHOTO OFFLINE PAR ZONE AGENT
+#  Tuiles raster Web Mercator XYZ generees en amont depuis un GeoTIFF.
+# =====================================================================
+
+def _orthophoto_active_id():
+    return (settings.ORTHOPHOTO_ACTIVE_ID or 'active').strip() or 'active'
+
+
+def _resolve_orthophoto_manifest_path(ortho_id=None):
+    ortho_id = (ortho_id or _orthophoto_active_id()).strip()
+    root = Path(settings.ORTHOPHOTO_ROOT)
+    ortho_root = root / ortho_id
+
+    direct_manifest = ortho_root / 'manifest.json'
+    if direct_manifest.exists():
+        return direct_manifest
+
+    if not ortho_root.exists():
+        return None
+
+    manifests = [
+        child / 'manifest.json'
+        for child in ortho_root.iterdir()
+        if child.is_dir() and (child / 'manifest.json').exists()
+    ]
+    if not manifests:
+        return None
+    return max(manifests, key=lambda path: path.stat().st_mtime)
+
+
+def _load_orthophoto_manifest(ortho_id=None):
+    manifest_path = _resolve_orthophoto_manifest_path(ortho_id)
+    if manifest_path is None or not manifest_path.exists():
+        return None
+
+    try:
+        with manifest_path.open('r', encoding='utf-8') as handle:
+            manifest = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    effective_ortho_id = (
+        manifest.get('ortho_id')
+        or (ortho_id or _orthophoto_active_id())
+    )
+    package_dir = manifest_path.parent
+    tiles = manifest.get('tiles')
+    if not isinstance(tiles, list):
+        tiles = []
+
+    normalized = dict(manifest)
+    normalized['ortho_id'] = str(effective_ortho_id)
+    normalized['version'] = str(manifest.get('version') or package_dir.name)
+    normalized['format'] = _orthophoto_tile_extension(
+        str(manifest.get('format') or 'tif')
+    )
+    normalized['min_zoom'] = int(
+        manifest.get('min_zoom') or settings.ORTHOPHOTO_MIN_ZOOM
+    )
+    normalized['max_zoom'] = int(
+        manifest.get('max_zoom') or settings.ORTHOPHOTO_MAX_ZOOM
+    )
+    normalized['tiles'] = tiles
+    normalized['tile_count'] = int(
+        manifest.get('tile_count') or len(tiles)
+    )
+    normalized['total_bytes'] = int(
+        manifest.get('total_bytes') or sum(
+            _orthophoto_tile_size_bytes(tile) for tile in tiles
+        )
+    )
+    normalized['_manifest_path'] = manifest_path
+    normalized['_package_dir'] = package_dir
+    return normalized
+
+
+def _orthophoto_tile_size_bytes(tile):
+    try:
+        return int(tile.get('size_bytes') or 0)
+    except (TypeError, ValueError, AttributeError):
+        return 0
+
+
+def _orthophoto_tile_extension(value):
+    normalized = str(value or 'tif').strip().lower().lstrip('.')
+    if normalized in ('tiff', 'geotiff', 'gtiff'):
+        return 'tif'
+    return normalized or 'tif'
+
+
+def _orthophoto_tile_content_type(tile_format):
+    extension = _orthophoto_tile_extension(tile_format)
+    if extension == 'tif':
+        return 'image/tiff'
+    if extension == 'webp':
+        return 'image/webp'
+    if extension == 'png':
+        return 'image/png'
+    return 'application/octet-stream'
+
+
+def _orthophoto_tile_key(tile):
+    try:
+        return int(tile['z']), int(tile['x']), int(tile['y'])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _orthophoto_tile_bounds(tile):
+    bounds = tile.get('bounds_4326') or tile.get('bounds')
+    if not isinstance(bounds, (list, tuple)) or len(bounds) != 4:
+        return None
+    try:
+        west, south, east, north = [float(value) for value in bounds]
+    except (TypeError, ValueError):
+        return None
+    if west >= east or south >= north:
+        return None
+    return west, south, east, north
+
+
+def _orthophoto_tile_path(manifest, tile):
+    package_dir = manifest['_package_dir'].resolve()
+    relative_path = tile.get('path')
+    if not relative_path:
+        key = _orthophoto_tile_key(tile)
+        if key is None:
+            return None
+        z, x, y = key
+        extension = _orthophoto_tile_extension(manifest.get('format'))
+        relative_path = f'tiles/{z}/{x}/{y}.{extension}'
+
+    candidate = (package_dir / str(relative_path)).resolve()
+    if candidate != package_dir and package_dir not in candidate.parents:
+        return None
+    return candidate
+
+
+def _orthophoto_agent_zone_geom_4326(user_id):
+    if user_id is None:
+        return None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ST_AsGeoJSON(
+                       ST_Transform(
+                         ST_UnaryUnion(ST_Collect(__srm_zone.geom)),
+                         4326
+                       ),
+                       9
+                   )
+            FROM public.zone AS __srm_zone
+            JOIN public.zone_utilisateur AS __srm_zu
+              ON __srm_zu.id_zone = __srm_zone.id_zone
+            WHERE __srm_zu.id_user = %s
+              AND COALESCE(__srm_zu.actif, false) = true
+              AND __srm_zone.geom IS NOT NULL
+            """,
+            [user_id],
+        )
+        row = cursor.fetchone()
+
+    if not row or not row[0]:
+        return None
+    try:
+        return GEOSGeometry(row[0], srid=4326)
+    except Exception:
+        return None
+
+
+def _orthophoto_tile_intersects_zone(tile, zone_geom):
+    bounds = _orthophoto_tile_bounds(tile)
+    if bounds is None or zone_geom is None or zone_geom.empty:
+        return False
+    tile_geom = Polygon.from_bbox(bounds)
+    tile_geom.srid = 4326
+    return zone_geom.intersects(tile_geom)
+
+
+def _orthophoto_filtered_tiles(request, manifest, *, exact_key=None):
+    user_id = _resolve_request_user_id(request)
+    if user_id is None:
+        raise ValidationError({'X-User-Id': 'Header agent requis'})
+
+    zone_geom = _orthophoto_agent_zone_geom_4326(user_id)
+    if zone_geom is None or zone_geom.empty:
+        return []
+
+    tiles = []
+    for tile in manifest['tiles']:
+        key = _orthophoto_tile_key(tile)
+        if key is None:
+            continue
+        if exact_key is not None and key != exact_key:
+            continue
+        if _orthophoto_tile_intersects_zone(tile, zone_geom):
+            tiles.append(tile)
+    return tiles
+
+
+def _orthophoto_limit_response(tiles):
+    tile_count = len(tiles)
+    total_bytes = sum(_orthophoto_tile_size_bytes(tile) for tile in tiles)
+    if tile_count > settings.ORTHO_MAX_TILES_PER_AGENT_ZONE:
+        return Response(
+            {
+                'success': False,
+                'message': (
+                    "Zone orthophoto trop grande pour ce mobile "
+                    f"({tile_count} tuiles)."
+                ),
+                'tile_count': tile_count,
+                'max_tile_count': settings.ORTHO_MAX_TILES_PER_AGENT_ZONE,
+            },
+            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+    if total_bytes > settings.ORTHO_MAX_AGENT_BYTES:
+        return Response(
+            {
+                'success': False,
+                'message': (
+                    "Zone orthophoto trop lourde pour ce mobile "
+                    f"({total_bytes} octets)."
+                ),
+                'total_bytes': total_bytes,
+                'max_bytes': settings.ORTHO_MAX_AGENT_BYTES,
+            },
+            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+    return None
+
+
+def _orthophoto_bounds_for_tiles(tiles, fallback=None):
+    bounds_list = [
+        bounds for bounds in (_orthophoto_tile_bounds(tile) for tile in tiles)
+        if bounds is not None
+    ]
+    if not bounds_list:
+        return fallback or []
+    return [
+        min(bounds[0] for bounds in bounds_list),
+        min(bounds[1] for bounds in bounds_list),
+        max(bounds[2] for bounds in bounds_list),
+        max(bounds[3] for bounds in bounds_list),
+    ]
+
+
+def _orthophoto_tile_url(request, manifest, tile):
+    ortho_id = manifest['ortho_id']
+    z, x, y = _orthophoto_tile_key(tile)
+    extension = _orthophoto_tile_extension(manifest['format'])
+    return request.build_absolute_uri(
+        reverse('orthophoto-tile', args=[ortho_id, z, x, y, extension])
+    )
+
+
+def _orthophoto_tile_payload(request, manifest, tile):
+    ortho_id = manifest['ortho_id']
+    z, x, y = _orthophoto_tile_key(tile)
+    return {
+        'z': z,
+        'x': x,
+        'y': y,
+        'size_bytes': _orthophoto_tile_size_bytes(tile),
+        'sha256': str(tile.get('sha256') or '').lower(),
+        'format': manifest['format'],
+        'url': _orthophoto_tile_url(request, manifest, tile),
+    }
+
+
+def _parse_nonnegative_int_value(raw_value):
+    if raw_value in (None, ''):
+        return None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+@api_view(['GET'])
+def orthophoto_agent_manifest_view(request):
+    """Manifest orthophoto limite aux zones actives de l'agent mobile."""
+    manifest = _load_orthophoto_manifest()
+    if manifest is None:
+        return Response(
+            {
+                'success': False,
+                'message': "Aucune orthophoto active n'est disponible.",
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    try:
+        tiles = _orthophoto_filtered_tiles(request, manifest)
+    except ValidationError as exc:
+        return Response(
+            {'success': False, 'message': exc.detail},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    limit_response = _orthophoto_limit_response(tiles)
+    if limit_response is not None:
+        return limit_response
+
+    ortho_id = manifest['ortho_id']
+    extension = _orthophoto_tile_extension(manifest['format'])
+    sample_tile_url = reverse(
+        'orthophoto-tile',
+        args=[ortho_id, 0, 0, 0, extension],
+    )
+    sample_suffix = f'/0/0/0.{extension}'
+    tile_url_template = request.build_absolute_uri(sample_tile_url).replace(
+        sample_suffix,
+        f'/{{z}}/{{x}}/{{y}}.{extension}',
+    )
+    return Response(
+        {
+            'success': True,
+            'ortho_id': ortho_id,
+            'version': manifest['version'],
+            'format': manifest['format'],
+            'min_zoom': manifest['min_zoom'],
+            'max_zoom': manifest['max_zoom'],
+            'bounds_4326': _orthophoto_bounds_for_tiles(
+                tiles,
+                fallback=manifest.get('bounds_4326') or [],
+            ),
+            'tile_count': len(tiles),
+            'total_bytes': sum(
+                _orthophoto_tile_size_bytes(tile) for tile in tiles
+            ),
+            'tiles_url': request.build_absolute_uri(
+                reverse('orthophoto-agent-tiles')
+            ),
+            'tile_url_template': tile_url_template,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
+def orthophoto_agent_tiles_view(request):
+    """Liste paginee des tuiles orthophoto autorisees pour l'agent."""
+    manifest = _load_orthophoto_manifest()
+    if manifest is None:
+        return Response(
+            {
+                'success': False,
+                'message': "Aucune orthophoto active n'est disponible.",
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    z_filter = _parse_nonnegative_int_value(request.query_params.get('z'))
+    x_filter = _parse_nonnegative_int_value(request.query_params.get('x'))
+    y_filter = _parse_nonnegative_int_value(request.query_params.get('y'))
+    exact_key = None
+    if z_filter is not None and x_filter is not None and y_filter is not None:
+        exact_key = (z_filter, x_filter, y_filter)
+
+    try:
+        tiles = _orthophoto_filtered_tiles(
+            request,
+            manifest,
+            exact_key=exact_key,
+        )
+    except ValidationError as exc:
+        return Response(
+            {'success': False, 'message': exc.detail},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    limit_response = _orthophoto_limit_response(tiles)
+    if limit_response is not None and exact_key is None:
+        return limit_response
+
+    page = _parse_positive_int(request.query_params.get('page'), 1)
+    page_size = _parse_positive_int(
+        request.query_params.get('page_size'),
+        500,
+        maximum=1000,
+    )
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    page_tiles = tiles[start_index:end_index]
+    next_page = page + 1 if end_index < len(tiles) else None
+
+    return Response(
+        {
+            'success': True,
+            'ortho_id': manifest['ortho_id'],
+            'version': manifest['version'],
+            'count': len(tiles),
+            'page': page,
+            'page_size': page_size,
+            'next_page': next_page,
+            'items': [
+                _orthophoto_tile_payload(request, manifest, tile)
+                for tile in page_tiles
+            ],
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
+def orthophoto_tile_view(request, ortho_id, z, x, y, tile_format):
+    """Stream d'une tuile orthophoto autorisee pour la zone de l'agent."""
+    manifest = _load_orthophoto_manifest()
+    requested_format = _orthophoto_tile_extension(tile_format)
+    if (
+        manifest is None
+        or str(ortho_id).strip() != manifest['ortho_id']
+        or requested_format != _orthophoto_tile_extension(manifest['format'])
+    ):
+        return Response(
+            {'success': False, 'message': 'Orthophoto inconnue.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    exact_key = (int(z), int(x), int(y))
+    try:
+        tiles = _orthophoto_filtered_tiles(
+            request,
+            manifest,
+            exact_key=exact_key,
+        )
+    except ValidationError as exc:
+        return Response(
+            {'success': False, 'message': exc.detail},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not tiles:
+        return Response(
+            {'success': False, 'message': 'Tuile orthophoto non autorisee.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    tile = tiles[0]
+    tile_path = _orthophoto_tile_path(manifest, tile)
+    if tile_path is None or not tile_path.exists() or not tile_path.is_file():
+        return Response(
+            {'success': False, 'message': 'Fichier tuile introuvable.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    stat = tile_path.stat()
+
+    def file_iterator(chunk_size=1024 * 64):
+        with tile_path.open('rb') as handle:
+            for chunk in iter(lambda: handle.read(chunk_size), b''):
+                yield chunk
+
+    response = StreamingHttpResponse(
+        file_iterator(),
+        content_type=_orthophoto_tile_content_type(manifest['format']),
+    )
+    response['Content-Length'] = str(stat.st_size)
+    response['Cache-Control'] = 'private, max-age=31536000, immutable'
+    sha256 = str(tile.get('sha256') or '').lower()
+    if sha256:
+        response['ETag'] = f'"{sha256}"'
+    return response
 
 
 class MetricFilterMixin:

@@ -2,7 +2,7 @@
 // ── SPRINT 3 : DatabaseHelper SRM ──
 // Tables SQLite miroirs de PostgreSQL :
 //   utilisateur_local → public.utilisateur (id_user, login, mot_de_passe en clair, nom, prenom, role)
-// Version DB: 21
+// Version DB: 22
 
 import 'dart:io';
 import 'dart:convert';
@@ -32,7 +32,7 @@ class DatabaseHelper {
     await resetForTest();
     final db = await openDatabase(
       inMemoryDatabasePath,
-      version: 21,
+      version: 22,
       onCreate: (db, version) async {
         await _instance._createAllTables(
           db,
@@ -97,7 +97,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 21,
+      version: 22,
       onCreate: (db, version) async {
         debugPrint('🆕 Création tables v$version');
         await _createAllTables(db);
@@ -167,6 +167,7 @@ class DatabaseHelper {
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createRegionalBasemapStateTable(db);
+    await _createOrthophotoLocalTables(db);
     await _createSrmFieldOptionLocalTable(db);
     await _createAttributConfigMobileLocalTable(db);
     await _createFormulaireConfigMobileLocalTable(db);
@@ -201,6 +202,7 @@ class DatabaseHelper {
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createRegionalBasemapStateTable(db);
+    await _createOrthophotoLocalTables(db);
     await _dropLegacyOfflineBasemapTables(db);
     // ── SPRINT 7 : S'assurer que la table brouillons existe ──
     await _migrateLocalHistoryTables(db);
@@ -554,6 +556,58 @@ class DatabaseHelper {
   Future<void> _dropLegacyOfflineBasemapTables(Database db) async {
     await db.execute('DROP TABLE IF EXISTS offline_basemap_package');
     await db.execute('DROP TABLE IF EXISTS offline_basemap_zone');
+  }
+
+  Future<void> _createOrthophotoLocalTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS orthophoto_layer_state (
+        id TEXT PRIMARY KEY,
+        ortho_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        format TEXT NOT NULL DEFAULT 'tif',
+        min_zoom INTEGER,
+        max_zoom INTEGER,
+        bounds_west REAL,
+        bounds_south REAL,
+        bounds_east REAL,
+        bounds_north REAL,
+        tile_count INTEGER DEFAULT 0,
+        total_bytes INTEGER DEFAULT 0,
+        tiles_url TEXT,
+        tile_url_template TEXT,
+        opacity REAL DEFAULT 0.75,
+        active INTEGER DEFAULT 1,
+        downloaded_tiles INTEGER DEFAULT 0,
+        downloaded_bytes INTEGER DEFAULT 0,
+        updated_at TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS orthophoto_tile_cache (
+        ortho_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        z INTEGER NOT NULL,
+        x INTEGER NOT NULL,
+        y INTEGER NOT NULL,
+        sha256 TEXT,
+        size_bytes INTEGER DEFAULT 0,
+        local_path TEXT,
+        status TEXT DEFAULT 'pending',
+        downloaded_at TEXT,
+        last_accessed_at TEXT,
+        PRIMARY KEY (ortho_id, version, z, x, y)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS orthophoto_tile_cache_access_idx
+      ON orthophoto_tile_cache (last_accessed_at, downloaded_at)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS orthophoto_tile_cache_state_idx
+      ON orthophoto_tile_cache (ortho_id, version, status)
+    ''');
   }
 
   Future<void> _ensureColumns(
@@ -4410,6 +4464,171 @@ class DatabaseHelper {
       'regional_basemap_state',
       where: 'id = ?',
       whereArgs: ['region'],
+    );
+  }
+
+  Future<Map<String, dynamic>?> getActiveOrthophotoState() async {
+    final db = await database;
+    final rows = await db.query(
+      'orthophoto_layer_state',
+      where: 'id = ? AND active = ?',
+      whereArgs: ['active', 1],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<void> upsertOrthophotoLayerState({
+    required String orthoId,
+    required String version,
+    required String format,
+    int? minZoom,
+    int? maxZoom,
+    List<double>? bounds4326,
+    int? tileCount,
+    int? totalBytes,
+    String? tilesUrl,
+    String? tileUrlTemplate,
+    double opacity = 0.75,
+    int? downloadedTiles,
+    int? downloadedBytes,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'orthophoto_layer_state',
+      {
+        'id': 'active',
+        'ortho_id': orthoId,
+        'version': version,
+        'format': format,
+        'min_zoom': minZoom,
+        'max_zoom': maxZoom,
+        'bounds_west':
+            bounds4326 != null && bounds4326.length == 4 ? bounds4326[0] : null,
+        'bounds_south':
+            bounds4326 != null && bounds4326.length == 4 ? bounds4326[1] : null,
+        'bounds_east':
+            bounds4326 != null && bounds4326.length == 4 ? bounds4326[2] : null,
+        'bounds_north':
+            bounds4326 != null && bounds4326.length == 4 ? bounds4326[3] : null,
+        'tile_count': tileCount ?? 0,
+        'total_bytes': totalBytes ?? 0,
+        'tiles_url': tilesUrl,
+        'tile_url_template': tileUrlTemplate,
+        'opacity': opacity,
+        'active': 1,
+        'downloaded_tiles': downloadedTiles ?? 0,
+        'downloaded_bytes': downloadedBytes ?? 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getOrthophotoTileCache({
+    required String orthoId,
+    required String version,
+    required int z,
+    required int x,
+    required int y,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'orthophoto_tile_cache',
+      where: 'ortho_id = ? AND version = ? AND z = ? AND x = ? AND y = ?',
+      whereArgs: [orthoId, version, z, x, y],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<void> upsertOrthophotoTileCache({
+    required String orthoId,
+    required String version,
+    required int z,
+    required int x,
+    required int y,
+    String? sha256,
+    int? sizeBytes,
+    String? localPath,
+    String status = 'pending',
+    String? downloadedAt,
+    String? lastAccessedAt,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'orthophoto_tile_cache',
+      {
+        'ortho_id': orthoId,
+        'version': version,
+        'z': z,
+        'x': x,
+        'y': y,
+        'sha256': sha256,
+        'size_bytes': sizeBytes ?? 0,
+        'local_path': localPath,
+        'status': status,
+        'downloaded_at': downloadedAt,
+        'last_accessed_at': lastAccessedAt,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> touchOrthophotoTile({
+    required String orthoId,
+    required String version,
+    required int z,
+    required int x,
+    required int y,
+  }) async {
+    final db = await database;
+    await db.update(
+      'orthophoto_tile_cache',
+      {'last_accessed_at': DateTime.now().toIso8601String()},
+      where: 'ortho_id = ? AND version = ? AND z = ? AND x = ? AND y = ?',
+      whereArgs: [orthoId, version, z, x, y],
+    );
+  }
+
+  Future<int> getOrthophotoCacheBytes() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT COALESCE(SUM(size_bytes), 0) AS total
+      FROM orthophoto_tile_cache
+      WHERE status = 'downloaded'
+    ''');
+    return _asInt(rows.first['total']) ?? 0;
+  }
+
+  Future<List<Map<String, dynamic>>> getLeastRecentlyUsedOrthophotoTiles({
+    int limit = 100,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'orthophoto_tile_cache',
+      where: 'status = ? AND local_path IS NOT NULL',
+      whereArgs: ['downloaded'],
+      orderBy: 'COALESCE(last_accessed_at, downloaded_at) ASC',
+      limit: limit,
+    );
+    return rows.map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
+  Future<void> deleteOrthophotoTileCacheRow({
+    required String orthoId,
+    required String version,
+    required int z,
+    required int x,
+    required int y,
+  }) async {
+    final db = await database;
+    await db.delete(
+      'orthophoto_tile_cache',
+      where: 'ortho_id = ? AND version = ? AND z = ? AND x = ? AND y = ?',
+      whereArgs: [orthoId, version, z, x, y],
     );
   }
 
