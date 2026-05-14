@@ -218,6 +218,13 @@ extension _HomePageCollectionActions on _HomePageState {
 
     final current = homeController.userPosition;
 
+    if (!await _confirmCaptureInsideAssignedZones(
+      lat: current.latitude,
+      lng: current.longitude,
+    )) {
+      return;
+    }
+
     if (!mounted) return;
     await Navigator.push(
       context,
@@ -244,6 +251,56 @@ extension _HomePageCollectionActions on _HomePageState {
     );
     if (!mounted) return;
     _refreshAfterNavigation();
+  }
+
+  /// Warning non-bloquant : verifie que la position courante tombe dans une
+  /// zone affectee a l'agent. Si hors zone, affiche un dialog de confirmation.
+  /// Retourne `true` si on peut continuer la collecte, `false` si l'agent
+  /// a annule.
+  Future<bool> _confirmCaptureInsideAssignedZones({
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      final ok = await ZoneAffectationCheckService()
+          .isLatLngInsideAssignedZones(lat, lng);
+      if (ok) return true;
+    } catch (e) {
+      debugPrint('[_confirmCaptureInsideAssignedZones] $e');
+      return true; // En cas d'erreur, on ne bloque pas la collecte.
+    }
+    if (!mounted) return false;
+    final continueAnyway = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFF57C00)),
+            SizedBox(width: 8),
+            Expanded(child: Text('Hors zone d\'affectation')),
+          ],
+        ),
+        content: const Text(
+          'Votre position GPS actuelle est en dehors des zones qui vous sont '
+          'affectées.\n\nVoulez-vous tout de même enregistrer ce levé ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF57C00),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continuer'),
+          ),
+        ],
+      ),
+    );
+    return continueAnyway == true;
   }
 
   Future<void> _addStandalonePointDuringTraceImpl() async {
@@ -452,6 +509,15 @@ extension _HomePageCollectionActions on _HomePageState {
     final selection = await showSrmLigneSelector(context);
     if (!mounted || selection == null) return;
 
+    final start = homeController.userPosition;
+    if (!await _confirmCaptureInsideAssignedZones(
+      lat: start.latitude,
+      lng: start.longitude,
+    )) {
+      return;
+    }
+    if (!mounted) return;
+
     if (homeController.hasActiveCollection) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -520,6 +586,15 @@ extension _HomePageCollectionActions on _HomePageState {
       e = sel.entityType;
       titleApp = sel.titleApp;
     }
+
+    final start = homeController.userPosition;
+    if (!await _confirmCaptureInsideAssignedZones(
+      lat: start.latitude,
+      lng: start.longitude,
+    )) {
+      return;
+    }
+    if (!mounted) return;
 
     _pendingSrmPolygoneMetier = m;
     _pendingSrmPolygoneEntityType = e;

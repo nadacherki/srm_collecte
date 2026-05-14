@@ -61,12 +61,14 @@ class MapControlsWidget extends StatelessWidget {
         isPolygonCollection && controller.polygonCollection != null;
     final hasTraceContext = hasLigneContext || hasPolygonContext;
 
-    final showAddPointForLigne =
-        (controller.ligneCollection?.isActive ?? false) ||
-            (controller.ligneCollection?.isPaused ?? false);
-    final showAddPointForPolygon = isPolygonCollection &&
-        ((controller.polygonCollection?.isActive ?? false) ||
-            (controller.polygonCollection?.isPaused ?? false));
+    final isLigneActive = controller.ligneCollection?.isActive ?? false;
+    final isLignePaused = controller.ligneCollection?.isPaused ?? false;
+    final isPolygonActive = isPolygonCollection &&
+        (controller.polygonCollection?.isActive ?? false);
+    final isPolygonPaused = isPolygonCollection &&
+        (controller.polygonCollection?.isPaused ?? false);
+    final showAddPointForLigne = isLigneActive || isLignePaused;
+    final showAddPointForPolygon = isPolygonActive || isPolygonPaused;
 
     return Stack(
       children: [
@@ -105,9 +107,14 @@ class MapControlsWidget extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: hasLigneContext
                       ? [
-                          if (showAddPointForLigne)
+                          // Bouton jaune "ajout au tracé" uniquement quand le
+                          // tracé est ACTIF (pas en pause, sinon il faut Play
+                          // d'abord pour ajouter un point au tracé).
+                          if (isLigneActive)
                             _buildPointControls(compact: true),
-                          if (showAddPointForLigne) SizedBox(width: gap),
+                          if (isLigneActive) SizedBox(width: gap),
+                          // Bouton rouge "standalone point" : disponible
+                          // pendant l'actif ET la pause.
                           if (showAddPointForLigne)
                             _buildStandalonePointControl(),
                           if (showAddPointForLigne) SizedBox(width: gap),

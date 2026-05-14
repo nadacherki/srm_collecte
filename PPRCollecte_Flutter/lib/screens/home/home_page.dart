@@ -65,6 +65,7 @@ import '../../services/attribut_config_mobile_service.dart';
 import '../../services/srm_field_option_service.dart';
 import '../../services/commune_sync_service.dart';
 import '../../services/zone_sync_service.dart';
+import '../../services/zone_affectation_check_service.dart';
 import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
@@ -807,60 +808,50 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
     final List<Polygon> filtered = <Polygon>[];
 
+    // 1) Polygones SRM metier filtres par les switches anomalie/incomplet.
+    if (anomalieFilterOn && incompletFilterOn) {
+      final combined = <Polygon>{};
+      for (final entry in _displayedPolygonAnomalieByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) combined.addAll(entry.value);
+      }
+      for (final entry in _displayedPolygonIncompletByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) combined.addAll(entry.value);
+      }
+      filtered.addAll(combined);
+    } else if (anomalieFilterOn) {
+      for (final entry in _displayedPolygonAnomalieByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) filtered.addAll(entry.value);
+      }
+    } else if (incompletFilterOn) {
+      for (final entry in _displayedPolygonIncompletByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) filtered.addAll(entry.value);
+      }
+    } else {
+      if (_legendVisibility['zone_plaine'] != false) {
+        filtered.addAll(
+          _displayedPolygons.where(
+            (polygon) => !_displayedSrmPolygonsByTable.values.any(
+              (list) => list.contains(polygon),
+            ),
+          ),
+        );
+      }
+      for (final entry in _displayedSrmPolygonsByTable.entries) {
+        if (_isSrmTableVisible(entry.key)) filtered.addAll(entry.value);
+      }
+    }
+
+    // 2) Couches contexte (zones d'affectation, planches) : strictement
+    // independantes des filtres anomalie/incomplet. Ne dependent que de
+    // leur propre case a cocher dans la section "Couches contexte" de
+    // la legende. Ajoutees a la fin pour qu'elles s'affichent par-dessus
+    // les autres polygones, et garanties presentes quel que soit le
+    // chemin de filtrage emprunte ci-dessus.
     if (_legendVisibility['overlay_zones'] != false) {
       filtered.addAll(_referenceZonePolygons);
     }
     if (_legendVisibility['overlay_planche'] == true) {
       filtered.addAll(_referencePlanchePolygons);
-    }
-
-    if (anomalieFilterOn && !incompletFilterOn) {
-      for (final entry in _displayedPolygonAnomalieByTable.entries) {
-        if (_isSrmTableVisible(entry.key)) {
-          filtered.addAll(entry.value);
-        }
-      }
-      return filtered;
-    }
-
-    if (incompletFilterOn && !anomalieFilterOn) {
-      for (final entry in _displayedPolygonIncompletByTable.entries) {
-        if (_isSrmTableVisible(entry.key)) {
-          filtered.addAll(entry.value);
-        }
-      }
-      return filtered;
-    }
-
-    if (anomalieFilterOn && incompletFilterOn) {
-      final combined = <Polygon>{};
-      for (final entry in _displayedPolygonAnomalieByTable.entries) {
-        if (_isSrmTableVisible(entry.key)) {
-          combined.addAll(entry.value);
-        }
-      }
-      for (final entry in _displayedPolygonIncompletByTable.entries) {
-        if (_isSrmTableVisible(entry.key)) {
-          combined.addAll(entry.value);
-        }
-      }
-      return combined.toList();
-    }
-
-    if (_legendVisibility['zone_plaine'] != false) {
-      filtered.addAll(
-        _displayedPolygons.where(
-          (polygon) => !_displayedSrmPolygonsByTable.values.any(
-            (list) => list.contains(polygon),
-          ),
-        ),
-      );
-    }
-
-    for (final entry in _displayedSrmPolygonsByTable.entries) {
-      if (_isSrmTableVisible(entry.key)) {
-        filtered.addAll(entry.value);
-      }
     }
 
     return filtered;
