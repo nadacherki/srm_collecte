@@ -1324,7 +1324,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
                       showMapButtons: true,
-                      showLocationButton: !hasTraceCollection,
+                      // Cache le bouton GPS (et zoom) pendant DL/sync : l'app
+                      // est deja bloquee logiquement, on rend l'etat visible.
+                      showLocationButton:
+                          !hasTraceCollection && !isDownloading && !isSyncing,
                       showZoomButtons: !hasTraceCollection,
                       onMapTap: (_, __) {
                         if (_isLegendExpanded) {
@@ -1418,6 +1421,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         onRefresh: _loadDisplayedPoints,
                         isPolygonCollection: _isPolygonCollection,
                         showRefresh: !hasTraceCollection,
+                        isBlocked: isDownloading || isSyncing,
                       ),
                     // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
 
