@@ -1,9 +1,9 @@
-﻿"""
-Serializers GeoJSON pour SRM Collecte â€” COMPLET (55 modÃ¨les).
+"""
+Serializers GeoJSON pour SRM Collecte — COMPLET (55 modèles).
 
-Utilise GeoFeatureModelSerializer de DRF-GIS pour les tables avec gÃ©omÃ©trie.
-Utilise ModelSerializer standard pour les tables sans gÃ©omÃ©trie.
-Les donnÃ©es spatiales sont sÃ©rialisÃ©es en GeoJSON (RFC 7946) avec SRID 26191.
+Utilise GeoFeatureModelSerializer de DRF-GIS pour les tables avec géométrie.
+Utilise ModelSerializer standard pour les tables sans géométrie.
+Les données spatiales sont sérialisées en GeoJSON (RFC 7946) avec SRID 26191.
 """
 
 import datetime
@@ -19,28 +19,14 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from .models import (
     # Public
-    Utilisateur, Projet, Mission, Commune,
-    HistoriqueAttribut, HistoriqueMobile, ObjetIncomplet, FondDePlan, EvaluationAgent,
-    SrmFieldOption, BasemapZone, BasemapPackage,
+    Utilisateur, Commune, Zone, ZoneUtilisateur,
+    HistoriqueAction, ObjetIncomplet, ObjetPhoto,
+    InterventionAnomalie,
+    EpStatistiqueConduite, EpStatistiqueConduiteSegment,
+    SrmFieldOption,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
+    MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
-    MetricProjetJour, MetricProjetSemaine, MetricProjetMois, MetricProjetResume,
-    # EP ponctuels
-    EpVanne, EpVanneDeVidange, EpVentouse, EpHydrant,
-    EpBorneFontaine, EpBorneOnep, EpBoucheCles, EpBoucheDarrosage,
-    EpCompteurAbonne, EpCompteurReseau, EpConeDeReduction, EpCentreTampon,
-    EpNoeud, EpObturateur, EpReducteurDePression,
-    EpForage, EpPuit, EpPompe, EpReservoir, EpStationDePompage,
-    EpRegardEp, EpAutreObjet,
-    # EP linÃ©aires + surfacique
-    EpConduiteTerrain, EpConduiteBureau, EpBranchement, EpTraverse, EpPlanche,
-    # ASS
-    AssRegard, AssRegardBranchement, AssCanalisation, AssCanalisationReutilisation,
-    AssBranchement, AssBassin, AssOuvrage, AssEquipement, AssStation,
-    # ELEC
-    ElecSupport, ElecPoste, ElecCoffretBt, ElecNoeudRaccord, ElecPointDesserte,
-    ElecTransformateur, ElecCellule, ElecDepartBt, ElecDepartHta,
-    ElecTronconBt, ElecTronconHta,
 )
 
 
@@ -77,10 +63,15 @@ class StrictSerializerMixin:
         errors = {}
 
         for key, value in data.items():
+            if key in self.photo_fields and value not in (None, ''):
+                errors[key] = (
+                    'Reference photo centralisee: utiliser /api/photos/upload/.'
+                )
+                continue
             if isinstance(value, str):
                 stripped = value.strip()
                 if any(ord(char) < 32 and char not in '\t\n\r' for char in stripped):
-                    errors[key] = 'Caracteres de controle non autorises'
+                    errors[key] = 'Caractères de contrôle non autorisés'
                     continue
                 cleaned[key] = stripped
             else:
@@ -104,7 +95,7 @@ class StrictSerializerMixin:
                 self.default_text_max_length,
             )
             if max_length and len(value) > max_length:
-                errors[field_name] = f'Maximum {max_length} caracteres'
+                errors[field_name] = f'Maximum {max_length} caractères'
 
         if errors:
             raise serializers.ValidationError(errors)
@@ -113,6 +104,13 @@ class StrictSerializerMixin:
 
     def validate(self, attrs):
         errors = {}
+
+        instance = getattr(self, 'instance', None)
+        current_uuid = getattr(instance, 'uuid', None) if instance is not None else None
+        incoming_uuid = attrs.get('uuid')
+        if current_uuid not in (None, '') and incoming_uuid not in (None, ''):
+            if str(current_uuid).strip() != str(incoming_uuid).strip():
+                errors['uuid'] = 'UUID immuable : modification interdite'
 
         for field_name in self.latitude_fields:
             value = attrs.get(field_name)
@@ -133,7 +131,7 @@ class StrictSerializerMixin:
             if value is None:
                 continue
             if not self._is_finite_number(value):
-                errors[field_name] = 'Coordonnee numerique invalide'
+                errors[field_name] = 'Coordonnée numérique invalide'
 
         url_value = attrs.get('url_service')
         if url_value:
@@ -154,21 +152,27 @@ class StrictSerializerMixin:
 
         geom = attrs.get('geom') or attrs.get('geom_zone')
         if geom is not None and getattr(geom, 'empty', False):
-            errors['geom'] = 'Geometrie vide non autorisee'
+            errors['geom'] = 'Géométrie vide non autorisée'
 
         lat_start = attrs.get('lat_debut')
         lon_start = attrs.get('lon_debut')
         lat_end = attrs.get('lat_fin')
         lon_end = attrs.get('lon_fin')
         if ((lat_start is None) != (lon_start is None)):
-            errors['lat_debut'] = 'lat_debut et lon_debut doivent etre fournis ensemble'
+            errors['lat_debut'] = 'lat_debut et lon_debut doivent être fournis ensemble'
         if ((lat_end is None) != (lon_end is None)):
-            errors['lat_fin'] = 'lat_fin et lon_fin doivent etre fournis ensemble'
+            errors['lat_fin'] = 'lat_fin et lon_fin doivent être fournis ensemble'
 
         if errors:
             raise serializers.ValidationError(errors)
 
         return super().validate(attrs)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        for field_name in self.photo_fields:
+            representation.pop(field_name, None)
+        return representation
 
     def _is_finite_number(self, value):
         try:
@@ -180,22 +184,22 @@ class StrictSerializerMixin:
         normalized = value.strip()
         lowered = normalized.lower()
         if lowered.startswith(('javascript:', 'data:')):
-            return 'Format de photo non autorise'
+            return 'Format de photo non autorisé'
 
         if '\x00' in normalized:
-            return 'Reference photo invalide'
+            return 'Référence photo invalide'
 
         parsed = urlparse(normalized)
         if parsed.scheme and parsed.scheme not in ('http', 'https', 'file', 'content'):
-            return 'Scheme photo non autorise'
+            return 'Schéma photo non autorisé'
 
         candidate_path = parsed.path or normalized
         if '/../' in candidate_path or '\\..\\' in candidate_path:
-            return 'Reference photo invalide'
+            return 'Référence photo invalide'
 
         if not self._has_allowed_photo_extension(candidate_path):
             return (
-                'Extension photo non autorisee '
+                'Extension photo non autorisée '
                 '(jpg, jpeg, png, webp, heic, heif)'
             )
 
@@ -247,12 +251,51 @@ class LoginRequestSerializer(serializers.Serializer):
 
 
 class PhotoUploadSerializer(serializers.Serializer):
+    allowed_photo_contexts = {
+        'collecte_initiale',
+        'anomalie_avant',
+        'retour_terrain_apres',
+        'incomplet_initial',
+        'incomplet_complement',
+    }
+
     schema_name = serializers.CharField(max_length=20, trim_whitespace=True)
     table_name = serializers.CharField(max_length=100, trim_whitespace=True)
     uuid_objet = serializers.CharField(max_length=254, trim_whitespace=True)
     photo_slot = serializers.IntegerField(min_value=1, max_value=4)
-    id_projet = serializers.IntegerField(required=False, allow_null=True)
-    id_mission = serializers.IntegerField(required=False, allow_null=True)
+    photo_context = serializers.CharField(
+        max_length=40,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
+    contexte_photo = serializers.CharField(
+        max_length=40,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
+    id_intervention_anomalie = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+    )
+    endpoint = serializers.CharField(
+        max_length=120,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
+    sync_session_uuid = serializers.CharField(
+        max_length=64,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True,
+    )
     id_agent_crea = serializers.IntegerField(required=False, allow_null=True)
     file = serializers.FileField()
 
@@ -261,12 +304,107 @@ class PhotoUploadSerializer(serializers.Serializer):
     }
     max_photo_bytes = 5 * 1024 * 1024
 
+    def validate(self, attrs):
+        context = (
+            attrs.pop('photo_context', None)
+            or attrs.pop('contexte_photo', None)
+            or 'collecte_initiale'
+        )
+        context = str(context).strip().lower() or 'collecte_initiale'
+        if context not in self.allowed_photo_contexts:
+            raise serializers.ValidationError({
+                'photo_context': 'Contexte photo non autorise'
+            })
+        attrs['photo_context'] = context
+        attrs['id_intervention_anomalie'] = attrs.get(
+            'id_intervention_anomalie'
+        ) or 0
+        return attrs
+
+    def _has_allowed_signature(self, extension, header):
+        if extension in ('.jpg', '.jpeg'):
+            return header.startswith(b'\xff\xd8\xff')
+        if extension == '.png':
+            return header.startswith(b'\x89PNG\r\n\x1a\n')
+        if extension == '.webp':
+            return (
+                len(header) >= 12
+                and header[:4] == b'RIFF'
+                and header[8:12] == b'WEBP'
+            )
+        if extension in ('.heic', '.heif'):
+            return b'ftyp' in header[:16] and any(
+                brand in header[:32]
+                for brand in (
+                    b'heic',
+                    b'heix',
+                    b'hevc',
+                    b'hevx',
+                    b'heif',
+                    b'mif1',
+                    b'msf1',
+                )
+            )
+        return False
+
+    def _read_tail(self, value, size, byte_count):
+        try:
+            position = value.tell()
+        except (AttributeError, OSError):
+            position = None
+        try:
+            value.seek(max(size - byte_count, 0))
+            tail = value.read(byte_count)
+        finally:
+            try:
+                value.seek(position or 0)
+            except (AttributeError, OSError):
+                pass
+        return tail
+
+    def _assert_file_complete(self, extension, value, size, header):
+        if extension in ('.jpg', '.jpeg'):
+            if not self._read_tail(value, size, 2).endswith(b'\xff\xd9'):
+                raise serializers.ValidationError(
+                    'Photo JPG incomplete ou corrompue'
+                )
+            return
+
+        if extension == '.png':
+            png_iend = b'\x00\x00\x00\x00IEND\xaeB`\x82'
+            if not self._read_tail(value, size, len(png_iend)).endswith(png_iend):
+                raise serializers.ValidationError(
+                    'Photo PNG incomplete ou corrompue'
+                )
+            return
+
+        if extension == '.webp':
+            if len(header) < 12:
+                raise serializers.ValidationError(
+                    'Photo WEBP incomplete ou corrompue'
+                )
+            riff_payload_size = int.from_bytes(header[4:8], byteorder='little')
+            if riff_payload_size + 8 > size:
+                raise serializers.ValidationError(
+                    'Photo WEBP incomplete ou corrompue'
+                )
+            return
+
+        if extension in ('.heic', '.heif') and size < 32:
+            raise serializers.ValidationError(
+                'Photo HEIC incomplete ou corrompue'
+            )
+
     def validate_file(self, value):
         file_name = getattr(value, 'name', '') or ''
         lowered = file_name.lower()
-        if not any(lowered.endswith(ext) for ext in self.allowed_photo_extensions):
+        extension = next(
+            (ext for ext in self.allowed_photo_extensions if lowered.endswith(ext)),
+            None,
+        )
+        if extension is None:
             raise serializers.ValidationError(
-                'Extension photo non autorisee (jpg, jpeg, png, webp, heic, heif)'
+                'Extension photo non autorisée (jpg, jpeg, png, webp, heic, heif)'
             )
 
         if getattr(value, 'size', 0) <= 0:
@@ -275,162 +413,281 @@ class PhotoUploadSerializer(serializers.Serializer):
         if value.size > self.max_photo_bytes:
             raise serializers.ValidationError('Photo trop volumineuse (maximum 5 Mo)')
 
+        try:
+            position = value.tell()
+        except (AttributeError, OSError):
+            position = None
+        header = value.read(32)
+        try:
+            value.seek(position or 0)
+        except (AttributeError, OSError):
+            pass
+
+        if not self._has_allowed_signature(extension, header):
+            raise serializers.ValidationError('Signature fichier photo invalide')
+
+        self._assert_file_complete(extension, value, value.size, header)
         return value
 
+
+class StatistiqueConduiteNodeSerializer(serializers.Serializer):
+    separator = serializers.BooleanField(required=False, default=False)
+    fid = serializers.IntegerField(required=False, allow_null=True)
+    uuid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=254,
+        trim_whitespace=True,
+    )
+    label = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=254,
+        trim_whitespace=True,
+    )
+    table_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=100,
+        trim_whitespace=True,
+    )
+    metier = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=20,
+        trim_whitespace=True,
+    )
+    x = serializers.FloatField(required=False, allow_null=True)
+    y = serializers.FloatField(required=False, allow_null=True)
+    z = serializers.FloatField(required=False, allow_null=True)
+    ep_num = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=254,
+        trim_whitespace=True,
+    )
+
+    def validate(self, attrs):
+        if attrs.get('separator'):
+            return attrs
+
+        fid = attrs.get('fid')
+        uuid = (attrs.get('uuid') or '').strip()
+        if fid is None and not uuid:
+            raise serializers.ValidationError(
+                'Chaque regard doit fournir fid ou uuid.'
+            )
+        return attrs
+
+
+class StatistiqueConduiteValidateSerializer(serializers.Serializer):
+    metier = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=20,
+        trim_whitespace=True,
+    )
+    sync_uuid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=128,
+        trim_whitespace=True,
+    )
+    id_agent = serializers.IntegerField(min_value=1)
+    jour = LenientDateField()
+    nodes = StatistiqueConduiteNodeSerializer(many=True)
+
+    def validate_nodes(self, value):
+        real_nodes = [node for node in value if not node.get('separator')]
+        if len(real_nodes) < 2:
+            raise serializers.ValidationError(
+                'Au moins deux regards sont necessaires pour valider une conduite.'
+            )
+        return value
+
+
+class StatistiqueConduiteSegmentSerializer(StrictGeoFeatureModelSerializer):
+    class Meta:
+        model = EpStatistiqueConduiteSegment
+        geo_field = 'geom'
+        fields = '__all__'
+
+
+class StatistiqueConduiteSerializer(StrictGeoFeatureModelSerializer):
+    class Meta:
+        model = EpStatistiqueConduite
+        geo_field = 'geom'
+        fields = '__all__'
+
 # =====================================================================
-#  SCHÃ‰MA PUBLIC
+#  SCHÉMA PUBLIC
 # =====================================================================
 
 class UtilisateurSerializer(StrictModelSerializer):
     class Meta:
         model = Utilisateur
-        fields = '__all__'
+        exclude = ('mot_de_passe_hash',)
 
 
-class ProjetSerializer(StrictGeoFeatureModelSerializer):
+class ObjetPhotoSerializer(StrictModelSerializer):
     class Meta:
-        model = Projet
-        geo_field = 'geom_zone'
+        model = ObjetPhoto
         fields = '__all__'
+        read_only_fields = ('id_photo',)
 
 
-class MissionSerializer(StrictModelSerializer):
-    class Meta:
-        model = Mission
-        fields = '__all__'
-
-
-class CommuneSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = Commune
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class HistoriqueAttributSerializer(StrictModelSerializer):
-    class Meta:
-        model = HistoriqueAttribut
-        fields = '__all__'
-
-
-class HistoriqueMobileSerializer(StrictModelSerializer):
-    class Meta:
-        model = HistoriqueMobile
-        fields = '__all__'
-
-
-class MobileHistoryAttributeUploadSerializer(serializers.Serializer):
-    sync_uuid = serializers.CharField(max_length=64)
-    id_historique_local = serializers.IntegerField(required=False, allow_null=True)
-    id_objet = serializers.IntegerField(required=False, allow_null=True)
-    cle_ligne = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    uuid_objet = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nom_schema = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nom_table = serializers.CharField(max_length=100)
-    nom_classe = serializers.CharField(max_length=100)
-    nom_attribut = serializers.CharField(max_length=100)
-    ancienne_valeur = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nouvelle_valeur = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    date_action = serializers.DateTimeField()
-    id_agent = serializers.IntegerField(required=False, allow_null=True)
-    type_action = serializers.CharField(max_length=50)
-
-
-class MobileHistoryEventUploadSerializer(serializers.Serializer):
-    sync_uuid = serializers.CharField(max_length=64)
-    id_evenement_local = serializers.IntegerField(required=False, allow_null=True)
-    type_evenement = serializers.CharField(max_length=100)
-    nom_schema = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    nom_table = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    cle_ligne = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    uuid_objet = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    id_objet = serializers.IntegerField(required=False, allow_null=True)
-    id_agent = serializers.IntegerField(required=False, allow_null=True)
-    payload_json = serializers.JSONField(required=False, allow_null=True)
-    date_action = serializers.DateTimeField()
-
-
-class MobileHistoryUploadSerializer(serializers.Serializer):
-    attributes = MobileHistoryAttributeUploadSerializer(many=True, required=False, default=list)
-    events = MobileHistoryEventUploadSerializer(many=True, required=False, default=list)
-
-    def validate(self, attrs):
-        if not attrs.get('attributes') and not attrs.get('events'):
-            raise serializers.ValidationError(
-                'Le journal local doit contenir au moins une entree.'
-            )
-        return attrs
-
-
-class ObjetIncompletSerializer(StrictModelSerializer):
-    class Meta:
-        model = ObjetIncomplet
-        fields = '__all__'
-
-
-class FondDePlanSerializer(StrictModelSerializer):
-    class Meta:
-        model = FondDePlan
-        fields = '__all__'
-
-
-class EvaluationAgentSerializer(StrictModelSerializer):
-    class Meta:
-        model = EvaluationAgent
-        fields = '__all__'
-
-
-class SrmFieldOptionSerializer(StrictModelSerializer):
-    class Meta:
-        model = SrmFieldOption
-        fields = '__all__'
-
-
-class BasemapZoneGeoSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = BasemapZone
-        geo_field = 'geom'
-        id_field = 'zone_id'
-        fields = '__all__'
-
-
-class BasemapZoneCatalogSerializer(StrictModelSerializer):
-    bbox = serializers.SerializerMethodField()
-    center = serializers.SerializerMethodField()
-    geometry = serializers.SerializerMethodField()
+class InterventionAnomalieTerrainSerializer(StrictModelSerializer):
+    writable_fields = {'etat_terrain', 'commentaire_terrain', 'id_user_terrain'}
+    allowed_terrain_states = {'en_attente', 'traite'}
 
     class Meta:
-        model = BasemapZone
+        model = InterventionAnomalie
         fields = (
-            'zone_id',
-            'city_slug',
-            'nom',
-            'bbox',
-            'center',
-            'geometry',
-            'min_zoom',
-            'max_zoom',
-            'actif',
-            'metadata_json',
+            'id',
+            'id_objet',
+            'nom_classe',
+            'nom_table',
+            'uuid_objet',
+            'retour_terrain',
+            'statut',
+            'responsable_actuel',
+            'etat_exploitant',
+            'commentaire_exploitant',
+            'date_exploitant',
+            'etat_terrain',
+            'commentaire_terrain',
+            'date_terrain',
+            'id_user_terrain',
+            'etat_bureau',
+            'commentaire_bureau',
+            'date_bureau',
+            'date_creation',
+            'date_cloture',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = (
+            'id',
+            'id_objet',
+            'nom_classe',
+            'nom_table',
+            'uuid_objet',
+            'retour_terrain',
+            'statut',
+            'responsable_actuel',
+            'etat_exploitant',
+            'commentaire_exploitant',
+            'date_exploitant',
+            'etat_bureau',
+            'commentaire_bureau',
+            'date_bureau',
+            'date_terrain',
+            'date_creation',
+            'date_cloture',
             'created_at',
             'updated_at',
         )
 
-    def get_bbox(self, obj):
-        return {
-            'west': obj.bbox_west,
-            'south': obj.bbox_south,
-            'east': obj.bbox_east,
-            'north': obj.bbox_north,
-        }
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            raise serializers.ValidationError('Payload JSON objet attendu')
 
-    def get_center(self, obj):
-        return {
-            'latitude': obj.center_latitude,
-            'longitude': obj.center_longitude,
-        }
+        forbidden = sorted(set(data) - self.writable_fields)
+        if forbidden:
+            raise serializers.ValidationError({
+                field: 'Champ non modifiable depuis le mobile terrain.'
+                for field in forbidden
+            })
 
-    def get_geometry(self, obj):
+        return super().to_internal_value(data)
+
+    def validate_etat_terrain(self, value):
+        clean_value = (value or '').strip()
+        if clean_value not in self.allowed_terrain_states:
+            raise serializers.ValidationError(
+                'Etat terrain mobile autorise: en_attente ou traite.'
+            )
+        return clean_value
+
+    def update(self, instance, validated_data):
+        for field in ('commentaire_terrain', 'id_user_terrain'):
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+
+        if 'etat_terrain' in validated_data:
+            instance.etat_terrain = validated_data['etat_terrain']
+            if instance.etat_terrain == 'traite':
+                instance.statut = 'terrain_traite'
+            elif instance.statut in (None, '', 'signale', 'retour_terrain'):
+                instance.statut = 'signale'
+
+        instance.save()
+        return instance
+
+
+class CommuneSerializer(StrictGeoFeatureModelSerializer):
+    id_commune = serializers.IntegerField(source='fid', read_only=True)
+    nom_commune = serializers.SerializerMethodField()
+    nom_province = serializers.SerializerMethodField()
+    nom_region = serializers.SerializerMethodField()
+
+    def get_nom_commune(self, obj):
+        return obj.nom
+
+    def get_nom_province(self, obj):
+        if obj.code_provi == '02.381.':
+            return 'Province de Nador'
+        if obj.code_provi == '02.411.':
+            return "Préfecture d'Oujda-Angad"
+        return None
+
+    def get_nom_region(self, obj):
+        if obj.code_regio == '02.':
+            return 'Oriental'
+        return None
+
+    class Meta:
+        model = Commune
+        geo_field = 'geom'
+        fields = (
+            'fid',
+            'code_provi',
+            'code_regio',
+            'nom',
+            'nom_arabe',
+            'id_province',
+            'id_commune',
+            'nom_commune',
+            'nom_province',
+            'nom_region',
+        )
+
+
+class ZoneSerializer(StrictGeoFeatureModelSerializer):
+    geometry_geojson = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Zone
+        geo_field = 'geom'
+        fields = (
+            'id_zone',
+            'nom_zone',
+            'etat',
+            'date_debut',
+            'date_cloture',
+            'id_user_creat',
+            'id_user_cloture',
+            'geometry_geojson',
+        )
+
+    def get_geometry_geojson(self, obj):
         if obj.geom is None:
             return None
         try:
@@ -441,54 +698,101 @@ class BasemapZoneCatalogSerializer(StrictModelSerializer):
             return None
 
 
-class BasemapPackageSerializer(StrictModelSerializer):
-    download_url = serializers.SerializerMethodField()
-    file_available = serializers.SerializerMethodField()
+class ZoneUtilisateurSerializer(StrictModelSerializer):
+    class Meta:
+        model = ZoneUtilisateur
+        fields = '__all__'
+
+
+class HistoriqueActionSerializer(StrictModelSerializer):
+    class Meta:
+        model = HistoriqueAction
+        fields = '__all__'
+
+
+class ObjetIncompletSerializer(StrictModelSerializer):
+    allowed_statuses = {'A_COMPLETER', 'COMPLETE'}
 
     class Meta:
-        model = BasemapPackage
-        fields = (
-            'id_package',
-            'zone_id',
-            'city_slug',
-            'style',
-            'format',
-            'version',
-            'file_name',
-            'relative_path',
-            'size_bytes',
-            'sha256',
-            'min_zoom',
-            'max_zoom',
-            'generated_at',
-            'source_name',
-            'attribution',
-            'tile_count',
-            'metadata_json',
-            'actif',
-            'requires_wifi',
-            'created_at',
-            'updated_at',
-            'download_url',
-            'file_available',
-        )
+        model = ObjetIncomplet
+        fields = '__all__'
 
-    def get_download_url(self, obj):
-        request = self.context.get('request')
-        relative_path = (obj.relative_path or '').strip()
-        if not request or not relative_path:
-            return None
+    def validate_statut(self, value):
+        if value in (None, ''):
+            return 'A_COMPLETER'
+        normalized = str(value).strip().upper()
+        if normalized not in self.allowed_statuses:
+            raise serializers.ValidationError(
+                "Statut attendu: A_COMPLETER ou COMPLETE"
+            )
+        return normalized
 
-        normalized_path = relative_path.lstrip('/')
-        media_url = str(settings.MEDIA_URL).rstrip('/')
-        return request.build_absolute_uri(f'{media_url}/{normalized_path}')
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        has_incoming_status = 'statut' in attrs
+        statut = attrs.get('statut')
+        if statut in (None, ''):
+            statut = getattr(self.instance, 'statut', None) or 'A_COMPLETER'
+            if self.instance is None:
+                attrs['statut'] = statut
+        if self.instance is None and attrs.get('date_signalement') is None:
+            attrs['date_signalement'] = timezone.localtime(timezone.now())
+        if (
+            statut == 'COMPLETE'
+            and has_incoming_status
+            and attrs.get('date_completion') is None
+            and getattr(self.instance, 'date_completion', None) is None
+        ):
+            attrs['date_completion'] = timezone.localtime(timezone.now())
+        if statut == 'A_COMPLETER' and has_incoming_status:
+            attrs['date_completion'] = None
+            attrs['id_agent_completement'] = None
+        return attrs
 
-    def get_file_available(self, obj):
-        media_root = self.context.get('media_root')
-        relative_path = (obj.relative_path or '').strip()
-        if not media_root or not relative_path:
-            return False
-        return (media_root / relative_path).exists()
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if validated_data:
+            instance.save(update_fields=list(validated_data.keys()))
+        return instance
+
+
+class SrmFieldOptionSerializer(StrictModelSerializer):
+    class Meta:
+        model = SrmFieldOption
+        fields = '__all__'
+
+
+class ListeChoixAsFieldOptionSerializer(serializers.Serializer):
+    """Projette une ligne public.liste_choix au format attendu par le mobile
+    (compatible avec l'ancien endpoint base sur public.srm_field_option).
+    """
+    id_option = serializers.IntegerField(source='id', read_only=True)
+    table_schema = serializers.CharField(source='nom_metier', read_only=True)
+    table_name = serializers.CharField(source='nom_table', read_only=True)
+    field_name = serializers.CharField(source='nom_champ', read_only=True)
+    code_value = serializers.CharField(source='liste_choix_valeur', read_only=True)
+    label_value = serializers.SerializerMethodField()
+    display_order = serializers.SerializerMethodField()
+    actif = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
+
+    def get_label_value(self, obj):
+        alias = (obj.liste_choix_alias or '').strip()
+        if alias:
+            return alias
+        # Fallback : la valeur brute, comme srm_field_option historique.
+        return (obj.liste_choix_valeur or '').strip()
+
+    def get_display_order(self, obj):
+        return obj.liste_choix_ordre or 0
+
+    def get_actif(self, obj):
+        # liste_choix_actif peut etre NULL : on considere actif par defaut.
+        return obj.liste_choix_actif if obj.liste_choix_actif is not None else True
+
+    def get_created_at(self, obj):
+        return None
 
 
 class MetricAgentJourSerializer(StrictModelSerializer):
@@ -506,6 +810,24 @@ class MetricAgentSemaineSerializer(StrictModelSerializer):
 class MetricAgentMoisSerializer(StrictModelSerializer):
     class Meta:
         model = MetricAgentMois
+        fields = '__all__'
+
+
+class MetricAgentTablePeriodSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentTablePeriod
+        fields = '__all__'
+
+
+class MetricAgentPeriodSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentPeriod
+        fields = '__all__'
+
+
+class MetricAgentResumeSerializer(StrictModelSerializer):
+    class Meta:
+        model = MetricAgentResume
         fields = '__all__'
 
 
@@ -531,379 +853,3 @@ class MetricAgentPublicResumeSerializer(StrictModelSerializer):
     class Meta:
         model = MetricAgentPublicResume
         fields = '__all__'
-
-
-class MetricProjetJourSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetJour
-        fields = '__all__'
-
-
-class MetricProjetSemaineSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetSemaine
-        fields = '__all__'
-
-
-class MetricProjetMoisSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetMois
-        fields = '__all__'
-
-
-class MetricProjetResumeSerializer(StrictModelSerializer):
-    class Meta:
-        model = MetricProjetResume
-        fields = '__all__'
-
-
-# =====================================================================
-#  SCHÃ‰MA EP â€” Eau Potable (27 tables)
-# =====================================================================
-
-# ---------- Ponctuels ----------
-
-class EpVanneSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpVanne
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpVanneDeVidangeSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpVanneDeVidange
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpVentouseSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpVentouse
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpHydrantSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpHydrant
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpBorneFontaineSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpBorneFontaine
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpBorneOnepSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpBorneOnep
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpBoucheClesSerializer(StrictGeoFeatureModelSerializer):
-    date_leve = LenientDateField(required=False, allow_null=True)
-
-    class Meta:
-        model = EpBoucheCles
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpBoucheDarrosageSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpBoucheDarrosage
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpCompteurAbonneSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpCompteurAbonne
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpCompteurReseauSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpCompteurReseau
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpConeDeReductionSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpConeDeReduction
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpCentreTamponSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpCentreTampon
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpNoeudSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpNoeud
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpObturateurSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpObturateur
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpReducteurDePressionSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpReducteurDePression
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpForageSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpForage
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpPuitSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpPuit
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpPompeSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpPompe
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpReservoirSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpReservoir
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpStationDePompageSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpStationDePompage
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpRegardEpSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpRegardEp
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpAutreObjetSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpAutreObjet
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-# ---------- LinÃ©aires ----------
-
-class EpConduiteTerrainSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpConduiteTerrain
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpConduiteBureauSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpConduiteBureau
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpBranchementSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpBranchement
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class EpTraverseSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpTraverse
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-# ---------- Surfacique ----------
-
-class EpPlancheSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = EpPlanche
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-# =====================================================================
-#  SCHÃ‰MA ASS â€” Assainissement (9 tables)
-# =====================================================================
-
-class AssRegardSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssRegard
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssRegardBranchementSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssRegardBranchement
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssCanalisationSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssCanalisation
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssCanalisationReutilisationSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssCanalisationReutilisation
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssBranchementSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssBranchement
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssBassinSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssBassin
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssOuvrageSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssOuvrage
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssEquipementSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssEquipement
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class AssStationSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = AssStation
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-# =====================================================================
-#  SCHÃ‰MA ELEC â€” Ã‰lectricitÃ© (11 tables)
-# =====================================================================
-
-# ---------- Ponctuels (avec gÃ©omÃ©trie) ----------
-
-class ElecSupportSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecSupport
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class ElecPosteSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecPoste
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class ElecCoffretBtSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecCoffretBt
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class ElecNoeudRaccordSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecNoeudRaccord
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class ElecPointDesserteSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecPointDesserte
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-# ---------- Attributs (sans gÃ©omÃ©trie) ----------
-
-class ElecTransformateurSerializer(StrictModelSerializer):
-    class Meta:
-        model = ElecTransformateur
-        fields = '__all__'
-
-
-class ElecCelluleSerializer(StrictModelSerializer):
-    class Meta:
-        model = ElecCellule
-        fields = '__all__'
-
-
-class ElecDepartBtSerializer(StrictModelSerializer):
-    class Meta:
-        model = ElecDepartBt
-        fields = '__all__'
-
-
-class ElecDepartHtaSerializer(StrictModelSerializer):
-    class Meta:
-        model = ElecDepartHta
-        fields = '__all__'
-
-
-# ---------- LinÃ©aires ----------
-
-class ElecTronconBtSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecTronconBt
-        geo_field = 'geom'
-        fields = '__all__'
-
-
-class ElecTronconHtaSerializer(StrictGeoFeatureModelSerializer):
-    class Meta:
-        model = ElecTronconHta
-        geo_field = 'geom'
-        fields = '__all__'
-

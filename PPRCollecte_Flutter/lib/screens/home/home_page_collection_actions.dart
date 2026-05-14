@@ -1,204 +1,147 @@
 part of 'home_page.dart';
 
 extension _HomePageCollectionActions on _HomePageState {
-  Future<void> _startSpecialCollectionImpl(String type) async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez activer le GPS')),
-      );
-      return;
+  bool _ensureGpsReadyForCapture() {
+    final accuracyMeters = homeController.gpsAccuracy?.toDouble();
+    final role = (ApiService.userRole ?? '').trim().toLowerCase();
+    final reason = CaptureLocationGuard.blockReason(
+      gpsEnabled: homeController.gpsEnabled,
+      altitude: homeController.currentAltitude,
+      accuracyMeters: accuracyMeters,
+      sourceLabel: homeController.gpsSourceLabel,
+      allowInternalSources: role == 'admin',
+    );
+    if (reason == null) {
+      return true;
     }
 
-    if (homeController.hasActiveCollection) {
-      final activeType = homeController.activeCollectionType;
+    unawaited(
+      DatabaseHelper().recordLocalEvent(
+        eventType: 'CAPTURE_BLOCKED_LOCATION',
+        tableName: 'app_metadata',
+        cleLigne: 'capture_location_guard',
+        payload: {
+          'reason': reason,
+          'gps_enabled': homeController.gpsEnabled,
+          'altitude_available': homeController.currentAltitude != null,
+          'accuracy_m': accuracyMeters,
+          'source': homeController.gpsSourceLabel,
+          'role': role,
+          'threshold_m': CaptureLocationGuard.maxCaptureAccuracyMeters,
+        },
+      ),
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(reason),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return false;
+  }
+
+  Future<void> _finishPolygonCollectionImpl() async {
+    final currentPolygonPoints =
+        homeController.polygonCollection?.points.length ?? 0;
+    if (currentPolygonPoints < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Veuillez mettre en pause la collecte de $activeType en cours',
+            'Un polygone doit contenir au moins 3 points. ($currentPolygonPoints collectes)',
           ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    try {
-      await homeController.startSpecialCollection(type);
-      if (!mounted) return;
-
-      _setStateFromPart(() {
-        _isSpecialCollection = true;
-        _specialCollectionType = type;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Collecte de $type démarrée'),
-          backgroundColor: Colors.purple,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
           backgroundColor: Colors.red,
         ),
       );
-    }
-  }
-
-  Future<void> _finishSpecialCollectionImpl() async {
-    if (_isPolygonCollection) {
-      final currentPolygonPoints =
-          homeController.specialCollection?.points.length ?? 0;
-      if (currentPolygonPoints < 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Un polygone doit contenir au moins 3 points. ($currentPolygonPoints collectés)',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      final result = homeController.finishSpecialCollection();
-      if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Impossible de finaliser le polygone pour le moment. Réessayez après avoir ajouté des points.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      _setStateFromPart(() {
-        _pendingPolygonPreviewPoints = List<LatLng>.from(result.points);
-      });
-
-      final polygonMetier = _pendingSrmPolygoneMetier;
-      final polygonEntityType = _pendingSrmPolygoneEntityType;
-      if (polygonMetier == null || polygonEntityType == null) {
-        _setStateFromPart(() {
-          _isSpecialCollection = false;
-          _isPolygonCollection = false;
-          _specialCollectionType = null;
-          _pendingPolygonPreviewPoints = null;
-        });
-        _pendingSrmPolygoneMetier = null;
-        _pendingSrmPolygoneEntityType = null;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Contexte du polygone introuvable.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      final formResult = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PolygonFormPage(
-            polygonPoints: result.points,
-            startTime: result.startTime,
-            endTime: result.endTime,
-            agentName: widget.agentName,
-            metier: polygonMetier,
-            entityType: polygonEntityType,
-          ),
-        ),
-      );
-      _pendingSrmPolygoneMetier = null;
-      _pendingSrmPolygoneEntityType = null;
-
-      if (!mounted) return;
-      _refreshAfterNavigation();
-
-      _setStateFromPart(() {
-        _isSpecialCollection = false;
-        _isPolygonCollection = false;
-        _specialCollectionType = null;
-        if (formResult == null) {
-          _pendingPolygonPreviewPoints = null;
-        }
-      });
-
-      if (formResult != null) {
-        await _loadDisplayedPolygons();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$polygonEntityType enregistré avec succès'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
       return;
     }
 
-    final result = homeController.finishSpecialCollection();
+    final result = homeController.finishPolygonCollection();
     if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Une ligne doit contenir au moins 2 points.')),
-      );
-      return;
-    }
-
-    if (result.points.length >= 2 &&
-        result.points.first.latitude == result.points.last.latitude &&
-        result.points.first.longitude == result.points.last.longitude) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'La ligne doit avoir un point de début et de fin différents. Veuillez vous déplacer pendant la collecte.',
+            'Impossible de finaliser le polygone pour le moment. Reessayez apres avoir ajoute des points.',
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.red,
         ),
       );
+      return;
+    }
+    _polygonRedoPoints.clear();
+
+    final geometryEditItem = _geometryEditPolygonItem;
+    if (geometryEditItem != null) {
+      await _saveEditedPolygonGeometryImpl(
+        result: result,
+        geometryEditItem: geometryEditItem,
+      );
+      return;
+    }
+
+    _setStateFromPart(() {
+      _pendingPolygonPreviewPoints = List<LatLng>.from(result.points);
+    });
+
+    final polygonMetier = _pendingSrmPolygoneMetier;
+    final polygonEntityType = _pendingSrmPolygoneEntityType;
+    final polygonTitleApp = _pendingSrmPolygoneTitleApp;
+    if (polygonMetier == null || polygonEntityType == null) {
       _setStateFromPart(() {
-        _isSpecialCollection = false;
-        _specialCollectionType = null;
+        _isPolygonCollection = false;
+        _polygonEntityType = null;
+        _pendingPolygonPreviewPoints = null;
       });
+      _pendingSrmPolygoneMetier = null;
+      _pendingSrmPolygoneEntityType = null;
+      _pendingSrmPolygoneTitleApp = null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contexte du polygone introuvable.'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
     final formResult = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SpecialLineFormPage(
-          linePoints: result.points,
-          provisionalCode: result.lineCode ?? '',
+        builder: (_) => PolygonFormPage(
+          polygonPoints: result.points,
           startTime: result.startTime,
           endTime: result.endTime,
           agentName: widget.agentName,
-          specialType: _specialCollectionType!,
-          totalDistance: result.totalDistance,
-          activeLineCode: homeController.activeLineCode,
+          metier: polygonMetier,
+          entityType: polygonEntityType,
+          displayTitle: polygonTitleApp,
         ),
       ),
     );
+    _pendingSrmPolygoneMetier = null;
+    _pendingSrmPolygoneEntityType = null;
+    _pendingSrmPolygoneTitleApp = null;
 
     if (!mounted) return;
     _refreshAfterNavigation();
 
     _setStateFromPart(() {
-      _isSpecialCollection = false;
-      _specialCollectionType = null;
+      _isPolygonCollection = false;
+      _polygonEntityType = null;
+      if (formResult == null) {
+        _pendingPolygonPreviewPoints = null;
+      }
     });
 
     if (formResult != null) {
-      await _loadDisplayedSpecialLines();
+      final savedTitle = (polygonTitleApp?.trim().isNotEmpty == true)
+          ? polygonTitleApp!.trim()
+          : polygonEntityType;
+      await _loadDisplayedPolygons();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Données enregistrées avec succès'),
+          SnackBar(
+            content: Text('$savedTitle enregistre avec succes'),
             backgroundColor: Colors.green,
           ),
         );
@@ -206,7 +149,7 @@ extension _HomePageCollectionActions on _HomePageState {
     }
   }
 
-  Future<void> _cancelSpecialCollectionImpl() async {
+  Future<void> _cancelPolygonCollectionImpl() async {
     final wasPolygon = _isPolygonCollection;
     final confirm = await showDialog<bool>(
       context: context,
@@ -236,16 +179,18 @@ extension _HomePageCollectionActions on _HomePageState {
 
     if (confirm != true) return;
 
-    homeController.cancelSpecialCollection();
+    homeController.cancelPolygonCollection();
     if (!mounted) return;
 
     _setStateFromPart(() {
-      _isSpecialCollection = false;
+      _polygonRedoPoints.clear();
       _isPolygonCollection = false;
-      _specialCollectionType = null;
+      _polygonEntityType = null;
       _pendingPolygonPreviewPoints = null;
       _pendingSrmPolygoneMetier = null;
       _pendingSrmPolygoneEntityType = null;
+      _pendingSrmPolygoneTitleApp = null;
+      _geometryEditPolygonItem = null;
       homeController.collectedPolylines.clear();
       collectedPolylines.clear();
     });
@@ -260,10 +205,12 @@ extension _HomePageCollectionActions on _HomePageState {
 
   Future<void> _addPointOfInterestImpl() async {
     if ((homeController.ligneCollection?.isActive ?? false) ||
-        (homeController.specialCollection?.isActive ?? false)) {
+        (homeController.polygonCollection?.isActive ?? false)) {
       _addCurrentPointToActiveCollection();
       return;
     }
+
+    if (!_ensureGpsReadyForCapture()) return;
 
     if (!mounted) return;
     final selection = await showSrmPointSelector(context);
@@ -278,9 +225,10 @@ extension _HomePageCollectionActions on _HomePageState {
         builder: (_) => SrmPointFormWidget(
           metier: selection.metier,
           entityType: selection.entityType,
+          displayTitle: selection.titleApp,
           latitude: current.latitude,
           longitude: current.longitude,
-          altitude: homeController.collectionManager.currentAltitude,
+          altitude: homeController.currentAltitude,
           agentName: widget.agentName,
           onSaved: () {
             if (!mounted) return;
@@ -298,43 +246,212 @@ extension _HomePageCollectionActions on _HomePageState {
     _refreshAfterNavigation();
   }
 
-  void _addCurrentPointToActiveCollection() {
-    final error = homeController.addCurrentPointToActiveCollection();
+  Future<void> _addStandalonePointDuringTraceImpl() async {
+    final wasLineActive = homeController.ligneCollection?.isActive ?? false;
+    final wasPolygonActive =
+        homeController.polygonCollection?.isActive ?? false;
 
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: Colors.orange,
-        ),
+    if (wasLineActive) {
+      final edit = _geometryEditLineItem;
+      if (edit != null) {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': edit['source_metier'],
+          'srmEntityType': edit['source_entity'],
+          'srmTitleApp': edit['source_title'],
+          'srmTableName': edit['source_table'],
+          'geometryEdit': true,
+          'sourceId': edit['id'],
+        });
+      } else {
+        final sel = _pendingSrmLigneSelection;
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': sel?.metier,
+          'srmEntityType': sel?.entityType,
+          'srmTitleApp': sel?.titleApp,
+          'srmTableName': sel?.tableName,
+          'srmSchema': sel?.schema,
+        });
+      }
+      homeController.toggleLigneCollection();
+    } else if (wasPolygonActive) {
+      final edit = _geometryEditPolygonItem;
+      if (edit != null) {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': edit['source_metier'],
+          'srmEntityType': edit['source_entity'],
+          'srmTitleApp': edit['source_title'],
+          'srmTableName': edit['source_table'],
+          'geometryEdit': true,
+          'sourceId': edit['id'],
+          'isPolygonCollection': true,
+          'polygonEntityType': edit['source_entity'],
+        });
+      } else {
+        homeController.collectionManager.setSrmMetadata({
+          'srmMetier': _pendingSrmPolygoneMetier,
+          'srmEntityType': _pendingSrmPolygoneEntityType,
+          'srmTitleApp': _pendingSrmPolygoneTitleApp,
+          'isPolygonCollection': _isPolygonCollection,
+          'polygonEntityType': _polygonEntityType,
+        });
+      }
+      homeController.togglePolygonCollection();
+    }
+
+    try {
+      await _addPointOfInterestImpl();
+    } finally {
+      if (mounted) {
+        if (wasLineActive &&
+            (homeController.ligneCollection?.isPaused ?? false)) {
+          homeController.toggleLigneCollection();
+        } else if (wasPolygonActive &&
+            (homeController.polygonCollection?.isPaused ?? false)) {
+          homeController.togglePolygonCollection();
+        }
+        _setStateFromPart(() {});
+      }
+    }
+  }
+
+  void _undoLignePointImpl() {
+    _undoTracePoint(
+      type: CollectionType.ligne,
+      redoStack: _ligneRedoPoints,
+      emptyMessage: 'Aucun point de ligne à retirer.',
+      restoredLabel: 'ligne',
+    );
+  }
+
+  void _redoLignePointImpl() {
+    _redoTracePoint(
+      type: CollectionType.ligne,
+      redoStack: _ligneRedoPoints,
+      emptyMessage: 'Aucun point de ligne à rétablir.',
+      restoredLabel: 'ligne',
+    );
+  }
+
+  void _undoPolygonPointImpl() {
+    _undoTracePoint(
+      type: CollectionType.polygon,
+      redoStack: _polygonRedoPoints,
+      emptyMessage: 'Aucun point de polygone à retirer.',
+      restoredLabel: 'polygone',
+    );
+  }
+
+  void _redoPolygonPointImpl() {
+    _redoTracePoint(
+      type: CollectionType.polygon,
+      redoStack: _polygonRedoPoints,
+      emptyMessage: 'Aucun point de polygone à rétablir.',
+      restoredLabel: 'polygone',
+    );
+  }
+
+  void _undoTracePoint({
+    required CollectionType type,
+    required List<CollectionPointEdit> redoStack,
+    required String emptyMessage,
+    required String restoredLabel,
+  }) {
+    final edit = homeController.undoLastCollectionPoint(type);
+    if (edit == null) {
+      _showTraceEditSnack(emptyMessage, Colors.orange);
+      return;
+    }
+
+    redoStack.add(edit);
+    final remaining = _collectionPointCount(type);
+    _setStateFromPart(() {});
+    _showTraceEditSnack(
+      'Dernier point retiré du $restoredLabel ($remaining restant)',
+      const Color(0xFF455A64),
+    );
+  }
+
+  void _redoTracePoint({
+    required CollectionType type,
+    required List<CollectionPointEdit> redoStack,
+    required String emptyMessage,
+    required String restoredLabel,
+  }) {
+    if (redoStack.isEmpty) {
+      _showTraceEditSnack(emptyMessage, Colors.orange);
+      return;
+    }
+
+    final edit = redoStack.removeLast();
+    final restored = homeController.redoCollectionPoint(type, edit);
+    if (!restored) {
+      redoStack.add(edit);
+      _showTraceEditSnack(
+        'Impossible de rétablir ce point pour le moment.',
+        Colors.orange,
       );
       return;
     }
 
-    final pointCount = homeController.ligneCollection?.points.length ??
-        homeController.specialCollection?.points.length ??
-        0;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Point ajouté au tracé ($pointCount total)'),
-        backgroundColor: const Color(0xFFF59E0B),
-        duration: const Duration(milliseconds: 900),
-      ),
+    final total = _collectionPointCount(type);
+    _setStateFromPart(() {});
+    _showTraceEditSnack(
+      'Point rétabli dans le $restoredLabel ($total total)',
+      const Color(0xFF455A64),
     );
+  }
+
+  int _collectionPointCount(CollectionType type) {
+    if (type == CollectionType.ligne) {
+      return homeController.ligneCollection?.points.length ?? 0;
+    }
+    return homeController.polygonCollection?.points.length ?? 0;
+  }
+
+  void _showTraceEditSnack(String message, Color color) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: color,
+            duration: const Duration(milliseconds: 1100),
+          ),
+        );
+    });
+  }
+
+  void _addCurrentPointToActiveCollection() {
+    if (!_ensureGpsReadyForCapture()) return;
+
+    final error = homeController.addCurrentPointToActiveCollection();
+
+    if (error != null) {
+      _showTraceEditSnack(error, Colors.orange);
+      return;
+    }
+
+    if (homeController.ligneCollection?.isActive ?? false) {
+      _ligneRedoPoints.clear();
+    }
+    if (_isPolygonCollection &&
+        (homeController.polygonCollection?.isActive ?? false)) {
+      _polygonRedoPoints.clear();
+    }
+
+    _setStateFromPart(() {});
   }
 
   Future<void> _startLigneSrmCollectionImpl() async {
     if (!mounted) return;
+    if (!_ensureGpsReadyForCapture()) return;
+
     final selection = await showSrmLigneSelector(context);
     if (!mounted || selection == null) return;
 
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez activer le GPS')),
-      );
-      return;
-    }
     if (homeController.hasActiveCollection) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -354,10 +471,11 @@ extension _HomePageCollectionActions on _HomePageState {
     try {
       await homeController.startLigneCollection(fakeCode);
       if (!mounted) return;
+      _ligneRedoPoints.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Tracé ${selection.entityType} démarré, ajoutez les points avec le bouton jaune',
+            'Tracé ${selection.titleApp} démarré, ajoutez les points avec le bouton jaune',
           ),
           backgroundColor: Color(SrmConfig.getMetierColor(selection.metier)),
           duration: const Duration(seconds: 3),
@@ -379,12 +497,7 @@ extension _HomePageCollectionActions on _HomePageState {
     String? metier,
     String? entityType,
   }) async {
-    if (!homeController.gpsEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez activer le GPS')),
-      );
-      return;
-    }
+    if (!_ensureGpsReadyForCapture()) return;
 
     if (homeController.hasActiveCollection) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -398,32 +511,36 @@ extension _HomePageCollectionActions on _HomePageState {
 
     var m = metier;
     var e = entityType;
+    String? titleApp;
     if (m == null || e == null) {
       if (!mounted) return;
       final sel = await showSrmPolygoneSelector(context);
       if (!mounted || sel == null) return;
       m = sel.metier;
       e = sel.entityType;
+      titleApp = sel.titleApp;
     }
 
     _pendingSrmPolygoneMetier = m;
     _pendingSrmPolygoneEntityType = e;
+    _pendingSrmPolygoneTitleApp = titleApp ?? e;
 
     try {
-      await homeController.startSpecialCollection(e);
+      await homeController.startPolygonCollection(e);
       if (!mounted) return;
 
       _setStateFromPart(() {
-        _isSpecialCollection = true;
         _isPolygonCollection = true;
-        _specialCollectionType = e;
+        _polygonEntityType = e;
         _pendingPolygonPreviewPoints = null;
+        _polygonRedoPoints.clear();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Tracé $e démarré. Ajoutez les points avec le bouton jaune'),
+          content: Text(
+            'Tracé ${_pendingSrmPolygoneTitleApp ?? e} démarré. Ajoutez les points avec le bouton jaune',
+          ),
           backgroundColor: _pendingSrmPolygoneMetier != null
               ? Color(SrmConfig.getMetierColor(_pendingSrmPolygoneMetier!))
               : const Color(0xFF1B5E20),
@@ -441,18 +558,32 @@ extension _HomePageCollectionActions on _HomePageState {
     }
   }
 
-  void _toggleSpecialCollectionImpl() {
+  void _togglePolygonCollectionImpl() {
     try {
-      if (homeController.specialCollection?.isActive ?? false) {
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': _pendingSrmPolygoneMetier,
-          'srmEntityType': _pendingSrmPolygoneEntityType,
-          'isPolygonCollection': _isPolygonCollection,
-          'isSpecialCollection': _isSpecialCollection,
-          'specialCollectionType': _specialCollectionType,
-        });
+      if (homeController.polygonCollection?.isActive ?? false) {
+        final edit = _geometryEditPolygonItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+            'isPolygonCollection': true,
+            'polygonEntityType': edit['source_entity'],
+          });
+        } else {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': _pendingSrmPolygoneMetier,
+            'srmEntityType': _pendingSrmPolygoneEntityType,
+            'srmTitleApp': _pendingSrmPolygoneTitleApp,
+            'isPolygonCollection': _isPolygonCollection,
+            'polygonEntityType': _polygonEntityType,
+          });
+        }
       }
-      homeController.toggleSpecialCollection();
+      homeController.togglePolygonCollection();
       _setStateFromPart(() {});
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -467,13 +598,26 @@ extension _HomePageCollectionActions on _HomePageState {
   void _toggleLigneCollectionImpl() {
     try {
       if (homeController.ligneCollection?.isActive ?? false) {
-        final sel = _pendingSrmLigneSelection;
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': sel?.metier,
-          'srmEntityType': sel?.entityType,
-          'srmTableName': sel?.tableName,
-          'srmSchema': sel?.schema,
-        });
+        final edit = _geometryEditLineItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+          });
+        } else {
+          final sel = _pendingSrmLigneSelection;
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': sel?.metier,
+            'srmEntityType': sel?.entityType,
+            'srmTitleApp': sel?.titleApp,
+            'srmTableName': sel?.tableName,
+            'srmSchema': sel?.schema,
+          });
+        }
       }
       homeController.toggleLigneCollection();
     } catch (e) {
@@ -505,6 +649,20 @@ extension _HomePageCollectionActions on _HomePageState {
     final endTime = result['endTime'] as DateTime?;
     final totalDistance = (result['totalDistance'] as num).toDouble();
 
+    final geometryEditItem = _geometryEditLineItem;
+    if (geometryEditItem != null) {
+      await _saveEditedLineGeometry(
+        geometryEditItem: geometryEditItem,
+        lineId: lineId,
+        lineCode: lineCode,
+        points: points,
+        startTime: startTime,
+        endTime: endTime,
+        totalDistance: totalDistance,
+      );
+      return;
+    }
+
     var sel = _pendingSrmLigneSelection;
     if (sel == null) {
       if (!mounted) return;
@@ -524,7 +682,7 @@ extension _HomePageCollectionActions on _HomePageState {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Trace remis en pause. Une selection SRM est requise pour finaliser la ligne.',
+              'Trace remise en pause. Une sélection SRM est requise pour finaliser la ligne.',
             ),
             backgroundColor: Colors.orange,
           ),
@@ -537,6 +695,7 @@ extension _HomePageCollectionActions on _HomePageState {
     final srmMetadata = {
       'srmMetier': effectiveSel.metier,
       'srmEntityType': effectiveSel.entityType,
+      'srmTitleApp': effectiveSel.titleApp,
       'srmTableName': effectiveSel.tableName,
       'srmSchema': effectiveSel.schema,
     };
@@ -566,6 +725,7 @@ extension _HomePageCollectionActions on _HomePageState {
         builder: (_) => SrmLigneFormPage(
           metier: effectiveSel.metier,
           entityType: effectiveSel.entityType,
+          displayTitle: effectiveSel.titleApp,
           linePoints: points,
           startTime: startTime,
           endTime: endTime,
@@ -588,6 +748,7 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     homeController.cancelLigneCollection();
+    _ligneRedoPoints.clear();
     _refreshAfterNavigation();
   }
 
@@ -620,6 +781,8 @@ extension _HomePageCollectionActions on _HomePageState {
 
     homeController.cancelLigneCollection();
     _pendingSrmLigneSelection = null;
+    _ligneRedoPoints.clear();
+    _geometryEditLineItem = null;
 
     if (!mounted) return;
     _setStateFromPart(() {
@@ -633,5 +796,255 @@ extension _HomePageCollectionActions on _HomePageState {
         backgroundColor: Color(0xFFE53E3E),
       ),
     );
+  }
+
+  Future<void> _saveEditedLineGeometry({
+    required Map<String, dynamic> geometryEditItem,
+    required int lineId,
+    required String lineCode,
+    required List<LatLng> points,
+    required DateTime startTime,
+    required DateTime? endTime,
+    required double totalDistance,
+  }) async {
+    final tableName = geometryEditItem['source_table']?.toString() ?? '';
+    final id = _dynamicToIntImpl(geometryEditItem['id']) ?? lineId;
+    if (tableName.isEmpty || id <= 0 || points.length < 2) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de ligne invalide.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final projection = ProjectionService();
+    final startProjected = projection.wgs84ToMerchich(
+      longitude: points.first.longitude,
+      latitude: points.first.latitude,
+    );
+    final endProjected = projection.wgs84ToMerchich(
+      longitude: points.last.longitude,
+      latitude: points.last.latitude,
+    );
+
+    final data = <String, dynamic>{
+      'points_json': jsonEncode(
+        points.map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
+      ),
+      'nb_points': points.length,
+      'distance_m': totalDistance,
+      'x_debut': startProjected.x,
+      'y_debut': startProjected.y,
+      'x_fin': endProjected.x,
+      'y_fin': endProjected.y,
+      'lat_debut': points.first.latitude,
+      'lon_debut': points.first.longitude,
+      'lat_fin': points.last.latitude,
+      'lon_fin': points.last.longitude,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+      'mode_localisation': 'gnss',
+    };
+
+    try {
+      await DatabaseHelper().updateEntitySrm(
+        tableName,
+        id,
+        data,
+        recordHistory: true,
+      );
+
+      _geometryEditLineItem = null;
+      _ligneRedoPoints.clear();
+      _pendingSrmLigneSelection = null;
+      await _refreshAfterNavigation();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de ligne mise à jour.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      await homeController.restoreFinishedLigneAsPaused(
+        id: id,
+        lineCode: lineCode,
+        points: points,
+        startTime: startTime,
+        lastPointTime: endTime,
+        totalDistance: totalDistance,
+        srmMetadata: {
+          'srmMetier': geometryEditItem['source_metier'],
+          'srmEntityType': geometryEditItem['source_entity'],
+          'srmTitleApp': geometryEditItem['source_title'],
+          'srmTableName': tableName,
+          'geometryEdit': true,
+          'sourceId': id,
+        },
+      );
+      _geometryEditLineItem = geometryEditItem;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur édition géométrie : $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _saveEditedPolygonGeometryImpl({
+    required CollectionResult result,
+    required Map<String, dynamic> geometryEditItem,
+  }) async {
+    final tableName = geometryEditItem['source_table']?.toString() ?? '';
+    final id = _dynamicToIntImpl(geometryEditItem['id']) ?? result.id;
+    final points = result.points;
+    if (tableName.isEmpty || id <= 0 || points.length < 3) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de polygone invalide.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final closedCoordinates = points
+        .map((p) => <double>[p.longitude, p.latitude])
+        .toList(growable: true);
+    if (closedCoordinates.isNotEmpty) {
+      closedCoordinates.add(List<double>.from(closedCoordinates.first));
+    }
+
+    final centroidLat =
+        points.map((p) => p.latitude).reduce((a, b) => a + b) / points.length;
+    final centroidLng =
+        points.map((p) => p.longitude).reduce((a, b) => a + b) / points.length;
+    final projection = ProjectionService();
+    final centroidProjected = projection.wgs84ToMerchich(
+      longitude: centroidLng,
+      latitude: centroidLat,
+    );
+
+    final metier = geometryEditItem['source_metier']?.toString();
+    final entityType = geometryEditItem['source_entity']?.toString();
+    final fields = (metier != null && entityType != null)
+        ? SrmConfig.getFields(metier, entityType)
+        : const <String>[];
+    final xField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_x'),
+      orElse: () => '',
+    );
+    final yField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_y'),
+      orElse: () => '',
+    );
+
+    final data = <String, dynamic>{
+      'points_json': jsonEncode(closedCoordinates),
+      'nb_points': points.length,
+      'superficie_ha': _polygonAreaHectaresImpl(points),
+      'latitude_gps': centroidLat,
+      'longitude_gps': centroidLng,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+      'mode_localisation': 'gnss',
+    };
+    if (xField.isNotEmpty) {
+      data[xField] = centroidProjected.x;
+    }
+    if (yField.isNotEmpty) {
+      data[yField] = centroidProjected.y;
+    }
+
+    try {
+      await DatabaseHelper().updateEntitySrm(
+        tableName,
+        id,
+        data,
+        recordHistory: true,
+      );
+
+      _geometryEditPolygonItem = null;
+      _polygonRedoPoints.clear();
+      _pendingSrmPolygoneMetier = null;
+      _pendingSrmPolygoneEntityType = null;
+      _pendingSrmPolygoneTitleApp = null;
+      await _refreshAfterNavigation();
+      await _loadDisplayedPolygons();
+
+      if (!mounted) return;
+      _setStateFromPart(() {
+        _isPolygonCollection = false;
+        _polygonEntityType = null;
+        _pendingPolygonPreviewPoints = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Géométrie de polygone mise à jour.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      final sourceEntity =
+          geometryEditItem['source_entity']?.toString() ?? 'Polygone';
+      homeController.collectionManager.restorePolygonCollection({
+        'id': result.id,
+        'entityType': sourceEntity,
+        'points':
+            points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+        'startTime': result.startTime.toIso8601String(),
+        'lastPointTime': result.endTime.toIso8601String(),
+        'totalDistance': result.totalDistance,
+      });
+      homeController.collectionManager.setSrmMetadata({
+        'srmMetier': geometryEditItem['source_metier'],
+        'srmEntityType': geometryEditItem['source_entity'],
+        'srmTitleApp': geometryEditItem['source_title'],
+        'srmTableName': tableName,
+        'geometryEdit': true,
+        'sourceId': id,
+        'isPolygonCollection': true,
+        'polygonEntityType': sourceEntity,
+      });
+      await homeController.persistActiveCollectionDraft(
+        reason: 'polygon_geometry_update_failed',
+      );
+      _geometryEditPolygonItem = geometryEditItem;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur édition géométrie : $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  double _polygonAreaHectaresImpl(List<LatLng> points) {
+    if (points.length < 3) return 0.0;
+    final projection = ProjectionService();
+    final projected = points
+        .map(
+          (p) => projection.wgs84ToMerchich(
+            longitude: p.longitude,
+            latitude: p.latitude,
+          ),
+        )
+        .toList();
+
+    var areaM2 = 0.0;
+    for (var i = 0; i < projected.length; i++) {
+      final current = projected[i];
+      final next = projected[(i + 1) % projected.length];
+      areaM2 += (current.x * next.y) - (next.x * current.y);
+    }
+    return areaM2.abs() / 2 / 10000;
   }
 }

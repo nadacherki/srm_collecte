@@ -1,24 +1,187 @@
 part of 'home_page.dart';
 
-Future<void> _loadDownloadedSpecialLinesImpl(_HomePageState state) async {
-  if (state.mounted) {
-    state._setStateFromPart(() {
-      state._downloadedSpecialLinesPolylines = [];
+const String _epRegardMiroirOverlayTable = 'ep_regard';
+const double _regardMiroirLocalSquareSizeMeters = 24.0;
+const Color _zoneOverlayColor = Color(0xFF1565C0);
+const Color _plancheOverlayColor = Color(0xFF455A64);
+
+// Rayon en mètres pour considérer plusieurs points comme superposés.
+// 5m couvre les cas typiques : points exactement à la même coord ou avec
+// petite variation GPS, sans inclure des objets distincts à 10m+.
+const double _overlappingPointsRadiusMeters = 5.0;
+
+// Haversine simplifié — distance en mètres entre 2 paires lat/lng (WGS84).
+double _haversineMetersOverlap(
+  double lat1,
+  double lng1,
+  double lat2,
+  double lng2,
+) {
+  const earthRadiusM = 6371000.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1 * math.pi / 180.0) *
+          math.cos(lat2 * math.pi / 180.0) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return earthRadiusM * c;
+}
+
+void _showOverlappingPointsSheet({
+  required _HomePageState state,
+  required List<Map<String, dynamic>> overlapping,
+  required Map<String, dynamic> tappedData,
+  required void Function(Map<String, dynamic>) onSelect,
+}) {
+  // Tri : objet réellement tappé en premier, puis distance croissante au tap.
+  final tappedLat = (tappedData['lat'] as num).toDouble();
+  final tappedLng = (tappedData['lng'] as num).toDouble();
+  final sorted = List<Map<String, dynamic>>.from(overlapping)
+    ..sort((a, b) {
+      if (identical(a, tappedData)) return -1;
+      if (identical(b, tappedData)) return 1;
+      final da = _haversineMetersOverlap(
+        (a['lat'] as num).toDouble(),
+        (a['lng'] as num).toDouble(),
+        tappedLat,
+        tappedLng,
+      );
+      final db = _haversineMetersOverlap(
+        (b['lat'] as num).toDouble(),
+        (b['lng'] as num).toDouble(),
+        tappedLat,
+        tappedLng,
+      );
+      return da.compareTo(db);
     });
-  }
-  debugPrint('[_loadDownloadedSpecialLines] stubbed for Sprint 6');
+
+  state._suspendAutoCenterFor(const Duration(seconds: 30));
+
+  showModalBottomSheet<void>(
+    context: state.context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.layers, color: Color(0xFF1B4F72)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${sorted.length} objets superposés ici',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Touchez celui que vous voulez ouvrir.',
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: sorted.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final data = sorted[i];
+                    final type = (data['type'] ?? 'Point').toString();
+                    final name = (data['name'] ?? 'Sans nom').toString();
+                    final synced = data['synced'].toString() == '1';
+                    final hasAnomalie = data['anomalie'] == true;
+                    final hasIncomplet = data['objet_incomplet'] == true;
+                    final dist = _haversineMetersOverlap(
+                      (data['lat'] as num).toDouble(),
+                      (data['lng'] as num).toDouble(),
+                      tappedLat,
+                      tappedLng,
+                    );
+                    final tableName = (data['table_name'] ?? '').toString();
+                    final iconWidget = hasAnomalie
+                        ? CustomMarkerIcons.getAnomalieMarkerWidget(
+                            tableName,
+                            size: 32,
+                          )
+                        : hasIncomplet
+                            ? CustomMarkerIcons.getIncompletMarkerWidget(
+                                tableName,
+                                size: 32,
+                              )
+                            : CustomMarkerIcons.getMarkerWidget(
+                                tableName,
+                                size: 32,
+                              );
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Center(child: iconWidget),
+                      ),
+                      title: Text(
+                        type,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$name${dist > 0.5 ? '  •  ${dist.toStringAsFixed(1)} m' : ''}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: [
+                          if (hasAnomalie)
+                            const Icon(Icons.warning_amber,
+                                color: Colors.red, size: 18),
+                          if (hasIncomplet)
+                            const Icon(Icons.report_problem,
+                                color: Colors.orange, size: 18),
+                          Icon(
+                            synced ? Icons.cloud_done : Icons.phone_android,
+                            color: synced ? Colors.green : Colors.blueGrey,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        onSelect(data);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
-  debugPrint('[LINE-DOWNLOAD] chargement des polylignes telechargees');
+  debugPrint('[LINE-DOWNLOAD] chargement des polylignes téléchargées');
   try {
-    final polylines = await state._downloadedLinesService
-        .getDownloadedLinesPolylines(
+    final polylines =
+        await state._downloadedLinesService.getDownloadedLinesPolylines(
       onTapDetails: (data) {
         state._showLineDetailsSheet(
           context: state.context,
           lineCode: (data['line_code'] ?? '----').toString(),
-          statut: 'Sauvegardee (downloaded)',
+          statut: 'Sauvegardée (téléchargée)',
           region: state._regionNom,
           prefecture: state._prefectureNom,
           commune: state._communeNom,
@@ -48,6 +211,116 @@ Future<void> _loadDownloadedLineOverlaysImpl(_HomePageState state) async {
   debugPrint('[LINE-DOWNLOAD] chargement termine');
 }
 
+Future<void> _loadReferenceOverlaysImpl(_HomePageState state) async {
+  try {
+    final db = DatabaseHelper();
+    final zones = await db.getZonesLocal(activeOnly: true);
+    final planches = await db.getPlancheOverlayLocal();
+    final fondPlan = await db.getFondPlanOverlayLocal();
+
+    final zonePolygons = <Polygon>[];
+    for (final zone in zones) {
+      for (final points in _polygonRingsFromGeoJsonImpl(
+        zone['geometry_geojson'],
+      )) {
+        if (points.length < 3) continue;
+        zonePolygons.add(
+          Polygon(
+            points: points,
+            color: _zoneOverlayColor.withValues(alpha: 0.05),
+            borderColor: _zoneOverlayColor.withValues(alpha: 0.82),
+            borderStrokeWidth: 1.4,
+            hitValue: PolygonTapData(
+              nom: _displayValueImpl(zone['nom_zone'], fallback: 'Zone'),
+              code: _displayValueImpl(zone['id_zone'], fallback: '----'),
+              entityType: 'Zone',
+              metier: 'Contexte',
+              superficie: 0.0,
+              nbSommets: points.length,
+              enqueteur: '',
+              dateCreation: '',
+              synced: true,
+              downloaded: true,
+              statusOverride: 'Couche contexte offline',
+              extraDetails: _compactDetailsImpl({
+                'Nom': zone['nom_zone'],
+                'État': zone['etat'],
+              }),
+            ),
+          ),
+        );
+      }
+    }
+
+    final planchePolygons = <Polygon>[];
+    for (final planche in planches) {
+      for (final points in _polygonRingsFromGeoJsonImpl(
+        planche['geometry_geojson'],
+      )) {
+        if (points.length < 3) continue;
+        planchePolygons.add(
+          Polygon(
+            points: points,
+            color: _plancheOverlayColor.withValues(alpha: 0.015),
+            borderColor: _plancheOverlayColor.withValues(alpha: 0.44),
+            borderStrokeWidth: 0.7,
+            hitValue: PolygonTapData(
+              nom:
+                  'Planche ${_displayValueImpl(planche['numero'], fallback: '')}'
+                      .trim(),
+              code: _displayValueImpl(planche['id'], fallback: '----'),
+              entityType: 'Planche',
+              metier: 'Contexte',
+              superficie: 0.0,
+              nbSommets: points.length,
+              enqueteur: '',
+              dateCreation: '',
+              synced: true,
+              downloaded: true,
+              statusOverride: 'Couche contexte offline',
+              extraDetails: _compactDetailsImpl({
+                'Numéro': planche['numero'],
+              }),
+            ),
+          ),
+        );
+      }
+    }
+
+    final fondPlanPolylines = <Polyline>[];
+    for (final feature in fondPlan) {
+      final color = _fondPlanPolylineColorImpl(feature['color']);
+      final strokeWidth = _fondPlanStrokeWidthImpl(feature['linewidth']);
+      for (final points in _lineStringsFromGeoJsonImpl(
+        feature['geometry_geojson'],
+      )) {
+        if (points.length < 2) continue;
+        fondPlanPolylines.add(
+          Polyline(
+            points: points,
+            color: color,
+            strokeWidth: strokeWidth,
+          ),
+        );
+      }
+    }
+
+    if (!state.mounted) return;
+    state._setStateFromPart(() {
+      state._referenceZonePolygons = zonePolygons;
+      state._referencePlanchePolygons = planchePolygons;
+      state._referenceFondPlanPolylines = fondPlanPolylines;
+      state._referenceOverlayCounts = {
+        'overlay_zones': zonePolygons.length,
+        'overlay_planche': planchePolygons.length,
+        'overlay_fond_plan': fondPlanPolylines.length,
+      };
+    });
+  } catch (e) {
+    debugPrint('[REFERENCE-OVERLAYS] chargement local ignore: $e');
+  }
+}
+
 double _deg2radImpl(double deg) => deg * (math.pi / 180.0);
 
 double _haversineMetersImpl(LatLng a, LatLng b) {
@@ -61,8 +334,8 @@ double _haversineMetersImpl(LatLng a, LatLng b) {
   final sinDLat = math.sin(dLat / 2);
   final sinDLng = math.sin(dLng / 2);
 
-  final h = sinDLat * sinDLat +
-      math.cos(lat1) * math.cos(lat2) * sinDLng * sinDLng;
+  final h =
+      sinDLat * sinDLat + math.cos(lat1) * math.cos(lat2) * sinDLng * sinDLng;
   final c = 2 * math.asin(math.min(1.0, math.sqrt(h)));
   return earthRadiusMeters * c;
 }
@@ -76,12 +349,12 @@ double _polylineDistanceKmImpl(List<LatLng> points) {
   return sum / 1000.0;
 }
 
-Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
+Future<void> _loadDisplayedSrmLinesImpl(_HomePageState state) async {
   try {
     final srmLinesByTable = <String, List<Polyline>>{};
     final anomalieByTable = <String, List<Polyline>>{};
     final incompletByTable = <String, List<Polyline>>{};
-    final lines = await state._specialLinesService.getDisplayedSpecialLines(
+    final lines = await state._srmLinesService.getDisplayedSrmLines(
       onTapDetails: (data) {
         final start = LatLng(
           (data['start_lat'] as num).toDouble(),
@@ -94,10 +367,10 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
 
         final distanceKm = _polylineDistanceKmImpl([start, end]);
 
-        state._showSpecialLineDetailsSheet(
+        state._showSrmLineDetailsSheet(
           context: state.context,
-          specialType: (data['special_type'] ?? '----').toString(),
-          statut: 'Sauvegardee (downloaded)',
+          entityType: (data['entity_title'] ?? '----').toString(),
+          statut: 'Sauvegardée (téléchargée)',
           region: (data['region_name'] ?? '').toString().isNotEmpty
               ? (data['region_name']).toString()
               : state._regionNom,
@@ -116,35 +389,39 @@ Future<void> _loadDisplayedSpecialLinesImpl(_HomePageState state) async {
         );
       },
       onPolylineCreated: (tableName, metier, polyline) {
-        srmLinesByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+        srmLinesByTable
+            .putIfAbsent(tableName, () => <Polyline>[])
+            .add(polyline);
         final hitValue = polyline.hitValue;
         if (hitValue is PolylineTapData) {
           final data = hitValue.data;
-          final hasAnomalie =
-              data['anomalie'] == true || data['anomalie'] == 1;
+          final hasAnomalie = data['anomalie'] == true || data['anomalie'] == 1;
           final hasIncomplet =
-              data['objet_incomplet'] == true ||
-              data['objet_incomplet'] == 1;
+              data['objet_incomplet'] == true || data['objet_incomplet'] == 1;
           if (hasAnomalie) {
-            anomalieByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+            anomalieByTable
+                .putIfAbsent(tableName, () => <Polyline>[])
+                .add(polyline);
           }
           if (hasIncomplet) {
-            incompletByTable.putIfAbsent(tableName, () => <Polyline>[]).add(polyline);
+            incompletByTable
+                .putIfAbsent(tableName, () => <Polyline>[])
+                .add(polyline);
           }
         }
       },
     );
 
     state._setStateFromPart(() {
-      state._displayedSpecialLines = lines;
       state._displayedSrmLinesByTable = srmLinesByTable;
       state._displayedLineAnomalieByTable = anomalieByTable;
       state._displayedLineIncompletByTable = incompletByTable;
     });
+    await state._loadPointCountsByTable();
 
-    debugPrint('[SRM-LINES] ${lines.length} ligne(s) speciale(s) affichee(s)');
+    debugPrint('[SRM-LINES] ${lines.length} ligne(s) SRM affichee(s)');
   } catch (e) {
-    debugPrint('[SPECIAL] Error loading special lines: $e');
+    debugPrint('[SRM-LINES] erreur chargement lignes SRM: $e');
   }
 }
 
@@ -156,28 +433,24 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     final Map<String, List<Polygon>> anomalieByTable = {};
     final Map<String, List<Polygon>> incompletByTable = {};
 
-    bool isTruthy(dynamic value) {
-      if (value == null) return false;
-      if (value is bool) return value;
-      if (value is int) return value == 1;
-      final text = value.toString().trim().toLowerCase();
-      return text == '1' || text == 'true' || text == 't';
-    }
-
     bool hasRowAnomalie(Map<String, dynamic> row) {
-      return isTruthy(row['anomalie']) || isTruthy(row['ep_anomalie']);
+      return SrmStatusFlags.hasAnomalie(row);
     }
 
     bool hasRowIncomplet(Map<String, dynamic> row) {
-      return isTruthy(row['objet_incomplet']);
+      return SrmStatusFlags.hasIncomplet(row);
     }
 
-    Polygon _buildPolygon({
+    Polygon buildPolygon({
       required List<LatLng> points,
       required Color baseColor,
       required PolygonTapData hitValue,
       bool hasAnomalie = false,
       bool hasIncomplet = false,
+      double normalFillAlpha = 0.25,
+      double alertFillAlpha = 0.22,
+      double normalBorderWidth = 2.0,
+      double alertBorderWidth = 2.8,
     }) {
       final borderColor = hasAnomalie
           ? const Color(0xFFD32F2F)
@@ -185,78 +458,33 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
               ? const Color(0xFFF57C00)
               : baseColor;
       final fillColor = hasAnomalie
-          ? const Color(0xFFD32F2F).withValues(alpha: 0.22)
+          ? const Color(0xFFD32F2F).withValues(alpha: alertFillAlpha)
           : hasIncomplet
-              ? const Color(0xFFF57C00).withValues(alpha: 0.22)
-              : baseColor.withValues(alpha: 0.25);
+              ? const Color(0xFFF57C00).withValues(alpha: alertFillAlpha)
+              : baseColor.withValues(alpha: normalFillAlpha);
 
       return Polygon(
         points: points,
         color: fillColor,
         borderColor: borderColor,
-        borderStrokeWidth: hasAnomalie || hasIncomplet ? 2.8 : 2.0,
+        borderStrokeWidth:
+            hasAnomalie || hasIncomplet ? alertBorderWidth : normalBorderWidth,
         hitValue: hitValue,
       );
     }
 
-    final polygonTables = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-      ['enquete_polygone'],
-    );
-
-    if (polygonTables.isNotEmpty) {
-      final genericPolygons = await db.query(
-        'enquete_polygone',
-        where: loginId == null ? null : '(login_id = ? OR saved_by_user_id = ?)',
-        whereArgs: loginId == null ? null : [loginId, loginId],
-      );
-
-      for (final poly in genericPolygons) {
-        final points = _extractPolygonPointsImpl(poly['points_json']);
-        if (points.length < 3) continue;
-        final hasAnomalie = hasRowAnomalie(poly);
-        final hasIncomplet = hasRowIncomplet(poly);
-
-        mapPolygons.add(
-          _buildPolygon(
-            points: points,
-            baseColor: const Color(0xFF2E7D32),
-            hasAnomalie: hasAnomalie,
-            hasIncomplet: hasIncomplet,
-            hitValue: PolygonTapData(
-              nom: poly['nom']?.toString() ?? '----',
-              code: poly['code']?.toString() ??
-                  poly['line_code']?.toString() ??
-                  '----',
-              entityType:
-                  poly['entity_type']?.toString() ?? 'Zone de Plaine',
-              metier: poly['metier']?.toString() ?? '',
-              superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
-                  (poly['superficie_en_ha'] as num?)?.toDouble() ??
-                  0.0,
-              nbSommets: points.length,
-              enqueteur: poly['enqueteur']?.toString() ?? '',
-              dateCreation: poly['date_creation']?.toString() ?? '----',
-              synced: poly['synced'] == 1,
-              downloaded: poly['downloaded'] == 1,
-              hasAnomalie: hasAnomalie,
-              hasIncomplet: hasIncomplet,
-              typeAnomalie: poly['type_anomalie']?.toString(),
-              regionName: poly['region_name']?.toString() ?? '',
-              prefectureName: poly['prefecture_name']?.toString() ?? '',
-              communeName: poly['commune_name']?.toString() ?? '',
-            ),
-          ),
-        );
-      }
-    }
-
     final Map<String, List<Polygon>> srmPolygonsByTable = {};
+    final formulaireConfigService = FormulaireConfigMobileService();
 
     for (final metier in SrmConfig.getMetiers()) {
+      final titleByTable = await formulaireConfigService.getTitleByMobileTable(
+        mobileMetier: metier,
+        refreshIfEmpty: false,
+      );
       for (final entity in SrmConfig.getPolygonEntities(metier)) {
         final tableName = SrmConfig.getTableName(metier, entity);
         if (tableName == null || tableName.isEmpty) continue;
+        final entityTitle = titleByTable[tableName] ?? entity;
 
         try {
           final columns = await db.rawQuery('PRAGMA table_info($tableName)');
@@ -265,32 +493,15 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
               .where((name) => name.isNotEmpty)
               .toSet();
 
-          final filters = <String>[];
-          final args = <dynamic>[];
-          final userFilterColumns = [
-            'id_agent_crea',
-            'saved_by_user_id',
-            'login_id',
-            'id_user_creat',
-          ];
-
-          if (ApiService.currentProjetId != null &&
-              availableColumns.contains('id_projet')) {
-            filters.add('id_projet = ?');
-            args.add(ApiService.currentProjetId);
-          } else if (loginId != null) {
-            for (final column in userFilterColumns) {
-              if (availableColumns.contains(column)) {
-                filters.add('$column = ?');
-                args.add(loginId);
-              }
-            }
-          }
+          final filter = SrmRowVisibilityFilter.build(
+            availableColumns: availableColumns,
+            loginId: loginId,
+          );
 
           final rows = await db.query(
             tableName,
-            where: filters.isEmpty ? null : filters.join(' OR '),
-            whereArgs: args.isEmpty ? null : args,
+            where: filter.where,
+            whereArgs: filter.whereArgs,
           );
 
           for (final poly in rows) {
@@ -302,9 +513,10 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             editableItem['source_table'] = tableName;
             editableItem['source_metier'] = metier;
             editableItem['source_entity'] = entity;
+            editableItem['source_title'] = entityTitle;
             editableItem['geometry_type'] = 'Polygon';
 
-            final polygon = _buildPolygon(
+            final polygon = buildPolygon(
               points: points,
               baseColor: Color(SrmConfig.getMetierColor(metier)),
               hasAnomalie: hasAnomalie,
@@ -318,15 +530,14 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
                     poly['line_code']?.toString() ??
                     poly['ep_num']?.toString() ??
                     '----',
-                entityType: entity,
+                entityType: entityTitle,
                 metier: metier,
                 superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
                     (poly['superficie_en_ha'] as num?)?.toDouble() ??
                     0.0,
                 nbSommets: points.length,
-                enqueteur: poly['enqueteur']?.toString() ??
-                    ApiService.nomPrenom ??
-                    '',
+                enqueteur:
+                    poly['enqueteur']?.toString() ?? ApiService.nomPrenom ?? '',
                 dateCreation: poly['date_collecte']?.toString() ??
                     poly['date_creation']?.toString() ??
                     '----',
@@ -356,6 +567,108 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
       }
     }
 
+    final dbHelper = DatabaseHelper();
+    final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache();
+    final regardMiroirRows = <Map<String, dynamic>>[
+      ...cachedRegardMiroirRows,
+    ];
+    final cachedUuids = cachedRegardMiroirRows
+        .map((row) => row['uuid']?.toString().trim())
+        .whereType<String>()
+        .where((uuid) => uuid.isNotEmpty)
+        .toSet();
+
+    var localGeneratedCount = 0;
+    try {
+      final localRegards = await dbHelper.getEntitiesSrm('ep_regard_point');
+      for (final regard in localRegards) {
+        final uuid = regard['uuid']?.toString().trim();
+        if (uuid != null && uuid.isNotEmpty && cachedUuids.contains(uuid)) {
+          continue;
+        }
+
+        final miroir = _buildLocalRegardMiroirRowImpl(regard);
+        if (miroir == null) continue;
+        regardMiroirRows.add(miroir);
+        localGeneratedCount++;
+      }
+    } catch (e) {
+      debugPrint('[REGARD-MIROIR] generation locale impossible: $e');
+    }
+
+    debugPrint(
+      '[REGARD-MIROIR] ${cachedRegardMiroirRows.length} miroir(s) serveur en cache'
+      ' + $localGeneratedCount miroir(s) local(aux)',
+    );
+    if (regardMiroirRows.isNotEmpty) {
+      var renderedRegardMiroirs = 0;
+      for (final poly in regardMiroirRows) {
+        final points = _extractPolygonPointsImpl(poly['points_json']);
+        if (points.length < 3) continue;
+
+        final hasAnomalie = hasRowAnomalie(poly);
+        final hasIncomplet = hasRowIncomplet(poly);
+        final polygon = buildPolygon(
+          points: points,
+          baseColor: const Color(0xFF2E7D32),
+          hasAnomalie: hasAnomalie,
+          hasIncomplet: hasIncomplet,
+          normalFillAlpha: 0.00,
+          alertFillAlpha: 0.04,
+          normalBorderWidth: 2.0,
+          alertBorderWidth: 2.4,
+          hitValue: PolygonTapData(
+            nom: poly['nom']?.toString() ??
+                poly['ep_num']?.toString() ??
+                'Regard',
+            code: poly['code']?.toString() ??
+                poly['code_gps']?.toString() ??
+                poly['ep_num']?.toString() ??
+                poly['uuid']?.toString() ??
+                '----',
+            entityType: 'Regard miroir',
+            metier: 'Eau Potable',
+            superficie: (poly['superficie_ha'] as num?)?.toDouble() ??
+                (poly['superficie_en_ha'] as num?)?.toDouble() ??
+                0.0,
+            nbSommets: points.length,
+            enqueteur:
+                poly['enqueteur']?.toString() ?? ApiService.nomPrenom ?? '',
+            dateCreation: poly['date_collecte']?.toString() ??
+                poly['date_creation']?.toString() ??
+                '----',
+            synced: true,
+            downloaded: true,
+            hasAnomalie: hasAnomalie,
+            hasIncomplet: hasIncomplet,
+            typeAnomalie: poly['type_anomalie']?.toString() ??
+                poly['anomalie_regard']?.toString(),
+            regionName: poly['region_name']?.toString() ?? '',
+            prefectureName: poly['prefecture_name']?.toString() ?? '',
+            communeName: poly['commune_name']?.toString() ?? '',
+          ),
+        );
+        srmPolygonsByTable
+            .putIfAbsent(_epRegardMiroirOverlayTable, () => [])
+            .add(polygon);
+        if (hasAnomalie) {
+          anomalieByTable
+              .putIfAbsent(_epRegardMiroirOverlayTable, () => [])
+              .add(polygon);
+        }
+        if (hasIncomplet) {
+          incompletByTable
+              .putIfAbsent(_epRegardMiroirOverlayTable, () => [])
+              .add(polygon);
+        }
+        mapPolygons.add(polygon);
+        renderedRegardMiroirs++;
+      }
+      debugPrint(
+        '[REGARD-MIROIR] $renderedRegardMiroirs miroir(s) affiche(s)',
+      );
+    }
+
     if (state.mounted) {
       final previewLoaded = state._pendingPolygonPreviewPoints != null &&
           _containsPolygonPreviewImpl(
@@ -371,18 +684,116 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
           state._pendingPolygonPreviewPoints = null;
         }
       });
-      debugPrint('[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
+      debugPrint(
+          '[SRM-POLYGONES] ${mapPolygons.length} polygone(s) affiche(s)');
     }
+    await state._loadPointCountsByTable();
   } catch (e) {
     debugPrint('[POLYGONE] Error loading polygons: $e');
   }
+}
+
+Map<String, dynamic>? _buildLocalRegardMiroirRowImpl(
+  Map<String, dynamic> regard,
+) {
+  final center = _extractRegardLatLngImpl(regard);
+  if (center == null) return null;
+
+  final points = _buildRectangleAroundPointImpl(
+    center,
+    longueurMeters: _positiveDoubleImpl(regard['longueur']),
+    largeurMeters: _positiveDoubleImpl(regard['largeur']),
+  );
+  if (points.length < 4) return null;
+
+  return {
+    ...regard,
+    'points_json': jsonEncode(
+      points.map((point) => <double>[point.longitude, point.latitude]).toList(),
+    ),
+    'fid_regard_source': regard['fid'] ?? regard['id'],
+    'downloaded': regard['downloaded'] ?? 0,
+    'synced': regard['synced'] ?? 0,
+  };
+}
+
+LatLng? _extractRegardLatLngImpl(Map<String, dynamic> row) {
+  final x = _toDoubleImpl(row['ep_coor_x']);
+  final y = _toDoubleImpl(row['ep_coor_y']);
+  if (x != null && y != null) {
+    final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
+    return LatLng(wgs84.latitude, wgs84.longitude);
+  }
+
+  final latitude = _toDoubleImpl(row['latitude_gps']);
+  final longitude = _toDoubleImpl(row['longitude_gps']);
+  if (latitude != null && longitude != null) {
+    return LatLng(latitude, longitude);
+  }
+
+  return null;
+}
+
+double? _toDoubleImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+String _displayValueImpl(dynamic value, {String fallback = '----'}) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty || text.toLowerCase() == 'null') return fallback;
+  return text;
+}
+
+Map<String, String> _compactDetailsImpl(Map<String, dynamic> rawDetails) {
+  final details = <String, String>{};
+  for (final entry in rawDetails.entries) {
+    final value = _displayValueImpl(entry.value, fallback: '');
+    if (value.isEmpty) continue;
+    details[entry.key] = value;
+  }
+  return details;
+}
+
+double? _positiveDoubleImpl(dynamic value) {
+  final parsed = _toDoubleImpl(value);
+  if (parsed == null || parsed <= 0) return null;
+  return parsed;
+}
+
+List<LatLng> _buildRectangleAroundPointImpl(
+  LatLng center, {
+  double? longueurMeters,
+  double? largeurMeters,
+}) {
+  final lengthMeters =
+      longueurMeters ?? largeurMeters ?? _regardMiroirLocalSquareSizeMeters;
+  final widthMeters = largeurMeters ?? lengthMeters;
+  final halfLength = lengthMeters / 2.0;
+  final halfWidth = widthMeters / 2.0;
+  const metersPerLatDegree = 111320.0;
+  final cosLat = math.cos(center.latitude * math.pi / 180.0).abs();
+  if (cosLat < 0.000001) return const [];
+
+  final deltaLat = halfWidth / metersPerLatDegree;
+  final deltaLng = halfLength / (metersPerLatDegree * cosLat);
+
+  return [
+    LatLng(center.latitude - deltaLat, center.longitude - deltaLng),
+    LatLng(center.latitude - deltaLat, center.longitude + deltaLng),
+    LatLng(center.latitude + deltaLat, center.longitude + deltaLng),
+    LatLng(center.latitude + deltaLat, center.longitude - deltaLng),
+    LatLng(center.latitude - deltaLat, center.longitude - deltaLng),
+  ];
 }
 
 List<LatLng> _extractPolygonPointsImpl(dynamic rawPoints) {
   if (rawPoints == null) return [];
 
   try {
-    final dynamic decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
+    final dynamic decoded =
+        rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
     if (decoded is! List) return [];
 
     final points = <LatLng>[];
@@ -409,6 +820,127 @@ List<LatLng> _extractPolygonPointsImpl(dynamic rawPoints) {
   } catch (_) {
     return [];
   }
+}
+
+List<List<LatLng>> _polygonRingsFromGeoJsonImpl(dynamic rawGeometry) {
+  final geometry = _decodeGeoJsonGeometryImpl(rawGeometry);
+  if (geometry is! Map) return const [];
+
+  final type = geometry['type']?.toString();
+  final coordinates = geometry['coordinates'];
+  if (type == 'Polygon' && coordinates is List) {
+    final ring = coordinates.isNotEmpty ? coordinates.first : null;
+    final points = _positionsToLatLngImpl(ring);
+    return points.length >= 3 ? [points] : const [];
+  }
+  if (type == 'MultiPolygon' && coordinates is List) {
+    final rings = <List<LatLng>>[];
+    for (final polygon in coordinates) {
+      if (polygon is! List || polygon.isEmpty) continue;
+      final points = _positionsToLatLngImpl(polygon.first);
+      if (points.length >= 3) rings.add(points);
+    }
+    return rings;
+  }
+  if (type == 'GeometryCollection' && geometry['geometries'] is List) {
+    return (geometry['geometries'] as List)
+        .expand(_polygonRingsFromGeoJsonImpl)
+        .toList();
+  }
+  return const [];
+}
+
+List<List<LatLng>> _lineStringsFromGeoJsonImpl(dynamic rawGeometry) {
+  final geometry = _decodeGeoJsonGeometryImpl(rawGeometry);
+  if (geometry is! Map) return const [];
+
+  final type = geometry['type']?.toString();
+  final coordinates = geometry['coordinates'];
+  if (type == 'LineString' && coordinates is List) {
+    final points = _positionsToLatLngImpl(coordinates);
+    return points.length >= 2 ? [points] : const [];
+  }
+  if ((type == 'MultiLineString' || type == 'MultiCurve') &&
+      coordinates is List) {
+    final lines = <List<LatLng>>[];
+    for (final line in coordinates) {
+      final points = _positionsToLatLngImpl(line);
+      if (points.length >= 2) lines.add(points);
+    }
+    return lines;
+  }
+  if (type == 'GeometryCollection' && geometry['geometries'] is List) {
+    return (geometry['geometries'] as List)
+        .expand(_lineStringsFromGeoJsonImpl)
+        .toList();
+  }
+  return const [];
+}
+
+dynamic _decodeGeoJsonGeometryImpl(dynamic rawGeometry) {
+  if (rawGeometry == null) return null;
+  if (rawGeometry is Map) return rawGeometry;
+  if (rawGeometry is String) {
+    final trimmed = rawGeometry.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      return jsonDecode(trimmed);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+List<LatLng> _positionsToLatLngImpl(dynamic rawPositions) {
+  if (rawPositions is! List) return const [];
+  final points = <LatLng>[];
+  for (final item in rawPositions) {
+    final point = _latLngFromGeoJsonPositionImpl(item);
+    if (point != null) points.add(point);
+  }
+  if (points.length >= 2 && _samePointImpl(points.first, points.last)) {
+    return points.sublist(0, points.length - 1);
+  }
+  return points;
+}
+
+LatLng? _latLngFromGeoJsonPositionImpl(dynamic rawPosition) {
+  if (rawPosition is! List || rawPosition.length < 2) return null;
+  final x = _toDoubleImpl(rawPosition[0]);
+  final y = _toDoubleImpl(rawPosition[1]);
+  if (x == null || y == null) return null;
+
+  if (x.abs() <= 180 && y.abs() <= 90) {
+    return LatLng(y, x);
+  }
+
+  final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+  return LatLng(projected.latitude, projected.longitude);
+}
+
+Color _fondPlanPolylineColorImpl(dynamic rawColor) {
+  final text = rawColor?.toString().trim() ?? '';
+  final parts = text
+      .split(',')
+      .map((part) => int.tryParse(part.trim()))
+      .whereType<int>()
+      .toList();
+  if (parts.length >= 3) {
+    final r = parts[0].clamp(0, 255).toInt();
+    final g = parts[1].clamp(0, 255).toInt();
+    final b = parts[2].clamp(0, 255).toInt();
+    final a = parts.length >= 4 ? parts[3].clamp(0, 255).toInt() : 255;
+    final displayAlpha = (a * 0.70).round().clamp(60, 210).toInt();
+    return Color.fromARGB(displayAlpha, r, g, b);
+  }
+  return const Color(0xFF555555).withValues(alpha: 0.58);
+}
+
+double _fondPlanStrokeWidthImpl(dynamic rawWidth) {
+  final width = _toDoubleImpl(rawWidth);
+  if (width == null || width <= 0) return 0.8;
+  return width.clamp(0.6, 2.4).toDouble();
 }
 
 bool _samePointImpl(LatLng a, LatLng b, {double tolerance = 0.0000001}) {
@@ -446,33 +978,62 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
     final Map<String, List<Marker>> callbackByTable = {};
     final Map<String, List<Marker>> anomalieByTable = {};
     final Map<String, List<Marker>> incompletByTable = {};
-    final Map<String, int> anomalieCounts = {};
-    final Map<String, int> incompletCounts = {};
+    final List<Map<String, dynamic>> registry = [];
+
+    void openSinglePoint(Map<String, dynamic> data) {
+      state._suspendAutoCenterFor(const Duration(seconds: 10));
+      state._showPointDetailsSheet(
+        context: state.context,
+        type: (data['type'] ?? 'Point').toString(),
+        name: (data['name'] ?? 'Sans nom').toString(),
+        region: (data['region_name'] ?? '').toString().isNotEmpty
+            ? (data['region_name']).toString()
+            : state._regionNom,
+        prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty
+            ? (data['prefecture_name']).toString()
+            : state._prefectureNom,
+        commune: (data['commune_name'] ?? '').toString().isNotEmpty
+            ? (data['commune_name']).toString()
+            : state._communeNom,
+        enqueteur: (data['enqueteur'] ?? '').toString(),
+        lineCode: (data['line_code'] ?? '').toString(),
+        lat: (data['lat'] as num).toDouble(),
+        lng: (data['lng'] as num).toDouble(),
+        statut: (data['synced'].toString() == '1')
+            ? 'Synchronisée'
+            : 'Enregistrée localement',
+        editableItem: _editableItemFromDynamicImpl(data['existing_item']),
+      );
+    }
+
     final markers = await state._pointsService.getDisplayedPointsMarkers(
+      onMarkerData: (data) => registry.add(data),
       onTapDetails: (data) {
-        state._suspendAutoCenterFor(const Duration(seconds: 10));
-        state._showPointDetailsSheet(
-          context: state.context,
-          type: (data['type'] ?? 'Point').toString(),
-          name: (data['name'] ?? 'Sans nom').toString(),
-          region: (data['region_name'] ?? '').toString().isNotEmpty
-              ? (data['region_name']).toString()
-              : state._regionNom,
-          prefecture: (data['prefecture_name'] ?? '').toString().isNotEmpty
-              ? (data['prefecture_name']).toString()
-              : state._prefectureNom,
-          commune: (data['commune_name'] ?? '').toString().isNotEmpty
-              ? (data['commune_name']).toString()
-              : state._communeNom,
-          enqueteur: (data['enqueteur'] ?? '').toString(),
-          lineCode: (data['line_code'] ?? '').toString(),
-          lat: (data['lat'] as num).toDouble(),
-          lng: (data['lng'] as num).toDouble(),
-          statut: (data['synced'].toString() == '1')
-              ? 'Synchronisee'
-              : 'Enregistree localement',
-          editableItem: _editableItemFromDynamicImpl(data['existing_item']),
-        );
+        final tappedLat = (data['lat'] as num).toDouble();
+        final tappedLng = (data['lng'] as num).toDouble();
+        final overlapping = registry.where((m) {
+          final mLat = (m['lat'] as num?)?.toDouble();
+          final mLng = (m['lng'] as num?)?.toDouble();
+          if (mLat == null || mLng == null) return false;
+          return _haversineMetersOverlap(
+                mLat,
+                mLng,
+                tappedLat,
+                tappedLng,
+              ) <=
+              _overlappingPointsRadiusMeters;
+        }).toList();
+
+        if (overlapping.length <= 1) {
+          openSinglePoint(data);
+        } else {
+          _showOverlappingPointsSheet(
+            state: state,
+            overlapping: overlapping,
+            tappedData: data,
+            onSelect: openSinglePoint,
+          );
+        }
       },
       onMarkerCreated: (
         tableName,
@@ -487,18 +1048,6 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
         }
         if (hasIncomplet) {
           incompletByTable.putIfAbsent(tableName, () => []).add(marker);
-        }
-      },
-      onAnomalieDetected: (tableName, hasAnomalie) {
-        if (hasAnomalie) {
-          anomalieCounts.putIfAbsent(tableName, () => 0);
-          anomalieCounts[tableName] = (anomalieCounts[tableName] ?? 0) + 1;
-        }
-      },
-      onIncompletDetected: (tableName, hasIncomplet) {
-        if (hasIncomplet) {
-          incompletCounts.putIfAbsent(tableName, () => 0);
-          incompletCounts[tableName] = (incompletCounts[tableName] ?? 0) + 1;
         }
       },
     );
@@ -555,8 +1104,6 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
       state._displayedPointsByTable = byTable;
       state._displayedAnomalieByTable = anomalieByTable;
       state._displayedIncompletByTable = incompletByTable;
-      state._anomalieCountsByTable = anomalieCounts;
-      state._incompletCountsByTable = incompletCounts;
     });
 
     await state._loadPointCountsByTable();
@@ -571,90 +1118,31 @@ Future<void> _loadDisplayedPointsImpl(_HomePageState state) async {
 
 Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
   try {
-    final db = await DatabaseHelper().database;
-    final loginId = await DatabaseHelper().resolveLoginId();
     final Map<String, int> counts = {};
     final Map<String, int> anomalieCounts = {};
     final Map<String, int> incompletCounts = {};
-    final tables = <String>{};
 
-    for (final metier in SrmConfig.getMetiers()) {
-      for (final entity in SrmConfig.getPointEntities(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName != null && tableName.isNotEmpty) {
-          tables.add(tableName);
+    void addCounts<T>(
+      Map<String, List<T>> source,
+      Map<String, int> target,
+    ) {
+      for (final entry in source.entries) {
+        if (entry.key == _epRegardMiroirOverlayTable) {
+          continue;
         }
-      }
-      for (final entity in SrmConfig.getLineEntities(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName != null && tableName.isNotEmpty) {
-          tables.add(tableName);
-        }
-      }
-      for (final entity in SrmConfig.getPolygonEntities(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName != null && tableName.isNotEmpty) {
-          tables.add(tableName);
-        }
+        target[entry.key] = (target[entry.key] ?? 0) + entry.value.length;
       }
     }
 
-    for (final table in tables) {
-      try {
-        final columns = await db.rawQuery('PRAGMA table_info($table)');
-        final availableColumns = columns
-            .map((row) => (row['name'] ?? '').toString())
-            .where((name) => name.isNotEmpty)
-            .toSet();
-
-        final filters = <String>[];
-        final args = <dynamic>[];
-
-        if (ApiService.currentProjetId != null &&
-            availableColumns.contains('id_projet')) {
-          filters.add('id_projet = ?');
-          args.add(ApiService.currentProjetId);
-        } else if (loginId != null) {
-          for (final column in [
-            'id_agent_crea',
-            'saved_by_user_id',
-            'login_id',
-          ]) {
-            if (availableColumns.contains(column)) {
-              filters.add('$column = ?');
-              args.add(loginId);
-            }
-          }
-        }
-
-        final whereClause =
-            filters.isEmpty ? '' : ' WHERE ${filters.join(' OR ')}';
-        final anomalyExpr = availableColumns.contains('anomalie') &&
-                availableColumns.contains('ep_anomalie')
-            ? "SUM(CASE WHEN anomalie = 1 OR ep_anomalie = 1 THEN 1 ELSE 0 END)"
-            : availableColumns.contains('anomalie')
-                ? "SUM(CASE WHEN anomalie = 1 THEN 1 ELSE 0 END)"
-                : availableColumns.contains('ep_anomalie')
-                    ? "SUM(CASE WHEN ep_anomalie = 1 THEN 1 ELSE 0 END)"
-                    : "0";
-        final result = await db.rawQuery(
-          'SELECT '
-          'COUNT(*) as c, '
-          '$anomalyExpr as anomalies, '
-          '${availableColumns.contains('objet_incomplet') ? "SUM(CASE WHEN objet_incomplet = 1 THEN 1 ELSE 0 END)" : "0"} as incomplets '
-          'FROM $table$whereClause',
-          args,
-        );
-        final row = result.first;
-        counts[table] = (row['c'] as num?)?.toInt() ?? 0;
-        anomalieCounts[table] = (row['anomalies'] as num?)?.toInt() ?? 0;
-        incompletCounts[table] = (row['incomplets'] as num?)?.toInt() ?? 0;
-      } catch (_) {
-        counts[table] = 0;
-        anomalieCounts[table] = 0;
-        incompletCounts[table] = 0;
-      }
-    }
+    addCounts(state._displayedPointsByTable, counts);
+    addCounts(state._displayedSrmLinesByTable, counts);
+    addCounts(state._displayedSrmPolygonsByTable, counts);
+    addCounts(state._displayedAnomalieByTable, anomalieCounts);
+    addCounts(state._displayedLineAnomalieByTable, anomalieCounts);
+    addCounts(state._displayedPolygonAnomalieByTable, anomalieCounts);
+    addCounts(state._displayedIncompletByTable, incompletCounts);
+    addCounts(state._displayedLineIncompletByTable, incompletCounts);
+    addCounts(state._displayedPolygonIncompletByTable, incompletCounts);
 
     if (state.mounted) {
       state._setStateFromPart(() {
@@ -663,7 +1151,10 @@ Future<void> _loadPointCountsByTableImpl(_HomePageState state) async {
         state._incompletCountsByTable = incompletCounts;
       });
     }
-    debugPrint('[SRM-POINTS] compteurs par table: $counts');
+    debugPrint(
+      '[SRM-LEGENDE] compteurs carte: $counts; '
+      'anomalies: $anomalieCounts; incomplets: $incompletCounts',
+    );
   } catch (e) {
     debugPrint('[COUNTS] Error counting points: $e');
   }
@@ -707,7 +1198,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
       String piDebutTravaux = '';
       String piFinTravaux = '';
       String piFinancement = '';
-      String piProjet = '';
       String piEntreprise = '';
       try {
         final lineDb = await LineStorageHelper().database;
@@ -724,7 +1214,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
             'work_start',
             'work_end',
             'funding',
-            'project',
             'company',
             'user_login',
           ],
@@ -744,7 +1233,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
           piDebutTravaux = (lineRows.first['work_start'] ?? '').toString();
           piFinTravaux = (lineRows.first['work_end'] ?? '').toString();
           piFinancement = (lineRows.first['funding'] ?? '').toString();
-          piProjet = (lineRows.first['project'] ?? '').toString();
           piEntreprise = (lineRows.first['company'] ?? '').toString();
         }
       } catch (_) {}
@@ -771,7 +1259,6 @@ Future<void> _loadDisplayedLinesImpl(_HomePageState state) async {
               'work_start': piDebutTravaux,
               'work_end': piFinTravaux,
               'funding': piFinancement,
-              'project': piProjet,
               'company': piEntreprise,
               'synced': piSynced,
               'region_name': piRegion,

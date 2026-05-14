@@ -1,16 +1,9 @@
 // lib/collection_models.dart - VERSION CORRIGEE
 import 'package:latlong2/latlong.dart';
 
-enum CollectionType {
-  ligne,
-  special
-}
+enum CollectionType { ligne, polygon }
 
-enum CollectionStatus {
-  inactive,
-  active,
-  paused
-}
+enum CollectionStatus { inactive, active, paused }
 
 class CollectionBase {
   final int id;
@@ -101,12 +94,8 @@ class LigneCollection extends CollectionBase {
       'lineCode': lineCode,
       'type': 'ligne',
       'status': status.toString(),
-      'points': points
-          .map((p) => {
-                'lat': p.latitude,
-                'lng': p.longitude
-              })
-          .toList(),
+      'points':
+          points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
       'startTime': startTime.toIso8601String(),
       'lastPointTime': lastPointTime?.toIso8601String(),
       'totalDistance': totalDistance,
@@ -120,20 +109,24 @@ class LigneCollection extends CollectionBase {
       status: CollectionStatus.values.firstWhere(
         (e) => e.toString() == json['status'],
       ),
-      points: (json['points'] as List).map((p) => LatLng(p['lat'], p['lng'])).toList(),
+      points: (json['points'] as List)
+          .map((p) => LatLng(p['lat'], p['lng']))
+          .toList(),
       startTime: DateTime.parse(json['startTime']),
-      lastPointTime: json['lastPointTime'] != null ? DateTime.parse(json['lastPointTime']) : null,
+      lastPointTime: json['lastPointTime'] != null
+          ? DateTime.parse(json['lastPointTime'])
+          : null,
       totalDistance: json['totalDistance']?.toDouble() ?? 0.0,
     );
   }
 }
 
-class SpecialCollection extends CollectionBase {
-  final String specialType;
+class PolygonCollection extends CollectionBase {
+  final String entityType;
 
-  SpecialCollection({
+  PolygonCollection({
     required super.id,
-    required this.specialType,
+    required this.entityType,
     required super.status,
     required super.points,
     required super.startTime,
@@ -141,14 +134,14 @@ class SpecialCollection extends CollectionBase {
     super.totalDistance,
   }) : super(
           lineCode: null,
-          type: CollectionType.special,
+          type: CollectionType.polygon,
         );
 
   @override
-  SpecialCollection copyWith({
+  PolygonCollection copyWith({
     int? id,
     String? lineCode,
-    String? specialType,
+    String? entityType,
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
@@ -156,9 +149,9 @@ class SpecialCollection extends CollectionBase {
     DateTime? lastPointTime,
     double? totalDistance,
   }) {
-    return SpecialCollection(
+    return PolygonCollection(
       id: id ?? this.id,
-      specialType: specialType ?? this.specialType,
+      entityType: entityType ?? this.entityType,
       status: status ?? this.status,
       points: points ?? this.points,
       startTime: startTime ?? this.startTime,
@@ -198,4 +191,14 @@ class CollectionResult {
       'endTime': endTime,
     };
   }
+}
+
+class CollectionPointEdit {
+  final LatLng point;
+  final double? altitude;
+
+  const CollectionPointEdit({
+    required this.point,
+    this.altitude,
+  });
 }

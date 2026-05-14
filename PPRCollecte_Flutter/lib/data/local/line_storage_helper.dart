@@ -45,7 +45,7 @@ class LineStorageHelper {
         await _createDisplayedLinesTable(db);
         await _createIndexes(db);
 
-        debugPrint('[LINE-STORAGE] Tables creees avec succes');
+        debugPrint('[LINE-STORAGE] Tables créées avec succès');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -82,7 +82,6 @@ class LineStorageHelper {
         work_start TEXT,
         work_end TEXT,
         funding TEXT,
-        project TEXT,
         points_json TEXT NOT NULL,
         created_at TEXT,
         updated_at TEXT,
@@ -139,7 +138,59 @@ class LineStorageHelper {
     );
 
     await db.transaction((txn) async {
-      await txn.execute('ALTER TABLE $_linesTable RENAME TO ${_linesTable}_v1');
+      const tmpLinesTable = '${_linesTable}_v2_tmp';
+      await txn.execute('DROP TABLE IF EXISTS $tmpLinesTable');
+      await txn.execute('''
+        CREATE TABLE $tmpLinesTable AS
+        SELECT
+          id,
+          api_id,
+          line_code,
+          user_login,
+          start_time,
+          end_time,
+          origin_name,
+          origin_x,
+          origin_y,
+          destination_name,
+          destination_x,
+          destination_y,
+          has_intersection,
+          intersection_count,
+          intersections_json,
+          completed_works,
+          work_date,
+          company,
+          platform,
+          relief,
+          vegetation,
+          work_start,
+          work_end,
+          funding,
+          points_json,
+          created_at,
+          updated_at,
+          sync_status,
+          login_id,
+          saved_by_user_id,
+          synced,
+          sync_date,
+          downloaded,
+          service_level,
+          functionality,
+          socio_administrative_interest,
+          served_population,
+          agricultural_potential,
+          investment_cost,
+          environmental_protection,
+          global_score,
+          region_name,
+          prefecture_name,
+          commune_name
+        FROM $_linesTable
+      ''');
+
+      await txn.execute('DROP TABLE $_linesTable');
       await _createLinesTable(txn);
       await _createDisplayedLinesTable(txn);
       await _createIndexes(txn);
@@ -170,7 +221,6 @@ class LineStorageHelper {
           work_start,
           work_end,
           funding,
-          project,
           points_json,
           created_at,
           updated_at,
@@ -217,7 +267,6 @@ class LineStorageHelper {
           work_start,
           work_end,
           funding,
-          project,
           points_json,
           created_at,
           updated_at,
@@ -238,10 +287,10 @@ class LineStorageHelper {
           region_name,
           prefecture_name,
           commune_name
-        FROM ${_linesTable}_v1
+        FROM $tmpLinesTable
       ''');
 
-      await txn.execute('DROP TABLE ${_linesTable}_v1');
+      await txn.execute('DROP TABLE $tmpLinesTable');
     });
   }
 
@@ -398,7 +447,8 @@ class LineStorageHelper {
       final loginId = await DatabaseHelper().resolveLoginId();
 
       if (loginId == null) {
-        debugPrint('[LINE-STORAGE] login_id introuvable, aucune ligne affichee rechargee');
+        debugPrint(
+            '[LINE-STORAGE] login_id introuvable, aucune ligne affichee rechargee');
         return [];
       }
 
@@ -447,7 +497,8 @@ class LineStorageHelper {
       final loginId = await DatabaseHelper().resolveLoginId();
 
       if (loginId == null) {
-        debugPrint('[LINE-STORAGE] loadDisplayedLinesMaps: login_id introuvable');
+        debugPrint(
+            '[LINE-STORAGE] loadDisplayedLinesMaps: login_id introuvable');
         return [];
       }
 
@@ -477,7 +528,8 @@ class LineStorageHelper {
         recordHistory: true,
       );
 
-      debugPrint('[LINE-STORAGE] ligne "${line.lineCode}" sauvegardee avec ID: $id');
+      debugPrint(
+          '[LINE-STORAGE] ligne "${line.lineCode}" sauvegardee avec ID: $id');
       return id;
     } catch (e) {
       debugPrint('[LINE-STORAGE] erreur sauvegarde ligne: $e');
@@ -490,7 +542,7 @@ class LineStorageHelper {
       final db = await database;
       final rows = await db.query(_linesTable);
 
-      debugPrint('[LINE-STORAGE] liste complete des lignes');
+      debugPrint('[LINE-STORAGE] liste complète des lignes');
       debugPrint('[LINE-STORAGE] nombre total de lignes: ${rows.length}');
 
       for (var i = 0; i < rows.length; i++) {
@@ -524,8 +576,9 @@ class LineStorageHelper {
   Future<Map<String, int>> getCount() async {
     try {
       final db = await database;
-      final lineCount =
-          Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM $_linesTable')) ?? 0;
+      final lineCount = Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM $_linesTable')) ??
+          0;
       return {'lines': lineCount, 'total': lineCount};
     } catch (e) {
       debugPrint('[LINE-STORAGE] erreur comptage: $e');
@@ -561,10 +614,11 @@ class LineStorageHelper {
         whereArgs: [0, 0, loginId],
       );
 
-      debugPrint('[LINE-STORAGE] lignes non synchronisees trouvees: ${maps.length}');
+      debugPrint(
+          '[LINE-STORAGE] lignes non synchronisées trouvées: ${maps.length}');
       return maps;
     } catch (e) {
-      debugPrint('[LINE-STORAGE] erreur lecture lignes non synchronisees: $e');
+      debugPrint('[LINE-STORAGE] erreur lecture lignes non synchronisées: $e');
       return [];
     }
   }
@@ -582,9 +636,9 @@ class LineStorageHelper {
         },
         recordHistory: true,
       );
-      debugPrint('[LINE-STORAGE] ligne $lineId marquee comme synchronisee');
+      debugPrint('[LINE-STORAGE] ligne $lineId marquée comme synchronisée');
     } catch (e) {
-      debugPrint('[LINE-STORAGE] erreur marquage ligne synchronisee: $e');
+      debugPrint('[LINE-STORAGE] erreur marquage ligne synchronisée: $e');
     }
   }
 
@@ -601,8 +655,9 @@ class LineStorageHelper {
         whereArgs: [lineId],
         limit: 1,
       );
-      final oldLineCode =
-          oldRows.isNotEmpty ? oldRows.first[_lineCodeColumn]?.toString() : null;
+      final oldLineCode = oldRows.isNotEmpty
+          ? oldRows.first[_lineCodeColumn]?.toString()
+          : null;
 
       final updates = <String, dynamic>{
         'synced': 1,
@@ -612,7 +667,8 @@ class LineStorageHelper {
         'api_id': apiResponse['id'],
       };
 
-      final properties = apiResponse['properties'] as Map<String, dynamic>? ?? apiResponse;
+      final properties =
+          apiResponse['properties'] as Map<String, dynamic>? ?? apiResponse;
       final newLineCode = properties[_lineCodeColumn]?.toString();
       if (newLineCode != null) {
         updates[_lineCodeColumn] = newLineCode;
@@ -634,9 +690,10 @@ class LineStorageHelper {
         updates['intersection_count'] = properties['intersection_count'];
       }
       if (properties['intersections_json'] != null) {
-        updates['intersections_json'] = properties['intersections_json'] is String
-            ? properties['intersections_json']
-            : jsonEncode(properties['intersections_json']);
+        updates['intersections_json'] =
+            properties['intersections_json'] is String
+                ? properties['intersections_json']
+                : jsonEncode(properties['intersections_json']);
       }
 
       await DatabaseHelper().updateEntityLocal(
@@ -646,7 +703,9 @@ class LineStorageHelper {
         recordHistory: true,
       );
 
-      if (newLineCode != null && oldLineCode != null && newLineCode != oldLineCode) {
+      if (newLineCode != null &&
+          oldLineCode != null &&
+          newLineCode != oldLineCode) {
         final loginId = await DatabaseHelper().resolveLoginId();
         await db.update(
           _displayedLinesTable,
@@ -656,47 +715,6 @@ class LineStorageHelper {
         );
 
         final mainDb = await DatabaseHelper().database;
-        final relatedTables = [
-          'localites',
-          'ecoles',
-          'marches',
-          'services_santes',
-          'batiments_administratifs',
-          'infrastructures_hydrauliques',
-          'autres_infrastructures',
-          'ponts',
-          'bacs',
-          'buses',
-          'dalots',
-          'passages_submersibles',
-          'points_critiques',
-          'points_coupures',
-          'site_enquete',
-          'enquete_polygone',
-        ];
-
-        for (final table in relatedTables) {
-          try {
-            final impactedRows = await mainDb.query(
-              table,
-              columns: ['id'],
-              where: '$_lineCodeColumn = ? AND synced = 0',
-              whereArgs: [oldLineCode],
-            );
-
-            for (final row in impactedRows) {
-              final localId = row['id'] as int?;
-              if (localId == null) continue;
-              await DatabaseHelper().updateEntityLocal(
-                table,
-                localId,
-                {_lineCodeColumn: newLineCode},
-                recordHistory: true,
-              );
-            }
-          } catch (_) {}
-        }
-
         try {
           await mainDb.update(
             'displayed_points',
@@ -707,7 +725,7 @@ class LineStorageHelper {
         } catch (_) {}
       }
 
-      debugPrint('[LINE-STORAGE] ligne $lineId synchronisee et mise a jour');
+      debugPrint('[LINE-STORAGE] ligne $lineId synchronisée et mise à jour');
     } catch (e) {
       debugPrint('[LINE-STORAGE] erreur markLineAsSyncedAndUpdated: $e');
     }
@@ -720,7 +738,8 @@ class LineStorageHelper {
         'user_login': lineData['user_login'],
         'start_time': lineData['start_time'],
         'end_time': lineData['end_time'],
-        _originNameColumn: lineData[_originNameColumn] ?? lineData['origin_name'],
+        _originNameColumn:
+            lineData[_originNameColumn] ?? lineData['origin_name'],
         'origin_x': lineData['origin_x'],
         'origin_y': lineData['origin_y'],
         _destinationNameColumn:
@@ -741,7 +760,6 @@ class LineStorageHelper {
         'work_start': lineData['work_start'],
         'work_end': lineData['work_end'],
         'funding': lineData['funding'],
-        'project': lineData['project'],
         'points_json': jsonEncode(lineData['points']),
         'updated_at': lineData['updated_at'],
         'login_id': lineData['login_id'],
@@ -754,9 +772,10 @@ class LineStorageHelper {
         recordHistory: true,
       );
 
-      debugPrint('[LINE-STORAGE] ligne ${lineData['id']} mise a jour avec succes');
+      debugPrint(
+          '[LINE-STORAGE] ligne ${lineData['id']} mise à jour avec succès');
     } catch (e) {
-      debugPrint('[LINE-STORAGE] erreur mise a jour ligne: $e');
+      debugPrint('[LINE-STORAGE] erreur mise à jour ligne: $e');
       rethrow;
     }
   }

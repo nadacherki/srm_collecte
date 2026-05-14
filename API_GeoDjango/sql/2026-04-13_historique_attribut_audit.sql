@@ -1,3 +1,7 @@
+-- OBSOLETE depuis 2026-05-04.
+-- Remplace par API_GeoDjango/sql/2026-05-04_historique_action_unified.sql.
+-- Ne pas rejouer pour une base cible homogenisee.
+
 BEGIN;
 
 ALTER TYPE public.type_action_enum

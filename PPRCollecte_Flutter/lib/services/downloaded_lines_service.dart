@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -84,7 +83,9 @@ class DownloadedLinesService {
   dynamic _extractLineCoordsFromGeoJson(Map<String, dynamic> geoJson) {
     final geometryType = (geoJson['type'] ?? '').toString();
     final coords = geoJson['coordinates'];
-    if (geometryType == 'MultiLineString' && coords is List && coords.isNotEmpty) {
+    if (geometryType == 'MultiLineString' &&
+        coords is List &&
+        coords.isNotEmpty) {
       return coords.first;
     }
     if (geometryType == 'LineString' && coords is List) {
@@ -106,8 +107,8 @@ class DownloadedLinesService {
     final sinDLat = math.sin(dLat / 2);
     final sinDLng = math.sin(dLng / 2);
 
-    final haversine = sinDLat * sinDLat +
-        math.cos(lat1) * math.cos(lat2) * sinDLng * sinDLng;
+    final haversine =
+        sinDLat * sinDLat + math.cos(lat1) * math.cos(lat2) * sinDLng * sinDLng;
     final centralAngle = 2 * math.asin(math.min(1.0, math.sqrt(haversine)));
     return earthRadius * centralAngle;
   }
@@ -128,7 +129,8 @@ class DownloadedLinesService {
       final db = await _storageHelper.database;
       final loginId = await DatabaseHelper().resolveLoginId();
       if (loginId == null) {
-        debugPrint('[LINE-DOWNLOAD] impossible de resoudre le login_id courant');
+        debugPrint(
+            '[LINE-DOWNLOAD] impossible de resoudre le login_id courant');
         return [];
       }
 
@@ -210,10 +212,10 @@ class DownloadedLinesService {
                 'work_start': (row['work_start'] ?? '----').toString(),
                 'work_end': (row['work_end'] ?? '----').toString(),
                 'funding': (row['funding'] ?? '----').toString(),
-                'project': (row['project'] ?? '----').toString(),
                 'company': (row['company'] ?? '----').toString(),
                 'region_name': (row['region_name'] ?? '----').toString(),
-                'prefecture_name': (row['prefecture_name'] ?? '----').toString(),
+                'prefecture_name':
+                    (row['prefecture_name'] ?? '----').toString(),
                 'commune_name': (row['commune_name'] ?? '----').toString(),
                 'enqueteur': (row['user_login'] ?? '').toString(),
               },

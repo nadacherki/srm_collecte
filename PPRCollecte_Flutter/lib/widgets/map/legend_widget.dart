@@ -17,6 +17,9 @@ class LegendWidget extends StatefulWidget {
   /// Compteur d'objets incomplets par table (fourni par home_page)
   final Map<String, int> incompletCountsByTable;
 
+  /// Compteurs des couches de contexte hors metier.
+  final Map<String, int> referenceOverlayCounts;
+
   // Paramètres conservés pour préserver la signature existante dans home_page.
   final List<dynamic> allPolylines;
   final List<dynamic> allMarkers;
@@ -24,6 +27,7 @@ class LegendWidget extends StatefulWidget {
 
   /// Callback notifiant home_page quand la légende s'ouvre ou se ferme.
   final ValueChanged<bool>? onExpandedChanged;
+  final bool expanded;
 
   const LegendWidget({
     super.key,
@@ -32,10 +36,12 @@ class LegendWidget extends StatefulWidget {
     this.pointCountsByTable = const {},
     this.anomalieCountsByTable = const {},
     this.incompletCountsByTable = const {},
+    this.referenceOverlayCounts = const {},
     this.allPolylines = const [],
     this.allMarkers = const [],
     this.polygonCount = 0,
     this.onExpandedChanged,
+    this.expanded = false,
   });
 
   @override
@@ -43,6 +49,8 @@ class LegendWidget extends StatefulWidget {
 }
 
 class _LegendWidgetState extends State<LegendWidget> {
+  static const String _readOnlyRegardMiroirTable = 'ep_regard';
+  static const String _regardPointTable = 'ep_regard_point';
   late Map<String, bool> _visibility;
   bool _isExpanded = false;
   bool _anomalieFilterActive = false;
@@ -51,24 +59,32 @@ class _LegendWidgetState extends State<LegendWidget> {
   final Map<String, bool> _metierExpanded = {};
 
   static const Map<String, Color> _metierColor = {
-    'Eau Potable':    Color(0xFF1565C0),
+    'Eau Potable': Color(0xFF1565C0),
     'Assainissement': Color(0xFF2E7D32),
-    'Électricité':    Color(0xFFE65100),
   };
 
   static const Map<String, IconData> _metierIcon = {
-    'Eau Potable':    Icons.water_drop,
+    'Eau Potable': Icons.water_drop,
     'Assainissement': Icons.waves,
-    'Électricité':    Icons.bolt,
   };
 
   static String _vk(String tableName) => 'srm_$tableName';
   static String _mk(String metier) => 'srm_metier_$metier';
 
+  Iterable<String> _readOnlyTablesForMetier(String metier) sync* {
+    if (metier == 'Eau Potable') {
+      yield _readOnlyRegardMiroirTable;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _isExpanded = widget.expanded;
     _visibility = Map<String, bool>.from(widget.initialVisibility);
+    _visibility.putIfAbsent('overlay_zones', () => true);
+    _visibility.putIfAbsent('overlay_planche', () => false);
+    _visibility.putIfAbsent('overlay_fond_plan', () => false);
     for (final m in SrmConfig.getMetiers()) {
       _metierExpanded[m] = false;
       if (!_visibility.containsKey(_mk(m))) _visibility[_mk(m)] = true;
@@ -81,11 +97,35 @@ class _LegendWidgetState extends State<LegendWidget> {
     }
     _anomalieFilterActive = _visibility['srm_anomalie'] == true;
     _incompletFilterActive = _visibility['srm_incomplet'] == true;
+    _visibility.putIfAbsent(
+      _vk(_readOnlyRegardMiroirTable),
+      () => _visibility[_vk(_regardPointTable)] ?? true,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant LegendWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.expanded != widget.expanded &&
+        _isExpanded != widget.expanded) {
+      setState(() => _isExpanded = widget.expanded);
+    }
+  }
+
+  void _setExpanded(bool value) {
+    if (_isExpanded == value) return;
+    setState(() => _isExpanded = value);
+    widget.onExpandedChanged?.call(value);
   }
 
   void _toggle(String key, bool value) {
     setState(() {
       _visibility[key] = value;
+      if (key == _vk(_regardPointTable)) {
+        _visibility[_vk(_readOnlyRegardMiroirTable)] = value;
+      } else if (key == _vk(_readOnlyRegardMiroirTable)) {
+        _visibility[_vk(_regardPointTable)] = value;
+      }
       widget.onVisibilityChanged(Map.from(_visibility));
     });
   }
@@ -96,6 +136,9 @@ class _LegendWidgetState extends State<LegendWidget> {
       for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
         final t = SrmConfig.getTableName(metier, entity);
         if (t != null) _visibility[_vk(t)] = value;
+      }
+      for (final table in _readOnlyTablesForMetier(metier)) {
+        _visibility[_vk(table)] = value;
       }
       widget.onVisibilityChanged(Map.from(_visibility));
     });
@@ -118,8 +161,10 @@ class _LegendWidgetState extends State<LegendWidget> {
   }
 
   int _countForTable(String table) => widget.pointCountsByTable[table] ?? 0;
-  int _anomaliesForTable(String table) => widget.anomalieCountsByTable[table] ?? 0;
-  int _incompletForTable(String table) => widget.incompletCountsByTable[table] ?? 0;
+  int _anomaliesForTable(String table) =>
+      widget.anomalieCountsByTable[table] ?? 0;
+  int _incompletForTable(String table) =>
+      widget.incompletCountsByTable[table] ?? 0;
 
   int _totalForMetier(String metier) {
     int t = 0;
@@ -148,19 +193,28 @@ class _LegendWidgetState extends State<LegendWidget> {
     return t;
   }
 
-  int get _totalObjects =>
-      widget.pointCountsByTable.values.fold(0, (a, b) => a + b);
+  int get _totalObjects => widget.pointCountsByTable.entries
+      .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+      .fold(0, (sum, entry) => sum + entry.value);
 
-  int get _totalAnomalies =>
-      widget.anomalieCountsByTable.values.fold(0, (a, b) => a + b);
+  int get _totalAnomalies => widget.anomalieCountsByTable.entries
+      .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+      .fold(0, (sum, entry) => sum + entry.value);
 
-  int get _totalIncompletes =>
-      widget.incompletCountsByTable.values.fold(0, (a, b) => a + b);
+  int get _totalIncompletes => widget.incompletCountsByTable.entries
+      .where((entry) => entry.key != _readOnlyRegardMiroirTable)
+      .fold(0, (sum, entry) => sum + entry.value);
+
+  int get _zoneOverlayCount =>
+      widget.referenceOverlayCounts['overlay_zones'] ?? 0;
 
   bool _isMetierFullyChecked(String metier) {
     for (final e in SrmConfig.getEntitiesForMetier(metier)) {
       final t = SrmConfig.getTableName(metier, e);
       if (t != null && !(_visibility[_vk(t)] ?? true)) return false;
+    }
+    for (final t in _readOnlyTablesForMetier(metier)) {
+      if (!(_visibility[_vk(t)] ?? true)) return false;
     }
     return true;
   }
@@ -176,40 +230,75 @@ class _LegendWidgetState extends State<LegendWidget> {
         anyOff = true;
       }
     }
+    for (final t in _readOnlyTablesForMetier(metier)) {
+      if (_visibility[_vk(t)] ?? true) {
+        anyOn = true;
+      } else {
+        anyOff = true;
+      }
+    }
     return anyOn && anyOff;
   }
 
   //  BUILD
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 105,
-      right: 10,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(),
-            if (_isExpanded) _buildBody(),
-          ],
-        ),
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const top = 135.0;
+          const bottomMargin = 12.0;
+          const headerHeight = 44.0;
+          final availableHeight = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : MediaQuery.sizeOf(context).height;
+          final maxWidgetHeight =
+              (availableHeight - top - bottomMargin).clamp(96.0, 640.0);
+          final maxBodyHeight =
+              (maxWidgetHeight - headerHeight).clamp(0.0, 520.0);
+
+          return Stack(
+            children: [
+              Positioned(
+                top: top,
+                right: 10,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: maxWidgetHeight.toDouble(),
+                    maxWidth: 292,
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHeader(),
+                        if (_isExpanded) _buildBody(maxBodyHeight.toDouble()),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildHeader() {
     return InkWell(
-      onTap: () {
-        setState(() => _isExpanded = !_isExpanded);
-        widget.onExpandedChanged?.call(_isExpanded);
-      },
+      onTap: () => _setExpanded(!_isExpanded),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -217,24 +306,36 @@ class _LegendWidgetState extends State<LegendWidget> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              _isExpanded
-                  ? Icons.legend_toggle
-                  : Icons.legend_toggle_outlined,
+              _isExpanded ? Icons.legend_toggle : Icons.legend_toggle_outlined,
               size: 20,
               color: Colors.blue.shade700,
             ),
             const SizedBox(width: 8),
-            const Text('Légende',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Flexible(
+              child: Text(
+                'Légende',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ),
             if (_totalObjects > 0) ...[
               const SizedBox(width: 6),
               _badge(_totalObjects, color: Colors.grey.shade600),
             ],
+            if (_zoneOverlayCount > 0) ...[
+              const SizedBox(width: 4),
+              _badge(
+                _zoneOverlayCount,
+                color: const Color(0xFF1565C0),
+                icon: Icons.crop_square,
+              ),
+            ],
             // Badge anomalie toujours visible dans le header si des anomalies existent
-            if (_totalIncompletes > 0) ...[              const SizedBox(width: 4),
+            if (_totalIncompletes > 0) ...[
+              const SizedBox(width: 4),
               _badge(_totalIncompletes,
-                  color: const Color(0xFFF57C00),
-                  icon: Icons.edit_off),
+                  color: const Color(0xFFF57C00), icon: Icons.edit_off),
             ],
             if (_totalAnomalies > 0) ...[
               const SizedBox(width: 4),
@@ -248,13 +349,13 @@ class _LegendWidgetState extends State<LegendWidget> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(double maxHeight) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Divider(height: 1, color: Colors.grey.shade300),
         Container(
-          constraints: const BoxConstraints(maxHeight: 520, maxWidth: 272),
+          constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 272),
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
           child: SingleChildScrollView(
             child: Column(
@@ -263,6 +364,8 @@ class _LegendWidgetState extends State<LegendWidget> {
                 _buildAnomalieFilter(),
                 const SizedBox(height: 8),
                 _buildIncompletFilter(),
+                const SizedBox(height: 10),
+                _buildReferenceOverlaysSection(),
                 const SizedBox(height: 10),
                 Divider(height: 1, color: Colors.grey.shade200),
                 const SizedBox(height: 6),
@@ -281,12 +384,12 @@ class _LegendWidgetState extends State<LegendWidget> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _anomalieFilterActive
-            ? const Color(0xFFD32F2F).withOpacity(0.07)
+            ? const Color(0xFFD32F2F).withValues(alpha: 0.07)
             : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _anomalieFilterActive
-              ? const Color(0xFFD32F2F).withOpacity(0.45)
+              ? const Color(0xFFD32F2F).withValues(alpha: 0.45)
               : Colors.grey.shade200,
           width: 1.2,
         ),
@@ -352,12 +455,12 @@ class _LegendWidgetState extends State<LegendWidget> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _incompletFilterActive
-            ? const Color(0xFFF57C00).withOpacity(0.07)
+            ? const Color(0xFFF57C00).withValues(alpha: 0.07)
             : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _incompletFilterActive
-              ? const Color(0xFFF57C00).withOpacity(0.45)
+              ? const Color(0xFFF57C00).withValues(alpha: 0.45)
               : Colors.grey.shade200,
           width: 1.2,
         ),
@@ -375,7 +478,7 @@ class _LegendWidgetState extends State<LegendWidget> {
               border: Border.all(color: Colors.white, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.withOpacity(0.4),
+                  color: Colors.orange.withValues(alpha: 0.4),
                   blurRadius: 4,
                   offset: const Offset(0, 1),
                 ),
@@ -420,8 +523,7 @@ class _LegendWidgetState extends State<LegendWidget> {
           ),
           if (_totalIncompletes > 0) ...[
             _badge(_totalIncompletes,
-                color: const Color(0xFFF57C00),
-                icon: Icons.edit_off),
+                color: const Color(0xFFF57C00), icon: Icons.edit_off),
             const SizedBox(width: 4),
           ],
           Transform.scale(
@@ -433,6 +535,115 @@ class _LegendWidgetState extends State<LegendWidget> {
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReferenceOverlaysSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blueGrey.shade100),
+      ),
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade600,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Icon(
+                  Icons.layers_outlined,
+                  color: Colors.white,
+                  size: 14,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'Couches contexte',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _buildReferenceOverlayRow(
+            keyName: 'overlay_zones',
+            label: 'Zones',
+            color: const Color(0xFF1565C0),
+            icon: Icons.crop_square,
+          ),
+          _buildReferenceOverlayRow(
+            keyName: 'overlay_planche',
+            label: 'Planches',
+            color: const Color(0xFF455A64),
+            icon: Icons.grid_on,
+          ),
+          _buildReferenceOverlayRow(
+            keyName: 'overlay_fond_plan',
+            label: 'Fond plan',
+            color: const Color(0xFF616161),
+            icon: Icons.polyline,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReferenceOverlayRow({
+    required String keyName,
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    final isVisible = _visibility[keyName] ?? false;
+    final count = widget.referenceOverlayCounts[keyName] ?? 0;
+    final effectiveColor = isVisible ? color : Colors.grey.shade300;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: Checkbox(
+              value: isVisible,
+              onChanged: (v) => _toggle(keyName, v ?? false),
+              activeColor: color,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Icon(icon, size: 16, color: effectiveColor),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: isVisible ? Colors.grey.shade800 : Colors.grey.shade400,
+              ),
+            ),
+          ),
+          if (count > 0) _badge(count, color: color),
         ],
       ),
     );
@@ -452,8 +663,7 @@ class _LegendWidgetState extends State<LegendWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
-          onTap: () =>
-              setState(() => _metierExpanded[metier] = !isExpanded),
+          onTap: () => setState(() => _metierExpanded[metier] = !isExpanded),
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
@@ -466,8 +676,7 @@ class _LegendWidgetState extends State<LegendWidget> {
                   child: Checkbox(
                     value: isPartial ? null : isFullyChecked,
                     tristate: true,
-                    onChanged: (_) =>
-                        _toggleMetier(metier, !isFullyChecked),
+                    onChanged: (_) => _toggleMetier(metier, !isFullyChecked),
                     activeColor: color,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
@@ -502,8 +711,7 @@ class _LegendWidgetState extends State<LegendWidget> {
                 if (incomplets > 0) ...[
                   const SizedBox(width: 3),
                   _badge(incomplets,
-                      color: const Color(0xFFF57C00),
-                      icon: Icons.edit_off),
+                      color: const Color(0xFFF57C00), icon: Icons.edit_off),
                 ],
                 if (anomalies > 0) ...[
                   const SizedBox(width: 3),
@@ -521,17 +729,16 @@ class _LegendWidgetState extends State<LegendWidget> {
             ),
           ),
         ),
-
         if (isExpanded)
           Padding(
             padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
             child: Column(
-              children: SrmConfig.getEntitiesForMetier(metier)
-                  .map((e) => _buildEntityRow(metier, e, color))
-                  .toList(),
+              children: [
+                ...SrmConfig.getEntitiesForMetier(metier)
+                    .map((e) => _buildEntityRow(metier, e, color)),
+              ],
             ),
           ),
-
         const SizedBox(height: 2),
       ],
     );
@@ -549,9 +756,8 @@ class _LegendWidgetState extends State<LegendWidget> {
 
     final iconCfg = CustomMarkerIcons.iconConfig[tableName];
     final entityIcon = iconCfg?.icon ?? Icons.location_pin;
-    final entityColor = isVisible
-        ? (iconCfg?.color ?? metierColor)
-        : Colors.grey.shade300;
+    final entityColor =
+        isVisible ? (iconCfg?.color ?? metierColor) : Colors.grey.shade300;
 
     final isLine = SrmConfig.isLineEntity(metier, entity);
     final isPolygon = SrmConfig.isPolygonEntity(metier, entity);
@@ -592,9 +798,7 @@ class _LegendWidgetState extends State<LegendWidget> {
               entity,
               style: TextStyle(
                 fontSize: 11,
-                color: isVisible
-                    ? Colors.grey.shade700
-                    : Colors.grey.shade400,
+                color: isVisible ? Colors.grey.shade700 : Colors.grey.shade400,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -614,8 +818,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             const SizedBox(width: 3),
           ],
           if (count > 0)
-            _badge(count,
-                color: iconCfg?.color ?? metierColor, small: true),
+            _badge(count, color: iconCfg?.color ?? metierColor, small: true),
         ],
       ),
     );
@@ -717,7 +920,8 @@ class _LegendWidgetState extends State<LegendWidget> {
             width: 22,
             height: 16,
             decoration: BoxDecoration(
-              color: displayColor.withOpacity(hasAnomalie || hasIncomplet ? 0.28 : 0.32),
+              color: displayColor.withValues(
+                  alpha: hasAnomalie || hasIncomplet ? 0.28 : 0.0),
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
                 color: displayColor,
@@ -770,9 +974,9 @@ class _LegendWidgetState extends State<LegendWidget> {
       padding: EdgeInsets.symmetric(
           horizontal: small ? 4 : 6, vertical: small ? 1 : 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.11),
+        color: color.withValues(alpha: 0.11),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.35), width: 0.8),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -783,9 +987,7 @@ class _LegendWidgetState extends State<LegendWidget> {
           ],
           Text(count.toString(),
               style: TextStyle(
-                  fontSize: fs,
-                  color: color,
-                  fontWeight: FontWeight.w600)),
+                  fontSize: fs, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -834,4 +1036,3 @@ class _MiniWarningPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

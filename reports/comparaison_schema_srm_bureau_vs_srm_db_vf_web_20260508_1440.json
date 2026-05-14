@@ -1,0 +1,5115 @@
+{
+  "meta": {
+    "current_db": "SRM_bureau",
+    "reference_db": "codex_cmp_srm_vf_web_20260508_1440",
+    "schemas": [
+      "public",
+      "ep",
+      "asst",
+      "elec"
+    ],
+    "generated_at": "2026-05-08T14:46:39"
+  },
+  "relations": {
+    "only_current": [],
+    "only_reference": [
+      [
+        "public",
+        "vw_metrics_agent_jour"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact"
+      ]
+    ],
+    "changed": []
+  },
+  "columns": {
+    "only_current": [
+      [
+        "public",
+        "formulaire_config_mobile",
+        "download_mobile"
+      ]
+    ],
+    "only_reference": [
+      [
+        "ep",
+        "borne_onep",
+        "anomalie"
+      ],
+      [
+        "ep",
+        "borne_onep",
+        "conformite_plan"
+      ],
+      [
+        "ep",
+        "borne_onep",
+        "date_leve"
+      ],
+      [
+        "ep",
+        "borne_onep",
+        "id_agent_crea"
+      ],
+      [
+        "ep",
+        "borne_onep",
+        "mode_localisation"
+      ],
+      [
+        "ep",
+        "borne_onep",
+        "observation"
+      ],
+      [
+        "ep",
+        "borne_onep",
+        "type_anomalie"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "anomalie"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "conformite_plan"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "date_leve"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "id_agent_crea"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "id_compteur_abonne"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "id_conduite"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "mode_localisation"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "observation"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "type_anomalie"
+      ],
+      [
+        "ep",
+        "centre_tampon",
+        "date_leve"
+      ],
+      [
+        "ep",
+        "centre_tampon",
+        "ep_anomalie"
+      ],
+      [
+        "ep",
+        "centre_tampon",
+        "mode_localisation"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "anomalie"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "conformite_plan"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "emplacement"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_anomalie"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_classe_conduite"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_croquis"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_date_interv"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_detail"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_dxf_dwg"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_entreprise"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_etage_p"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_lien"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_long_c"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_long_r"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_num"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_profondeur"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_ref_marche"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_ref_rue"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_sect_hydro"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_statut"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ep_type"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "etage_aqua"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "id_agent_crea"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "mode_localisation"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "pente"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "ref_rue"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "secteur_aqua"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "type_anomalie"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "zalerte"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "zamont"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "zaval"
+      ],
+      [
+        "ep",
+        "ep_branchement",
+        "emplacement"
+      ],
+      [
+        "ep",
+        "ep_brc_pt",
+        "date_leve"
+      ],
+      [
+        "ep",
+        "ep_brc_pt",
+        "diametre_calibre_terrain"
+      ],
+      [
+        "ep",
+        "ep_brc_pt",
+        "diametre_conduite"
+      ],
+      [
+        "ep",
+        "ep_brc_pt",
+        "ep_diam"
+      ],
+      [
+        "ep",
+        "ep_brc_pt",
+        "ep_ref_rue"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "altitude"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "anomalie"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "conformite_plan"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "id_agent_crea"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "photo_1"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "photo_2"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "ref_rue"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "type_anomalie"
+      ],
+      [
+        "ep",
+        "ep_forage",
+        "ep_statut"
+      ],
+      [
+        "ep",
+        "ep_hydrant",
+        "ep_diam"
+      ],
+      [
+        "ep",
+        "ep_hydrant",
+        "ep_etat_s"
+      ],
+      [
+        "ep",
+        "ep_noeud",
+        "ep_anomalie"
+      ],
+      [
+        "ep",
+        "ep_noeud",
+        "mode_localisation"
+      ],
+      [
+        "ep",
+        "ep_obturateur",
+        "emplacement"
+      ],
+      [
+        "ep",
+        "ep_reduc_pres",
+        "ep_ref_rue"
+      ],
+      [
+        "ep",
+        "ep_reservoir",
+        "emplacement"
+      ],
+      [
+        "ep",
+        "ep_station_pompage",
+        "emplacement"
+      ],
+      [
+        "ep",
+        "ep_traversee",
+        "ep_long_c"
+      ],
+      [
+        "ep",
+        "ep_traversee",
+        "ep_type"
+      ],
+      [
+        "ep",
+        "ep_vanne",
+        "ep_etat_s"
+      ],
+      [
+        "ep",
+        "ep_vidange",
+        "ep_etat_s"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "famille_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "jour"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_jour",
+        "type_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "annee"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "famille_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "mois"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "mois_numero"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois",
+        "type_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "actif"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "annee"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "annee_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "grain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "mois_numero"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "moyenne_photos_par_objet"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_interventions_cloturees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_interventions_signalees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_interventions_terrain_traitees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_jours_actifs"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_lignes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_points"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_surfaces"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "objets_par_heure"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "periode_debut"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "periode_fin"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "semaine_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "solde_incomplets"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "taux_anomalie_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period",
+        "taux_objets_avec_photo_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "actif"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "jour"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "moyenne_photos_par_objet"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_jours_actifs"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_lignes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_points"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_surfaces"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "objets_par_heure"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "solde_incomplets"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "taux_anomalie_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour",
+        "taux_objets_avec_photo_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "actif"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "annee"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "mois"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "mois_numero"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "moyenne_photos_par_objet"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_jours_actifs"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_lignes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_points"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_surfaces"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "objets_par_heure"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "solde_incomplets"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "taux_anomalie_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois",
+        "taux_objets_avec_photo_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "derniere_activite"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_corrections_backoffice_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_corrections_superviseur_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_evenements_sync_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_jours_actifs"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_lignes_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_modifications_terrain_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_30j"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_7j"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_anomalie_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_avec_photo_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_crees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_incomplets_completes_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_incomplets_signales_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_mois_courant"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_objets_semaine_courante"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_photos_renseignees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_photos_uploadees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_points_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_reouvertures_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_surfaces_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "nb_validations_terrain_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "objets_par_heure_global"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "premiere_activite"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume",
+        "taux_anomalie_global_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "actif"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "annee_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "moyenne_photos_par_objet"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_jours_actifs"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_lignes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_points"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_surfaces"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "objets_par_heure"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "semaine_debut"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "semaine_fin"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "semaine_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "solde_incomplets"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "taux_anomalie_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine",
+        "taux_objets_avec_photo_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "derniere_activite"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_corrections_backoffice_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_corrections_superviseur_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_evenements_sync_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_interventions_cloturees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_interventions_signalees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_interventions_terrain_traitees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_jours_actifs"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_lignes_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_modifications_terrain_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_30j"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_7j"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_anomalie_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_avec_photo_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_crees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_incomplets_completes_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_incomplets_signales_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_mois_courant"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_objets_semaine_courante"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_photos_renseignees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_photos_uploadees_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_points_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_reouvertures_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_surfaces_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "nb_validations_terrain_total"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "objets_par_heure_global"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "premiere_activite"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume",
+        "taux_anomalie_global_pct"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "annee_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "famille_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "semaine_debut"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "semaine_fin"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "semaine_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine",
+        "type_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "annee"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "annee_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "famille_geometrie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "grain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "metric_uid"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "mois_numero"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_attributs_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_corrections_backoffice"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_corrections_superviseur"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_evenements_mobiles"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_evenements_sync"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_interventions_cloturees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_interventions_signalees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_interventions_terrain_traitees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_modifications_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_objets_anomalie"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_objets_avec_photo"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_objets_crees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_objets_incomplets_completes"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_objets_incomplets_signales"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_photos_uploadees"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_reouvertures"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_sessions_login"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_sessions_logout"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nb_validations_terrain"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "periode_debut"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "periode_fin"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "semaine_iso"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period",
+        "type_geometrie"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "action"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "date_action"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "event_uid"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "id_objet"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact",
+        "source"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "date_completion"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "date_signalement"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "event_uid"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "id_objet"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact",
+        "statut"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "date_signalement"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "etat_terrain"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "event_uid"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "id_objet"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "statut"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact",
+        "updated_at"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "anomalie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "date_action"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "famille_geometrie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "objet_uid"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact",
+        "type_geometrie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates",
+        "date_action"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates",
+        "objet_uid"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "anomalie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "cle_ligne"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "date_action"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "famille_geometrie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "id_agent_crea"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "id_objet"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "metier"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "mode_localisation"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "nb_photos_renseignees"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "nom_classe"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "nom_schema"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "objet_uid"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "type_anomalie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "type_geometrie"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact",
+        "uuid_objet"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact",
+        "date_photo"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact",
+        "id_agent"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact",
+        "id_objet"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact",
+        "nom_table"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact",
+        "photo_slot"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact",
+        "photo_uid"
+      ]
+    ],
+    "changed": [
+      {
+        "key": [
+          "ep",
+          "anomalie_conduite",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 15,
+            "reference": 16
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "anomalie_conduite",
+          "photo_1"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 16,
+            "reference": 17
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "anomalie_conduite",
+          "photo_2"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 17,
+            "reference": 18
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "anomalie_conduite",
+          "photo_3"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 18,
+            "reference": 19
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "anomalie_conduite",
+          "photo_4"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 19,
+            "reference": 20
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "anomalie_conduite",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 20,
+            "reference": 15
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "autre_objet",
+          "ep_coor_x"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 22,
+            "reference": 21
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "autre_objet",
+          "ep_coor_y"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 23,
+            "reference": 22
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "borne_onep",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 19,
+            "reference": 27
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "borne_onep",
+          "id_planche"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 20,
+            "reference": 21
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "date_creation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 12,
+            "reference": 22
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "date_modif"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 13,
+            "reference": 23
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "date_validation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 17,
+            "reference": 27
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "ep_coor_x"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 3,
+            "reference": 16
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "ep_coor_y"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 4,
+            "reference": 17
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "ep_coor_z"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 5,
+            "reference": 12
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "geom"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 6,
+            "reference": 5
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_commune"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 7,
+            "reference": 8
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 19,
+            "reference": 29
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_planche"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 20,
+            "reference": 7
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_province"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 8,
+            "reference": 18
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_user_creat"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 10,
+            "reference": 20
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_user_modif"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 11,
+            "reference": 21
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_user_valid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 16,
+            "reference": 26
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 9,
+            "reference": 19
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "is_deleted"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 14,
+            "reference": 24
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "is_validated"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 15,
+            "reference": 25
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 18,
+            "reference": 28
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "bouche_a_cles",
+          "uuid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 2,
+            "reference": 4
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 23,
+            "reference": 26
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 17,
+            "reference": 21
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "photo_1"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 18,
+            "reference": 22
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "photo_2"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 19,
+            "reference": 23
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "photo_3"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 20,
+            "reference": 24
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "photo_4"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 21,
+            "reference": 25
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "centre_tampon",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 22,
+            "reference": 17
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "date_creation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 10,
+            "reference": 42
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "date_modif"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 11,
+            "reference": 43
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "date_validation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 15,
+            "reference": 47
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "ep_diam"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 3,
+            "reference": 5
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "ep_mat"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 4,
+            "reference": 6
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "geom"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 5,
+            "reference": 2
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_commune"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 6,
+            "reference": 32
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 22,
+            "reference": 54
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_planche"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 23,
+            "reference": 31
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_province"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 7,
+            "reference": 39
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_user_creat"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 8,
+            "reference": 40
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_user_modif"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 9,
+            "reference": 41
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_user_valid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 14,
+            "reference": 46
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 16,
+            "reference": 51
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "is_deleted"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 12,
+            "reference": 44
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "is_validated"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 13,
+            "reference": 45
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "photo_1"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 17,
+            "reference": 36
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "photo_2"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 18,
+            "reference": 37
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "photo_3"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 19,
+            "reference": 52
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "photo_4"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 20,
+            "reference": 53
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 21,
+            "reference": 48
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "conduite_terrain",
+          "uuid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 2,
+            "reference": 29
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "diamcond"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 66,
+            "reference": 64
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "emplacement"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 65,
+            "reference": 63
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "ep_diam"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 67,
+            "reference": 65
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "ep_etat_s"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 63,
+            "reference": 62
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "existence_compteur_global"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 68,
+            "reference": 66
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "existence_compteurs_prives"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 69,
+            "reference": 67
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "fonctionnelle"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 70,
+            "reference": 68
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 62,
+            "reference": 70
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_bf",
+          "nombre_robinets"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 71,
+            "reference": 69
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_branchement",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 42,
+            "reference": 43
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_brc_pt",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 56,
+            "reference": 62
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_brc_pt",
+          "type_anomalie"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 57,
+            "reference": 56
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "altitute"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 43,
+            "reference": 82
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "annee_renouv"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 42,
+            "reference": 81
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "autocad_layer"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 33,
+            "reference": 75
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "commune"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 52,
+            "reference": 67
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "date_creation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 67,
+            "reference": 60
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "date_modif"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 68,
+            "reference": 61
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "date_validation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 72,
+            "reference": 65
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "emplacement"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 14,
+            "reference": 11
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_adresse"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 16,
+            "reference": 41
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_agent_crea"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 48,
+            "reference": 47
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_agent_maj"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 20,
+            "reference": 43
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_anomalie"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 56,
+            "reference": 53
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_classe_conduite"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 13,
+            "reference": 10
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_code_ter"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 5,
+            "reference": 71
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_conf_plan"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 54,
+            "reference": 51
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_coor_x"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 57,
+            "reference": 54
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_coor_y"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 58,
+            "reference": 55
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_coor_z"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 59,
+            "reference": 56
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_croquis"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 28,
+            "reference": 25
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_date_insertion"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 9,
+            "reference": 39
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_date_interv"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 22,
+            "reference": 24
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_date_pose"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 8,
+            "reference": 72
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_detail"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 30,
+            "reference": 27
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_diam"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 6,
+            "reference": 5
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_dxf_dwg"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 29,
+            "reference": 26
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_entreprise"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 18,
+            "reference": 17
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_etage_p"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 26,
+            "reference": 20
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_interv"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 21,
+            "reference": 70
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_lien"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 32,
+            "reference": 28
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_long_c"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 10,
+            "reference": 7
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_long_r"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 11,
+            "reference": 8
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_mat"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 7,
+            "reference": 6
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_observ"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 23,
+            "reference": 44
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_observation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 55,
+            "reference": 52
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_p_asbuilt"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 27,
+            "reference": 73
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_photo"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 31,
+            "reference": 74
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_profondeur"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 12,
+            "reference": 9
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_qual1"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 36,
+            "reference": 76
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_qual2"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 37,
+            "reference": 77
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_qual3"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 38,
+            "reference": 78
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_ref_marche"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 19,
+            "reference": 18
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_ref_rue"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 15,
+            "reference": 40
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_sect_hydro"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 25,
+            "reference": 19
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_secteur_com"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 17,
+            "reference": 42
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_statut"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 39,
+            "reference": 23
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_tf"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 40,
+            "reference": 79
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "ep_zone_hydro"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 24,
+            "reference": 45
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "etage_aqua"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 34,
+            "reference": 21
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "geom"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 62,
+            "reference": 2
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_commune"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 63,
+            "reference": 32
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 75,
+            "reference": 84
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_planche"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 76,
+            "reference": 31
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_province"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 64,
+            "reference": 57
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_user_creat"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 65,
+            "reference": 58
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_user_modif"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 66,
+            "reference": 59
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_user_valid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 71,
+            "reference": 64
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 73,
+            "reference": 69
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "is_deleted"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 69,
+            "reference": 62
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "is_validated"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 70,
+            "reference": 63
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 61,
+            "reference": 83
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "mode_localisation"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 60,
+            "reference": 33
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "note_renouv"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 41,
+            "reference": 80
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "pente"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 44,
+            "reference": 14
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "province"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 53,
+            "reference": 68
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "sec_com"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 49,
+            "reference": 48
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "sect_hydr"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 50,
+            "reference": 49
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "secteur_aqua"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 35,
+            "reference": 22
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 74,
+            "reference": 66
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "uuid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 2,
+            "reference": 29
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "zalerte"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 47,
+            "reference": 15
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "zamont"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 45,
+            "reference": 12
+          },
+          "comment": {
+            "current": null,
+            "reference": "Z côté amont (m) — Merchich Nord EPSG:26191 — colonne GeoPackage conservée"
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "zaval"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 46,
+            "reference": 13
+          },
+          "comment": {
+            "current": null,
+            "reference": "Z côté aval (m) — Merchich Nord EPSG:26191 — colonne GeoPackage conservée"
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_conduite",
+          "zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 51,
+            "reference": 50
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_cone_reduc",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 54,
+            "reference": 55
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_cone_reduc",
+          "type_anomalie"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 55,
+            "reference": 54
+          },
+          "comment": {
+            "current": null,
+            "reference": "Champ mobile normalise depuis attribut_config_mobile."
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_forage",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 61,
+            "reference": 62
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_hydrant",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 66,
+            "reference": 69
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_hydrant",
+          "type_anomalie"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 67,
+            "reference": 68
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_noeud",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 37,
+            "reference": 39
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_obturateur",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 43,
+            "reference": 44
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_reduc_pres",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 61,
+            "reference": 62
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_regard",
+          "fid_regard_source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 69,
+            "reference": 68
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_regard",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 68,
+            "reference": 73
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_regard",
+          "miroir_created_at"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 72,
+            "reference": 71
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_regard",
+          "miroir_source_fid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 71,
+            "reference": 70
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_regard",
+          "miroir_source_table"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 70,
+            "reference": 69
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_regard",
+          "miroir_updated_at"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 73,
+            "reference": 72
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_reservoir",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 68,
+            "reference": 69
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_station_pompage",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 60,
+            "reference": 61
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_traversee",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 57,
+            "reference": 59
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_vanne",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 61,
+            "reference": 63
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_vanne",
+          "type_anomalie"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 62,
+            "reference": 61
+          },
+          "comment": {
+            "current": null,
+            "reference": "Champ mobile normalise depuis attribut_config_mobile."
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_ventouse",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 56,
+            "reference": 57
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_ventouse",
+          "type_anomalie"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 57,
+            "reference": 56
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "ep_vidange",
+          "id_mission"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 57,
+            "reference": 58
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "statistique_conduite",
+          "uuid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 8,
+            "reference": 7
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "statistique_conduite_segment",
+          "uuid"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 11,
+            "reference": 10
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "tn",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 17,
+            "reference": 18
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "tn",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 18,
+            "reference": 17
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "voie",
+          "id_zone"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 15,
+            "reference": 16
+          }
+        }
+      },
+      {
+        "key": [
+          "ep",
+          "voie",
+          "source"
+        ],
+        "diffs": {
+          "ordinal": {
+            "current": 16,
+            "reference": 15
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "created_at"
+        ],
+        "diffs": {
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "default_expr": {
+            "current": null,
+            "reference": "now()"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "id"
+        ],
+        "diffs": {
+          "formatted_type": {
+            "current": "integer",
+            "reference": "bigint"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "nom_metier"
+        ],
+        "diffs": {
+          "formatted_type": {
+            "current": "character varying",
+            "reference": "character varying(50)"
+          },
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "comment": {
+            "current": null,
+            "reference": "Metier/schema fonctionnel, par exemple ep."
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "nom_table"
+        ],
+        "diffs": {
+          "formatted_type": {
+            "current": "character varying",
+            "reference": "character varying(100)"
+          },
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "comment": {
+            "current": null,
+            "reference": "Nom technique exact de la table/config serveur. Ne pas utiliser de nom mobile alias ici."
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "ordre"
+        ],
+        "diffs": {
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "comment": {
+            "current": null,
+            "reference": "Ordre d affichage du formulaire dans le metier."
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "titre_app"
+        ],
+        "diffs": {
+          "formatted_type": {
+            "current": "character varying",
+            "reference": "character varying(255)"
+          },
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "comment": {
+            "current": null,
+            "reference": "Libelle affiche dans l application mobile pour ce formulaire."
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "updated_at"
+        ],
+        "diffs": {
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "default_expr": {
+            "current": null,
+            "reference": "now()"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile",
+          "visible"
+        ],
+        "diffs": {
+          "not_null": {
+            "current": false,
+            "reference": true
+          },
+          "default_expr": {
+            "current": null,
+            "reference": "true"
+          },
+          "comment": {
+            "current": null,
+            "reference": "Indique si le formulaire est affiche dans l application mobile."
+          }
+        }
+      }
+    ]
+  },
+  "constraints": {
+    "only_current": [],
+    "only_reference": [
+      [
+        "ep",
+        "borne_onep",
+        "borne_onep_id_agent_crea_fkey"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "bouche_cles_id_compteur_abonne_fkey"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "bouche_cles_id_conduite_fkey"
+      ],
+      [
+        "ep",
+        "bouche_a_cles",
+        "fk_bouche_cles_agent"
+      ],
+      [
+        "ep",
+        "conduite_terrain",
+        "fk_ep_conduite_terrain_agent"
+      ],
+      [
+        "ep",
+        "ep_conduite",
+        "fk_ep_conduite_bureau_agent"
+      ],
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_metier_ordre_uk"
+      ],
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_metier_table_uk"
+      ],
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_nom_metier_chk"
+      ],
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_nom_table_chk"
+      ],
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_ordre_chk"
+      ]
+    ],
+    "changed": [
+      {
+        "key": [
+          "public",
+          "objet_photo",
+          "objet_photo_num_photo_check"
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CHECK (num_photo >= 1)",
+            "reference": "CHECK (num_photo >= 1 AND num_photo <= 4)"
+          }
+        }
+      }
+    ]
+  },
+  "indexes": {
+    "only_current": [],
+    "only_reference": [
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_metier_ordre_uk"
+      ],
+      [
+        "public",
+        "formulaire_config_mobile",
+        "formulaire_config_mobile_metier_table_uk"
+      ]
+    ],
+    "changed": [
+      {
+        "key": [
+          "public",
+          "historique_traitement",
+          "idx_ht_date"
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE INDEX idx_ht_date ON public.historique_traitement USING btree (date_action DESC)",
+            "reference": "CREATE INDEX idx_ht_date ON public.historique_traitement USING btree (date_action)"
+          }
+        }
+      }
+    ]
+  },
+  "views": {
+    "only_current": [],
+    "only_reference": [
+      [
+        "public",
+        "vw_metrics_agent_jour"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_mois"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_period"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_jour"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_mois"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_resume"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_public_semaine"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_resume"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_semaine"
+      ],
+      [
+        "public",
+        "vw_metrics_agent_table_period"
+      ],
+      [
+        "public",
+        "vw_srm_historique_fact"
+      ],
+      [
+        "public",
+        "vw_srm_incomplet_fact"
+      ],
+      [
+        "public",
+        "vw_srm_intervention_fact"
+      ],
+      [
+        "public",
+        "vw_srm_objet_activity_fact"
+      ],
+      [
+        "public",
+        "vw_srm_objet_dates"
+      ],
+      [
+        "public",
+        "vw_srm_objet_fact"
+      ],
+      [
+        "public",
+        "vw_srm_photo_fact"
+      ]
+    ],
+    "changed": []
+  },
+  "matviews": {
+    "only_current": [],
+    "only_reference": [],
+    "changed": []
+  },
+  "triggers": {
+    "only_current": [
+      [
+        "public",
+        "formulaire_config_mobile",
+        "trg_srm_formulaire_config_mobile_download_guard"
+      ],
+      [
+        "public",
+        "objet_photo",
+        "trg_objet_photo_prevent_new_extra_slots"
+      ]
+    ],
+    "only_reference": [
+      [
+        "public",
+        "formulaire_config_mobile",
+        "trg_formulaire_config_mobile_updated_at"
+      ]
+    ],
+    "changed": []
+  },
+  "functions": {
+    "only_current": [
+      [
+        "public",
+        "objet_photo_prevent_new_extra_slots",
+        ""
+      ],
+      [
+        "public",
+        "srm_formulaire_config_mobile_download_guard",
+        ""
+      ]
+    ],
+    "only_reference": [
+      [
+        "public",
+        "srm_pointz_from_geom_or_coords",
+        "input_geom geometry, input_x double precision, input_y double precision, input_z double precision"
+      ],
+      [
+        "public",
+        "srm_regard_pointz_from_geom_or_coords",
+        "input_geom geometry, input_x double precision, input_y double precision, input_z double precision"
+      ]
+    ],
+    "changed": [
+      {
+        "key": [
+          "ep",
+          "srm_fill_ep_brc_pt_customer_link",
+          ""
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION ep.srm_fill_ep_brc_pt_customer_link()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    contract_key text;\n    police_key text;\n    spatial_commune_key text;\n    onep_commune_key text;\n    onep_count integer := 0;\n    matched_by_contract boolean := false;\n    client_found boolean := false;\n    client record;\n    note text;\nBEGIN\n    contract_key := NULLIF(btrim(coalesce(NEW.num_contrat, '')), '');\n    police_key := NULLIF(btrim(coalesce(NEW.ancienne_police, '')), '');\n    spatial_commune_key := public.srm_ep_spatial_commune_key(NEW.geom);\n\n    IF contract_key IS NOT NULL THEN\n        SELECT count(*)\n        INTO onep_count\n        FROM ep.onep_db o\n        WHERE btrim(o.\"numero de contrat\"::text) = contract_key;\n\n        IF onep_count = 1 THEN\n            SELECT\n                o.\"numero de contrat\"::text AS numero_contrat,\n                o.\"ancienne reference sap\"::text AS ancienne_reference_sap,\n                o.\"ancienne police\"::text AS ancienne_police,\n                coalesce(o.\"nom commune_1\", o.\"nom commune\")::text AS nom_commune,\n                o.\"nom/raison sociale du client payeur\"::text AS nom_client,\n                o.\"prenom du client payeur\"::text AS prenom_client,\n                o.\"identifiant geographique\"::text AS identifiant_geographique,\n                o.\"libelle etat abonnement\"::text AS etat_abonnement,\n                o.\"adresse postale client payeur\"::text AS adresse\n            INTO client\n            FROM ep.onep_db o\n            WHERE btrim(o.\"numero de contrat\"::text) = contract_key\n            LIMIT 1;\n            client_found := true;\n            matched_by_contract := true;\n        ELSIF onep_count > 1 THEN\n            NEW.ep_observation := public.srm_append_compteur_abonne_observation(\n                NEW.ep_observation,\n                'Liaison ONEP ambigue: numero de contrat ' || contract_key\n            );\n        END IF;\n    END IF;\n\n    IF NOT client_found\n       AND police_key IS NOT NULL\n       AND upper(police_key) NOT IN ('NEANT', 'NÉANT', 'NULL')\n       AND spatial_commune_key IS NOT NULL THEN\n        SELECT count(*)\n        INTO onep_count\n        FROM ep.onep_db o\n        WHERE btrim(o.\"ancienne police\"::text) = police_key\n          AND public.srm_onep_commune_key(coalesce(o.\"nom commune_1\", o.\"nom commune\")) = spatial_commune_key;\n\n        IF onep_count = 1 THEN\n            SELECT\n                o.\"numero de contrat\"::text AS numero_contrat,\n                o.\"ancienne reference sap\"::text AS ancienne_reference_sap,\n                o.\"ancienne police\"::text AS ancienne_police,\n                coalesce(o.\"nom commune_1\", o.\"nom commune\")::text AS nom_commune,\n                o.\"nom/raison sociale du client payeur\"::text AS nom_client,\n                o.\"prenom du client payeur\"::text AS prenom_client,\n                o.\"identifiant geographique\"::text AS identifiant_geographique,\n                o.\"libelle etat abonnement\"::text AS etat_abonnement,\n                o.\"adresse postale client payeur\"::text AS adresse\n            INTO client\n            FROM ep.onep_db o\n            WHERE btrim(o.\"ancienne police\"::text) = police_key\n              AND public.srm_onep_commune_key(coalesce(o.\"nom commune_1\", o.\"nom commune\")) = spatial_commune_key\n            LIMIT 1;\n            client_found := true;\n        ELSIF onep_count > 1 THEN\n            NEW.ep_observation := public.srm_append_compteur_abonne_observation(\n                NEW.ep_observation,\n                'Liaison ONEP ambigue: ancienne police ' || police_key\n                    || ' / commune ' || spatial_commune_key\n            );\n        END IF;\n    END IF;\n\n    IF client_found THEN\n        NEW.num_contrat := coalesce(NULLIF(btrim(client.numero_contrat), ''), NEW.num_contrat);\n        NEW.ref := coalesce(NULLIF(btrim(client.ancienne_reference_sap), ''), NEW.ref);\n        NEW.ancien_ref_sap := coalesce(NULLIF(btrim(client.ancienne_reference_sap), ''), NEW.ancien_ref_sap);\n        NEW.id_geo := coalesce(NULLIF(btrim(client.identifiant_geographique), ''), NEW.id_geo);\n        NEW.ancienne_police := coalesce(NULLIF(btrim(client.ancienne_police), ''), NEW.ancienne_police);\n        NEW.nom := coalesce(NULLIF(btrim(client.nom_client), ''), NEW.nom);\n        NEW.abon := coalesce(NULLIF(btrim(client.prenom_client), ''), NEW.abon);\n        NEW.adresse := coalesce(NULLIF(btrim(client.adresse), ''), NEW.adresse);\n        NEW.etat_abonnement := coalesce(NULLIF(btrim(client.etat_abonnement), ''), NEW.etat_abonnement);\n\n        IF matched_by_contract AND spatial_commune_key IS NOT NULL THEN\n            onep_commune_key := public.srm_onep_commune_key(client.nom_commune);\n            IF onep_commune_key IS NOT NULL AND onep_commune_key <> spatial_commune_key THEN\n                note := 'Incoherence decoupage client: ONEP='\n                    || coalesce(client.nom_commune, '?')\n                    || ', spatial=' || spatial_commune_key\n                    || '. Liaison conservee par numero de contrat.';\n                NEW.ep_observation := public.srm_append_compteur_abonne_observation(\n                    NEW.ep_observation,\n                    note\n                );\n            END IF;\n        END IF;\n    END IF;\n\n    RETURN NEW;\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION ep.srm_fill_ep_brc_pt_customer_link()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nDECLARE\r\n    contract_key text;\r\n    police_key text;\r\n    spatial_commune_key text;\r\n    onep_commune_key text;\r\n    onep_count integer := 0;\r\n    matched_by_contract boolean := false;\r\n    client_found boolean := false;\r\n    client record;\r\n    note text;\r\nBEGIN\r\n    contract_key := NULLIF(btrim(coalesce(NEW.num_contrat, '')), '');\r\n    police_key := NULLIF(btrim(coalesce(NEW.ancienne_police, '')), '');\r\n    spatial_commune_key := public.srm_ep_spatial_commune_key(NEW.geom);\r\n\r\n    IF contract_key IS NOT NULL THEN\r\n        SELECT count(*)\r\n        INTO onep_count\r\n        FROM ep.onep_db o\r\n        WHERE btrim(o.\"numero de contrat\"::text) = contract_key;\r\n\r\n        IF onep_count = 1 THEN\r\n            SELECT\r\n                o.\"numero de contrat\"::text AS numero_contrat,\r\n                o.\"ancienne reference sap\"::text AS ancienne_reference_sap,\r\n                o.\"ancienne police\"::text AS ancienne_police,\r\n                coalesce(o.\"nom commune_1\", o.\"nom commune\")::text AS nom_commune,\r\n                o.\"nom/raison sociale du client payeur\"::text AS nom_client,\r\n                o.\"prenom du client payeur\"::text AS prenom_client,\r\n                o.\"identifiant geographique\"::text AS identifiant_geographique,\r\n                o.\"libelle etat abonnement\"::text AS etat_abonnement,\r\n                o.\"adresse postale client payeur\"::text AS adresse\r\n            INTO client\r\n            FROM ep.onep_db o\r\n            WHERE btrim(o.\"numero de contrat\"::text) = contract_key\r\n            LIMIT 1;\r\n            client_found := true;\r\n            matched_by_contract := true;\r\n        ELSIF onep_count > 1 THEN\r\n            NEW.ep_observation := public.srm_append_compteur_abonne_observation(\r\n                NEW.ep_observation,\r\n                'Liaison ONEP ambigue: numero de contrat ' || contract_key\r\n            );\r\n        END IF;\r\n    END IF;\r\n\r\n    IF NOT client_found\r\n       AND police_key IS NOT NULL\r\n       AND upper(police_key) NOT IN ('NEANT', 'NÉANT', 'NULL')\r\n       AND spatial_commune_key IS NOT NULL THEN\r\n        SELECT count(*)\r\n        INTO onep_count\r\n        FROM ep.onep_db o\r\n        WHERE btrim(o.\"ancienne police\"::text) = police_key\r\n          AND public.srm_onep_commune_key(coalesce(o.\"nom commune_1\", o.\"nom commune\")) = spatial_commune_key;\r\n\r\n        IF onep_count = 1 THEN\r\n            SELECT\r\n                o.\"numero de contrat\"::text AS numero_contrat,\r\n                o.\"ancienne reference sap\"::text AS ancienne_reference_sap,\r\n                o.\"ancienne police\"::text AS ancienne_police,\r\n                coalesce(o.\"nom commune_1\", o.\"nom commune\")::text AS nom_commune,\r\n                o.\"nom/raison sociale du client payeur\"::text AS nom_client,\r\n                o.\"prenom du client payeur\"::text AS prenom_client,\r\n                o.\"identifiant geographique\"::text AS identifiant_geographique,\r\n                o.\"libelle etat abonnement\"::text AS etat_abonnement,\r\n                o.\"adresse postale client payeur\"::text AS adresse\r\n            INTO client\r\n            FROM ep.onep_db o\r\n            WHERE btrim(o.\"ancienne police\"::text) = police_key\r\n              AND public.srm_onep_commune_key(coalesce(o.\"nom commune_1\", o.\"nom commune\")) = spatial_commune_key\r\n            LIMIT 1;\r\n            client_found := true;\r\n        ELSIF onep_count > 1 THEN\r\n            NEW.ep_observation := public.srm_append_compteur_abonne_observation(\r\n                NEW.ep_observation,\r\n                'Liaison ONEP ambigue: ancienne police ' || police_key\r\n                    || ' / commune ' || spatial_commune_key\r\n            );\r\n        END IF;\r\n    END IF;\r\n\r\n    IF client_found THEN\r\n        NEW.num_contrat := coalesce(NULLIF(btrim(client.numero_contrat), ''), NEW.num_contrat);\r\n        NEW.ref := coalesce(NULLIF(btrim(client.ancienne_reference_sap), ''), NEW.ref);\r\n        NEW.ancien_ref_sap := coalesce(NULLIF(btrim(client.ancienne_reference_sap), ''), NEW.ancien_ref_sap);\r\n        NEW.id_geo := coalesce(NULLIF(btrim(client.identifiant_geographique), ''), NEW.id_geo);\r\n        NEW.ancienne_police := coalesce(NULLIF(btrim(client.ancienne_police), ''), NEW.ancienne_police);\r\n        NEW.nom := coalesce(NULLIF(btrim(client.nom_client), ''), NEW.nom);\r\n        NEW.abon := coalesce(NULLIF(btrim(client.prenom_client), ''), NEW.abon);\r\n        NEW.adresse := coalesce(NULLIF(btrim(client.adresse), ''), NEW.adresse);\r\n        NEW.etat_abonnement := coalesce(NULLIF(btrim(client.etat_abonnement), ''), NEW.etat_abonnement);\r\n\r\n        IF matched_by_contract AND spatial_commune_key IS NOT NULL THEN\r\n            onep_commune_key := public.srm_onep_commune_key(client.nom_commune);\r\n            IF onep_commune_key IS NOT NULL AND onep_commune_key <> spatial_commune_key THEN\r\n                note := 'Incoherence decoupage client: ONEP='\r\n                    || coalesce(client.nom_commune, '?')\r\n                    || ', spatial=' || spatial_commune_key\r\n                    || '. Liaison conservee par numero de contrat.';\r\n                NEW.ep_observation := public.srm_append_compteur_abonne_observation(\r\n                    NEW.ep_observation,\r\n                    note\r\n                );\r\n            END IF;\r\n        END IF;\r\n    END IF;\r\n\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "capture_historique_attribut",
+          ""
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.capture_historique_attribut()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\n\nDECLARE\n\n    pk_column_name text := TG_ARGV[0];\n\n    v_new jsonb := CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW) ELSE '{}'::jsonb END;\n\n    v_old jsonb := CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD) ELSE '{}'::jsonb END;\n\n    v_old_delta jsonb := '{}'::jsonb;\n\n    v_new_delta jsonb := '{}'::jsonb;\n\n    v_payload_old jsonb;\n\n    v_payload_new jsonb;\n\n    v_key text;\n\n    v_pk_value text;\n\n    v_id_objet integer;\n\n    v_id_user integer;\n\n    v_id_user_text text;\n\n    v_nom_user text;\n\n    v_action text;\n\n    v_source text;\n\n    v_ignored_columns text[] := ARRAY[\n\n        'updated_at',\n\n        'mot_de_passe',\n\n        'mot_de_passe_hash',\n\n        'password'\n\n    ];\n\nBEGIN\n\n    v_pk_value := COALESCE(v_new ->> pk_column_name, v_old ->> pk_column_name);\n\n    IF v_pk_value ~ '^[0-9]+$' THEN\n\n        v_id_objet := v_pk_value::integer;\n\n    ELSE\n\n        IF TG_OP = 'DELETE' THEN\n\n            RETURN OLD;\n\n        END IF;\n\n        RETURN NEW;\n\n    END IF;\n\n\n\n    v_id_user_text := NULLIF(current_setting('app.current_user_id', true), '');\n\n    IF v_id_user_text IS NULL THEN\n\n        v_id_user_text := COALESCE(\n\n            NULLIF(v_new ->> 'id_agent_modif', ''),\n\n            NULLIF(v_old ->> 'id_agent_modif', ''),\n\n            NULLIF(v_new ->> 'id_agent_crea', ''),\n\n            NULLIF(v_old ->> 'id_agent_crea', ''),\n\n            NULLIF(v_new ->> 'id_agent_incomplet', ''),\n\n            NULLIF(v_old ->> 'id_agent_incomplet', ''),\n\n            NULLIF(v_new ->> 'id_agent_completement', ''),\n\n            NULLIF(v_old ->> 'id_agent_completement', ''),\n\n            NULLIF(v_new ->> 'id_agent_signal', ''),\n\n            NULLIF(v_old ->> 'id_agent_signal', ''),\n\n            NULLIF(v_new ->> 'id_agent_retour', ''),\n\n            NULLIF(v_old ->> 'id_agent_retour', ''),\n\n            NULLIF(v_new ->> 'id_agent', ''),\n\n            NULLIF(v_old ->> 'id_agent', ''),\n\n            NULLIF(v_new ->> 'id_user_modif', ''),\n\n            NULLIF(v_old ->> 'id_user_modif', ''),\n\n            NULLIF(v_new ->> 'id_user_creat', ''),\n\n            NULLIF(v_old ->> 'id_user_creat', ''),\n\n            NULLIF(v_new ->> 'id_user_valid', ''),\n\n            NULLIF(v_old ->> 'id_user_valid', ''),\n\n            NULLIF(v_new ->> 'id_user_cloture', ''),\n\n            NULLIF(v_old ->> 'id_user_cloture', ''),\n\n            NULLIF(v_new ->> 'id_user_terrain', ''),\n\n            NULLIF(v_old ->> 'id_user_terrain', ''),\n\n            NULLIF(v_new ->> 'id_user_exploitant', ''),\n\n            NULLIF(v_old ->> 'id_user_exploitant', ''),\n\n            NULLIF(v_new ->> 'id_user_bureau', ''),\n\n            NULLIF(v_old ->> 'id_user_bureau', ''),\n\n            NULLIF(v_new ->> 'id_user', ''),\n\n            NULLIF(v_old ->> 'id_user', '')\n\n        );\n\n    END IF;\n\n\n\n    IF v_id_user_text ~ '^[0-9]+$'\n\n       AND EXISTS (SELECT 1 FROM public.utilisateur u WHERE u.id_user = v_id_user_text::integer) THEN\n\n        v_id_user := v_id_user_text::integer;\n\n        SELECT COALESCE(NULLIF(btrim(concat_ws(' ', u.prenom, u.nom)), ''), u.login)\n\n        INTO v_nom_user\n\n        FROM public.utilisateur u\n\n        WHERE u.id_user = v_id_user;\n\n    ELSE\n\n        v_id_user := NULL;\n\n        v_nom_user := NULL;\n\n    END IF;\n\n\n\n    v_source := lower(btrim(NULLIF(current_setting('app.history_source', true), '')));\n\n    IF v_source IN ('application mobile', 'mobile') THEN\n\n        v_source := 'mobile';\n\n    ELSE\n\n        v_source := 'bureau';\n\n    END IF;\n\n\n\n    v_action := lower(btrim(NULLIF(current_setting('app.history_action', true), '')));\n\n    IF v_action IS NULL THEN\n\n        v_action := CASE TG_OP\n\n            WHEN 'INSERT' THEN 'insert'\n\n            WHEN 'UPDATE' THEN 'update'\n\n            WHEN 'DELETE' THEN 'delete'\n\n        END;\n\n    END IF;\n\n\n\n    IF v_source = 'mobile' AND v_action NOT IN ('insert', 'update', 'validate') THEN\n\n        v_action := CASE TG_OP\n\n            WHEN 'INSERT' THEN 'insert'\n\n            ELSE 'update'\n\n        END;\n\n    END IF;\n\n\n\n    IF TG_OP = 'INSERT' THEN\n\n        v_payload_old := NULL;\n\n        v_payload_new := v_new - v_ignored_columns;\n\n        IF v_payload_new = '{}'::jsonb THEN\n\n            RETURN NEW;\n\n        END IF;\n\n    ELSIF TG_OP = 'UPDATE' THEN\n\n        FOR v_key IN\n\n            SELECT key\n\n            FROM (\n\n                SELECT jsonb_object_keys(v_new) AS key\n\n                UNION\n\n                SELECT jsonb_object_keys(v_old) AS key\n\n            ) keys_union\n\n        LOOP\n\n            IF v_key = ANY (v_ignored_columns) THEN\n\n                CONTINUE;\n\n            END IF;\n\n            IF (v_old -> v_key) IS NOT DISTINCT FROM (v_new -> v_key) THEN\n\n                CONTINUE;\n\n            END IF;\n\n            v_old_delta := v_old_delta || jsonb_build_object(v_key, v_old -> v_key);\n\n            v_new_delta := v_new_delta || jsonb_build_object(v_key, v_new -> v_key);\n\n        END LOOP;\n\n\n\n        IF v_old_delta = '{}'::jsonb AND v_new_delta = '{}'::jsonb THEN\n\n            RETURN NEW;\n\n        END IF;\n\n\n\n        v_payload_old := v_old_delta;\n\n        v_payload_new := v_new_delta;\n\n    ELSE\n\n        v_payload_old := v_old - v_ignored_columns;\n\n        v_payload_new := NULL;\n\n        IF v_payload_old = '{}'::jsonb THEN\n\n            RETURN OLD;\n\n        END IF;\n\n    END IF;\n\n\n\n    INSERT INTO public.historique_action (\n\n        nom_table,\n\n        id_objet,\n\n        action,\n\n        source,\n\n        id_user,\n\n        nom_user,\n\n        date_action,\n\n        old_data,\n\n        new_data\n\n    ) VALUES (\n\n        TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME,\n\n        v_id_objet,\n\n        v_action,\n\n        v_source,\n\n        v_id_user,\n\n        v_nom_user,\n\n        now(),\n\n        v_payload_old,\n\n        v_payload_new\n\n    );\n\n\n\n    IF TG_OP = 'DELETE' THEN\n\n        RETURN OLD;\n\n    END IF;\n\n    RETURN NEW;\n\nEND;\n\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.capture_historique_attribut()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nDECLARE\r\n    pk_column_name text := TG_ARGV[0];\r\n    v_new jsonb := CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW) ELSE '{}'::jsonb END;\r\n    v_old jsonb := CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD) ELSE '{}'::jsonb END;\r\n    v_old_delta jsonb := '{}'::jsonb;\r\n    v_new_delta jsonb := '{}'::jsonb;\r\n    v_payload_old jsonb;\r\n    v_payload_new jsonb;\r\n    v_key text;\r\n    v_pk_value text;\r\n    v_id_objet integer;\r\n    v_id_user integer;\r\n    v_id_user_text text;\r\n    v_nom_user text;\r\n    v_action text;\r\n    v_source text;\r\n    v_ignored_columns text[] := ARRAY[\r\n        'updated_at',\r\n        'mot_de_passe',\r\n        'mot_de_passe_hash',\r\n        'password'\r\n    ];\r\nBEGIN\r\n    v_pk_value := COALESCE(v_new ->> pk_column_name, v_old ->> pk_column_name);\r\n    IF v_pk_value ~ '^[0-9]+$' THEN\r\n        v_id_objet := v_pk_value::integer;\r\n    ELSE\r\n        IF TG_OP = 'DELETE' THEN\r\n            RETURN OLD;\r\n        END IF;\r\n        RETURN NEW;\r\n    END IF;\r\n\r\n    v_id_user_text := NULLIF(current_setting('app.current_user_id', true), '');\r\n    IF v_id_user_text IS NULL THEN\r\n        v_id_user_text := COALESCE(\r\n            NULLIF(v_new ->> 'id_agent_modif', ''),\r\n            NULLIF(v_old ->> 'id_agent_modif', ''),\r\n            NULLIF(v_new ->> 'id_agent_crea', ''),\r\n            NULLIF(v_old ->> 'id_agent_crea', ''),\r\n            NULLIF(v_new ->> 'id_agent_incomplet', ''),\r\n            NULLIF(v_old ->> 'id_agent_incomplet', ''),\r\n            NULLIF(v_new ->> 'id_agent_completement', ''),\r\n            NULLIF(v_old ->> 'id_agent_completement', ''),\r\n            NULLIF(v_new ->> 'id_agent_signal', ''),\r\n            NULLIF(v_old ->> 'id_agent_signal', ''),\r\n            NULLIF(v_new ->> 'id_agent_retour', ''),\r\n            NULLIF(v_old ->> 'id_agent_retour', ''),\r\n            NULLIF(v_new ->> 'id_agent', ''),\r\n            NULLIF(v_old ->> 'id_agent', ''),\r\n            NULLIF(v_new ->> 'id_user_modif', ''),\r\n            NULLIF(v_old ->> 'id_user_modif', ''),\r\n            NULLIF(v_new ->> 'id_user_creat', ''),\r\n            NULLIF(v_old ->> 'id_user_creat', ''),\r\n            NULLIF(v_new ->> 'id_user_valid', ''),\r\n            NULLIF(v_old ->> 'id_user_valid', ''),\r\n            NULLIF(v_new ->> 'id_user_cloture', ''),\r\n            NULLIF(v_old ->> 'id_user_cloture', ''),\r\n            NULLIF(v_new ->> 'id_user_terrain', ''),\r\n            NULLIF(v_old ->> 'id_user_terrain', ''),\r\n            NULLIF(v_new ->> 'id_user_exploitant', ''),\r\n            NULLIF(v_old ->> 'id_user_exploitant', ''),\r\n            NULLIF(v_new ->> 'id_user_bureau', ''),\r\n            NULLIF(v_old ->> 'id_user_bureau', ''),\r\n            NULLIF(v_new ->> 'id_user', ''),\r\n            NULLIF(v_old ->> 'id_user', '')\r\n        );\r\n    END IF;\r\n\r\n    IF v_id_user_text ~ '^[0-9]+$'\r\n       AND EXISTS (SELECT 1 FROM public.utilisateur u WHERE u.id_user = v_id_user_text::integer) THEN\r\n        v_id_user := v_id_user_text::integer;\r\n        SELECT COALESCE(NULLIF(btrim(concat_ws(' ', u.prenom, u.nom)), ''), u.login)\r\n        INTO v_nom_user\r\n        FROM public.utilisateur u\r\n        WHERE u.id_user = v_id_user;\r\n    ELSE\r\n        v_id_user := NULL;\r\n        v_nom_user := NULL;\r\n    END IF;\r\n\r\n    v_source := lower(btrim(NULLIF(current_setting('app.history_source', true), '')));\r\n    IF v_source IN ('application mobile', 'mobile') THEN\r\n        v_source := 'mobile';\r\n    ELSE\r\n        v_source := 'bureau';\r\n    END IF;\r\n\r\n    v_action := lower(btrim(NULLIF(current_setting('app.history_action', true), '')));\r\n    IF v_action IS NULL THEN\r\n        v_action := CASE TG_OP\r\n            WHEN 'INSERT' THEN 'insert'\r\n            WHEN 'UPDATE' THEN 'update'\r\n            WHEN 'DELETE' THEN 'delete'\r\n        END;\r\n    END IF;\r\n\r\n    IF v_source = 'mobile' AND v_action NOT IN ('insert', 'update', 'validate') THEN\r\n        v_action := CASE TG_OP\r\n            WHEN 'INSERT' THEN 'insert'\r\n            ELSE 'update'\r\n        END;\r\n    END IF;\r\n\r\n    IF TG_OP = 'INSERT' THEN\r\n        v_payload_old := NULL;\r\n        v_payload_new := v_new - v_ignored_columns;\r\n        IF v_payload_new = '{}'::jsonb THEN\r\n            RETURN NEW;\r\n        END IF;\r\n    ELSIF TG_OP = 'UPDATE' THEN\r\n        FOR v_key IN\r\n            SELECT key\r\n            FROM (\r\n                SELECT jsonb_object_keys(v_new) AS key\r\n                UNION\r\n                SELECT jsonb_object_keys(v_old) AS key\r\n            ) keys_union\r\n        LOOP\r\n            IF v_key = ANY (v_ignored_columns) THEN\r\n                CONTINUE;\r\n            END IF;\r\n            IF (v_old -> v_key) IS NOT DISTINCT FROM (v_new -> v_key) THEN\r\n                CONTINUE;\r\n            END IF;\r\n            v_old_delta := v_old_delta || jsonb_build_object(v_key, v_old -> v_key);\r\n            v_new_delta := v_new_delta || jsonb_build_object(v_key, v_new -> v_key);\r\n        END LOOP;\r\n\r\n        IF v_old_delta = '{}'::jsonb AND v_new_delta = '{}'::jsonb THEN\r\n            RETURN NEW;\r\n        END IF;\r\n\r\n        v_payload_old := v_old_delta;\r\n        v_payload_new := v_new_delta;\r\n    ELSE\r\n        v_payload_old := v_old - v_ignored_columns;\r\n        v_payload_new := NULL;\r\n        IF v_payload_old = '{}'::jsonb THEN\r\n            RETURN OLD;\r\n        END IF;\r\n    END IF;\r\n\r\n    INSERT INTO public.historique_action (\r\n        nom_table,\r\n        id_objet,\r\n        action,\r\n        source,\r\n        id_user,\r\n        nom_user,\r\n        date_action,\r\n        old_data,\r\n        new_data\r\n    ) VALUES (\r\n        TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME,\r\n        v_id_objet,\r\n        v_action,\r\n        v_source,\r\n        v_id_user,\r\n        v_nom_user,\r\n        now(),\r\n        v_payload_old,\r\n        v_payload_new\r\n    );\r\n\r\n    IF TG_OP = 'DELETE' THEN\r\n        RETURN OLD;\r\n    END IF;\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "intervention_anomalie_after_write_log",
+          ""
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.intervention_anomalie_after_write_log()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\n\r\nDECLARE\r\n\r\n    v_action varchar(50);\r\n\r\n    v_user integer;\r\n\r\n    v_comment text;\r\n\r\nBEGIN\r\n\r\n    IF TG_OP = 'INSERT' THEN\r\n\r\n        v_action := NEW.statut;\r\n\r\n        v_user := COALESCE(NEW.id_user_exploitant, NEW.id_user_terrain, NEW.id_user_bureau);\r\n\r\n        v_comment := COALESCE(NEW.commentaire_exploitant, NEW.commentaire_terrain, NEW.commentaire_bureau, '');\r\n\r\n\r\n\r\n        INSERT INTO public.intervention_log (\r\n\r\n            id_intervention, action, de_statut, a_statut, id_user, commentaire, date_action\r\n\r\n        ) VALUES (\r\n\r\n            NEW.id, v_action, NULL, NEW.statut, v_user, v_comment, COALESCE(NEW.date_creation, now()::timestamp)\r\n\r\n        );\r\n\r\n        RETURN NEW;\r\n\r\n    END IF;\r\n\r\n\r\n\r\n    IF OLD.statut IS DISTINCT FROM NEW.statut\r\n\r\n       OR OLD.responsable_actuel IS DISTINCT FROM NEW.responsable_actuel\r\n\r\n       OR OLD.etat_exploitant IS DISTINCT FROM NEW.etat_exploitant\r\n\r\n       OR OLD.etat_terrain IS DISTINCT FROM NEW.etat_terrain\r\n\r\n       OR OLD.etat_bureau IS DISTINCT FROM NEW.etat_bureau\r\n\r\n       OR OLD.commentaire_exploitant IS DISTINCT FROM NEW.commentaire_exploitant\r\n\r\n       OR OLD.commentaire_terrain IS DISTINCT FROM NEW.commentaire_terrain\r\n\r\n       OR OLD.commentaire_bureau IS DISTINCT FROM NEW.commentaire_bureau THEN\r\n\r\n        v_action := CASE\r\n\r\n            WHEN OLD.statut IS DISTINCT FROM NEW.statut THEN NEW.statut\r\n\r\n            ELSE 'update'\r\n\r\n        END;\r\n\r\n        v_user := COALESCE(\r\n\r\n            NEW.id_user_bureau,\r\n\r\n            NEW.id_user_terrain,\r\n\r\n            NEW.id_user_exploitant,\r\n\r\n            OLD.id_user_bureau,\r\n\r\n            OLD.id_user_terrain,\r\n\r\n            OLD.id_user_exploitant\r\n\r\n        );\r\n\r\n        v_comment := COALESCE(\r\n\r\n            NULLIF(NEW.commentaire_bureau, ''),\r\n\r\n            NULLIF(NEW.commentaire_terrain, ''),\r\n\r\n            NULLIF(NEW.commentaire_exploitant, ''),\r\n\r\n            ''\r\n\r\n        );\r\n\r\n\r\n\r\n        INSERT INTO public.intervention_log (\r\n\r\n            id_intervention, action, de_statut, a_statut, id_user, commentaire, date_action\r\n\r\n        ) VALUES (\r\n\r\n            NEW.id, v_action, OLD.statut, NEW.statut, v_user, v_comment, now()::timestamp\r\n\r\n        );\r\n\r\n    END IF;\r\n\r\n\r\n\r\n    RETURN NEW;\r\n\r\nEND;\r\n\r\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.intervention_anomalie_after_write_log()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nDECLARE\r\n    v_action varchar(50);\r\n    v_user integer;\r\n    v_comment text;\r\nBEGIN\r\n    IF TG_OP = 'INSERT' THEN\r\n        v_action := NEW.statut;\r\n        v_user := COALESCE(NEW.id_user_exploitant, NEW.id_user_terrain, NEW.id_user_bureau);\r\n        v_comment := COALESCE(NEW.commentaire_exploitant, NEW.commentaire_terrain, NEW.commentaire_bureau, '');\r\n\r\n        INSERT INTO public.intervention_log (\r\n            id_intervention, action, de_statut, a_statut, id_user, commentaire, date_action\r\n        ) VALUES (\r\n            NEW.id, v_action, NULL, NEW.statut, v_user, v_comment, COALESCE(NEW.date_creation, now()::timestamp)\r\n        );\r\n        RETURN NEW;\r\n    END IF;\r\n\r\n    IF OLD.statut IS DISTINCT FROM NEW.statut\r\n       OR OLD.responsable_actuel IS DISTINCT FROM NEW.responsable_actuel\r\n       OR OLD.etat_exploitant IS DISTINCT FROM NEW.etat_exploitant\r\n       OR OLD.etat_terrain IS DISTINCT FROM NEW.etat_terrain\r\n       OR OLD.etat_bureau IS DISTINCT FROM NEW.etat_bureau\r\n       OR OLD.commentaire_exploitant IS DISTINCT FROM NEW.commentaire_exploitant\r\n       OR OLD.commentaire_terrain IS DISTINCT FROM NEW.commentaire_terrain\r\n       OR OLD.commentaire_bureau IS DISTINCT FROM NEW.commentaire_bureau THEN\r\n        v_action := CASE\r\n            WHEN OLD.statut IS DISTINCT FROM NEW.statut THEN NEW.statut\r\n            ELSE 'update'\r\n        END;\r\n        v_user := COALESCE(\r\n            NEW.id_user_bureau,\r\n            NEW.id_user_terrain,\r\n            NEW.id_user_exploitant,\r\n            OLD.id_user_bureau,\r\n            OLD.id_user_terrain,\r\n            OLD.id_user_exploitant\r\n        );\r\n        v_comment := COALESCE(\r\n            NULLIF(NEW.commentaire_bureau, ''),\r\n            NULLIF(NEW.commentaire_terrain, ''),\r\n            NULLIF(NEW.commentaire_exploitant, ''),\r\n            ''\r\n        );\r\n\r\n        INSERT INTO public.intervention_log (\r\n            id_intervention, action, de_statut, a_statut, id_user, commentaire, date_action\r\n        ) VALUES (\r\n            NEW.id, v_action, OLD.statut, NEW.statut, v_user, v_comment, now()::timestamp\r\n        );\r\n    END IF;\r\n\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "intervention_anomalie_before_write",
+          ""
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.intervention_anomalie_before_write()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    IF NEW.nom_table IS NULL OR btrim(NEW.nom_table) = '' THEN\n        NEW.nom_table := CASE\n            WHEN position('.' in NEW.nom_classe) > 0 THEN NEW.nom_classe\n            WHEN NEW.nom_classe LIKE 'ep_%'   THEN 'ep.'   || NEW.nom_classe\n            WHEN NEW.nom_classe LIKE 'asst_%' THEN 'ass.'  || NEW.nom_classe\n            WHEN NEW.nom_classe LIKE 'ass_%'  THEN 'ass.'  || NEW.nom_classe\n            ELSE 'public.' || NEW.nom_classe\n        END;\n    END IF;\n\n    IF TG_OP = 'INSERT' THEN\n        NEW.date_creation := COALESCE(NEW.date_creation, now()::timestamp);\n        NEW.created_at    := COALESCE(NEW.created_at, NEW.date_creation AT TIME ZONE current_setting('TimeZone'), now());\n    ELSE\n        NEW.created_at    := COALESCE(NEW.created_at, OLD.created_at, NEW.date_creation AT TIME ZONE current_setting('TimeZone'), now());\n    END IF;\n\n    NEW.updated_at         := now();\n    NEW.statut             := COALESCE(NULLIF(NEW.statut, ''), 'signale');\n    NEW.responsable_actuel := COALESCE(NULLIF(NEW.responsable_actuel, ''), 'exploitant');\n    NEW.etat_exploitant    := COALESCE(NULLIF(NEW.etat_exploitant, ''), 'en_attente');\n    NEW.etat_terrain       := COALESCE(NULLIF(NEW.etat_terrain, ''), 'en_attente');\n    NEW.etat_bureau        := COALESCE(NULLIF(NEW.etat_bureau, ''), 'en_attente');\n\n    IF NEW.statut = 'signale' THEN\n        NEW.responsable_actuel := 'exploitant';\n    ELSIF NEW.statut = 'exploitant_traite' THEN\n        NEW.etat_exploitant    := 'traite';\n        NEW.date_exploitant    := COALESCE(NEW.date_exploitant, now()::timestamp);\n        NEW.responsable_actuel := 'terrain';\n    ELSIF NEW.statut = 'terrain_traite' THEN\n        NEW.etat_terrain       := 'traite';\n        NEW.date_terrain       := COALESCE(NEW.date_terrain, now()::timestamp);\n        NEW.responsable_actuel := 'bureau';\n    ELSIF NEW.statut = 'bureau_traite' THEN\n        NEW.etat_bureau        := 'traite';\n        NEW.date_bureau        := COALESCE(NEW.date_bureau, now()::timestamp);\n        NEW.responsable_actuel := 'bureau';\n    ELSIF NEW.statut = 'cloture' THEN\n        NEW.date_cloture       := COALESCE(NEW.date_cloture, now()::timestamp);\n        NEW.responsable_actuel := 'cloture';\n    ELSIF NEW.statut = 'annule' THEN\n        NEW.date_cloture       := COALESCE(NEW.date_cloture, now()::timestamp);\n        NEW.responsable_actuel := 'cloture';\n    ELSIF NEW.statut = 'retour_terrain' THEN\n        NEW.retour_terrain     := true;\n        NEW.etat_terrain       := 'en_attente';\n        NEW.responsable_actuel := 'terrain';\n    END IF;\n\n    RETURN NEW;\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.intervention_anomalie_before_write()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n    IF NEW.nom_table IS NULL OR btrim(NEW.nom_table) = '' THEN\r\n        NEW.nom_table := CASE\r\n            WHEN position('.' in NEW.nom_classe) > 0 THEN NEW.nom_classe\r\n            WHEN NEW.nom_classe LIKE 'ep_%' THEN 'ep.' || NEW.nom_classe\r\n            WHEN NEW.nom_classe LIKE 'asst_%' THEN 'ass.' || NEW.nom_classe\r\n            WHEN NEW.nom_classe LIKE 'ass_%' THEN 'ass.' || NEW.nom_classe\r\n            ELSE 'public.' || NEW.nom_classe\r\n        END;\r\n    END IF;\r\n\r\n    IF TG_OP = 'INSERT' THEN\r\n        NEW.date_creation := COALESCE(NEW.date_creation, now()::timestamp);\r\n        NEW.created_at := COALESCE(NEW.created_at, NEW.date_creation AT TIME ZONE current_setting('TimeZone'), now());\r\n    ELSE\r\n        NEW.created_at := COALESCE(NEW.created_at, OLD.created_at, NEW.date_creation AT TIME ZONE current_setting('TimeZone'), now());\r\n    END IF;\r\n\r\n    NEW.updated_at := now();\r\n    NEW.statut := COALESCE(NULLIF(NEW.statut, ''), 'signale');\r\n    NEW.responsable_actuel := COALESCE(NULLIF(NEW.responsable_actuel, ''), 'terrain');\r\n    NEW.etat_exploitant := COALESCE(NULLIF(NEW.etat_exploitant, ''), 'en_attente');\r\n    NEW.etat_terrain := COALESCE(NULLIF(NEW.etat_terrain, ''), 'en_attente');\r\n    NEW.etat_bureau := COALESCE(NULLIF(NEW.etat_bureau, ''), 'en_attente');\r\n\r\n    IF NEW.statut = 'signale' THEN\r\n        NEW.etat_terrain := COALESCE(NULLIF(NEW.etat_terrain, ''), 'en_attente');\r\n        NEW.responsable_actuel := 'terrain';\r\n    ELSIF NEW.statut = 'exploitant_traite' THEN\r\n        NEW.etat_exploitant := 'traite';\r\n        NEW.date_exploitant := COALESCE(NEW.date_exploitant, now()::timestamp);\r\n        NEW.responsable_actuel := 'terrain';\r\n    ELSIF NEW.statut = 'terrain_traite' THEN\r\n        NEW.etat_terrain := 'traite';\r\n        NEW.date_terrain := COALESCE(NEW.date_terrain, now()::timestamp);\r\n        NEW.responsable_actuel := 'exploitant';\r\n    ELSIF NEW.statut = 'bureau_traite' THEN\r\n        NEW.etat_bureau := 'traite';\r\n        NEW.date_bureau := COALESCE(NEW.date_bureau, now()::timestamp);\r\n        NEW.responsable_actuel := 'bureau';\r\n    ELSIF NEW.statut = 'cloture' THEN\r\n        NEW.date_cloture := COALESCE(NEW.date_cloture, now()::timestamp);\r\n        NEW.responsable_actuel := 'cloture';\r\n    ELSIF NEW.statut = 'annule' THEN\r\n        NEW.date_cloture := COALESCE(NEW.date_cloture, now()::timestamp);\r\n        NEW.responsable_actuel := 'cloture';\r\n    ELSIF NEW.statut = 'retour_terrain' THEN\r\n        NEW.retour_terrain := true;\r\n        NEW.etat_terrain := 'en_attente';\r\n        NEW.responsable_actuel := 'terrain';\r\n    END IF;\r\n\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "intervention_log_prevent_mutation",
+          ""
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.intervention_log_prevent_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\r\nBEGIN\r\r\n    IF current_setting('app.allow_intervention_log_mutation', true) = 'on' THEN\r\r\n        RETURN COALESCE(NEW, OLD);\r\r\n    END IF;\r\r\n\r\r\n    RAISE EXCEPTION 'intervention_log is append-only. Set app.allow_intervention_log_mutation=on for controlled maintenance.';\r\r\nEND;\r\r\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.intervention_log_prevent_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n    IF current_setting('app.allow_intervention_log_mutation', true) = 'on' THEN\r\n        RETURN COALESCE(NEW, OLD);\r\n    END IF;\r\n\r\n    RAISE EXCEPTION 'intervention_log is append-only. Set app.allow_intervention_log_mutation=on for controlled maintenance.';\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "set_updated_at",
+          ""
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  NEW.updated_at = now();\n  RETURN NEW;\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = now();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "srm_append_compteur_abonne_observation",
+          "current_value character varying, note text"
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.srm_append_compteur_abonne_observation(current_value character varying, note text)\n RETURNS character varying\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nDECLARE\n    clean_current text;\n    clean_note text;\n    combined text;\nBEGIN\n    clean_current := NULLIF(btrim(coalesce(current_value, '')), '');\n    clean_note := NULLIF(btrim(coalesce(note, '')), '');\n    IF clean_note IS NULL THEN\n        RETURN current_value;\n    END IF;\n    IF clean_current IS NOT NULL AND position(clean_note in clean_current) > 0 THEN\n        RETURN left(clean_current, 400)::character varying;\n    END IF;\n\n    combined := CASE\n        WHEN clean_current IS NULL THEN clean_note\n        ELSE clean_current || ' | ' || clean_note\n    END;\n    RETURN left(combined, 400)::character varying;\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.srm_append_compteur_abonne_observation(current_value character varying, note text)\n RETURNS character varying\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\r\nDECLARE\r\n    clean_current text;\r\n    clean_note text;\r\n    combined text;\r\nBEGIN\r\n    clean_current := NULLIF(btrim(coalesce(current_value, '')), '');\r\n    clean_note := NULLIF(btrim(coalesce(note, '')), '');\r\n    IF clean_note IS NULL THEN\r\n        RETURN current_value;\r\n    END IF;\r\n    IF clean_current IS NOT NULL AND position(clean_note in clean_current) > 0 THEN\r\n        RETURN left(clean_current, 400)::character varying;\r\n    END IF;\r\n\r\n    combined := CASE\r\n        WHEN clean_current IS NULL THEN clean_note\r\n        ELSE clean_current || ' | ' || clean_note\r\n    END;\r\n    RETURN left(combined, 400)::character varying;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "srm_ep_spatial_commune_key",
+          "point_geom geometry"
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.srm_ep_spatial_commune_key(point_geom geometry)\n RETURNS text\n LANGUAGE plpgsql\n STABLE\nAS $function$\nDECLARE\n    commune_key text;\nBEGIN\n    IF point_geom IS NULL THEN\n        RETURN NULL;\n    END IF;\n\n    SELECT public.srm_normalize_commune_name(c.nom)\n    INTO commune_key\n    FROM public.commune_oriental c\n    WHERE ST_Covers(c.geom, point_geom)\n    ORDER BY ST_Area(c.geom) ASC NULLS LAST\n    LIMIT 1;\n\n    RETURN commune_key;\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.srm_ep_spatial_commune_key(point_geom geometry)\n RETURNS text\n LANGUAGE plpgsql\n STABLE\nAS $function$\r\nDECLARE\r\n    commune_key text;\r\nBEGIN\r\n    IF point_geom IS NULL THEN\r\n        RETURN NULL;\r\n    END IF;\r\n\r\n    SELECT public.srm_normalize_commune_name(c.nom)\r\n    INTO commune_key\r\n    FROM public.commune_oriental c\r\n    WHERE ST_Covers(c.geom, point_geom)\r\n    ORDER BY ST_Area(c.geom) ASC NULLS LAST\r\n    LIMIT 1;\r\n\r\n    RETURN commune_key;\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "srm_normalize_commune_name",
+          "raw_value text"
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.srm_normalize_commune_name(raw_value text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nDECLARE\n    normalized text;\nBEGIN\n    normalized := upper(coalesce(raw_value, ''));\n    normalized := translate(\n        normalized,\n        'ÀÁÂÃÄÅĀĂĄÇĆČÈÉÊËĒĖĘÌÍÎÏĪĮÑÒÓÔÕÖŌÙÚÛÜŪÝŸŽàáâãäåāăąçćčèéêëēėęìíîïīįñòóôõöōùúûüūýÿž’`',\n        'AAAAAAAAACCCEEEEEEEIIIIIINOOOOOOUUUUUYYZaaaaaaaaaccceeeeeeeiiiiiinoooooouuuuuyyz  '\n    );\n    normalized := regexp_replace(normalized, '^COMMUNE\\s+', '', 'i');\n    normalized := regexp_replace(normalized, '^(D''|DE\\s+|DU\\s+|DES\\s+)', '', 'i');\n    normalized := regexp_replace(normalized, '[^A-Z0-9]+', ' ', 'g');\n    normalized := btrim(regexp_replace(normalized, '\\s+', ' ', 'g'));\n    RETURN NULLIF(normalized, '');\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.srm_normalize_commune_name(raw_value text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\r\nDECLARE\r\n    normalized text;\r\nBEGIN\r\n    normalized := upper(coalesce(raw_value, ''));\r\n    normalized := translate(\r\n        normalized,\r\n        'ÀÁÂÃÄÅĀĂĄÇĆČÈÉÊËĒĖĘÌÍÎÏĪĮÑÒÓÔÕÖŌÙÚÛÜŪÝŸŽàáâãäåāăąçćčèéêëēėęìíîïīįñòóôõöōùúûüūýÿž’`',\r\n        'AAAAAAAAACCCEEEEEEEIIIIIINOOOOOOUUUUUYYZaaaaaaaaaccceeeeeeeiiiiiinoooooouuuuuyyz  '\r\n    );\r\n    normalized := regexp_replace(normalized, '^COMMUNE\\s+', '', 'i');\r\n    normalized := regexp_replace(normalized, '^(D''|DE\\s+|DU\\s+|DES\\s+)', '', 'i');\r\n    normalized := regexp_replace(normalized, '[^A-Z0-9]+', ' ', 'g');\r\n    normalized := btrim(regexp_replace(normalized, '\\s+', ' ', 'g'));\r\n    RETURN NULLIF(normalized, '');\r\nEND;\r\n$function$\n"
+          }
+        }
+      },
+      {
+        "key": [
+          "public",
+          "srm_onep_commune_key",
+          "raw_value text"
+        ],
+        "diffs": {
+          "definition": {
+            "current": "CREATE OR REPLACE FUNCTION public.srm_onep_commune_key(raw_value text)\n RETURNS text\n LANGUAGE plpgsql\n STABLE\nAS $function$\nDECLARE\n    normalized text;\n    mapped text;\nBEGIN\n    normalized := public.srm_normalize_commune_name(raw_value);\n    IF normalized IS NULL THEN\n        RETURN NULL;\n    END IF;\n\n    SELECT public.srm_normalize_commune_name(alias.decoupage_nom_commune)\n    INTO mapped\n    FROM public.onep_commune_alias alias\n    WHERE alias.actif\n      AND public.srm_normalize_commune_name(alias.onep_nom_commune) = normalized\n    LIMIT 1;\n\n    RETURN coalesce(mapped, normalized);\nEND;\n$function$\n",
+            "reference": "CREATE OR REPLACE FUNCTION public.srm_onep_commune_key(raw_value text)\n RETURNS text\n LANGUAGE plpgsql\n STABLE\nAS $function$\r\nDECLARE\r\n    normalized text;\r\n    mapped text;\r\nBEGIN\r\n    normalized := public.srm_normalize_commune_name(raw_value);\r\n    IF normalized IS NULL THEN\r\n        RETURN NULL;\r\n    END IF;\r\n\r\n    SELECT public.srm_normalize_commune_name(alias.decoupage_nom_commune)\r\n    INTO mapped\r\n    FROM public.onep_commune_alias alias\r\n    WHERE alias.actif\r\n      AND public.srm_normalize_commune_name(alias.onep_nom_commune) = normalized\r\n    LIMIT 1;\r\n\r\n    RETURN coalesce(mapped, normalized);\r\nEND;\r\n$function$\n"
+          }
+        }
+      }
+    ]
+  },
+  "enums": {
+    "only_current": [],
+    "only_reference": [],
+    "changed": []
+  },
+  "sequences": {
+    "only_current": [],
+    "only_reference": [],
+    "changed": [
+      {
+        "key": [
+          "public",
+          "formulaire_config_mobile_id_seq"
+        ],
+        "diffs": {
+          "data_type": {
+            "current": "integer",
+            "reference": "bigint"
+          },
+          "max_value": {
+            "current": 2147483647,
+            "reference": 9223372036854775807
+          }
+        }
+      }
+    ]
+  },
+  "summary_by_schema": {
+    "public": {
+      "relations_only_reference": 17,
+      "columns_only_current": 1,
+      "columns_only_reference": 365,
+      "columns_changed": 8,
+      "constraints_only_reference": 5,
+      "constraints_changed": 1,
+      "indexes_only_reference": 2,
+      "indexes_changed": 1,
+      "views_only_reference": 17,
+      "triggers_only_current": 2,
+      "triggers_only_reference": 1,
+      "functions_only_current": 2,
+      "functions_only_reference": 2,
+      "functions_changed": 9,
+      "sequences_changed": 1
+    },
+    "ep": {
+      "columns_only_reference": 77,
+      "columns_changed": 171,
+      "constraints_only_reference": 6,
+      "functions_changed": 1
+    },
+    "asst": {},
+    "elec": {}
+  }
+}

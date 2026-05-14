@@ -1,6 +1,6 @@
 # SRM Collecte — Application Mobile
 
-Application mobile Flutter de collecte de données géospatiales pour les réseaux d'eau potable (EP), d'assainissement (ASS) et d'électricité (ELEC).
+Application mobile Flutter de collecte de données géospatiales pour les réseaux d'eau potable (EP) et d'assainissement (ASS).
 
 ## Architecture
 
@@ -13,21 +13,20 @@ SRM Collecte (Flutter/Dart)
 
 ## Métiers couverts
 
-| Métier | Schéma BD | Nb tables | Exemples d'objets |
-|--------|-----------|-----------|-------------------|
-| Eau Potable | `ep` | 27 | Vanne, Conduite, Regard, Réservoir, Borne fontaine |
-| Assainissement | `ass` | 9 | Regard, Canalisation, Bassin, Station |
-| Électricité | `elec` | 11 | Support, Poste, Coffret BT, Tronçon HTA |
+| Métier | Schéma BD | Exemples d'objets |
+|--------|-----------|-------------------|
+| Eau Potable | `ep` | Vanne, Conduite, Regard, Réservoir, Borne fontaine |
+| Assainissement | `ass` | Regard, Canalisation, Bassin, Station |
 
 ## Fonctionnalités clés
 
 - **Collecte GNSS** : coordonnées précises via mock location (récepteur GNSS externe)
 - **Double affichage** : position WGS84 sur carte + coordonnées X/Y Merchich Nord
-- **3 types de géométrie** : Points, Lignes (conduites/canalisations/tronçons), Polygones (planches)
+- **3 types de géométrie** : Points, Lignes (conduites/canalisations), Polygones
 - **Photos** : 1 à 4 photos par objet collecté
 - **Anomalies** : signalement avec type
 - **Mode offline** : stockage SQLite avec synchronisation différée
-- **Gestion par projet/mission** : chaque collecte est liée à un projet et une mission
+- **Affectation par zones** : la collecte et les fonds de plan suivent les zones affectées aux agents
 
 ## Prérequis
 
@@ -51,7 +50,7 @@ flutter run
 lib/
 ├── main.dart                          # Point d'entrée
 ├── core/
-│   ├── config/srm_config.dart         # Configuration EP/ASS/ELEC (47 entités)
+│   ├── config/srm_config.dart         # Configuration EP/ASS
 │   └── constants/
 │       ├── app_constants.dart          # Constantes globales
 │       └── projection_constants.dart   # Paramètres EPSG:26191
@@ -66,10 +65,9 @@ lib/
 
 ## Base de données
 
-La base PostGIS utilise 4 schémas :
-- `public` : utilisateur, projet, mission, commune
+La base PostGIS utilise 3 schémas principaux :
+- `public` : utilisateur, commune, zone, zone_utilisateur, synchronisation
 - `ep` : 27 tables eau potable
 - `ass` : 9 tables assainissement
-- `elec` : 11 tables électricité
 
 Toutes les géométries sont en **EPSG:26191 (Merchich Nord)**.

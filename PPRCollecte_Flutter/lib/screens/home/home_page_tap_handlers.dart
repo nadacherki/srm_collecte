@@ -1,9 +1,9 @@
 part of 'home_page.dart';
 
-void _showSpecialLineDetailsSheetImpl(
+void _showSrmLineDetailsSheetImpl(
   _HomePageState state, {
   required BuildContext context,
-  required String specialType,
+  required String entityType,
   required String statut,
   String? enqueteur,
   required String region,
@@ -49,26 +49,26 @@ void _showSpecialLineDetailsSheetImpl(
             ),
             const SizedBox(height: 12),
             Text(
-              safe(specialType),
+              safe(entityType),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             state._detailRow('Statut', safe(statut)),
             state._detailRow(
-              'Enqueteur',
+              'Enquêteur',
               state.enqueteurDisplayByStatut(
                 enqueteurValue: enqueteur,
                 statut: statut,
               ),
             ),
             if (!statut.toLowerCase().contains('localement')) ...[
-              state._detailRow('Region', safe(region)),
-              state._detailRow('Prefecture', safe(prefecture)),
+              state._detailRow('Région', safe(region)),
+              state._detailRow('Préfecture', safe(prefecture)),
               state._detailRow('Commune', safe(commune)),
             ],
             state._detailRow(
-              'Debut',
+              'Début',
               'X=${startLng.toStringAsFixed(6)} / Y=${startLat.toStringAsFixed(6)}',
             ),
             state._detailRow(
@@ -79,8 +79,9 @@ void _showSpecialLineDetailsSheetImpl(
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
                 children: [
                   if (editableItem != null &&
                       FormLockService.isEditable(editableItem))
@@ -89,7 +90,15 @@ void _showSpecialLineDetailsSheetImpl(
                         Navigator.pop(ctx);
                         await state._editMapItem(editableItem);
                       },
-                      child: const Text('Editer'),
+                      child: const Text('Éditer'),
+                    ),
+                  if (_supportsGeometryEditImpl(editableItem))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapGeometry(editableItem!);
+                      },
+                      child: const Text('Éditer géométrie'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -126,11 +135,11 @@ void _showLineDetailsSheetImpl(
   String? debutTravaux,
   String? finTravaux,
   String? financement,
-  String? projet,
   String? entreprise,
   Map<String, dynamic>? editableItem,
 }) {
-  String safe(String? value) => (value ?? '').trim().isEmpty ? '----' : value!.trim();
+  String safe(String? value) =>
+      (value ?? '').trim().isEmpty ? '----' : value!.trim();
 
   showModalBottomSheet(
     context: context,
@@ -164,7 +173,8 @@ void _showLineDetailsSheetImpl(
               const SizedBox(height: 12),
               Text(
                 'Ligne - ${safe(lineCode)}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
@@ -175,35 +185,35 @@ void _showLineDetailsSheetImpl(
                     children: [
                       state._detailRow('Statut', safe(statut)),
                       state._detailRow(
-                        'Enqueteur',
+                        'Enquêteur',
                         state.enqueteurDisplayByStatut(
                           enqueteurValue: enqueteur,
                           statut: statut,
                         ),
                       ),
                       if (!statut.toLowerCase().contains('localement')) ...[
-                        state._detailRow('Region', safe(region)),
-                        state._detailRow('Prefecture', safe(prefecture)),
+                        state._detailRow('Région', safe(region)),
+                        state._detailRow('Préfecture', safe(prefecture)),
                         state._detailRow('Commune', safe(commune)),
                       ],
                       state._detailRow('Nb points', nbPoints.toString()),
                       state._detailRow(
-                        'Debut',
+                        'Début',
                         'X=${startLng.toStringAsFixed(6)} / Y=${startLat.toStringAsFixed(6)}',
                       ),
                       state._detailRow(
                         'Fin',
                         'X=${endLng.toStringAsFixed(6)} / Y=${endLat.toStringAsFixed(6)}',
                       ),
-                      state._detailRow('Distance', '${distanceKm.toStringAsFixed(2)} km'),
+                      state._detailRow(
+                          'Distance', '${distanceKm.toStringAsFixed(2)} km'),
                       const Divider(),
                       state._detailRow('Plateforme', safe(plateforme)),
                       state._detailRow('Relief', safe(relief)),
-                      state._detailRow('Vegetation', safe(vegetation)),
-                      state._detailRow('Debut travaux', safe(debutTravaux)),
+                      state._detailRow('Végétation', safe(vegetation)),
+                      state._detailRow('Début travaux', safe(debutTravaux)),
                       state._detailRow('Fin travaux', safe(finTravaux)),
                       state._detailRow('Financement', safe(financement)),
-                      state._detailRow('Projet', safe(projet)),
                       state._detailRow('Entreprise', safe(entreprise)),
                     ],
                   ),
@@ -212,8 +222,9 @@ void _showLineDetailsSheetImpl(
               const Divider(),
               Align(
                 alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 6,
                   children: [
                     if (editableItem != null &&
                         FormLockService.isEditable(editableItem))
@@ -222,7 +233,15 @@ void _showLineDetailsSheetImpl(
                           Navigator.pop(ctx);
                           await state._editMapItem(editableItem);
                         },
-                        child: const Text('Editer'),
+                        child: const Text('Éditer'),
+                      ),
+                    if (_supportsGeometryEditImpl(editableItem))
+                      TextButton(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await state._editMapGeometry(editableItem!);
+                        },
+                        child: const Text('Éditer géométrie'),
                       ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -290,12 +309,12 @@ void _showPointDetailsSheetImpl(
             const SizedBox(height: 12),
             state._detailRow('Statut', safe(statut)),
             if (!statut.toLowerCase().contains('localement')) ...[
-              state._detailRow('Region', safe(region)),
-              state._detailRow('Prefecture', safe(prefecture)),
+              state._detailRow('Région', safe(region)),
+              state._detailRow('Préfecture', safe(prefecture)),
               state._detailRow('Commune', safe(commune)),
             ],
             state._detailRow(
-              'Enqueteur',
+              'Enquêteur',
               state.enqueteurDisplayByStatut(
                 enqueteurValue: enqueteur,
                 statut: statut,
@@ -303,14 +322,15 @@ void _showPointDetailsSheetImpl(
             ),
             state._detailRow('Code ligne', safe(lineCode)),
             state._detailRow(
-              'Coordonnees',
+              'Coordonnées',
               'X=${lng.toStringAsFixed(6)} / Y=${lat.toStringAsFixed(6)}',
             ),
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
                 children: [
                   if (editableItem != null &&
                       FormLockService.isEditable(editableItem))
@@ -319,7 +339,15 @@ void _showPointDetailsSheetImpl(
                         Navigator.pop(ctx);
                         await state._editMapItem(editableItem);
                       },
-                      child: const Text('Editer'),
+                      child: const Text('Éditer'),
+                    ),
+                  if (_supportsGeometryEditImpl(editableItem))
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await state._editMapGeometry(editableItem!);
+                      },
+                      child: const Text('Éditer géométrie'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -353,9 +381,9 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         lineCode: (data['line_code'] ?? '----').toString(),
         statut: type == 'line_local'
             ? ((data['synced'].toString() == '1')
-                ? 'Synchronisee'
-                : 'Enregistree localement')
-            : 'Sauvegardee (downloaded)',
+                ? 'Synchronisée'
+                : 'Enregistrée localement')
+            : 'Sauvegardée (téléchargée)',
         region: type == 'line_downloaded'
             ? (data['region_name'] ?? '----').toString()
             : (data['region_name'] ?? '').toString().isNotEmpty
@@ -384,33 +412,32 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
         debutTravaux: (data['work_start'] ?? '----').toString(),
         finTravaux: (data['work_end'] ?? '----').toString(),
         financement: (data['funding'] ?? '----').toString(),
-        projet: (data['project'] ?? '----').toString(),
         entreprise: (data['company'] ?? '----').toString(),
         editableItem: editableItem,
       );
       break;
 
-    case 'special_local':
-    case 'special_downloaded':
-      state._showSpecialLineDetailsSheet(
+    case 'srm_line_local':
+    case 'srm_line_downloaded':
+      state._showSrmLineDetailsSheet(
         context: state.context,
-        specialType: (data['special_type'] ?? '----').toString(),
-        statut: type == 'special_local'
+        entityType: (data['entity_title'] ?? '----').toString(),
+        statut: type == 'srm_line_local'
             ? ((data['synced'].toString() == '1')
-                ? 'Synchronisee'
-                : 'Enregistree localement')
-            : 'Sauvegardee (downloaded)',
-        region: type == 'special_downloaded'
+                ? 'Synchronisée'
+                : 'Enregistrée localement')
+            : 'Sauvegardée (téléchargée)',
+        region: type == 'srm_line_downloaded'
             ? (data['region_name'] ?? '----').toString()
             : (data['region_name'] ?? '').toString().isNotEmpty
                 ? (data['region_name']).toString()
                 : state._regionNom,
-        prefecture: type == 'special_downloaded'
+        prefecture: type == 'srm_line_downloaded'
             ? (data['prefecture_name'] ?? '----').toString()
             : (data['prefecture_name'] ?? '').toString().isNotEmpty
                 ? (data['prefecture_name']).toString()
                 : state._prefectureNom,
-        commune: type == 'special_downloaded'
+        commune: type == 'srm_line_downloaded'
             ? (data['commune_name'] ?? '----').toString()
             : (data['commune_name'] ?? '').toString().isNotEmpty
                 ? (data['commune_name']).toString()
@@ -430,9 +457,13 @@ void _handlePolylineTapImpl(_HomePageState state, Object? hitValue) {
 void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
   if (hitValue == null || hitValue is! PolygonTapData) return;
   final data = hitValue;
-  final titlePrefix = data.entityType.trim().isEmpty
-      ? 'Polygone'
-      : data.entityType.trim();
+
+  if (data.metier == 'Contexte') {
+    return;
+  }
+
+  final titlePrefix =
+      data.entityType.trim().isEmpty ? 'Polygone' : data.entityType.trim();
 
   showModalBottomSheet(
     context: state.context,
@@ -468,12 +499,20 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             const SizedBox(height: 12),
             state._detailRow('Statut', data.statut),
             if (data.metier.trim().isNotEmpty)
-              state._detailRow('Metier', data.metier),
+              state._detailRow('Métier', data.metier),
             state._detailRow('Code', data.code),
-            if (data.downloaded || data.synced) ...[
-              state._detailRow('Region', data.regionName.isEmpty ? '----' : data.regionName),
-              state._detailRow('Prefecture', data.prefectureName.isEmpty ? '----' : data.prefectureName),
-              state._detailRow('Commune', data.communeName.isEmpty ? '----' : data.communeName),
+            for (final entry in data.extraDetails.entries)
+              state._detailRow(entry.key, entry.value),
+            if ((data.downloaded || data.synced) &&
+                (data.regionName.isNotEmpty ||
+                    data.prefectureName.isNotEmpty ||
+                    data.communeName.isNotEmpty)) ...[
+              state._detailRow(
+                  'Région', data.regionName.isEmpty ? '----' : data.regionName),
+              state._detailRow('Préfecture',
+                  data.prefectureName.isEmpty ? '----' : data.prefectureName),
+              state._detailRow('Commune',
+                  data.communeName.isEmpty ? '----' : data.communeName),
             ],
             if (data.hasAnomalie)
               state._detailRow(
@@ -482,23 +521,26 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
                     ? data.typeAnomalie!
                     : 'Oui',
               ),
-            if (data.hasIncomplet)
-              state._detailRow('Objet incomplet', 'Oui'),
-            state._detailRow('Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
+            if (data.hasIncomplet) state._detailRow('Objet incomplet', 'Oui'),
+            if (data.superficie > 0)
+              state._detailRow(
+                  'Superficie', '${data.superficie.toStringAsFixed(4)} ha'),
             state._detailRow('Sommets', '${data.nbSommets} points'),
-            state._detailRow(
-              'Enqueteur',
-              state.enqueteurDisplayByStatut(
-                enqueteurValue: data.enqueteur,
-                statut: data.statut,
+            if (data.enqueteur.trim().isNotEmpty)
+              state._detailRow(
+                'Enquêteur',
+                state.enqueteurDisplayByStatut(
+                  enqueteurValue: data.enqueteur,
+                  statut: data.statut,
+                ),
               ),
-            ),
-            state._detailRow(
-              'Date creation',
-              data.dateCreation.length > 10
-                  ? data.dateCreation.substring(0, 10)
-                  : data.dateCreation,
-            ),
+            if (data.dateCreation.trim().isNotEmpty)
+              state._detailRow(
+                'Date création',
+                data.dateCreation.length > 10
+                    ? data.dateCreation.substring(0, 10)
+                    : data.dateCreation,
+              ),
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
@@ -512,7 +554,7 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
                         Navigator.pop(ctx);
                         await state._editMapItem(data.editableItem!);
                       },
-                      child: const Text('Editer'),
+                      child: const Text('Éditer'),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
@@ -528,6 +570,87 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
   );
 }
 
+void _handlePolygonLongPressImpl(_HomePageState state, Object? hitValue) {
+  if (hitValue == null || hitValue is! PolygonTapData) return;
+  final data = hitValue;
+
+  if (data.metier == 'Contexte') {
+    _showReferenceOverlayPopupImpl(state, data);
+  }
+}
+
+void _showReferenceOverlayPopupImpl(_HomePageState state, PolygonTapData data) {
+  final title = data.entityType.trim().isEmpty
+      ? 'Couche contexte'
+      : data.entityType.trim();
+  final details = data.extraDetails.entries
+      .where((entry) => entry.value.trim().isNotEmpty)
+      .toList();
+
+  showDialog(
+    context: state.context,
+    builder: (ctx) => AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(18, 16, 18, 6),
+      contentPadding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: details.isEmpty
+            ? [
+                Text(
+                  data.nom,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ]
+            : [
+                for (final entry in details)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${entry.key} : ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            entry.value,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Fermer'),
+        ),
+      ],
+    ),
+  );
+}
+
 Map<String, dynamic>? _editableItemFromDynamicImpl(dynamic raw) {
   if (raw == null) return null;
   if (raw is Map<String, dynamic>) return Map<String, dynamic>.from(raw);
@@ -535,12 +658,40 @@ Map<String, dynamic>? _editableItemFromDynamicImpl(dynamic raw) {
   return null;
 }
 
+bool _supportsGeometryEditImpl(Map<String, dynamic>? item) {
+  if (item == null || !FormLockService.isEditable(item)) {
+    return false;
+  }
+  final geoType = item['geometry_type']?.toString() ?? 'Point';
+  return geoType == 'Point' || geoType == 'LineString' || geoType == 'Polygon';
+}
+
+List<LatLng> _decodeGeometryPointsFromLooseStringImpl(String raw) {
+  final matches = RegExp(
+    r'lat:\s*([-0-9.]+),\s*lon:\s*([-0-9.]+)',
+  ).allMatches(raw);
+  return matches
+      .map((match) {
+        final lat = double.tryParse(match.group(1) ?? '');
+        final lon = double.tryParse(match.group(2) ?? '');
+        if (lat == null || lon == null) return null;
+        return LatLng(lat, lon);
+      })
+      .whereType<LatLng>()
+      .toList();
+}
+
 List<LatLng> _decodeGeometryPointsImpl(dynamic rawPoints) {
   if (rawPoints == null) return const [];
 
   try {
     final decoded = rawPoints is String ? jsonDecode(rawPoints) : rawPoints;
-    if (decoded is! List) return const [];
+    if (decoded is! List) {
+      if (rawPoints is String) {
+        return _decodeGeometryPointsFromLooseStringImpl(rawPoints);
+      }
+      return const [];
+    }
 
     final points = <LatLng>[];
     for (final coord in decoded) {
@@ -560,6 +711,9 @@ List<LatLng> _decodeGeometryPointsImpl(dynamic rawPoints) {
     }
     return points;
   } catch (_) {
+    if (rawPoints is String) {
+      return _decodeGeometryPointsFromLooseStringImpl(rawPoints);
+    }
     return const [];
   }
 }
@@ -594,6 +748,7 @@ Future<void> _editMapItemImpl(
         builder: (_) => SrmLigneFormPage(
           metier: metier,
           entityType: entityType,
+          displayTitle: item['source_title']?.toString(),
           linePoints: points,
           agentName: state.widget.agentName,
           existingData: item,
@@ -632,12 +787,16 @@ Future<void> _editMapItemImpl(
           existingData: item,
           metier: metier,
           entityType: entityType,
+          displayTitle: item['source_title']?.toString(),
         ),
       ),
     );
   } else {
-    final lat = (item['latitude_gps'] as num?)?.toDouble() ?? 0.0;
-    final lon = (item['longitude_gps'] as num?)?.toDouble() ?? 0.0;
+    final latLng = _resolveEditablePointLatLngImpl(
+      item: item,
+      metier: metier,
+      entityType: entityType,
+    );
 
     await Navigator.push(
       state.context,
@@ -646,8 +805,9 @@ Future<void> _editMapItemImpl(
           body: SrmPointFormWidget(
             metier: metier,
             entityType: entityType,
-            latitude: lat,
-            longitude: lon,
+            displayTitle: item['source_title']?.toString(),
+            latitude: latLng?.latitude ?? 0.0,
+            longitude: latLng?.longitude ?? 0.0,
             altitude: (item['altitude_gps'] as num?)?.toDouble(),
             agentName: state.widget.agentName,
             existingData: item,
@@ -664,4 +824,355 @@ Future<void> _editMapItemImpl(
   if (state.mounted) {
     await state._refreshAfterNavigation();
   }
+}
+
+Future<void> _editMapGeometryImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (!FormLockService.isEditable(item)) {
+    if (!state.mounted) return;
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      SnackBar(
+        content: Text(FormLockService.lockReason(item)),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final geoType = item['geometry_type']?.toString() ?? 'Point';
+  if (geoType == 'Point') {
+    await _movePointGeometryToCurrentGpsImpl(state, item);
+    return;
+  }
+  if (geoType == 'LineString') {
+    await _startLineGeometryEditImpl(state, item);
+    return;
+  }
+  if (geoType == 'Polygon') {
+    await _startPolygonGeometryEditImpl(state, item);
+    return;
+  }
+
+  if (!state.mounted) return;
+  ScaffoldMessenger.of(state.context).showSnackBar(
+    const SnackBar(
+      content:
+          Text('Édition géométrique disponible pour les points et lignes.'),
+      backgroundColor: Colors.orange,
+    ),
+  );
+}
+
+Future<void> _movePointGeometryToCurrentGpsImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final tableName = item['source_table']?.toString();
+  final id = _dynamicToIntImpl(item['id']);
+  if (metier == null || entityType == null || tableName == null || id == null) {
+    return;
+  }
+  if (!state._ensureGpsReadyForCapture()) return;
+
+  final target = state.userPosition ?? state.homeController.userPosition;
+  final confirm = await showDialog<bool>(
+    context: state.context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Déplacer le point'),
+      content: Text(
+        'La géométrie sera remplacée par la position GPS actuelle :\n'
+        'Lat ${target.latitude.toStringAsFixed(7)} / '
+        'Lon ${target.longitude.toStringAsFixed(7)}',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Appliquer'),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true) return;
+
+  try {
+    final projected = ProjectionService().wgs84ToMerchich(
+      longitude: target.longitude,
+      latitude: target.latitude,
+    );
+    final fields = SrmConfig.getFields(metier, entityType);
+    final xField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_x'),
+      orElse: () => '',
+    );
+    final yField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_y'),
+      orElse: () => '',
+    );
+    final zField = fields.firstWhere(
+      (field) => field.toLowerCase().endsWith('_coor_z'),
+      orElse: () => '',
+    );
+
+    final altitude = state.homeController.currentAltitude;
+    final data = <String, dynamic>{
+      'latitude_gps': target.latitude,
+      'longitude_gps': target.longitude,
+      'synced': 0,
+      'date_collecte': DateTime.now().toIso8601String(),
+      'mode_localisation': 'gnss',
+    };
+    if (altitude != null) {
+      data['altitude_gps'] = altitude;
+    }
+    if (xField.isNotEmpty) {
+      data[xField] = projected.x;
+    }
+    if (yField.isNotEmpty) {
+      data[yField] = projected.y;
+    }
+    if (zField.isNotEmpty && altitude != null) {
+      data[zField] = altitude;
+    }
+
+    await DatabaseHelper().updateEntitySrm(
+      tableName,
+      id,
+      data,
+      recordHistory: true,
+    );
+
+    if (!state.mounted) return;
+    await state._refreshAfterNavigation();
+    if (!state.mounted) return;
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Géométrie du point mise à jour.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } catch (e) {
+    if (!state.mounted) return;
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      SnackBar(
+        content: Text('Erreur édition géométrie : $e'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+}
+
+Future<void> _startLineGeometryEditImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (state.homeController.hasActiveCollection ||
+      state.homeController.hasPausedCollection) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+            'Terminez ou annulez le tracé en cours avant de modifier cette ligne.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final tableName = item['source_table']?.toString();
+  final id = _dynamicToIntImpl(item['id']);
+  if (metier == null || entityType == null || tableName == null || id == null) {
+    return;
+  }
+
+  final points = _decodeGeometryPointsImpl(item['points_json']);
+  if (points.length < 2) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Géométrie de ligne invalide.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  state._geometryEditLineItem = Map<String, dynamic>.from(item)
+    ..['source_metier'] = metier
+    ..['source_entity'] = entityType
+    ..['source_title'] = item['source_title']
+    ..['source_table'] = tableName;
+  state._pendingSrmLigneSelection = null;
+  state._ligneRedoPoints.clear();
+
+  final lineCode =
+      (item['line_code'] ?? item['code'] ?? item['uuid'] ?? 'geometry_edit_$id')
+          .toString();
+  await state.homeController.restoreFinishedLigneAsPaused(
+    id: id,
+    lineCode: lineCode,
+    points: points,
+    startTime: DateTime.tryParse(item['date_collecte']?.toString() ?? '') ??
+        DateTime.now(),
+    lastPointTime: DateTime.now(),
+    totalDistance: _polylineDistanceKmImpl(points) * 1000,
+    srmMetadata: {
+      'srmMetier': metier,
+      'srmEntityType': entityType,
+      'srmTitleApp': item['source_title'],
+      'srmTableName': tableName,
+      'geometryEdit': true,
+      'sourceId': id,
+    },
+  );
+  state.homeController.toggleLigneCollection();
+
+  if (!state.mounted) return;
+  state._setStateFromPart(() {});
+  ScaffoldMessenger.of(state.context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Mode édition géométrie activé. Ajustez la ligne puis validez.',
+      ),
+      backgroundColor: Color(0xFF1976D2),
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
+
+Future<void> _startPolygonGeometryEditImpl(
+  _HomePageState state,
+  Map<String, dynamic> item,
+) async {
+  if (state.homeController.hasActiveCollection ||
+      state.homeController.hasPausedCollection) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Terminez ou annulez le tracé en cours avant de modifier ce polygone.',
+        ),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final metier = item['source_metier']?.toString();
+  final entityType = item['source_entity']?.toString();
+  final tableName = item['source_table']?.toString();
+  final id = _dynamicToIntImpl(item['id']);
+  if (metier == null || entityType == null || tableName == null || id == null) {
+    return;
+  }
+
+  final points = _decodeGeometryPointsImpl(item['points_json']);
+  if (points.length > 1 &&
+      points.first.latitude == points.last.latitude &&
+      points.first.longitude == points.last.longitude) {
+    points.removeLast();
+  }
+  if (points.length < 3) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Géométrie de polygone invalide.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  state._geometryEditPolygonItem = Map<String, dynamic>.from(item)
+    ..['source_metier'] = metier
+    ..['source_entity'] = entityType
+    ..['source_title'] = item['source_title']
+    ..['source_table'] = tableName;
+  state._pendingSrmPolygoneMetier = metier;
+  state._pendingSrmPolygoneEntityType = entityType;
+  state._pendingSrmPolygoneTitleApp = item['source_title']?.toString();
+  state._polygonRedoPoints.clear();
+  state._setStateFromPart(() {
+    state._isPolygonCollection = true;
+    state._polygonEntityType = entityType;
+    state._pendingPolygonPreviewPoints = null;
+  });
+
+  state.homeController.collectionManager.setSrmMetadata({
+    'srmMetier': metier,
+    'srmEntityType': entityType,
+    'srmTitleApp': item['source_title'],
+    'srmTableName': tableName,
+    'geometryEdit': true,
+    'sourceId': id,
+    'isPolygonCollection': true,
+    'polygonEntityType': entityType,
+  });
+  state.homeController.collectionManager.restorePolygonCollection({
+    'id': id,
+    'entityType': entityType,
+    'points':
+        points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+    'startTime': DateTime.tryParse(item['date_collecte']?.toString() ?? '')
+            ?.toIso8601String() ??
+        DateTime.now().toIso8601String(),
+    'lastPointTime': DateTime.now().toIso8601String(),
+    'totalDistance': 0.0,
+  });
+  state.homeController.togglePolygonCollection();
+
+  if (!state.mounted) return;
+  ScaffoldMessenger.of(state.context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Mode édition géométrie activé. Ajustez le polygone puis validez.',
+      ),
+      backgroundColor: Color(0xFF1976D2),
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
+
+LatLng? _resolveEditablePointLatLngImpl({
+  required Map<String, dynamic> item,
+  required String metier,
+  required String entityType,
+}) {
+  final latitude = (item['latitude_gps'] as num?)?.toDouble();
+  final longitude = (item['longitude_gps'] as num?)?.toDouble();
+  if (latitude != null && longitude != null) {
+    return LatLng(latitude, longitude);
+  }
+
+  final schema = SrmConfig.getSchema(metier, entityType);
+  if (schema == null || schema.isEmpty) {
+    return null;
+  }
+
+  final x = _dynamicToDoubleImpl(item['${schema}_coor_x']);
+  final y = _dynamicToDoubleImpl(item['${schema}_coor_y']);
+  if (x == null || y == null) {
+    return null;
+  }
+
+  final projected = ProjectionService().merchichToWgs84(x: x, y: y);
+  return LatLng(projected.latitude, projected.longitude);
+}
+
+int? _dynamicToIntImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString().trim());
+}
+
+double? _dynamicToDoubleImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString().trim());
 }

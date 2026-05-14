@@ -1,0 +1,1871 @@
+{
+  "summary": {
+    "generated_at": "2026-05-08T13:10:27",
+    "current_db": "SRM_bureau",
+    "source_db": "codex_cmp_srmo_vf_20260508",
+    "safety_backup": "backups/SRM_bureau_before_full_content_merge_20260508_130416.backup",
+    "common_tables": 103,
+    "only_current_tables": [
+      "public.intervention_anomalie_backup_before_bureau_workflow_20260508",
+      "public.intervention_log_backup_before_bureau_workflow_20260508",
+      "public.onep_commune_alias"
+    ],
+    "only_source_tables": [],
+    "tables_with_topology_cycle_or_unresolved_order": [
+      "elec.cellule",
+      "elec.coffret_bt",
+      "elec.depart_bt",
+      "elec.noeud_raccord",
+      "elec.point_desserte",
+      "elec.support",
+      "elec.transformateur",
+      "elec.troncon_bt"
+    ],
+    "total_inserted": 24131,
+    "tables_inserted": 26
+  },
+  "tables": [
+    {
+      "table": "asst.ASS_BASSIN_RET",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_BASSIN_RET_L",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_BASSIN_VERSANT",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_BORGNE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_BOUCHE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_BRANCHEMENT",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_CANIVEAU",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_CANIV_BRANCHE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_COLLECTEUR",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_COL_BOUCHE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_DEVERSOIR",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_ECOULEMENT",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_FOSSE_SEPT",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_OUED",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_OUV_TRAVERSEE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_POINTS-NOIRS",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_POMPE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_REFOULEMENTR",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_REGARD",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_REGARD_FACADE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_SECTEUR_ASS",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_STA_EPUR",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_STA_EPUR_L",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_STA_POMP",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS_STA_POMP_S",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "asst.ASS__EXUTOIRE",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.onep_db",
+      "before_rows": 10580,
+      "source_rows": 10580,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 10580,
+      "after_rows": 10580,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.attribut_config",
+      "before_rows": 1216,
+      "source_rows": 1273,
+      "inserted_rows": 57,
+      "skipped_existing_rows": 1155,
+      "after_rows": 1273,
+      "delta_rows": 57,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.attribut_config_mobile",
+      "before_rows": 3351,
+      "source_rows": 3351,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 3351,
+      "after_rows": 3351,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.dashboard_stats_cache",
+      "before_rows": 0,
+      "source_rows": 1,
+      "inserted_rows": 1,
+      "skipped_existing_rows": 0,
+      "after_rows": 1,
+      "delta_rows": 1,
+      "primary_key": [
+        "cache_key"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.django_migrations",
+      "before_rows": 43,
+      "source_rows": 31,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 31,
+      "after_rows": 43,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.fond_plan",
+      "before_rows": 18957,
+      "source_rows": 18957,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 18957,
+      "after_rows": 18957,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.formulaire_config_mobile",
+      "before_rows": 61,
+      "source_rows": 61,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 61,
+      "after_rows": 61,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": [
+        "download_mobile"
+      ]
+    },
+    {
+      "table": "public.mission_livraison",
+      "before_rows": 0,
+      "source_rows": 1,
+      "inserted_rows": 1,
+      "skipped_existing_rows": 0,
+      "after_rows": 1,
+      "delta_rows": 1,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.objet_photo",
+      "before_rows": 4269,
+      "source_rows": 11134,
+      "inserted_rows": 2734,
+      "skipped_existing_rows": 4269,
+      "after_rows": 7003,
+      "delta_rows": 2734,
+      "primary_key": [
+        "id_photo"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.old_liste_choix",
+      "before_rows": 0,
+      "source_rows": 1804,
+      "inserted_rows": 1804,
+      "skipped_existing_rows": 0,
+      "after_rows": 1804,
+      "delta_rows": 1804,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.permission",
+      "before_rows": 18,
+      "source_rows": 22,
+      "inserted_rows": 4,
+      "skipped_existing_rows": 18,
+      "after_rows": 22,
+      "delta_rows": 4,
+      "primary_key": [
+        "id_permission"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.planche",
+      "before_rows": 2204,
+      "source_rows": 2204,
+      "inserted_rows": 2204,
+      "skipped_existing_rows": 0,
+      "after_rows": 4408,
+      "delta_rows": 2204,
+      "primary_key": [],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.province",
+      "before_rows": 77,
+      "source_rows": 77,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 77,
+      "after_rows": 77,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.srm_field_option",
+      "before_rows": 38,
+      "source_rows": 38,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 38,
+      "after_rows": 38,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_option"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.utilisateur",
+      "before_rows": 11,
+      "source_rows": 13,
+      "inserted_rows": 1,
+      "skipped_existing_rows": 9,
+      "after_rows": 12,
+      "delta_rows": 1,
+      "primary_key": [
+        "id_user"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.liste_choix",
+      "before_rows": 935,
+      "source_rows": 935,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 935,
+      "after_rows": 935,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.mission_objet",
+      "before_rows": 0,
+      "source_rows": 792,
+      "inserted_rows": 792,
+      "skipped_existing_rows": 0,
+      "after_rows": 792,
+      "delta_rows": 792,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.commune",
+      "before_rows": 1505,
+      "source_rows": 1505,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 1505,
+      "after_rows": 1505,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.commune_oriental",
+      "before_rows": 34,
+      "source_rows": 34,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 34,
+      "after_rows": 34,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.statistique_conduite",
+      "before_rows": 0,
+      "source_rows": 302,
+      "inserted_rows": 302,
+      "skipped_existing_rows": 0,
+      "after_rows": 302,
+      "delta_rows": 302,
+      "primary_key": [
+        "id_statistique_conduite"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.historique_action",
+      "before_rows": 37996,
+      "source_rows": 46010,
+      "inserted_rows": 13858,
+      "skipped_existing_rows": 32152,
+      "after_rows": 51854,
+      "delta_rows": 13858,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.historique_traitement",
+      "before_rows": 0,
+      "source_rows": 5,
+      "inserted_rows": 5,
+      "skipped_existing_rows": 0,
+      "after_rows": 5,
+      "delta_rows": 5,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.intervention_anomalie",
+      "before_rows": 329,
+      "source_rows": 392,
+      "inserted_rows": 63,
+      "skipped_existing_rows": 329,
+      "after_rows": 392,
+      "delta_rows": 63,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.objet_incomplet",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_incomplet"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.sync_session",
+      "before_rows": 3,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 3,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_sync_session"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.utilisateur_permission",
+      "before_rows": 25,
+      "source_rows": 33,
+      "inserted_rows": 25,
+      "skipped_existing_rows": 8,
+      "after_rows": 50,
+      "delta_rows": 25,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.zone",
+      "before_rows": 21,
+      "source_rows": 21,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 21,
+      "after_rows": 21,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_zone"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.zone_utilisateur",
+      "before_rows": 65,
+      "source_rows": 25,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 25,
+      "after_rows": 65,
+      "delta_rows": 0,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.poste",
+      "before_rows": 11,
+      "source_rows": 11,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 11,
+      "after_rows": 11,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.autre_objet",
+      "before_rows": 578,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 578,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_coor_x",
+        "ep_coor_y"
+      ]
+    },
+    {
+      "table": "ep.ep_bf",
+      "before_rows": 464,
+      "source_rows": 267,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 267,
+      "after_rows": 464,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.statistique_conduite_segment",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_statistique_conduite_segment"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.conflit",
+      "before_rows": 0,
+      "source_rows": 1,
+      "inserted_rows": 1,
+      "skipped_existing_rows": 0,
+      "after_rows": 1,
+      "delta_rows": 1,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.intervention_log",
+      "before_rows": 658,
+      "source_rows": 1066,
+      "inserted_rows": 408,
+      "skipped_existing_rows": 658,
+      "after_rows": 1066,
+      "delta_rows": 408,
+      "primary_key": [
+        "id"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.sync_session_attachment",
+      "before_rows": 6,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 6,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_sync_attachment"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.sync_session_item",
+      "before_rows": 5,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 5,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_sync_item"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.anomalie_conduite",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.borne_onep",
+      "before_rows": 2,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 2,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "observation",
+        "date_leve",
+        "id_agent_crea",
+        "mode_localisation",
+        "anomalie",
+        "type_anomalie",
+        "conformite_plan"
+      ]
+    },
+    {
+      "table": "ep.centre_tampon",
+      "before_rows": 946,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 946,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_anomalie",
+        "date_leve",
+        "mode_localisation"
+      ]
+    },
+    {
+      "table": "ep.conduite_terrain",
+      "before_rows": 568,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 568,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_num",
+        "ep_type",
+        "ep_long_c",
+        "ep_long_r",
+        "ep_profondeur",
+        "ep_classe_conduite",
+        "emplacement",
+        "zamont",
+        "zaval",
+        "pente",
+        "zalerte",
+        "ref_rue",
+        "ep_entreprise",
+        "ep_ref_marche",
+        "ep_sect_hydro",
+        "ep_etage_p",
+        "etage_aqua",
+        "secteur_aqua",
+        "ep_statut",
+        "ep_date_interv",
+        "ep_croquis",
+        "ep_dxf_dwg",
+        "ep_detail",
+        "ep_lien",
+        "id_agent_crea",
+        "mode_localisation",
+        "anomalie",
+        "type_anomalie",
+        "conformite_plan",
+        "ep_ref_rue",
+        "ep_anomalie"
+      ]
+    },
+    {
+      "table": "ep.ep_bache",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_bouche_arro",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_branchement",
+      "before_rows": 199,
+      "source_rows": 1989,
+      "inserted_rows": 1607,
+      "skipped_existing_rows": 199,
+      "after_rows": 1806,
+      "delta_rows": 1607,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "emplacement"
+      ]
+    },
+    {
+      "table": "ep.ep_brc_pt",
+      "before_rows": 2553,
+      "source_rows": 2156,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 2156,
+      "after_rows": 2553,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_ref_rue",
+        "date_leve",
+        "diametre_calibre_terrain",
+        "diametre_conduite",
+        "ep_diam"
+      ]
+    },
+    {
+      "table": "ep.ep_compteur_i",
+      "before_rows": 46,
+      "source_rows": 37,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 37,
+      "after_rows": 46,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_conduite",
+      "before_rows": 1549,
+      "source_rows": 1626,
+      "inserted_rows": 60,
+      "skipped_existing_rows": 1549,
+      "after_rows": 1609,
+      "delta_rows": 60,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ref_rue",
+        "id_agent_crea",
+        "anomalie",
+        "type_anomalie",
+        "photo_1",
+        "photo_2",
+        "conformite_plan",
+        "altitude"
+      ]
+    },
+    {
+      "table": "ep.ep_cone_reduc",
+      "before_rows": 61,
+      "source_rows": 53,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 53,
+      "after_rows": 61,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_forage",
+      "before_rows": 2,
+      "source_rows": 2,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 2,
+      "after_rows": 2,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_statut"
+      ]
+    },
+    {
+      "table": "ep.ep_hydrant",
+      "before_rows": 14,
+      "source_rows": 19,
+      "inserted_rows": 9,
+      "skipped_existing_rows": 8,
+      "after_rows": 23,
+      "delta_rows": 9,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_etat_s",
+        "ep_diam"
+      ]
+    },
+    {
+      "table": "ep.ep_noeud",
+      "before_rows": 232,
+      "source_rows": 227,
+      "inserted_rows": 12,
+      "skipped_existing_rows": 215,
+      "after_rows": 244,
+      "delta_rows": 12,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_anomalie",
+        "mode_localisation"
+      ]
+    },
+    {
+      "table": "ep.ep_obturateur",
+      "before_rows": 418,
+      "source_rows": 442,
+      "inserted_rows": 16,
+      "skipped_existing_rows": 418,
+      "after_rows": 434,
+      "delta_rows": 16,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "emplacement"
+      ]
+    },
+    {
+      "table": "ep.ep_pompe",
+      "before_rows": 1,
+      "source_rows": 1,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 1,
+      "after_rows": 1,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_puit",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_reduc_pres",
+      "before_rows": 1,
+      "source_rows": 1,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 1,
+      "after_rows": 1,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_ref_rue"
+      ]
+    },
+    {
+      "table": "ep.ep_regard",
+      "before_rows": 1344,
+      "source_rows": 1439,
+      "inserted_rows": 5,
+      "skipped_existing_rows": 1344,
+      "after_rows": 1349,
+      "delta_rows": 5,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_regard_point",
+      "before_rows": 1344,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 1344,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_reservoir",
+      "before_rows": 11,
+      "source_rows": 32,
+      "inserted_rows": 16,
+      "skipped_existing_rows": 11,
+      "after_rows": 27,
+      "delta_rows": 16,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "emplacement"
+      ]
+    },
+    {
+      "table": "ep.ep_st_demineralisation",
+      "before_rows": 5,
+      "source_rows": 5,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 5,
+      "after_rows": 5,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_station_pompage",
+      "before_rows": 5,
+      "source_rows": 5,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 5,
+      "after_rows": 5,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "emplacement"
+      ]
+    },
+    {
+      "table": "ep.ep_traversee",
+      "before_rows": 20,
+      "source_rows": 102,
+      "inserted_rows": 67,
+      "skipped_existing_rows": 20,
+      "after_rows": 87,
+      "delta_rows": 67,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_long_c",
+        "ep_type"
+      ]
+    },
+    {
+      "table": "ep.ep_vanne",
+      "before_rows": 525,
+      "source_rows": 511,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 511,
+      "after_rows": 525,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_etat_s"
+      ]
+    },
+    {
+      "table": "ep.ep_ventouse",
+      "before_rows": 399,
+      "source_rows": 442,
+      "inserted_rows": 40,
+      "skipped_existing_rows": 399,
+      "after_rows": 439,
+      "delta_rows": 40,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.ep_vidange",
+      "before_rows": 302,
+      "source_rows": 356,
+      "inserted_rows": 39,
+      "skipped_existing_rows": 302,
+      "after_rows": 341,
+      "delta_rows": 39,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "ep_etat_s"
+      ]
+    },
+    {
+      "table": "ep.tn",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.voie",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "public.basemap_package",
+      "before_rows": 21,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 21,
+      "delta_rows": 0,
+      "primary_key": [
+        "id_package"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.depart_hta",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "ep.bouche_a_cles",
+      "before_rows": 352,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 352,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": [
+        "date_leve",
+        "observation",
+        "id_agent_crea",
+        "mode_localisation",
+        "anomalie",
+        "type_anomalie",
+        "id_compteur_abonne",
+        "id_conduite",
+        "conformite_plan"
+      ]
+    },
+    {
+      "table": "elec.troncon_hta",
+      "before_rows": 4,
+      "source_rows": 4,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 4,
+      "after_rows": 4,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.cellule",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.coffret_bt",
+      "before_rows": 434,
+      "source_rows": 434,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 434,
+      "after_rows": 434,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.depart_bt",
+      "before_rows": 11,
+      "source_rows": 11,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 11,
+      "after_rows": 11,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.noeud_raccord",
+      "before_rows": 0,
+      "source_rows": 0,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 0,
+      "after_rows": 0,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.point_desserte",
+      "before_rows": 885,
+      "source_rows": 885,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 885,
+      "after_rows": 885,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.support",
+      "before_rows": 78,
+      "source_rows": 78,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 78,
+      "after_rows": 78,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.transformateur",
+      "before_rows": 2,
+      "source_rows": 2,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 2,
+      "after_rows": 2,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    },
+    {
+      "table": "elec.troncon_bt",
+      "before_rows": 158,
+      "source_rows": 158,
+      "inserted_rows": 0,
+      "skipped_existing_rows": 158,
+      "after_rows": 158,
+      "delta_rows": 0,
+      "primary_key": [
+        "fid"
+      ],
+      "omitted_current_only_columns": []
+    }
+  ],
+  "sequences_reset": [
+    {
+      "table": "asst.ASS_BASSIN_RET",
+      "sequence": "asst.\"ASS_BASSIN_RET_id_seq\""
+    },
+    {
+      "table": "asst.ASS_BASSIN_RET_L",
+      "sequence": "asst.\"ASS_BASSIN_RET_L_id_seq\""
+    },
+    {
+      "table": "asst.ASS_BASSIN_VERSANT",
+      "sequence": "asst.\"ASS_BASSIN_VERSANT_id_seq\""
+    },
+    {
+      "table": "asst.ASS_BORGNE",
+      "sequence": "asst.\"ASS_BORGNE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_BOUCHE",
+      "sequence": "asst.\"ASS_BOUCHE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_BRANCHEMENT",
+      "sequence": "asst.\"ASS_BRANCHEMENT_id_seq\""
+    },
+    {
+      "table": "asst.ASS_CANIVEAU",
+      "sequence": "asst.\"ASS_CANIVEAU_id_seq\""
+    },
+    {
+      "table": "asst.ASS_CANIV_BRANCHE",
+      "sequence": "asst.\"ASS_CANIV_BRANCHE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_COLLECTEUR",
+      "sequence": "asst.\"ASS_COLLECTEUR_id_seq\""
+    },
+    {
+      "table": "asst.ASS_COL_BOUCHE",
+      "sequence": "asst.\"ASS_COL_BOUCHE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_DEVERSOIR",
+      "sequence": "asst.\"ASS_DEVERSOIR_id_seq\""
+    },
+    {
+      "table": "asst.ASS_ECOULEMENT",
+      "sequence": "asst.\"ASS_ECOULEMENT_id_seq\""
+    },
+    {
+      "table": "asst.ASS_FOSSE_SEPT",
+      "sequence": "asst.\"ASS_FOSSE_SEPT_id_seq\""
+    },
+    {
+      "table": "asst.ASS_OUED",
+      "sequence": "asst.\"ASS_OUED_id_seq\""
+    },
+    {
+      "table": "asst.ASS_OUV_TRAVERSEE",
+      "sequence": "asst.\"ASS_OUV_TRAVERSEE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_POINTS-NOIRS",
+      "sequence": "asst.\"ASS_POINTS-NOIRS_id_seq\""
+    },
+    {
+      "table": "asst.ASS_POMPE",
+      "sequence": "asst.\"ASS_POMPE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_REFOULEMENTR",
+      "sequence": "asst.\"ASS_REFOULEMENTR_id_seq\""
+    },
+    {
+      "table": "asst.ASS_REGARD",
+      "sequence": "asst.\"ASS_REGARD_id_seq\""
+    },
+    {
+      "table": "asst.ASS_REGARD_FACADE",
+      "sequence": "asst.\"ASS_REGARD_FACADE_id_seq\""
+    },
+    {
+      "table": "asst.ASS_SECTEUR_ASS",
+      "sequence": "asst.\"ASS_SECTEUR_ASS_id_seq\""
+    },
+    {
+      "table": "asst.ASS_STA_EPUR",
+      "sequence": "asst.\"ASS_STA_EPUR_id_seq\""
+    },
+    {
+      "table": "asst.ASS_STA_EPUR_L",
+      "sequence": "asst.\"ASS_STA_EPUR_L_id_seq\""
+    },
+    {
+      "table": "asst.ASS_STA_POMP",
+      "sequence": "asst.\"ASS_STA_POMP_id_seq\""
+    },
+    {
+      "table": "asst.ASS_STA_POMP_S",
+      "sequence": "asst.\"ASS_STA_POMP_S_id_seq\""
+    },
+    {
+      "table": "asst.ASS__EXUTOIRE",
+      "sequence": "asst.\"ASS__EXUTOIRE_id_seq\""
+    },
+    {
+      "table": "ep.onep_db",
+      "sequence": "ep.onep_db_id_seq"
+    },
+    {
+      "table": "public.attribut_config",
+      "sequence": "public.attribut_config_fid_seq"
+    },
+    {
+      "table": "public.attribut_config_mobile",
+      "sequence": "public.attribut_config_mobile_id_seq"
+    },
+    {
+      "table": "public.django_migrations",
+      "sequence": "public.django_migrations_id_seq"
+    },
+    {
+      "table": "public.fond_plan",
+      "sequence": "public.fond_plan_fid_seq"
+    },
+    {
+      "table": "public.formulaire_config_mobile",
+      "sequence": "public.formulaire_config_mobile_id_seq"
+    },
+    {
+      "table": "public.mission_livraison",
+      "sequence": "public.mission_livraison_id_seq"
+    },
+    {
+      "table": "public.objet_photo",
+      "sequence": "public.objet_photo_id_photo_seq"
+    },
+    {
+      "table": "public.old_liste_choix",
+      "sequence": "public.old_liste_choix_id_seq"
+    },
+    {
+      "table": "public.permission",
+      "sequence": "public.permission_id_permission_seq"
+    },
+    {
+      "table": "public.province",
+      "sequence": "public.province_maroc_fid_seq"
+    },
+    {
+      "table": "public.srm_field_option",
+      "sequence": "public.srm_field_option_id_option_seq"
+    },
+    {
+      "table": "public.utilisateur",
+      "sequence": "public.utilisateur_id_user_seq"
+    },
+    {
+      "table": "public.liste_choix",
+      "sequence": "public.liste_choix_id_seq"
+    },
+    {
+      "table": "public.mission_objet",
+      "sequence": "public.mission_objet_id_seq"
+    },
+    {
+      "table": "public.commune",
+      "sequence": "public.communes_maroc_fid_seq"
+    },
+    {
+      "table": "public.commune_oriental",
+      "sequence": "public.commune_oriental_fid_seq"
+    },
+    {
+      "table": "ep.statistique_conduite",
+      "sequence": "ep.statistique_conduite_id_statistique_conduite_seq"
+    },
+    {
+      "table": "public.historique_action",
+      "sequence": "public.historique_action_id_seq"
+    },
+    {
+      "table": "public.historique_traitement",
+      "sequence": "public.historique_traitement_id_seq"
+    },
+    {
+      "table": "public.intervention_anomalie",
+      "sequence": "public.intervention_anomalie_id_seq"
+    },
+    {
+      "table": "public.objet_incomplet",
+      "sequence": "public.objet_incomplet_id_incomplet_seq"
+    },
+    {
+      "table": "public.sync_session",
+      "sequence": "public.sync_session_id_sync_session_seq"
+    },
+    {
+      "table": "public.utilisateur_permission",
+      "sequence": "public.utilisateur_permission_id_seq"
+    },
+    {
+      "table": "public.zone",
+      "sequence": "public.zone_id_zone_seq"
+    },
+    {
+      "table": "public.zone_utilisateur",
+      "sequence": "public.zone_utilisateur_id_seq"
+    },
+    {
+      "table": "elec.poste",
+      "sequence": "elec.poste_fid_seq"
+    },
+    {
+      "table": "ep.autre_objet",
+      "sequence": "ep.autre_objet_fid_seq"
+    },
+    {
+      "table": "ep.ep_bf",
+      "sequence": "ep.ep_bf_fid_seq"
+    },
+    {
+      "table": "ep.statistique_conduite_segment",
+      "sequence": "ep.statistique_conduite_segment_id_statistique_conduite_segmen_seq"
+    },
+    {
+      "table": "public.conflit",
+      "sequence": "public.conflit_id_seq"
+    },
+    {
+      "table": "public.intervention_log",
+      "sequence": "public.intervention_log_id_seq"
+    },
+    {
+      "table": "public.sync_session_attachment",
+      "sequence": "public.sync_session_attachment_id_sync_attachment_seq"
+    },
+    {
+      "table": "public.sync_session_item",
+      "sequence": "public.sync_session_item_id_sync_item_seq"
+    },
+    {
+      "table": "ep.anomalie_conduite",
+      "sequence": "ep.anomalie_conduite_fid_seq"
+    },
+    {
+      "table": "ep.borne_onep",
+      "sequence": "ep.borne_onep_fid_seq"
+    },
+    {
+      "table": "ep.centre_tampon",
+      "sequence": "ep.centre_tampon_fid_seq"
+    },
+    {
+      "table": "ep.conduite_terrain",
+      "sequence": "ep.conduite_terrain_fid_seq"
+    },
+    {
+      "table": "ep.ep_bache",
+      "sequence": "ep.ep_bache_fid_seq"
+    },
+    {
+      "table": "ep.ep_bouche_arro",
+      "sequence": "ep.ep_bouche_arro_fid_seq"
+    },
+    {
+      "table": "ep.ep_branchement",
+      "sequence": "ep.ep_branchement_fid_seq"
+    },
+    {
+      "table": "ep.ep_brc_pt",
+      "sequence": "ep.ep_brc_pt_fid_seq"
+    },
+    {
+      "table": "ep.ep_compteur_i",
+      "sequence": "ep.ep_compteur_i_fid_seq"
+    },
+    {
+      "table": "ep.ep_conduite",
+      "sequence": "ep.ep_conduite_fid_seq"
+    },
+    {
+      "table": "ep.ep_cone_reduc",
+      "sequence": "ep.ep_cone_reduc_fid_seq"
+    },
+    {
+      "table": "ep.ep_forage",
+      "sequence": "ep.ep_forage_fid_seq"
+    },
+    {
+      "table": "ep.ep_hydrant",
+      "sequence": "ep.ep_hydrant_fid_seq"
+    },
+    {
+      "table": "ep.ep_noeud",
+      "sequence": "ep.ep_noeud_fid_seq"
+    },
+    {
+      "table": "ep.ep_obturateur",
+      "sequence": "ep.ep_obturateur_fid_seq"
+    },
+    {
+      "table": "ep.ep_pompe",
+      "sequence": "ep.ep_pompe_fid_seq"
+    },
+    {
+      "table": "ep.ep_puit",
+      "sequence": "ep.ep_puit_fid_seq"
+    },
+    {
+      "table": "ep.ep_reduc_pres",
+      "sequence": "ep.ep_reduc_pres_fid_seq"
+    },
+    {
+      "table": "ep.ep_regard",
+      "sequence": "ep.ep_regard_fid_seq"
+    },
+    {
+      "table": "ep.ep_regard_point",
+      "sequence": "ep.ep_regard_point_fid_seq"
+    },
+    {
+      "table": "ep.ep_reservoir",
+      "sequence": "ep.ep_reservoir_fid_seq"
+    },
+    {
+      "table": "ep.ep_st_demineralisation",
+      "sequence": "ep.ep_st_demineralisation_fid_seq"
+    },
+    {
+      "table": "ep.ep_station_pompage",
+      "sequence": "ep.ep_station_pompage_fid_seq"
+    },
+    {
+      "table": "ep.ep_traversee",
+      "sequence": "ep.ep_traversee_fid_seq"
+    },
+    {
+      "table": "ep.ep_vanne",
+      "sequence": "ep.ep_vanne_fid_seq"
+    },
+    {
+      "table": "ep.ep_ventouse",
+      "sequence": "ep.ep_ventouse_fid_seq"
+    },
+    {
+      "table": "ep.ep_vidange",
+      "sequence": "ep.ep_vidange_fid_seq"
+    },
+    {
+      "table": "ep.tn",
+      "sequence": "ep.tn_fid_seq"
+    },
+    {
+      "table": "ep.voie",
+      "sequence": "ep.voie_fid_seq"
+    },
+    {
+      "table": "public.basemap_package",
+      "sequence": "public.basemap_package_id_package_seq"
+    },
+    {
+      "table": "elec.depart_hta",
+      "sequence": "elec.depart_hta_fid_seq"
+    },
+    {
+      "table": "ep.bouche_a_cles",
+      "sequence": "ep.bouche_a_cles_fid_seq"
+    },
+    {
+      "table": "elec.troncon_hta",
+      "sequence": "elec.troncon_hta_fid_seq"
+    },
+    {
+      "table": "elec.cellule",
+      "sequence": "elec.cellule_fid_seq"
+    },
+    {
+      "table": "elec.coffret_bt",
+      "sequence": "elec.coffret_bt_fid_seq"
+    },
+    {
+      "table": "elec.depart_bt",
+      "sequence": "elec.depart_bt_fid_seq"
+    },
+    {
+      "table": "elec.noeud_raccord",
+      "sequence": "elec.noeud_raccord_fid_seq"
+    },
+    {
+      "table": "elec.point_desserte",
+      "sequence": "elec.point_desserte_fid_seq"
+    },
+    {
+      "table": "elec.support",
+      "sequence": "elec.support_fid_seq"
+    },
+    {
+      "table": "elec.transformateur",
+      "sequence": "elec.transformateur_fid_seq"
+    },
+    {
+      "table": "elec.troncon_bt",
+      "sequence": "elec.troncon_bt_fid_seq"
+    }
+  ]
+}

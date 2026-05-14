@@ -49,7 +49,6 @@ class LineModel {
   final String? workStart;
   final String? workEnd;
   final String? funding;
-  final String? project;
   final double? serviceLevel;
   final double? functionality;
   final double? socioAdministrativeInterest;
@@ -87,7 +86,6 @@ class LineModel {
     this.workStart,
     this.workEnd,
     this.funding,
-    this.project,
     this.serviceLevel,
     this.functionality,
     this.socioAdministrativeInterest,
@@ -96,8 +94,8 @@ class LineModel {
     this.investmentCost,
     this.environmentalProtection,
     this.globalScore,
-  }) : id = id ?? generateTimestampId(),
-       lineCode = lineCode ?? generateLineCode();
+  })  : id = id ?? generateTimestampId(),
+        lineCode = lineCode ?? generateLineCode();
 
   factory LineModel.fromFormData(Map<String, dynamic> formData) {
     final pointsData = formData['points'] as List<dynamic>? ?? [];
@@ -132,7 +130,6 @@ class LineModel {
       workStart: formData['work_start'],
       workEnd: formData['work_end'],
       funding: formData['funding'],
-      project: formData['project'],
       serviceLevel: _parseNullableDouble(formData['service_level']),
       functionality: _parseNullableDouble(formData['functionality']),
       socioAdministrativeInterest:
@@ -176,7 +173,6 @@ class LineModel {
       'work_start': workStart,
       'work_end': workEnd,
       'funding': funding,
-      'project': project,
       'service_level': serviceLevel,
       'functionality': functionality,
       'socio_administrative_interest': socioAdministrativeInterest,
@@ -217,7 +213,6 @@ class LineModel {
       workStart: map['work_start'],
       workEnd: map['work_end'],
       funding: map['funding'],
-      project: map['project'],
       serviceLevel: _parseNullableDouble(map['service_level']),
       functionality: _parseNullableDouble(map['functionality']),
       socioAdministrativeInterest:

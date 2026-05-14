@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +12,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:pmtiles/pmtiles.dart' as pmtiles;
 import 'package:vector_map_tiles/vector_map_tiles.dart' as vmt;
 import 'package:vector_map_tiles_pmtiles/vector_map_tiles_pmtiles.dart';
+// ignore: implementation_imports
 import 'package:vector_map_tiles_pmtiles/src/themes/v4/_package.dart'
     as protomaps_v4;
 import 'package:vector_tile/vector_tile.dart' as vt;
@@ -23,6 +23,8 @@ import '../../core/constants/basemap_constants.dart';
 class MapWidget extends StatefulWidget {
   static const String onlineOsmUrlTemplate =
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const String onlineSatelliteUrlTemplate =
+      'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
 
   final LatLng userPosition;
   final bool gpsEnabled;
@@ -31,12 +33,16 @@ class MapWidget extends StatefulWidget {
   final List<Polyline> polylines;
   final List<Polygon> polygons;
   final Function(Object?)? onPolygonTap;
+  final Function(Object?)? onPolygonLongPress;
   final Function(MapController) onMapCreated;
   final List<Marker> formMarkers;
   final bool isSatellite;
   final Function(Object?)? onPolylineTap;
+  final ValueChanged<bool>? onMapTypeChanged;
   final VoidCallback? onUserInteraction;
   final VoidCallback? onGpsButtonPressed;
+  final void Function(TapPosition, LatLng)? onMapTap;
+  final void Function(LatLng center, double zoom)? onCameraIdle;
   final String? offlineBasemapPath;
   final String? offlineBasemapFormat;
   final String? basemapUnavailableMessage;
@@ -45,6 +51,10 @@ class MapWidget extends StatefulWidget {
   final double? basemapDefaultZoom;
   final double? basemapMinZoom;
   final double? basemapMaxZoom;
+  final bool showMapButtons;
+  final bool showLocationButton;
+  final bool showZoomButtons;
+  final bool showMapTypeButton;
 
   const MapWidget({
     super.key,
@@ -55,12 +65,16 @@ class MapWidget extends StatefulWidget {
     required this.polylines,
     this.polygons = const [],
     this.onPolygonTap,
+    this.onPolygonLongPress,
     required this.onMapCreated,
     required this.formMarkers,
     this.isSatellite = false,
     this.onPolylineTap,
+    this.onMapTypeChanged,
     this.onUserInteraction,
     this.onGpsButtonPressed,
+    this.onMapTap,
+    this.onCameraIdle,
     this.offlineBasemapPath,
     this.offlineBasemapFormat,
     this.basemapUnavailableMessage,
@@ -69,6 +83,10 @@ class MapWidget extends StatefulWidget {
     this.basemapDefaultZoom,
     this.basemapMinZoom,
     this.basemapMaxZoom,
+    this.showMapButtons = true,
+    this.showLocationButton = true,
+    this.showZoomButtons = true,
+    this.showMapTypeButton = true,
   });
 
   @override
@@ -133,15 +151,12 @@ class _MapWidgetState extends State<MapWidget> {
   TileProvider? _rasterTileProvider;
   vmt.VectorTileProvider? _vectorTileProvider;
   vtr.Theme? _vectorTheme;
-  vtr.Theme? _vectorIconTheme;
   vmt.SpriteStyle? _vectorSprites;
   String? _loadedBasemapPath;
   String? _loadedBasemapFormat;
   String? _requestedBasemapPath;
   String? _requestedBasemapFormat;
   String? _basemapLoadError;
-  String? _vectorDetailsSummary;
-  String? _vectorDetailsWarning;
   Set<String> _vectorSpriteNames = const {};
   List<Marker> _offlinePoiMarkers = const [];
   Timer? _offlinePoiRefreshTimer;
@@ -150,6 +165,7 @@ class _MapWidgetState extends State<MapWidget> {
   bool _isBasemapLoading = false;
   int _basemapLoadRequestId = 0;
   int _offlinePoiRefreshRequestId = 0;
+  int _basemapLayerRevision = 0;
   String? _lastIconDiagnosticsKey;
   String? _lastOfflinePoiRefreshKey;
   final Map<String, bool> _offlinePoiAssetAvailabilityCache = {};
@@ -162,11 +178,6 @@ class _MapWidgetState extends State<MapWidget> {
   void initState() {
     super.initState();
     _mapController = MapController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onMapCreated(_mapController);
-      setState(() => _controllerReady = true);
-      _queueOfflinePoiMarkerRefresh(force: true, immediate: true);
-    });
     _polylineHitNotifier.addListener(_onPolylineHit);
     _polygonHitNotifier.addListener(_onPolygonHit);
     _loadBasemapProvider(
@@ -185,6 +196,19 @@ class _MapWidgetState extends State<MapWidget> {
         widget.offlineBasemapFormat,
       );
     }
+  }
+
+  void _handleMapReady() {
+    if (_controllerReady) return;
+
+    widget.onMapCreated(_mapController);
+
+    if (!mounted) return;
+    setState(() {
+      _controllerReady = true;
+      _basemapLayerRevision++;
+    });
+    _queueOfflinePoiMarkerRefresh(force: true, immediate: true);
   }
 
   @override
@@ -211,12 +235,21 @@ class _MapWidgetState extends State<MapWidget> {
     }
   }
 
+  void _onPolygonLongPress() {
+    final hitResult = _polygonHitNotifier.value;
+    if (hitResult != null && hitResult.hitValues.isNotEmpty) {
+      widget.onPolygonLongPress?.call(hitResult.hitValues.first);
+    }
+  }
+
   void _zoomIn() {
     if (_controllerReady) {
-      final targetZoom = math.min(
-        _mapController.camera.zoom + 1,
-        _mapController.camera.maxZoom ?? double.infinity,
-      ).toDouble();
+      final targetZoom = math
+          .min(
+            _mapController.camera.zoom + 1,
+            _mapController.camera.maxZoom ?? double.infinity,
+          )
+          .toDouble();
       _mapController.move(
         _mapController.camera.center,
         targetZoom,
@@ -226,10 +259,12 @@ class _MapWidgetState extends State<MapWidget> {
 
   void _zoomOut() {
     if (_controllerReady) {
-      final targetZoom = math.max(
-        _mapController.camera.zoom - 1,
-        _mapController.camera.minZoom ?? 1,
-      ).toDouble();
+      final targetZoom = math
+          .max(
+            _mapController.camera.zoom - 1,
+            _mapController.camera.minZoom ?? 1,
+          )
+          .toDouble();
       _mapController.move(
         _mapController.camera.center,
         targetZoom,
@@ -261,8 +296,7 @@ class _MapWidgetState extends State<MapWidget> {
     String? basemapFormat,
   ) async {
     final normalizedFormat = _normalizedBasemapFormat(basemapFormat);
-    final hasLoadedProvider =
-        _rasterTileProvider != null ||
+    final hasLoadedProvider = _rasterTileProvider != null ||
         (_vectorTileProvider != null && _vectorTheme != null);
     if (basemapPath == _loadedBasemapPath &&
         normalizedFormat == _loadedBasemapFormat &&
@@ -285,10 +319,7 @@ class _MapWidgetState extends State<MapWidget> {
       _rasterTileProvider = null;
       _vectorTileProvider = null;
       _vectorTheme = null;
-      _vectorIconTheme = null;
       _vectorSprites = null;
-      _vectorDetailsSummary = null;
-      _vectorDetailsWarning = null;
       _loadedBasemapPath = null;
       _loadedBasemapFormat = normalizedFormat;
       _basemapLoadError = null;
@@ -316,7 +347,6 @@ class _MapWidgetState extends State<MapWidget> {
       TileProvider? rasterProvider;
       vmt.VectorTileProvider? vectorProvider;
       vtr.Theme? vectorTheme;
-      vtr.Theme? vectorIconTheme;
       vmt.SpriteStyle? vectorSprites;
       String? vectorDetailsSummary;
       String? vectorDetailsWarning;
@@ -329,7 +359,6 @@ class _MapWidgetState extends State<MapWidget> {
             final themeBundle = _buildLocalProtomapsLightThemeBundle();
             final spriteResult = await _loadLocalProtomapsLightSprites();
             vectorTheme = themeBundle.theme;
-            vectorIconTheme = themeBundle.iconTheme;
             vectorSprites = spriteResult.style;
             _vectorSpriteNames = spriteResult.spriteNames;
             vectorDetailsSummary =
@@ -360,7 +389,8 @@ class _MapWidgetState extends State<MapWidget> {
             debugPrint('[BASEMAP] Fallback theme Protomaps standard: $e');
             vectorTheme = ProtomapsThemes.lightV4();
             vectorDetailsSummary = 'PMTiles details fallback theme standard';
-            vectorDetailsWarning = 'Theme local indisponible, fallback standard';
+            vectorDetailsWarning =
+                'Theme local indisponible, fallback standard';
           }
           break;
         case 'mbtiles':
@@ -383,13 +413,11 @@ class _MapWidgetState extends State<MapWidget> {
         _rasterTileProvider = rasterProvider;
         _vectorTileProvider = vectorProvider;
         _vectorTheme = vectorTheme;
-        _vectorIconTheme = vectorIconTheme;
         _vectorSprites = vectorSprites;
-        _vectorDetailsSummary = vectorDetailsSummary;
-        _vectorDetailsWarning = vectorDetailsWarning;
         _loadedBasemapPath = basemapPath;
         _loadedBasemapFormat = normalizedFormat;
         _isBasemapLoading = false;
+        _basemapLayerRevision++;
       });
       if (normalizedFormat == 'pmtiles' && _vectorSpriteNames.isNotEmpty) {
         _schedulePmtilesIconDiagnostics(
@@ -415,8 +443,6 @@ class _MapWidgetState extends State<MapWidget> {
       debugPrint('[BASEMAP] Erreur chargement offline ($normalizedFormat): $e');
       setState(() {
         _basemapLoadError = e.toString();
-        _vectorDetailsSummary = null;
-        _vectorDetailsWarning = null;
         _isBasemapLoading = false;
       });
     }
@@ -459,16 +485,13 @@ class _MapWidgetState extends State<MapWidget> {
     }
 
     final textAndBaseLayers = localizedLayers
-        .where((layer) => !(layer['id']?.toString().endsWith('_icons') ?? false))
-        .toList(growable: false);
-    final iconOnlyLayers = localizedLayers
-        .where((layer) => layer['id']?.toString().endsWith('_icons') ?? false)
+        .where(
+            (layer) => !(layer['id']?.toString().endsWith('_icons') ?? false))
         .toList(growable: false);
 
-    final protomaps = ProtomapsThemes(sprites: null);
+    const protomaps = ProtomapsThemes(sprites: null);
     return _LocalProtomapsThemeBundle(
       theme: protomaps.build(textAndBaseLayers),
-      iconTheme: iconOnlyLayers.isEmpty ? null : protomaps.build(iconOnlyLayers),
       check: _inspectThemeLayers(rawLayers),
     );
   }
@@ -503,7 +526,8 @@ class _MapWidgetState extends State<MapWidget> {
 
   Map<String, dynamic> _normalizeProtomapsLayer(Map<String, dynamic> layer) {
     final normalizedLayer = Map<String, dynamic>.from(layer);
-    final layerId = normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
+    final layerId =
+        normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
     final sourceLayer =
         normalizedLayer['source-layer']?.toString().trim().toLowerCase() ?? '';
     final layout = normalizedLayer['layout'];
@@ -535,18 +559,18 @@ class _MapWidgetState extends State<MapWidget> {
   List<Map<String, Object>> _expandProtomapsLayer(
     Map<String, dynamic> normalizedLayer,
   ) {
-    final layerId = normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
+    final layerId =
+        normalizedLayer['id']?.toString().trim().toLowerCase() ?? '';
     final sourceLayer =
         normalizedLayer['source-layer']?.toString().trim().toLowerCase() ?? '';
-    final shouldSplit =
-        (layerId == 'pois' && sourceLayer == 'pois') ||
+    final shouldSplit = (layerId == 'pois' && sourceLayer == 'pois') ||
         (layerId == 'places_locality' && sourceLayer == 'places');
     if (!shouldSplit) {
       return [Map<String, Object>.from(normalizedLayer)];
     }
 
-    final iconLayer = jsonDecode(jsonEncode(normalizedLayer))
-        as Map<String, dynamic>;
+    final iconLayer =
+        jsonDecode(jsonEncode(normalizedLayer)) as Map<String, dynamic>;
     final iconLayout =
         Map<String, dynamic>.from(iconLayer['layout'] as Map? ?? const {});
     iconLayout.remove('text-field');
@@ -563,8 +587,8 @@ class _MapWidgetState extends State<MapWidget> {
     iconLayer['id'] = '${normalizedLayer['id']}_icons';
     iconLayer['layout'] = iconLayout;
 
-    final textLayer = jsonDecode(jsonEncode(normalizedLayer))
-        as Map<String, dynamic>;
+    final textLayer =
+        jsonDecode(jsonEncode(normalizedLayer)) as Map<String, dynamic>;
     final textLayout =
         Map<String, dynamic>.from(textLayer['layout'] as Map? ?? const {});
     textLayout.remove('icon-image');
@@ -939,7 +963,8 @@ class _MapWidgetState extends State<MapWidget> {
                 final properties = feature.decodeProperties();
                 final kind = properties['kind']?.dartStringValue?.trim();
                 if (kind == null || kind.isEmpty) continue;
-                placeKinds.update(kind, (value) => value + 1, ifAbsent: () => 1);
+                placeKinds.update(kind, (value) => value + 1,
+                    ifAbsent: () => 1);
               }
             }
           }
@@ -961,12 +986,10 @@ class _MapWidgetState extends State<MapWidget> {
       debugPrint('[BASEMAP] Icon diag pois: none in sampled tiles');
     } else {
       for (final entry in poiSummary.take(20)) {
-        final spriteState = spriteNames.contains(entry.key)
-            ? 'sprite=yes'
-            : 'sprite=no';
-        final sampleNames = (poiNamesByKind[entry.key] ?? const <String>{})
-            .take(3)
-            .join(' | ');
+        final spriteState =
+            spriteNames.contains(entry.key) ? 'sprite=yes' : 'sprite=no';
+        final sampleNames =
+            (poiNamesByKind[entry.key] ?? const <String>{}).take(3).join(' | ');
         debugPrint(
           '[BASEMAP] Icon diag poi kind=${entry.key} count=${entry.value} '
           '$spriteState'
@@ -989,8 +1012,8 @@ class _MapWidgetState extends State<MapWidget> {
     final scale = 1 << zoom;
     final x = ((point.longitude + 180.0) / 360.0 * scale).floor();
     final latRad = point.latitude * math.pi / 180.0;
-    final mercatorY = 1 -
-        (math.log(math.tan(latRad) + (1 / math.cos(latRad))) / math.pi);
+    final mercatorY =
+        1 - (math.log(math.tan(latRad) + (1 / math.cos(latRad))) / math.pi);
     final y = ((mercatorY / 2) * scale).floor();
     return (x, y);
   }
@@ -1012,7 +1035,8 @@ class _MapWidgetState extends State<MapWidget> {
     return (xMin, xMax, yMin, yMax);
   }
 
-  Future<pmtiles.PmTilesArchive> _getOfflinePoiArchive(String basemapPath) async {
+  Future<pmtiles.PmTilesArchive> _getOfflinePoiArchive(
+      String basemapPath) async {
     if (_offlinePoiArchive != null && _offlinePoiArchivePath == basemapPath) {
       return _offlinePoiArchive!;
     }
@@ -1483,7 +1507,7 @@ class _MapWidgetState extends State<MapWidget> {
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
+                  color: Colors.blue.withValues(alpha: 0.3),
                   blurRadius: 6,
                   spreadRadius: 2,
                 ),
@@ -1493,23 +1517,23 @@ class _MapWidgetState extends State<MapWidget> {
         ),
     ];
 
-    final fallbackCenter = widget.basemapCenter ?? BasemapConstants.fallbackCenter;
+    final fallbackCenter =
+        widget.basemapCenter ?? BasemapConstants.fallbackCenter;
     final requestedCenterRaw =
         widget.gpsEnabled ? widget.userPosition : fallbackCenter;
-    final desiredInitialZoom =
-        widget.gpsEnabled
-            ? 15.0
-            : (widget.basemapDefaultZoom ??
-                BasemapConstants.fallbackDefaultZoom);
+    final desiredInitialZoom = widget.gpsEnabled
+        ? 15.0
+        : (widget.basemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom);
     final minZoom = widget.basemapMinZoom ?? BasemapConstants.fallbackMinZoom;
     final maxZoom = widget.basemapMaxZoom ?? BasemapConstants.fallbackMaxZoom;
-    final showOnlineBasemap = widget.useOnlineBasemap && !widget.isSatellite;
-    final hasRasterBasemap =
-        !showOnlineBasemap &&
+    final showOnlineBasemap = widget.useOnlineBasemap;
+    final onlineBasemapUrlTemplate = widget.isSatellite
+        ? MapWidget.onlineSatelliteUrlTemplate
+        : MapWidget.onlineOsmUrlTemplate;
+    final hasRasterBasemap = !showOnlineBasemap &&
         _rasterTileProvider != null &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
-    final hasVectorBasemap =
-        !showOnlineBasemap &&
+    final hasVectorBasemap = !showOnlineBasemap &&
         _vectorTileProvider != null &&
         _vectorTheme != null &&
         _normalizedBasemapFormat(widget.offlineBasemapFormat) == 'pmtiles' &&
@@ -1520,8 +1544,7 @@ class _MapWidgetState extends State<MapWidget> {
     final effectiveMaxZoom = maxZoom;
     final initialZoom =
         desiredInitialZoom.clamp(minZoom, effectiveMaxZoom).toDouble();
-    final hasOfflineBasemap =
-        (hasRasterBasemap || hasVectorBasemap) &&
+    final hasOfflineBasemap = (hasRasterBasemap || hasVectorBasemap) &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
     final initialCenter =
         _controllerReady ? _mapController.camera.center : requestedCenterRaw;
@@ -1545,10 +1568,18 @@ class _MapWidgetState extends State<MapWidget> {
             cameraConstraint: const CameraConstraint.unconstrained(),
             interactionOptions:
                 const InteractionOptions(flags: InteractiveFlag.all),
+            onMapReady: _handleMapReady,
+            onTap: (tapPosition, latLng) {
+              widget.onMapTap?.call(tapPosition, latLng);
+            },
             onMapEvent: (event) {
               if (event is MapEventMoveStart) {
                 widget.onUserInteraction?.call();
               } else if (event is MapEventMoveEnd) {
+                widget.onCameraIdle?.call(
+                  _mapController.camera.center,
+                  _mapController.camera.zoom,
+                );
                 _queueOfflinePoiMarkerRefresh();
               }
             },
@@ -1556,18 +1587,27 @@ class _MapWidgetState extends State<MapWidget> {
           children: [
             if (showOnlineBasemap)
               TileLayer(
-                urlTemplate: MapWidget.onlineOsmUrlTemplate,
+                key: ValueKey(
+                  'online-${widget.isSatellite ? 'satellite' : 'osm'}-$_basemapLayerRevision',
+                ),
+                urlTemplate: onlineBasemapUrlTemplate,
                 userAgentPackageName: 'com.srm.collecte',
-                maxZoom: math.max(effectiveMaxZoom, 19),
+                maxZoom: math.max(effectiveMaxZoom, 20),
               ),
             if (hasRasterBasemap)
               TileLayer(
+                key: ValueKey(
+                  'offline-raster-$_loadedBasemapPath-$_basemapLayerRevision',
+                ),
                 tileProvider: _rasterTileProvider!,
                 userAgentPackageName: 'com.example.srmcollecte',
                 maxZoom: effectiveMaxZoom,
               ),
             if (hasVectorBasemap)
               vmt.VectorTileLayer(
+                key: ValueKey(
+                  'offline-vector-$_loadedBasemapPath-$_basemapLayerRevision',
+                ),
                 theme: _vectorTheme!,
                 sprites: _vectorSprites,
                 tileProviders: vmt.TileProviders({
@@ -1584,50 +1624,18 @@ class _MapWidgetState extends State<MapWidget> {
               hitNotifier: _polylineHitNotifier,
             ),
             if (widget.polygons.isNotEmpty)
-              PolygonLayer(
-                polygons: widget.polygons,
-                hitNotifier: _polygonHitNotifier,
+              GestureDetector(
+                onLongPress: _onPolygonLongPress,
+                child: PolygonLayer(
+                  polygons: widget.polygons,
+                  hitNotifier: _polygonHitNotifier,
+                ),
               ),
             if (!showOnlineBasemap && _offlinePoiMarkers.isNotEmpty)
               MarkerLayer(markers: _offlinePoiMarkers),
             MarkerLayer(markers: allMarkers),
           ],
         ),
-        if (kDebugMode &&
-            !showOnlineBasemap &&
-            hasVectorBasemap &&
-            _vectorDetailsSummary != null &&
-            _basemapLoadError == null)
-          Positioned(
-            top: 8,
-            left: 12,
-            right: 70,
-            child: IgnorePointer(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: (_vectorDetailsWarning != null
-                          ? Colors.orange
-                          : Colors.black)
-                      .withOpacity(0.72),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _vectorDetailsWarning == null
-                      ? _vectorDetailsSummary!
-                      : '$_vectorDetailsSummary\n$_vectorDetailsWarning',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ),
         if (_isBasemapLoading || basemapMessage != null)
           Positioned(
             top: 8,
@@ -1640,7 +1648,7 @@ class _MapWidgetState extends State<MapWidget> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.92),
+                  color: Colors.white.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [
                     BoxShadow(
@@ -1682,73 +1690,82 @@ class _MapWidgetState extends State<MapWidget> {
               ),
             ),
           ),
-        Positioned(
-          top: 8,
-          right: 10,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
+        if (widget.showMapButtons && widget.showLocationButton)
+          Positioned(
+            top: 8,
+            right: 10,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.my_location, color: Colors.blue),
+                onPressed: _goToUserLocation,
+                tooltip: 'Ma position',
+              ),
+            ),
+          ),
+        if (widget.showMapButtons &&
+            widget.showMapTypeButton &&
+            widget.onMapTypeChanged != null)
+          MapTypeToggle(
+            isSatellite: widget.isSatellite,
+            onMapTypeChanged: widget.onMapTypeChanged!,
+          ),
+        if (widget.showMapButtons && widget.showZoomButtons)
+          Positioned(
+            right: 10,
+            bottom: 10,
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.add, color: Colors.black87),
+                    onPressed: _zoomIn,
+                    tooltip: 'Zoom avant',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.remove, color: Colors.black87),
+                    onPressed: _zoomOut,
+                    tooltip: 'Zoom arrière',
+                  ),
                 ),
               ],
             ),
-            child: IconButton(
-              icon: const Icon(Icons.my_location, color: Colors.blue),
-              onPressed: _goToUserLocation,
-              tooltip: 'Ma position',
-            ),
           ),
-        ),
-        Positioned(
-          right: 5,
-          bottom: 10,
-          child: Column(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.add, color: Colors.black87),
-                  onPressed: _zoomIn,
-                  tooltip: 'Zoom avant',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.remove, color: Colors.black87),
-                  onPressed: _zoomOut,
-                  tooltip: 'Zoom arriere',
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -1756,12 +1773,10 @@ class _MapWidgetState extends State<MapWidget> {
 
 class _LocalProtomapsThemeBundle {
   final vtr.Theme theme;
-  final vtr.Theme? iconTheme;
   final _VectorDetailsCheck check;
 
   const _LocalProtomapsThemeBundle({
     required this.theme,
-    required this.iconTheme,
     required this.check,
   });
 }
@@ -1800,15 +1815,15 @@ class _OfflinePoiMarkerSpec {
 
   const _OfflinePoiMarkerSpec.asset({
     required this.assetPath,
-    this.size = 18,
   })  : icon = null,
-        color = null;
+        color = null,
+        size = 18;
 
   const _OfflinePoiMarkerSpec.material({
     required this.icon,
     required this.color,
-    this.size = 16,
-  }) : assetPath = null;
+  })  : assetPath = null,
+        size = 16;
 }
 
 class MapTypeToggle extends StatelessWidget {
@@ -1824,7 +1839,7 @@ class MapTypeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 55,
+      top: 70,
       right: 10,
       child: Container(
         decoration: BoxDecoration(
@@ -1887,7 +1902,7 @@ class DownloadedLinesToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 100,
+      top: 130,
       right: 10,
       child: Container(
         decoration: BoxDecoration(
@@ -1921,7 +1936,7 @@ class DownloadedLinesToggle extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Lignes telechargees',
+                    'Lignes téléchargées',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -1937,12 +1952,11 @@ class DownloadedLinesToggle extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isOn
-                            ? const Color(0xFFB86E1D).withOpacity(0.12)
-                            : Colors.grey.withOpacity(0.15),
+                            ? const Color(0xFFB86E1D).withValues(alpha: 0.12)
+                            : Colors.grey.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color:
-                              isOn ? const Color(0xFFB86E1D) : Colors.grey,
+                          color: isOn ? const Color(0xFFB86E1D) : Colors.grey,
                           width: 0.8,
                         ),
                       ),
@@ -1951,9 +1965,8 @@ class DownloadedLinesToggle extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isOn
-                              ? const Color(0xFFB86E1D)
-                              : Colors.grey[700],
+                          color:
+                              isOn ? const Color(0xFFB86E1D) : Colors.grey[700],
                         ),
                       ),
                     ),
@@ -1967,4 +1980,3 @@ class DownloadedLinesToggle extends StatelessWidget {
     );
   }
 }
-

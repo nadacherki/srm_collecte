@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-05-08T13:17:00",
+  "db_compared": "SRM_bureau",
+  "backup_reference_db": "codex_cmp_srmo_vf_20260508",
+  "schemas": [
+    "public",
+    "ep",
+    "asst",
+    "elec"
+  ],
+  "tables_srm_bureau": 104,
+  "tables_backup_ref": 104,
+  "common_tables": 104,
+  "identical_common_tables": 104,
+  "different_common_tables": 0,
+  "only_srm_bureau": [],
+  "only_backup_ref": [],
+  "diffs": []
+}

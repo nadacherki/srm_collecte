@@ -1,0 +1,97 @@
+{
+  "SRM": {
+    "server_encoding": "UTF8",
+    "client_encoding": "UTF8",
+    "matches": [
+      {
+        "schema": "ep",
+        "table": "vanne",
+        "column": "ep_etat",
+        "count": 1,
+        "samples": [
+          {
+            "text": ".?",
+            "unicode_escape": ".?",
+            "codepoints": [
+              "0x3f"
+            ]
+          }
+        ]
+      },
+      {
+        "schema": "public",
+        "table": "historique_attribut",
+        "column": "nouvelle_valeur",
+        "count": 1,
+        "samples": [
+          {
+            "text": ".?",
+            "unicode_escape": ".?",
+            "codepoints": [
+              "0x3f"
+            ]
+          }
+        ]
+      },
+      {
+        "schema": "public",
+        "table": "historique_mobile",
+        "column": "nouvelle_valeur",
+        "count": 2,
+        "samples": [
+          {
+            "text": ".?",
+            "unicode_escape": ".?",
+            "codepoints": [
+              "0x3f"
+            ]
+          },
+          {
+            "text": ".?",
+            "unicode_escape": ".?",
+            "codepoints": [
+              "0x3f"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "SRM_bureau": {
+    "server_encoding": "UTF8",
+    "client_encoding": "UTF8",
+    "matches": [
+      {
+        "schema": "ep",
+        "table": "ep_regard",
+        "column": "ep_observation",
+        "count": 1,
+        "samples": [
+          {
+            "text": "Puisard construit côte haut ??",
+            "unicode_escape": "Puisard construit c\\xf4te haut ??",
+            "codepoints": [
+              "0x3f",
+              "0x3f"
+            ]
+          }
+        ]
+      },
+      {
+        "schema": "ep",
+        "table": "onep_db",
+        "column": "adresse postale client payeur",
+        "count": 1,
+        "samples": [
+          {
+            "text": "ISLY null APP 19? IMM K CITE DU 6°G.M.",
+            "unicode_escape": "ISLY null APP 19? IMM K CITE DU 6\\xb0G.M.",
+            "codepoints": [
+              "0x3f"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

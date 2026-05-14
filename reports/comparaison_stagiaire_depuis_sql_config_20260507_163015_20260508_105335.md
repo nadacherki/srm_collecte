@@ -1,0 +1,893 @@
+# Comparaison des modifications stagiaire depuis le SQL de depart
+
+- SQL de depart: `C:\Users\AnasDahou\Desktop\srm_collecte\backups\SRM_config_mobile_tables_pg16_compat_20260507_163015.sql`
+- Backup stagiaire: `C:\Users\AnasDahou\Downloads\Gestion_Obligation.backup`
+- Base temporaire SQL depart: `srm_base_config_20260508_105117`
+- Base temporaire stagiaire: `srm_stag_config_20260508_105117`
+- Base actuelle aussi comparee pour decision de fusion: `SRM_bureau`
+- Date generation: `2026-05-08 10:53:35`
+- Perimetre: `public.formulaire_config_mobile`, `public.attribut_config_mobile`, `public.liste_choix`.
+- Les colonnes `created_at` et `updated_at` sont ignorees dans les comparaisons de donnees.
+
+## Resume
+
+| Table | Lignes depart | Lignes stagiaire | Lignes actuelle | Modifs stagiaire | Modifs actuelle |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `formulaire_config_mobile` | 61 | 61 | 61 | 23 | 20 |
+| `attribut_config_mobile` | 3351 | 3356 | 3351 | 558 | 336 |
+| `liste_choix` | 935 | 936 | 935 | 179 | 176 |
+
+- Total modifications stagiaire depuis le SQL de depart: **760**
+- Total modifications BD actuelle depuis le SQL de depart: **532**
+- Pour fusionner, il semble y avoir moins de changements cote BD actuelle.
+
+## Modifications du stagiaire depuis le SQL de depart
+
+### `public.formulaire_config_mobile`
+- Ajouts: 0
+- Suppressions: 0
+- Modifications: 23
+
+Modifications:
+- id=7 `ep.bouche_a_cles / Bouche à clé`: `titre_app`: Bouche Ã  clÃ© -> Bouche à clé
+- id=8 `ep.ep_bouche_arro / Bouche d'arrosage`: `visible`: false -> true
+- id=9 `ep.ep_compteur_i / Compteur réseau`: `titre_app`: Compteur rÃ©seau -> Compteur réseau
+- id=10 `ep.ep_brc_pt / Compteur abonné`: `ordre`: 4 -> 6; `titre_app`: Compteur abonnÃ© -> Compteur abonné
+- id=11 `ep.ep_cone_reduc / Cône de réduction`: `titre_app`: CÃ´ne de rÃ©duction -> Cône de réduction
+- id=12 `ep.centre_tampon / Centre tampon`: `visible`: false -> true
+- id=14 `ep.ep_reduc_pres / Réducteur de pression`: `titre_app`: RÃ©ducteur de pression -> Réducteur de pression
+- id=16 `ep.ep_reservoir / Réservoir`: `titre_app`: RÃ©servoir -> Réservoir
+- id=17 `ep.ep_bache / Bâche`: `titre_app`: BÃ¢che -> Bâche
+- id=19 `ep.ep_st_demineralisation / Station de déminéralisation`: `titre_app`: Station de dÃ©minÃ©ralisation -> Station de déminéralisation
+- id=21 `ep.ep_puit / Puits`: `visible`: false -> true
+- id=26 `ep.ep_traversee / Traversée`: `ordre`: 6 -> 4; `titre_app`: TraversÃ©e -> Traversée
+- id=72 `asst.ASS_REGARD_FACADE / Regards Façade`: `titre_app`: Regards FaÃ§ade -> Regards Façade
+- id=74 `asst.ASS_BOUCHE / Bouches d'égout`: `titre_app`: Bouches d'Ã©gout -> Bouches d'égout
+- id=75 `asst.ASS_DEVERSOIR / Déversoirs d'orage`: `titre_app`: DÃ©versoirs d'orage -> Déversoirs d'orage
+- id=82 `asst.ASS_COL_BOUCHE / Collecteur bouche d'égout`: `titre_app`: Collecteur bouche d'Ã©gout -> Collecteur bouche d'égout
+- id=84 `asst.ASS_STA_EPUR / Stations d'épuration`: `titre_app`: Stations d'Ã©puration -> Stations d'épuration
+- id=106 `asst.ASS_BASSIN_RET / Bassins de rétention`: `titre_app`: Bassins de rÃ©tention -> Bassins de rétention
+- id=107 `asst.ASS_BASSIN_RET_L / Bassins de rétention (ligne)`: `titre_app`: Bassins de rÃ©tention (ligne) -> Bassins de rétention (ligne)
+- id=108 `asst.ASS_ECOULEMENT / Écoulement`: `titre_app`: Ã‰coulement -> Écoulement
+- id=111 `asst.ASS_OUV_TRAVERSEE / Ouvrages de traversée`: `titre_app`: Ouvrages de traversÃ©e -> Ouvrages de traversée
+- id=114 `asst.ASS_REFOULEMENTR / Refoulement réutilisation`: `titre_app`: Refoulement rÃ©utilisation -> Refoulement réutilisation
+- id=116 `asst.ASS_STA_EPUR_L / Stations d'épuration (ligne)`: `titre_app`: Stations d'Ã©puration (ligne) -> Stations d'épuration (ligne)
+
+### `public.attribut_config_mobile`
+- Ajouts: 5
+- Suppressions: 0
+- Modifications: 553
+
+Ajouts:
+- + id=2454 `ep.ep_conduite.type_anomalie`
+- + id=2491 `ep.conduite_terrain.type_anomalie`
+- + id=2880 `ep.autre_objet.type_anomalie`
+- + id=2894 `ep.bouche_a_cles.type_anomalie`
+- + id=2924 `ep.borne_onep.type_anomalie`
+
+Modifications:
+- id=1 `ep.ep_regard_point.ep_code_ter`: `nullable`: true -> false
+- id=3 `ep.ep_regard_point.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=4 `ep.ep_regard_point.ep_sect_com`: `nullable`: true -> false
+- id=8 `ep.ep_regard_point.ep_adresse`: `nullable`: true -> false
+- id=10 `ep.ep_regard_point.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=12 `ep.ep_regard_point.echelon`: `titre_app`: Existance Ã©chelon -> Existance échelon
+- id=17 `ep.conduite_terrain.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=18 `ep.conduite_terrain.ep_mat`: `titre_app`: MatÃ©riau -> Matériau
+- id=19 `ep.ep_traversee.type_traver`: `titre_app`: Type traverssÃ© -> Type traverssé
+- id=21 `ep.ep_traversee.ep_long_r`: `titre_app`: Longueur rÃ©elle(m) -> Longueur réelle(m)
+- id=24 `ep.ep_traversee.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=25 `ep.ep_traversee.ep_adresse`: `nullable`: true -> false
+- id=26 `ep.ep_traversee.ep_agent_maj`: `nullable`: true -> false
+- id=28 `ep.ep_traversee.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=33 `ep.ep_bf.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=34 `ep.ep_bf.conform`: `titre_app`: ConformitÃ© -> Conformité
+- id=36 `ep.ep_bf.vanne`: `titre_app`: PrÃ©sence d'une vanne -> Présence d'une vanne
+- id=37 `ep.ep_bf.adresse`: `nullable`: true -> false
+- id=39 `ep.ep_bf.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=42 `ep.ep_bf.compt_g`: `titre_app`: Compteur gÃ©neral -> Compteur géneral
+- id=44 `ep.ep_brc_pt.ref`: `ordre`: 19 -> 3; `titre_app`: RÃ©fÃ©rence SAP -> Référence
+- id=46 `ep.ep_brc_pt.abon`: `ordre`: 12 -> 6; `titre_app`: AbonnÃ© -> Abonné
+- id=48 `ep.ep_brc_pt.nom`: `ordre`: 13 -> 9
+- id=49 `ep.ep_brc_pt.adresse`: `ordre`: 14 -> 16; `visible`: true -> false
+- id=50 `ep.ep_brc_pt.type_abonnement`: `ordre`: 18 -> 17
+- id=51 `ep.ep_brc_pt.num_contrat`: `ordre`: 10 -> 18; `titre_app`: NumÃ©ro de contrat -> Numéro de contrat
+- id=52 `ep.ep_brc_pt.num_compteur`: `nullable`: true -> false; `titre_app`: NumÃ©ro de compteur -> Numéro de compteur
+- id=53 `ep.ep_brc_pt.etat_abonnement`: `ordre`: 15 -> 20; `visible`: true -> false
+- id=54 `ep.ep_brc_pt.type_cpt`: `ordre`: 1 -> 21
+- id=55 `ep.ep_brc_pt.diametre`: `ordre`: 2 -> 23; `titre_app`: DiamÃ¨tre -> Diamètre
+- id=57 `ep.ep_brc_pt.ep_conf_plan`: `nullable`: true -> false; `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=58 `ep.ep_brc_pt.ep_observation`: `ordre`: 3 -> 32
+- id=59 `ep.ep_brc_pt.ancien_ref_sap`: `ordre`: 16 -> 35; `titre_app`: Ancienne rÃ©fÃ©rence SAP -> Ancienne reference SAP; `type_champ`: character varying(400) -> integer
+- id=60 `ep.ep_brc_pt.id_geo`: `ordre`: 17 -> 36; `titre_app`: Identifiant gÃ©ographique -> Identifiant geographique; `type_champ`: character varying(400) -> integer
+- id=61 `ep.ep_brc_pt.ancienne_police`: `ordre`: 11 -> 37; `type_champ`: character varying(400) -> integer
+- id=63 `ep.ep_branchement.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=64 `ep.ep_branchement.ep_long_c`: `titre_app`: Longueur calculÃ©e(m) -> Longueur calculée(m)
+- id=65 `ep.ep_branchement.ep_long_r`: `titre_app`: Longueur rÃ©elle(m) -> Longueur réelle(m)
+- id=66 `ep.ep_branchement.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=69 `ep.ep_branchement.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=71 `ep.ep_conduite.ep_long_c`: `titre_app`: Longueur calculÃ©e(m) -> Longueur calculée(m)
+- id=72 `ep.ep_conduite.ep_long_r`: `titre_app`: Longueur rÃ©elle(m) -> Longueur réelle(m)
+- id=75 `ep.ep_conduite.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=76 `ep.ep_conduite.ep_adresse`: `nullable`: true -> false
+- id=77 `ep.ep_conduite.ep_agent_maj`: `nullable`: true -> false
+- id=79 `ep.ep_conduite.ep_sect_hydro`: `nullable`: true -> false
+- id=85 `ep.ep_conduite.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=87 `ep.ep_compteur_i.ep_modele`: `titre_app`: ModÃ¨le de compteur -> Modèle de compteur
+- id=89 `ep.ep_compteur_i.ep_sourc_alim`: `nullable`: true -> false
+- id=92 `ep.ep_compteur_i.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=93 `ep.ep_compteur_i.ep_n_serie`: `titre_app`: NÂ° DE SERIE -> N° DE SERIE
+- id=97 `ep.ep_compteur_i.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=100 `ep.ep_cone_reduc.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=103 `ep.ep_cone_reduc.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=111 `ep.ep_forage.ep_hmt`: `titre_app`: Hauteur manomÃ©trique de la pompe(m) -> Hauteur manométrique de la pompe(m)
+- id=112 `ep.ep_forage.ep_debit_equip`: `titre_app`: DÃ©bit Ã©quipÃ© de la pompe (l/s) -> Débit équipé de la pompe (l/s)
+- id=114 `ep.ep_forage.ep_debit_fo`: `titre_app`: DÃ©bit exoploitÃ© du forage (l/s) -> Débit exoploité du forage (l/s)
+- id=117 `ep.ep_forage.ep_diam`: `titre_app`: DiamÃ¨tre equipement en pouce -> Diamètre equipement en pouce
+- id=118 `ep.ep_forage.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=121 `ep.ep_bache.ep_capacite`: `titre_app`: Capacite de la bÃ¢che m3 -> Capacite de la bâche m3
+- id=123 `ep.ep_bache.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=124 `ep.ep_bache.radier`: `titre_app`: CÃ´te radier (m) -> Côte radier (m)
+- id=125 `ep.ep_bache.zsurf`: `titre_app`: CÃ´te surface (m) -> Côte surface (m)
+- id=128 `ep.ep_bache.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=131 `ep.ep_bouche_arro.ep_etat`: `nullable`: true -> false
+- id=132 `ep.ep_bouche_arro.ep_conform`: `titre_app`: ConformitÃ© -> Conformité
+- id=133 `ep.ep_bouche_arro.ep_ref_rue`: `nullable`: true -> false; `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=135 `ep.ep_bouche_arro.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=140 `ep.ep_hydrant.ep_conform`: `titre_app`: ConformitÃ© -> Conformité
+- id=141 `ep.ep_hydrant.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=145 `ep.ep_hydrant.diametre`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=146 `ep.ep_hydrant.diamcond`: `titre_app`: DiamÃ¨tre raccordement de la conduite -> Diamètre raccordement de la conduite
+- id=147 `ep.ep_hydrant.conform`: `titre_app`: ConformitÃ© -> Conformité
+- id=148 `ep.ep_hydrant.dispo`: `titre_app`: DisponibilitÃ© -> Disponibilité
+- id=149 `ep.ep_hydrant.vanne`: `titre_app`: PrÃ©sence d'une vanne -> Présence d'une vanne
+- id=150 `ep.ep_hydrant.adresse`: `nullable`: true -> false
+- id=153 `ep.ep_hydrant.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=156 `ep.ep_noeud.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=158 `ep.ep_noeud.zone_hydro`: `nullable`: true -> false
+- id=160 `ep.ep_noeud.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=164 `ep.ep_obturateur.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=166 `ep.ep_pompe.ep_pompe_modele`: `titre_app`: ModÃ¨le de pompe -> Modèle de pompe
+- id=167 `ep.ep_pompe.ep_pompe_ref`: `titre_app`: RÃ©fÃ©rence de la pompe -> Référence de la pompe
+- id=169 `ep.ep_pompe.ep_pompe_debit_fo`: `titre_app`: DÃ©bit de forage de la pompe(l/s) -> Débit de forage de la pompe(l/s)
+- id=170 `ep.ep_pompe.ep_hmt`: `titre_app`: Hauteur manomÃ©trique de la pompe(m) -> Hauteur manométrique de la pompe(m)
+- id=174 `ep.ep_pompe.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=178 `ep.ep_puit.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=180 `ep.ep_reduc_pres.ep_marque`: `titre_app`: Marque de rÃ©ducteur -> Marque de réducteur
+- id=181 `ep.ep_reduc_pres.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=184 `ep.ep_reduc_pres.ep_adresse`: `nullable`: true -> false
+- id=185 `ep.ep_reduc_pres.ep_pre_amont`: `nullable`: true -> false
+- id=186 `ep.ep_reduc_pres.ep_pre_aval`: `nullable`: true -> false
+- id=189 `ep.ep_reduc_pres.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=191 `ep.ep_reservoir.ep_nom`: `titre_app`: Nom du rÃ©servoir -> Nom du réservoir
+- id=192 `ep.ep_reservoir.ep_type`: `titre_app`: Type de rÃ©servoir -> Type de réservoir
+- id=195 `ep.ep_reservoir.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=197 `ep.ep_reservoir.ep_date_rehab`: `titre_app`: Date de rÃ©habilitation -> Date de réhabilitation
+- id=199 `ep.ep_reservoir.ep_surf_clot`: `titre_app`: Surface clÃ´turÃ©e du rÃ©servoir -> Surface clôturée du réservoir
+- id=202 `ep.ep_reservoir.ep_diam_in`: `titre_app`: DiamÃ¨tre intÃ©rieur(m) -> Diamètre intérieur(m)
+- id=203 `ep.ep_reservoir.ep_diam_out`: `titre_app`: DiamÃ¨tre extÃ©rieur(m) -> Diamètre extérieur(m)
+- id=204 `ep.ep_reservoir.ep_hr`: `titre_app`: Hauteur du rÃ©servoir(m) -> Hauteur du réservoir(m)
+- id=205 `ep.ep_reservoir.ep_capacite`: `titre_app`: CapacitÃ© du rÃ©servoir(m3) -> Capacité du réservoir(m3)
+- id=208 `ep.ep_reservoir.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=210 `ep.ep_st_demineralisation.ep_num`: `titre_app`: NumÃ©ro de la pompe -> Numéro de la pompe
+- id=211 `ep.ep_st_demineralisation.ep_nom`: `titre_app`: ModÃ¨le de pompe -> Modèle de pompe
+- id=213 `ep.ep_st_demineralisation.ep_pompe_ref`: `titre_app`: RÃ©fÃ©rence de la pompe -> Référence de la pompe
+- id=215 `ep.ep_st_demineralisation.ep_pompe_debit_fo`: `titre_app`: DÃ©bit de forage de la pompe(l/s) -> Débit de forage de la pompe(l/s)
+- id=216 `ep.ep_st_demineralisation.ep_hmt`: `titre_app`: Hauteur manomÃ©trique de la pompe(m) -> Hauteur manométrique de la pompe(m)
+- id=225 `ep.ep_st_demineralisation.ep_detail`: `titre_app`: DÃ©tail -> Détail
+- id=229 `ep.ep_st_demineralisation.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=233 `ep.ep_station_pompage.ep_res_deserv`: `titre_app`: Ouvrage dÃ©servi -> Ouvrage déservi
+- id=236 `ep.ep_station_pompage.puissance_installee`: `titre_app`: Puissance InstallÃ©e (en kw) -> Puissance Installée (en kw)
+- id=238 `ep.ep_station_pompage.ep_debit_global`: `titre_app`: DÃ©bit global (l/s) -> Débit global (l/s)
+- id=239 `ep.ep_station_pompage.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=242 `ep.ep_vanne.ep_modele`: `titre_app`: ModÃ¨le de vanne -> Modèle de vanne
+- id=243 `ep.ep_vanne.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=249 `ep.ep_vanne.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=254 `ep.ep_vanne.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=257 `ep.ep_vidange.ep_modele`: `titre_app`: ModÃ¨le de vanne de vidange -> Modèle de vanne de vidange
+- id=262 `ep.ep_vidange.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=264 `ep.ep_vidange.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=268 `ep.ep_ventouse.ep_modele`: `titre_app`: ModÃ¨le de ventouse -> Modèle de ventouse
+- id=272 `ep.ep_ventouse.ep_ref_rue`: `titre_app`: RÃ©fÃ©rence rue -> Référence rue
+- id=274 `ep.ep_ventouse.ep_conf_plan`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=836 `ep.ep_bf.diam_comp`: `titre_app`: DiamÃ©ttre_compteur -> Diaméttre_compteur
+- id=837 `ep.ep_traversee.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=843 `ep.ep_traversee.ep_mat`: `titre_app`: MatÃ©riau -> Matériau
+- id=847 `ep.ep_bf.diam_brts`: `titre_app`: DiamÃ¨tre branchement -> Diamètre branchement
+- id=848 `ep.ep_bf.mat_brts`: `titre_app`: MatÃ©riau branchement -> Matériau branchement
+- id=1102 `ep.anomalie_conduite.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1103 `ep.anomalie_conduite.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1106 `ep.anomalie_conduite.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1109 `ep.anomalie_conduite.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1115 `ep.centre_tampon.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1116 `ep.centre_tampon.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1122 `ep.centre_tampon.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1125 `ep.centre_tampon.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1131 `ep.ep_bache.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1132 `ep.ep_bache.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1134 `ep.ep_bache.ep_agent`: `nullable`: true -> false
+- id=1135 `ep.ep_bache.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1136 `ep.ep_bache.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1137 `ep.ep_bache.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1138 `ep.ep_bache.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1139 `ep.ep_bache.ep_secteur_com`: `nullable`: true -> false
+- id=1141 `ep.ep_bache.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1144 `ep.ep_bache.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1149 `ep.ep_bache.sec_com`: `nullable`: true -> false
+- id=1150 `ep.ep_bache.sect_hydr`: `nullable`: true -> false
+- id=1152 `ep.ep_bache.zone`: `nullable`: true -> false
+- id=1153 `ep.ep_bf.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1154 `ep.ep_bf.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1156 `ep.ep_bf.ep_agent`: `nullable`: true -> false
+- id=1157 `ep.ep_bf.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1158 `ep.ep_bf.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1159 `ep.ep_bf.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1160 `ep.ep_bf.ep_secteur_com`: `nullable`: true -> false
+- id=1161 `ep.ep_bf.ep_statut`: `nullable`: true -> false
+- id=1163 `ep.ep_bf.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1166 `ep.ep_bf.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1171 `ep.ep_bf.sec_com`: `nullable`: true -> false
+- id=1172 `ep.ep_bf.sect_hydr`: `nullable`: true -> false
+- id=1174 `ep.ep_bouche_arro.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1175 `ep.ep_bouche_arro.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1177 `ep.ep_bouche_arro.ep_agent`: `nullable`: true -> false
+- id=1178 `ep.ep_bouche_arro.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1179 `ep.ep_bouche_arro.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1180 `ep.ep_bouche_arro.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1181 `ep.ep_bouche_arro.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1182 `ep.ep_bouche_arro.ep_secteur_com`: `nullable`: true -> false
+- id=1183 `ep.ep_bouche_arro.ep_statut`: `nullable`: true -> false
+- id=1185 `ep.ep_bouche_arro.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1188 `ep.ep_bouche_arro.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1193 `ep.ep_bouche_arro.sec_com`: `nullable`: true -> false
+- id=1194 `ep.ep_bouche_arro.sect_hydr`: `nullable`: true -> false
+- id=1196 `ep.ep_bouche_arro.zone`: `nullable`: true -> false
+- id=1197 `ep.ep_branchement.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1198 `ep.ep_branchement.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1200 `ep.ep_branchement.ep_agent`: `nullable`: true -> false
+- id=1201 `ep.ep_branchement.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1202 `ep.ep_branchement.ep_secteur_com`: `nullable`: true -> false
+- id=1203 `ep.ep_branchement.ep_statut`: `nullable`: true -> false
+- id=1205 `ep.ep_branchement.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1208 `ep.ep_branchement.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1213 `ep.ep_branchement.sec_com`: `nullable`: true -> false
+- id=1214 `ep.ep_branchement.sect_hydr`: `nullable`: true -> false
+- id=1216 `ep.ep_branchement.zone`: `nullable`: true -> false
+- id=1217 `ep.ep_brc_pt.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1218 `ep.ep_brc_pt.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1220 `ep.ep_brc_pt.ep_agent`: `nullable`: true -> false
+- id=1221 `ep.ep_brc_pt.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1222 `ep.ep_brc_pt.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1223 `ep.ep_brc_pt.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_ Y -> Coordonnées relevées_ Y
+- id=1225 `ep.ep_brc_pt.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1228 `ep.ep_brc_pt.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1233 `ep.ep_brc_pt.sec_com`: `nullable`: true -> false
+- id=1234 `ep.ep_brc_pt.sect_hydr`: `nullable`: true -> false
+- id=1236 `ep.ep_brc_pt.zone`: `nullable`: true -> false
+- id=1237 `ep.ep_compteur_i.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1238 `ep.ep_compteur_i.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1240 `ep.ep_compteur_i.ep_agent`: `nullable`: true -> false
+- id=1241 `ep.ep_compteur_i.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1242 `ep.ep_compteur_i.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1243 `ep.ep_compteur_i.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1244 `ep.ep_compteur_i.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1245 `ep.ep_compteur_i.ep_secteur_com`: `nullable`: true -> false
+- id=1246 `ep.ep_compteur_i.ep_statut`: `nullable`: true -> false
+- id=1248 `ep.ep_compteur_i.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1251 `ep.ep_compteur_i.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1256 `ep.ep_compteur_i.sec_com`: `nullable`: true -> false
+- id=1257 `ep.ep_compteur_i.sect_hydr`: `nullable`: true -> false
+- id=1259 `ep.ep_compteur_i.zone`: `nullable`: true -> false
+- id=1260 `ep.ep_conduite.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1261 `ep.ep_conduite.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1263 `ep.ep_conduite.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1264 `ep.ep_conduite.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1265 `ep.ep_conduite.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1266 `ep.ep_conduite.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1267 `ep.ep_conduite.ep_secteur_com`: `nullable`: true -> false
+- id=1268 `ep.ep_conduite.ep_statut`: `nullable`: true -> false
+- id=1270 `ep.ep_conduite.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1273 `ep.ep_conduite.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1278 `ep.ep_conduite.sec_com`: `nullable`: true -> false
+- id=1279 `ep.ep_conduite.sect_hydr`: `nullable`: true -> false
+- id=1281 `ep.ep_conduite.zone`: `nullable`: true -> false
+- id=1282 `ep.conduite_terrain.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1283 `ep.conduite_terrain.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1286 `ep.conduite_terrain.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1289 `ep.conduite_terrain.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1295 `ep.ep_cone_reduc.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1296 `ep.ep_cone_reduc.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1298 `ep.ep_cone_reduc.ep_agent`: `nullable`: true -> false
+- id=1299 `ep.ep_cone_reduc.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1300 `ep.ep_cone_reduc.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1301 `ep.ep_cone_reduc.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1302 `ep.ep_cone_reduc.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1303 `ep.ep_cone_reduc.ep_secteur_com`: `nullable`: true -> false
+- id=1304 `ep.ep_cone_reduc.ep_statut`: `nullable`: true -> false
+- id=1306 `ep.ep_cone_reduc.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1309 `ep.ep_cone_reduc.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1314 `ep.ep_cone_reduc.sec_com`: `nullable`: true -> false
+- id=1315 `ep.ep_cone_reduc.sect_hydr`: `nullable`: true -> false
+- id=1317 `ep.ep_cone_reduc.zone`: `nullable`: true -> false
+- id=1318 `ep.ep_forage.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1319 `ep.ep_forage.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1321 `ep.ep_forage.ep_agent`: `nullable`: true -> false
+- id=1322 `ep.ep_forage.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1323 `ep.ep_forage.ep_coor_x`: `titre_app`: CopieDeCoordonnÃ©es relevÃ©es_ X -> CopieDeCoordonnées relevées_ X
+- id=1324 `ep.ep_forage.ep_coor_y`: `titre_app`: CopieDeCoordonnÃ©es relevÃ©es_Y -> CopieDeCoordonnées relevées_Y
+- id=1325 `ep.ep_forage.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1326 `ep.ep_forage.ep_secteur_com`: `nullable`: true -> false
+- id=1328 `ep.ep_forage.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1331 `ep.ep_forage.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1336 `ep.ep_forage.sec_com`: `nullable`: true -> false
+- id=1337 `ep.ep_forage.sect_hydr`: `nullable`: true -> false
+- id=1339 `ep.ep_forage.zone`: `nullable`: true -> false
+- id=1340 `ep.ep_hydrant.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1341 `ep.ep_hydrant.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1343 `ep.ep_hydrant.ep_agent`: `nullable`: true -> false
+- id=1344 `ep.ep_hydrant.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1345 `ep.ep_hydrant.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1346 `ep.ep_hydrant.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1347 `ep.ep_hydrant.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1348 `ep.ep_hydrant.ep_secteur_com`: `nullable`: true -> false
+- id=1349 `ep.ep_hydrant.ep_statut`: `nullable`: true -> false
+- id=1351 `ep.ep_hydrant.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1354 `ep.ep_hydrant.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1359 `ep.ep_hydrant.sec_com`: `nullable`: true -> false
+- id=1360 `ep.ep_hydrant.sect_hydr`: `nullable`: true -> false
+- id=1362 `ep.ep_hydrant.zone`: `nullable`: true -> false
+- id=1363 `ep.ep_noeud.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1364 `ep.ep_noeud.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1366 `ep.ep_noeud.ep_agent`: `nullable`: true -> false
+- id=1367 `ep.ep_noeud.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1368 `ep.ep_noeud.ep_secteur_com`: `nullable`: true -> false
+- id=1370 `ep.ep_noeud.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1373 `ep.ep_noeud.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1378 `ep.ep_noeud.sec_com`: `nullable`: true -> false
+- id=1379 `ep.ep_noeud.sect_hydr`: `nullable`: true -> false
+- id=1381 `ep.ep_noeud.zone`: `nullable`: true -> false
+- id=1382 `ep.ep_obturateur.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1383 `ep.ep_obturateur.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1385 `ep.ep_obturateur.ep_agent`: `nullable`: true -> false
+- id=1386 `ep.ep_obturateur.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1387 `ep.ep_obturateur.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1388 `ep.ep_obturateur.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1389 `ep.ep_obturateur.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1390 `ep.ep_obturateur.ep_statut`: `nullable`: true -> false
+- id=1392 `ep.ep_obturateur.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1395 `ep.ep_obturateur.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1400 `ep.ep_obturateur.sec_com`: `nullable`: true -> false
+- id=1401 `ep.ep_obturateur.sect_hydr`: `nullable`: true -> false
+- id=1403 `ep.ep_obturateur.zone`: `nullable`: true -> false
+- id=1404 `ep.ep_pompe.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1405 `ep.ep_pompe.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1407 `ep.ep_pompe.ep_agent`: `nullable`: true -> false
+- id=1408 `ep.ep_pompe.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1409 `ep.ep_pompe.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1410 `ep.ep_pompe.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1411 `ep.ep_pompe.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1414 `ep.ep_pompe.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1417 `ep.ep_pompe.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1422 `ep.ep_pompe.sec_com`: `nullable`: true -> false
+- id=1423 `ep.ep_pompe.sect_hydr`: `nullable`: true -> false
+- id=1425 `ep.ep_pompe.zone`: `nullable`: true -> false
+- id=1426 `ep.ep_puit.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1427 `ep.ep_puit.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1429 `ep.ep_puit.ep_agent`: `nullable`: true -> false
+- id=1430 `ep.ep_puit.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1431 `ep.ep_puit.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1432 `ep.ep_puit.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1433 `ep.ep_puit.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1434 `ep.ep_puit.ep_statut`: `nullable`: true -> false
+- id=1436 `ep.ep_puit.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1439 `ep.ep_puit.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1444 `ep.ep_puit.sec_com`: `nullable`: true -> false
+- id=1445 `ep.ep_puit.sect_hydr`: `nullable`: true -> false
+- id=1447 `ep.ep_puit.zone`: `nullable`: true -> false
+- id=1448 `ep.ep_reduc_pres.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1449 `ep.ep_reduc_pres.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1451 `ep.ep_reduc_pres.ep_agent`: `nullable`: true -> false
+- id=1452 `ep.ep_reduc_pres.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1453 `ep.ep_reduc_pres.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1454 `ep.ep_reduc_pres.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1455 `ep.ep_reduc_pres.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1456 `ep.ep_reduc_pres.ep_secteur_com`: `nullable`: true -> false
+- id=1458 `ep.ep_reduc_pres.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1461 `ep.ep_reduc_pres.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1466 `ep.ep_reduc_pres.sec_com`: `nullable`: true -> false
+- id=1467 `ep.ep_reduc_pres.sect_hydr`: `nullable`: true -> false
+- id=1469 `ep.ep_reduc_pres.zone`: `nullable`: true -> false
+- id=1470 `ep.ep_regard_point.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1471 `ep.ep_regard_point.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1473 `ep.ep_regard_point.ep_agent`: `nullable`: true -> false
+- id=1474 `ep.ep_regard_point.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1475 `ep.ep_regard_point.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1476 `ep.ep_regard_point.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1477 `ep.ep_regard_point.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1478 `ep.ep_regard_point.ep_statut`: `nullable`: true -> false
+- id=1480 `ep.ep_regard_point.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1483 `ep.ep_regard_point.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1488 `ep.ep_regard_point.sec_com`: `nullable`: true -> false
+- id=1489 `ep.ep_regard_point.sect_hydr`: `nullable`: true -> false
+- id=1491 `ep.ep_regard_point.zone`: `nullable`: true -> false
+- id=1492 `ep.ep_reservoir.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1493 `ep.ep_reservoir.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1495 `ep.ep_reservoir.ep_agent`: `nullable`: true -> false
+- id=1496 `ep.ep_reservoir.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1497 `ep.ep_reservoir.ep_coor_x`: `titre_app`: CopieDeCoordonnÃ©es relevÃ©es_ X -> CopieDeCoordonnées relevées_ X
+- id=1498 `ep.ep_reservoir.ep_coor_y`: `titre_app`: CopieDeCoordonnÃ©es relevÃ©es_Y -> CopieDeCoordonnées relevées_Y
+- id=1499 `ep.ep_reservoir.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1500 `ep.ep_reservoir.ep_statut`: `nullable`: true -> false
+- id=1502 `ep.ep_reservoir.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1505 `ep.ep_reservoir.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1510 `ep.ep_reservoir.sec_com`: `nullable`: true -> false
+- id=1511 `ep.ep_reservoir.sect_hydr`: `nullable`: true -> false
+- id=1513 `ep.ep_reservoir.zone`: `nullable`: true -> false
+- id=1514 `ep.ep_st_demineralisation.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1515 `ep.ep_st_demineralisation.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1518 `ep.ep_st_demineralisation.ep_agent_crea`: `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1519 `ep.ep_st_demineralisation.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1520 `ep.ep_st_demineralisation.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1521 `ep.ep_st_demineralisation.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1524 `ep.ep_st_demineralisation.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1527 `ep.ep_st_demineralisation.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1536 `ep.ep_station_pompage.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1537 `ep.ep_station_pompage.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1539 `ep.ep_station_pompage.ep_agent`: `nullable`: true -> false
+- id=1540 `ep.ep_station_pompage.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1544 `ep.ep_station_pompage.ep_secteur_com`: `nullable`: true -> false
+- id=1545 `ep.ep_station_pompage.ep_statut`: `nullable`: true -> false
+- id=1547 `ep.ep_station_pompage.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1550 `ep.ep_station_pompage.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1555 `ep.ep_station_pompage.sec_com`: `nullable`: true -> false
+- id=1556 `ep.ep_station_pompage.sect_hydr`: `nullable`: true -> false
+- id=1558 `ep.ep_station_pompage.zone`: `nullable`: true -> false
+- id=1559 `ep.ep_traversee.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1560 `ep.ep_traversee.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1562 `ep.ep_traversee.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1563 `ep.ep_traversee.ep_secteur_com`: `nullable`: true -> false
+- id=1564 `ep.ep_traversee.ep_statut`: `nullable`: true -> false
+- id=1566 `ep.ep_traversee.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1569 `ep.ep_traversee.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1574 `ep.ep_traversee.sec_com`: `nullable`: true -> false
+- id=1576 `ep.ep_vanne.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1577 `ep.ep_vanne.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1579 `ep.ep_vanne.ep_agent`: `nullable`: true -> false
+- id=1580 `ep.ep_vanne.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1581 `ep.ep_vanne.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1582 `ep.ep_vanne.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1583 `ep.ep_vanne.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1584 `ep.ep_vanne.ep_secteur_com`: `nullable`: true -> false
+- id=1585 `ep.ep_vanne.ep_statut`: `nullable`: true -> false
+- id=1587 `ep.ep_vanne.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1590 `ep.ep_vanne.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1595 `ep.ep_vanne.sec_com`: `nullable`: true -> false
+- id=1596 `ep.ep_vanne.sect_hydr`: `nullable`: true -> false
+- id=1598 `ep.ep_vanne.zone`: `nullable`: true -> false
+- id=1599 `ep.ep_ventouse.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1600 `ep.ep_ventouse.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1602 `ep.ep_ventouse.ep_agent`: `nullable`: true -> false
+- id=1603 `ep.ep_ventouse.ep_agent_crea`: `nullable`: true -> false; `titre_app`: Agent de crÃ©ation SIG -> Agent de création SIG
+- id=1604 `ep.ep_ventouse.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1605 `ep.ep_ventouse.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1606 `ep.ep_ventouse.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1607 `ep.ep_ventouse.ep_secteur_com`: `nullable`: true -> false
+- id=1608 `ep.ep_ventouse.ep_statut`: `nullable`: true -> false
+- id=1610 `ep.ep_ventouse.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1613 `ep.ep_ventouse.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1618 `ep.ep_ventouse.sec_com`: `nullable`: true -> false
+- id=1619 `ep.ep_ventouse.sect_hydr`: `nullable`: true -> false
+- id=1621 `ep.ep_ventouse.zone`: `nullable`: true -> false
+- id=1622 `ep.ep_vidange.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1623 `ep.ep_vidange.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1625 `ep.ep_vidange.ep_agent`: `nullable`: true -> false
+- id=1626 `ep.ep_vidange.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1627 `ep.ep_vidange.ep_coor_y`: `titre_app`: CoordonnÃ©es relevÃ©es_Y -> Coordonnées relevées_Y
+- id=1628 `ep.ep_vidange.ep_coor_z`: `titre_app`: CoordonnÃ©es relevÃ©es_Z -> Coordonnées relevées_Z
+- id=1629 `ep.ep_vidange.ep_secteur_com`: `nullable`: true -> false
+- id=1630 `ep.ep_vidange.ep_statut`: `nullable`: true -> false
+- id=1632 `ep.ep_vidange.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1635 `ep.ep_vidange.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1640 `ep.ep_vidange.sec_com`: `nullable`: true -> false
+- id=1641 `ep.ep_vidange.sect_hydr`: `nullable`: true -> false
+- id=1643 `ep.ep_vidange.zone`: `nullable`: true -> false
+- id=1644 `ep.tn.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1645 `ep.tn.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1651 `ep.tn.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1654 `ep.tn.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1660 `ep.voie.date_creation`: `titre_app`: Date/heure de crÃ©ation -> Date/heure de création
+- id=1661 `ep.voie.date_modif`: `titre_app`: Date/heure derniÃ¨re modification -> Date/heure dernière modification
+- id=1664 `ep.voie.geom`: `titre_app`: GÃ©omÃ©trie PostGIS -> Géométrie PostGIS
+- id=1667 `ep.voie.id_user_creat`: `titre_app`: FK utilisateur crÃ©ateur -> FK utilisateur créateur
+- id=1679 `ep.ep_bf.ep_secteur_hydro`: `nullable`: true -> false
+- id=1680 `ep.ep_bf.ep_zone_hydro`: `nullable`: true -> false
+- id=1681 `ep.ep_bouche_arro.ep_secteur_hydro`: `nullable`: true -> false
+- id=1682 `ep.ep_bouche_arro.ep_zone_hydro`: `nullable`: true -> false
+- id=1684 `ep.ep_compteur_i.ep_secteur_hydro`: `nullable`: true -> false
+- id=1685 `ep.ep_compteur_i.ep_zone_hydro`: `nullable`: true -> false
+- id=1687 `ep.ep_conduite.ep_zone_hydro`: `nullable`: true -> false
+- id=1689 `ep.ep_cone_reduc.ep_secteur_hydro`: `nullable`: true -> false
+- id=1690 `ep.ep_cone_reduc.ep_zone_hydro`: `nullable`: true -> false
+- id=1691 `ep.ep_forage.ep_secteur_hydro`: `nullable`: true -> false
+- id=1692 `ep.ep_forage.ep_zone_hydro`: `nullable`: true -> false
+- id=1694 `ep.ep_hydrant.ep_secteur_hydro`: `nullable`: true -> false
+- id=1695 `ep.ep_hydrant.ep_zone_hydro`: `nullable`: true -> false
+- id=1696 `ep.ep_noeud.ep_secteur_hydro`: `nullable`: true -> false
+- id=1697 `ep.ep_noeud.ep_zone_hydro`: `nullable`: true -> false
+- id=1699 `ep.ep_reduc_pres.ep_secteur_hydro`: `nullable`: true -> false
+- id=1700 `ep.ep_reduc_pres.ep_zone_hydro`: `nullable`: true -> false
+- id=1702 `ep.ep_reservoir.ep_zone_hydro`: `nullable`: true -> false
+- id=1703 `ep.ep_station_pompage.ep_secteur_hydro`: `nullable`: true -> false
+- id=1704 `ep.ep_station_pompage.ep_zone_hydro`: `nullable`: true -> false
+- id=1706 `ep.ep_vanne.ep_secteur_hydro`: `nullable`: true -> false
+- id=1707 `ep.ep_vanne.ep_zone_hydro`: `nullable`: true -> false
+- id=1709 `ep.ep_ventouse.ep_secteur_hydro`: `nullable`: true -> false
+- id=1710 `ep.ep_ventouse.ep_zone_hydro`: `nullable`: true -> false
+- id=1712 `ep.ep_vidange.ep_secteur_hydro`: `nullable`: true -> false
+- id=1713 `ep.ep_vidange.ep_zone_hydro`: `nullable`: true -> false
+- id=1714 `ep.ep_bf.ep_coor_x`: `titre_app`: CoordonnÃ©es relevÃ©es_ X -> Coordonnées relevées_ X
+- id=1715 `ep.ep_brc_pt.type_anomalie`: `ordre`: 5 -> 56
+- id=1716 `ep.ep_branchement.ep_mat`: `titre_app`: MatÃ©riau -> Matériau
+- id=1721 `ep.ep_brc_pt.ep_anomalie`: `ordre`: 4 -> 33
+- id=1734 `ep.ep_traversee.ep_anomalie`: `nullable`: true -> false
+- id=1742 `ep.ep_brc_pt.mode_localisation`: `nullable`: true -> false
+- id=1745 `ep.ep_cone_reduc.mode_localisation`: `nullable`: true -> false
+- id=1752 `ep.ep_regard_point.mode_localisation`: `nullable`: true -> false
+- id=1756 `ep.ep_traversee.mode_localisation`: `nullable`: true -> false
+- id=1761 `ep.ep_conduite.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=1762 `ep.ep_conduite.ep_mat`: `titre_app`: MatÃ©riau -> Matériau
+- id=1764 `ep.ep_compteur_i.ep_compt_fonction`: `nullable`: true -> false
+- id=1765 `ep.ep_cone_reduc.ep_diam_in`: `titre_app`: DiamÃ¨tre intÃ©rieur -> Diamètre intérieur
+- id=1766 `ep.ep_cone_reduc.ep_diam_out`: `titre_app`: DiamÃ¨tre extÃ©rieur -> Diamètre extérieur
+- id=1768 `ep.ep_obturateur.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=1770 `ep.ep_vidange.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=1772 `ep.ep_ventouse.ep_diam`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=2371 `ep.ep_regard.ep_code_ter`: `nullable`: true -> false
+- id=2373 `ep.ep_regard.ep_agent`: `nullable`: true -> false
+- id=2383 `ep.ep_regard.ep_sect_com`: `nullable`: true -> false
+- id=2385 `ep.ep_regard.ep_statut`: `nullable`: true -> false
+- id=2389 `ep.ep_regard.ep_adresse`: `nullable`: true -> false
+- id=2391 `ep.ep_regard.ep_agent_crea`: `nullable`: true -> false
+- id=2392 `ep.ep_regard.sec_com`: `nullable`: true -> false
+- id=2393 `ep.ep_regard.sect_hydr`: `nullable`: true -> false
+- id=2394 `ep.ep_regard.zone`: `nullable`: true -> false
+- id=2401 `ep.ep_regard.mode_localisation`: `nullable`: true -> false
+- id=3504 `asst.ASS_BOUCHE.ASS_TF`: `nullable`: true -> false
+- id=3534 `asst.ASS_BRANCHEMENT.ASS_DIAM`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=3535 `asst.ASS_BRANCHEMENT.ASS_MAT`: `titre_app`: MatÃ©riau -> Matériau
+- id=3536 `asst.ASS_BRANCHEMENT.ASS_TYPE_RESEAU`: `titre_app`: Type de rÃ©seau -> Type de réseau
+- id=3539 `asst.ASS_BRANCHEMENT.ASS_LONG_R`: `titre_app`: Longueur rÃ©elle -> Longueur réelle
+- id=3540 `asst.ASS_BRANCHEMENT.ASS_REGARD_FAC`: `titre_app`: Regard de faÃ§ade existant -> Regard de façade existant
+- id=3541 `asst.ASS_BRANCHEMENT.ASS_DATE_POSE`: `nullable`: true -> false
+- id=3544 `asst.ASS_BRANCHEMENT.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=3545 `asst.ASS_BRANCHEMENT.ASS_REF_MARCHE`: `nullable`: true -> false
+- id=3546 `asst.ASS_BRANCHEMENT.ASS_CONF_PLAN`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=3554 `asst.ASS_BRANCHEMENT.ASS_TF`: `nullable`: true -> false
+- id=3641 `asst.ASS_CANIV_BRANCHE.ASS_DATE_POSE`: `nullable`: true -> false
+- id=3643 `asst.ASS_CANIV_BRANCHE.ASS_DATE_INTERV`: `nullable`: true -> false
+- id=3644 `asst.ASS_CANIV_BRANCHE.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=3645 `asst.ASS_CANIV_BRANCHE.ASS_REF_MARCHE`: `nullable`: true -> false
+- id=3654 `asst.ASS_CANIV_BRANCHE.ASS_TF`: `nullable`: true -> false
+- id=3679 `asst.ASS_COLLECTEUR.ASS_DIAM`: `titre_app`: DiamÃ¨tre -> Diamètre
+- id=3680 `asst.ASS_COLLECTEUR.ASS_MAT`: `titre_app`: MatÃ©riau du collecteur -> Matériau du collecteur
+- id=3682 `asst.ASS_COLLECTEUR.ASS_TYPE_RESEAU`: `titre_app`: Type de rÃ©seau -> Type de réseau
+- id=3686 `asst.ASS_COLLECTEUR.ASS_DATE_POSE`: `nullable`: true -> false
+- id=3687 `asst.ASS_COLLECTEUR.ASS_DATE_INSERTION`: `titre_app`: Date dâ€™insertion -> Date d’insertion
+- id=3696 `asst.ASS_COLLECTEUR.ASS_LONG_R`: `titre_app`: Longueur rÃ©elle -> Longueur réelle
+- id=3706 `asst.ASS_COLLECTEUR.ASS_CONF_PLAN`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=3707 `asst.ASS_COLLECTEUR.ASS_DOM_OCC`: `nullable`: true -> false
+- id=3708 `asst.ASS_COLLECTEUR.ASS_CON_OCC_TEMP`: `nullable`: true -> false
+- id=3723 `asst.ASS_COLLECTEUR.MATERIAU`: `titre_app`: MatÃ©riau -> Matériau
+- id=3724 `asst.ASS_COLLECTEUR.ASS_TF`: `nullable`: true -> false
+- id=3757 `asst.ASS_COL_BOUCHE.ASS_DATE_POSE`: `nullable`: true -> false
+- id=3765 `asst.ASS_COL_BOUCHE.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=3844 `asst.ASS_DEVERSOIR.ASS_DATE_POSE`: `nullable`: true -> false
+- id=3845 `asst.ASS_DEVERSOIR.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=3846 `asst.ASS_DEVERSOIR.ASS_REF_MARCHE`: `nullable`: true -> false
+- id=3868 `asst.ASS_DEVERSOIR.ASS_TF`: `nullable`: true -> false
+- id=4243 `asst.ASS_REGARD.ASS_COOR_X`: `titre_app`: CoordonnÃ©e relevÃ©e x -> Coordonnée relevée x
+- id=4244 `asst.ASS_REGARD.ASS_COOR_Y`: `titre_app`: CoordonnÃ©e relevÃ©e y -> Coordonnée relevée y
+- id=4245 `asst.ASS_REGARD.ASS_COOR_Z`: `titre_app`: CoordonnÃ©e relevÃ©e z -> Coordonnée relevée z
+- id=4250 `asst.ASS_REGARD.ASS_ECHLONS`: `titre_app`: Ã‰chelons -> Échelons
+- id=4251 `asst.ASS_REGARD.ASS_CHUTE`: `titre_app`: PrÃ©sence de chute -> Présence de chute
+- id=4253 `asst.ASS_REGARD.ASS_TYPE_RESEAU`: `titre_app`: Type de rÃ©seau -> Type de réseau
+- id=4265 `asst.ASS_REGARD.ZSURF`: `titre_app`: CÃ´te surface -> Côte surface
+- id=4271 `asst.ASS_REGARD.ASS_CONF_PLAN`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=4272 `asst.ASS_REGARD.ASS_DEPOT`: `titre_app`: Nature des dÃ©pÃ´ts -> Nature des dépôts
+- id=4283 `asst.ASS_REGARD.ASS_TF`: `nullable`: true -> false
+- id=4318 `asst.ASS_REGARD_FACADE.ASS_DATE_POSE`: `nullable`: true -> false
+- id=4321 `asst.ASS_REGARD_FACADE.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=4322 `asst.ASS_REGARD_FACADE.ASS_REF_MARCHE`: `nullable`: true -> false
+- id=4339 `asst.ASS_REGARD_FACADE.ASS_TF`: `nullable`: true -> false
+- id=4399 `asst.ASS_STA_EPUR.ASS_NOM`: `titre_app`: Nom de la station dâ€™Ã©puration -> Nom de la station d’épuration
+- id=4400 `asst.ASS_STA_EPUR.ASS_COOR_X`: `titre_app`: CoordonnÃ©e relevÃ©e x -> Coordonnée relevée x
+- id=4401 `asst.ASS_STA_EPUR.ASS_COOR_Y`: `titre_app`: CoordonnÃ©e relevÃ©e y -> Coordonnée relevée y
+- id=4402 `asst.ASS_STA_EPUR.ASS_COOR_Z`: `titre_app`: CoordonnÃ©e relevÃ©e z -> Coordonnée relevée z
+- id=4404 `asst.ASS_STA_EPUR.ASS_DIMENSION`: `titre_app`: Dimension de la station dâ€™Ã©puration -> Dimension de la station d’épuration
+- id=4405 `asst.ASS_STA_EPUR.ASS_VOLUME`: `titre_app`: CapacitÃ© de la station dâ€™Ã©puration -> Capacité de la station d’épuration
+- id=4406 `asst.ASS_STA_EPUR.ASS_DATE_INSERTION`: `titre_app`: Date dâ€™insertion -> Date d’insertion
+- id=4408 `asst.ASS_STA_EPUR.ASS_DATE_POSE`: `nullable`: true -> false
+- id=4409 `asst.ASS_STA_EPUR.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=4411 `asst.ASS_STA_EPUR.ZSURF`: `titre_app`: CÃ´te surface -> Côte surface
+- id=4412 `asst.ASS_STA_EPUR.RADIER`: `titre_app`: CÃ´te radier -> Côte radier
+- id=4418 `asst.ASS_STA_EPUR.ASS_CONF_PLAN`: `titre_app`: ConformitÃ© des plans -> Conformité des plans
+- id=4430 `asst.ASS_STA_EPUR.ASS_TF`: `nullable`: true -> false
+- id=4510 `asst.ASS_STA_POMP.ASS_DATE_POSE`: `nullable`: true -> false
+- id=4513 `asst.ASS_STA_POMP.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=4526 `asst.ASS_STA_POMP.ASS_TF`: `nullable`: true -> false
+- id=4622 `asst.ASS__EXUTOIRE.ASS_DATE_POSE`: `nullable`: true -> false
+- id=4623 `asst.ASS__EXUTOIRE.ASS_DATE_INTERV`: `nullable`: true -> false
+- id=4625 `asst.ASS__EXUTOIRE.ASS_ENTREPRISE`: `nullable`: true -> false
+- id=4626 `asst.ASS__EXUTOIRE.ASS_REF_MARCHE`: `nullable`: true -> false
+
+### `public.liste_choix`
+- Ajouts: 1
+- Suppressions: 0
+- Modifications: 178
+
+Ajouts:
+- + id=1323 `ep.ep_brc_pt.ep_anomalie id=1323 code=None valeur=None`
+
+Modifications:
+- id=4 `ep.ep_regard_point.anomalie_tamp id=4 code=None valeur=None`: `liste_choix_alias`: Tampons en mauvais Ã©tat -> Tampons en mauvais état; `liste_choix_valeur`: Tampons en mauvais Ã©tat -> Tampons en mauvais état
+- id=5 `ep.ep_regard_point.anomalie_regard id=5 code=None valeur=None`: `liste_choix_alias`: A mettre Ã  la cote -> A mettre à la cote; `liste_choix_valeur`: A mettre Ã  la cote -> A mettre à la cote
+- id=29 `ep.ep_hydrant.statut id=29 code=None valeur=None`: `liste_choix_alias`: PrivÃ© -> Privé
+- id=45 `ep.ep_reservoir.ep_type id=45 code=None valeur=None`: `liste_choix_alias`: RÃ©servoir -> Réservoir
+- id=55 `ep.ep_vanne.ep_sectionnement id=55 code=None valeur=None`: `liste_choix_alias`: Ã  opercule -> à opercule; `liste_choix_valeur`: Ã  opercule -> à opercule
+- id=63 `ep.ep_vidange.ep_sectionnement id=63 code=None valeur=None`: `liste_choix_alias`: Ã  opercule -> à opercule; `liste_choix_valeur`: Ã  opercule -> à opercule
+- id=230 `ep.ep_vanne.ep_conf_plan id=230 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=231 `ep.ep_vanne.ep_conf_plan id=231 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=232 `ep.ep_ventouse.ep_conf_plan id=232 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=233 `ep.ep_ventouse.ep_conf_plan id=233 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=270 `ep.ep_traversee.ep_conf_plan id=270 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=271 `ep.ep_traversee.ep_conf_plan id=271 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=623 `ep.ep_bache.ep_conf_plan id=623 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=624 `ep.ep_bache.ep_conf_plan id=624 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=627 `ep.ep_noeud.ep_conf_plan id=627 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=628 `ep.ep_noeud.ep_conf_plan id=628 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=629 `ep.ep_bf.ep_conf_plan id=629 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=630 `ep.ep_bf.ep_conf_plan id=630 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=633 `ep.ep_bouche_arro.ep_conf_plan id=633 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=634 `ep.ep_bouche_arro.ep_conf_plan id=634 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=635 `ep.ep_branchement.ep_conf_plan id=635 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=636 `ep.ep_branchement.ep_conf_plan id=636 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=638 `ep.ep_brc_pt.ep_conf_plan id=638 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=639 `ep.ep_brc_pt.ep_conf_plan id=639 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=640 `ep.ep_st_demineralisation.ep_conf_plan id=640 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=641 `ep.ep_st_demineralisation.ep_conf_plan id=641 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=652 `ep.ep_compteur_i.ep_conf_plan id=652 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=653 `ep.ep_compteur_i.ep_conf_plan id=653 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=656 `ep.ep_conduite.ep_conf_plan id=656 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=657 `ep.ep_conduite.ep_conf_plan id=657 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=661 `ep.ep_cone_reduc.ep_conf_plan id=661 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=662 `ep.ep_cone_reduc.ep_conf_plan id=662 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=663 `ep.ep_forage.ep_conf_plan id=663 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=664 `ep.ep_forage.ep_conf_plan id=664 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=699 `ep.ep_hydrant.ep_conf_plan id=699 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=700 `ep.ep_hydrant.ep_conf_plan id=700 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=800 `ep.ep_hydrant.type id=800 code=None valeur=None`: `liste_choix_alias`: Prise rÃ©servoir -> Prise réservoir
+- id=801 `ep.ep_hydrant.type id=801 code=None valeur=None`: `liste_choix_alias`: Prise en riviÃ¨re -> Prise en rivière
+- id=802 `ep.ep_hydrant.type id=802 code=None valeur=None`: `liste_choix_alias`: Non dÃ©fini -> Non défini
+- id=911 `ep.ep_obturateur.ep_conf_plan id=911 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=912 `ep.ep_obturateur.ep_conf_plan id=912 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=918 `ep.ep_vanne.ep_type id=918 code=None valeur=None`: `liste_choix_alias`: Vanne fermÃ©e -> Vanne fermée
+- id=919 `ep.ep_vanne.ep_type id=919 code=None valeur=None`: `liste_choix_alias`: Vanne fermÃ©e condamnÃ©e -> Vanne fermée condamnée
+- id=920 `ep.ep_vanne.ep_type id=920 code=None valeur=None`: `liste_choix_alias`: Vanne rÃ©glÃ©e -> Vanne réglée
+- id=924 `ep.ep_vidange.ep_etat id=924 code=None valeur=None`: `liste_choix_alias`: FermÃ© -> Fermé
+- id=927 `ep.ep_vidange.ep_sectionnement id=927 code=None valeur=None`: `liste_choix_alias`: Ã  papillon -> à papillon; `liste_choix_valeur`: Ã  papillon -> à papillon
+- id=928 `ep.ep_pompe.ep_conf_plan id=928 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=929 `ep.ep_pompe.ep_conf_plan id=929 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=930 `ep.ep_vidange.ep_conf_plan id=930 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=931 `ep.ep_vidange.ep_conf_plan id=931 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=932 `ep.ep_puit.ep_conf_plan id=932 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=933 `ep.ep_puit.ep_conf_plan id=933 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=934 `ep.ep_reduc_pres.ep_conf_plan id=934 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=935 `ep.ep_reduc_pres.ep_conf_plan id=935 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=936 `ep.ep_regard_point.ep_conf_plan id=936 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=937 `ep.ep_regard_point.ep_conf_plan id=937 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=939 `ep.ep_regard_point.anomalie_regard id=939 code=None valeur=None`: `liste_choix_alias`: Ouvrage dÃ©gradÃ©s -> Ouvrage dégradés; `liste_choix_valeur`: Ouvrage dÃ©gradÃ©s -> Ouvrage dégradés
+- id=940 `ep.ep_regard_point.anomalie_regard id=940 code=None valeur=None`: `liste_choix_alias`: Regards EnterrÃ©s -> Regards Enterrés; `liste_choix_valeur`: Regards EnterrÃ©s -> Regards Enterrés
+- id=941 `ep.ep_regard_point.anomalie_regard id=941 code=None valeur=None`: `liste_choix_alias`: Regards NoyÃ©s -> Regards Noyés; `liste_choix_valeur`: Regards NoyÃ©s -> Regards Noyés
+- id=942 `ep.ep_regard_point.anomalie_regard id=942 code=None valeur=None`: `liste_choix_alias`: Regards Ã  curer -> Regards à curer; `liste_choix_valeur`: Regards Ã  curer -> Regards à curer
+- id=943 `ep.ep_regard_point.anomalie_regard id=943 code=None valeur=None`: `liste_choix_alias`: Sectionnement enterrÃ© -> Sectionnement enterré; `liste_choix_valeur`: Sectionnement enterrÃ© -> Sectionnement enterré
+- id=946 `ep.ep_regard_point.anomalie_tamp id=946 code=None valeur=None`: `liste_choix_alias`: Tampons ScellÃ©s -> Tampons Scellés; `liste_choix_valeur`: Tampons ScellÃ©s -> Tampons Scellés
+- id=948 `ep.ep_reservoir.ep_conf_plan id=948 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=949 `ep.ep_reservoir.ep_conf_plan id=949 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=950 `ep.ep_reservoir.ep_etat_s id=950 code=None valeur=None`: `liste_choix_alias`: A l'arrÃªt -> A l'arrêt
+- id=951 `ep.ep_reservoir.ep_etat_s id=951 code=None valeur=None`: `liste_choix_alias`: RÃ©serve -> Réserve
+- id=954 `ep.ep_reservoir.ep_etat_s id=954 code=None valeur=None`: `liste_choix_alias`: AbandonnÃ© -> Abandonné
+- id=955 `ep.ep_station_pompage.ep_conf_plan id=955 code=None valeur=None`: `liste_choix_alias`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain; `liste_choix_valeur`: Objet dÃ©couvert sur le terrain -> Objet découvert sur le terrain
+- id=956 `ep.ep_station_pompage.ep_conf_plan id=956 code=None valeur=None`: `liste_choix_alias`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain; `liste_choix_valeur`: Objet non trouvÃ© sur le terrain -> Objet non trouvé sur le terrain
+- id=957 `ep.ep_reservoir.ep_type id=957 code=None valeur=None`: `liste_choix_alias`: ChÃ¢teau d'eau -> Château d'eau
+- id=985 `ep.ep_traversee.type_prot id=985 code=None valeur=None`: `liste_choix_alias`: BÃ©ton -> Béton; `liste_choix_valeur`: BÃ©ton -> Béton
+- id=990 `ep.ep_vanne.ep_etat id=990 code=None valeur=None`: `liste_choix_alias`: FermÃ© -> Fermé
+- id=993 `ep.ep_vanne.ep_sectionnement id=993 code=None valeur=None`: `liste_choix_alias`: Ã  papillon -> à papillon; `liste_choix_valeur`: Ã  papillon -> à papillon
+- id=996 `ep.ep_regard_point.ep_tampon id=996 code=None valeur=None`: `liste_choix_alias`: BÃ©ton -> Béton; `liste_choix_valeur`: BÃ©ton -> Béton
+- id=1005 `ep.ep_traversee.ep_mat id=1005 code=None valeur=None`: `liste_choix_alias`: Beton prÃ©contraint -> Beton précontraint
+- id=1012 `ep.ep_traversee.ep_mat id=1012 code=None valeur=None`: `liste_choix_alias`: IndÃ©fini -> Indéfini
+- id=1026 `ep.ep_bf.statut id=1026 code=None valeur=None`: `liste_choix_alias`: PrivÃ© -> Privé
+- id=1065 `ep.ep_bf.mat_brts id=1065 code=None valeur=None`: `liste_choix_alias`: Beton prÃ©contraint -> Beton précontraint
+- id=1072 `ep.ep_bf.mat_brts id=1072 code=None valeur=None`: `liste_choix_alias`: IndÃ©fini -> Indéfini
+- id=1295 `ep.ep_brc_pt.type_anomalie id=1295 code=None valeur=None`: `attribut_config_mobile_id`: 1721 -> 1715; `nom_champ`: ep_anomalie -> type_anomalie
+- id=1296 `ep.ep_brc_pt.type_anomalie id=1296 code=None valeur=None`: `attribut_config_mobile_id`: 1721 -> 1715; `liste_choix_alias`: branchement non raccordÃ© -> branchement non raccordé; `liste_choix_valeur`: branchement non raccordÃ© -> branchement non raccordé; `nom_champ`: ep_anomalie -> type_anomalie
+- id=1297 `ep.ep_brc_pt.type_anomalie id=1297 code=None valeur=None`: `attribut_config_mobile_id`: 1721 -> 1715; `nom_champ`: ep_anomalie -> type_anomalie
+- id=1301 `ep.ep_branchement.ep_mat id=1301 code=None valeur=None`: `liste_choix_alias`: Beton prÃ©contraint -> Beton précontraint
+- id=1308 `ep.ep_branchement.ep_mat id=1308 code=None valeur=None`: `liste_choix_alias`: IndÃ©fini -> Indéfini
+- id=1357 `ep.ep_bache.mode_localisation id=1357 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1358 `ep.ep_bache.mode_localisation id=1358 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1359 `ep.ep_bache.mode_localisation id=1359 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1360 `ep.ep_bache.mode_localisation id=1360 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1361 `ep.ep_bf.mode_localisation id=1361 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1362 `ep.ep_bf.mode_localisation id=1362 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1363 `ep.ep_bf.mode_localisation id=1363 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1364 `ep.ep_bf.mode_localisation id=1364 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1365 `ep.ep_bouche_arro.mode_localisation id=1365 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1366 `ep.ep_bouche_arro.mode_localisation id=1366 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1367 `ep.ep_bouche_arro.mode_localisation id=1367 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1368 `ep.ep_bouche_arro.mode_localisation id=1368 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1369 `ep.ep_branchement.mode_localisation id=1369 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1370 `ep.ep_branchement.mode_localisation id=1370 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1371 `ep.ep_branchement.mode_localisation id=1371 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1372 `ep.ep_branchement.mode_localisation id=1372 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1373 `ep.ep_brc_pt.mode_localisation id=1373 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1374 `ep.ep_brc_pt.mode_localisation id=1374 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1375 `ep.ep_brc_pt.mode_localisation id=1375 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1376 `ep.ep_brc_pt.mode_localisation id=1376 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1377 `ep.ep_compteur_i.mode_localisation id=1377 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1378 `ep.ep_compteur_i.mode_localisation id=1378 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1379 `ep.ep_compteur_i.mode_localisation id=1379 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1380 `ep.ep_compteur_i.mode_localisation id=1380 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1381 `ep.ep_conduite.mode_localisation id=1381 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1382 `ep.ep_conduite.mode_localisation id=1382 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1383 `ep.ep_conduite.mode_localisation id=1383 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1384 `ep.ep_conduite.mode_localisation id=1384 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1385 `ep.ep_cone_reduc.mode_localisation id=1385 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1386 `ep.ep_cone_reduc.mode_localisation id=1386 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1387 `ep.ep_cone_reduc.mode_localisation id=1387 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1388 `ep.ep_cone_reduc.mode_localisation id=1388 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1389 `ep.ep_forage.mode_localisation id=1389 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1390 `ep.ep_forage.mode_localisation id=1390 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1391 `ep.ep_forage.mode_localisation id=1391 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1392 `ep.ep_forage.mode_localisation id=1392 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1393 `ep.ep_hydrant.mode_localisation id=1393 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1394 `ep.ep_hydrant.mode_localisation id=1394 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1395 `ep.ep_hydrant.mode_localisation id=1395 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1396 `ep.ep_hydrant.mode_localisation id=1396 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1397 `ep.ep_obturateur.mode_localisation id=1397 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1398 `ep.ep_obturateur.mode_localisation id=1398 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1399 `ep.ep_obturateur.mode_localisation id=1399 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1400 `ep.ep_obturateur.mode_localisation id=1400 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1401 `ep.ep_pompe.mode_localisation id=1401 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1402 `ep.ep_pompe.mode_localisation id=1402 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1403 `ep.ep_pompe.mode_localisation id=1403 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1404 `ep.ep_pompe.mode_localisation id=1404 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1405 `ep.ep_puit.mode_localisation id=1405 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1406 `ep.ep_puit.mode_localisation id=1406 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1407 `ep.ep_puit.mode_localisation id=1407 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1408 `ep.ep_puit.mode_localisation id=1408 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1409 `ep.ep_reduc_pres.mode_localisation id=1409 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1410 `ep.ep_reduc_pres.mode_localisation id=1410 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1411 `ep.ep_reduc_pres.mode_localisation id=1411 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1412 `ep.ep_reduc_pres.mode_localisation id=1412 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1413 `ep.ep_regard_point.mode_localisation id=1413 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1414 `ep.ep_regard_point.mode_localisation id=1414 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1415 `ep.ep_regard_point.mode_localisation id=1415 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1416 `ep.ep_regard_point.mode_localisation id=1416 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1417 `ep.ep_reservoir.mode_localisation id=1417 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1418 `ep.ep_reservoir.mode_localisation id=1418 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1419 `ep.ep_reservoir.mode_localisation id=1419 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1420 `ep.ep_reservoir.mode_localisation id=1420 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1421 `ep.ep_st_demineralisation.mode_localisation id=1421 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1422 `ep.ep_st_demineralisation.mode_localisation id=1422 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1423 `ep.ep_st_demineralisation.mode_localisation id=1423 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1424 `ep.ep_st_demineralisation.mode_localisation id=1424 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1425 `ep.ep_station_pompage.mode_localisation id=1425 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1426 `ep.ep_station_pompage.mode_localisation id=1426 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1427 `ep.ep_station_pompage.mode_localisation id=1427 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1428 `ep.ep_station_pompage.mode_localisation id=1428 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1429 `ep.ep_traversee.mode_localisation id=1429 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1430 `ep.ep_traversee.mode_localisation id=1430 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1431 `ep.ep_traversee.mode_localisation id=1431 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1432 `ep.ep_traversee.mode_localisation id=1432 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1433 `ep.ep_vanne.mode_localisation id=1433 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1434 `ep.ep_vanne.mode_localisation id=1434 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1435 `ep.ep_vanne.mode_localisation id=1435 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1436 `ep.ep_vanne.mode_localisation id=1436 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1437 `ep.ep_ventouse.mode_localisation id=1437 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1438 `ep.ep_ventouse.mode_localisation id=1438 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1439 `ep.ep_ventouse.mode_localisation id=1439 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1440 `ep.ep_ventouse.mode_localisation id=1440 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1441 `ep.ep_vidange.mode_localisation id=1441 code=None valeur=None`: `liste_choix_alias`: LevÃ© topographique -> Levé topographique; `liste_choix_valeur`: LevÃ© topographique -> Levé topographique
+- id=1442 `ep.ep_vidange.mode_localisation id=1442 code=None valeur=None`: `liste_choix_alias`: TriangulÃ© -> Triangulé; `liste_choix_valeur`: TriangulÃ© -> Triangulé
+- id=1443 `ep.ep_vidange.mode_localisation id=1443 code=None valeur=None`: `liste_choix_alias`: SchÃ©matique -> Schématique; `liste_choix_valeur`: SchÃ©matique -> Schématique
+- id=1444 `ep.ep_vidange.mode_localisation id=1444 code=None valeur=None`: `liste_choix_alias`: IndÃ©terminÃ© -> Indéterminé; `liste_choix_valeur`: IndÃ©terminÃ© -> Indéterminé
+- id=1486 `ep.ep_conduite.ep_mat id=1486 code=None valeur=None`: `liste_choix_alias`: Beton prÃ©contraint -> Beton précontraint
+- id=1493 `ep.ep_conduite.ep_mat id=1493 code=None valeur=None`: `liste_choix_alias`: IndÃ©fini -> Indéfini
+- id=1558 `ep.ep_cone_reduc.type_anomalie id=1558 code=None valeur=None`: `liste_choix_alias`: sectionnement degradÃ© -> sectionnement degradé; `liste_choix_valeur`: sectionnement degradÃ© -> sectionnement degradé
+- id=1584 `ep.ep_vanne.ep_sectionnement id=1584 code=None valeur=None`: `liste_choix_alias`: Ã  boisseau sphÃ©rique -> à boisseau sphérique; `liste_choix_valeur`: Ã  boisseau sphÃ©rique -> à boisseau sphérique
+- id=1586 `ep.ep_vanne.type_anomalie id=1586 code=None valeur=None`: `liste_choix_alias`: sectionnement degradÃ© -> sectionnement degradé; `liste_choix_valeur`: sectionnement degradÃ© -> sectionnement degradé
+- id=1612 `ep.ep_vidange.ep_sectionnement id=1612 code=None valeur=None`: `liste_choix_alias`: Ã  boisseau sphÃ©rique -> à boisseau sphérique; `liste_choix_valeur`: Ã  boisseau sphÃ©rique -> à boisseau sphérique
+
+## Comparaison rapide avec la BD actuelle
+
+### `public.formulaire_config_mobile` actuelle vs SQL depart
+- Ajouts: 0
+- Suppressions: 0
+- Modifications: 20
+Modifications:
+- id=7 `ep.bouche_a_cles / Bouche à clé`: `titre_app`: Bouche Ã  clÃ© -> Bouche à clé
+- id=9 `ep.ep_compteur_i / Compteur réseau`: `titre_app`: Compteur rÃ©seau -> Compteur réseau
+- id=10 `ep.ep_brc_pt / Compteur abonné`: `titre_app`: Compteur abonnÃ© -> Compteur abonné
+- id=11 `ep.ep_cone_reduc / Cône de réduction`: `titre_app`: CÃ´ne de rÃ©duction -> Cône de réduction
+- id=14 `ep.ep_reduc_pres / Réducteur de pression`: `titre_app`: RÃ©ducteur de pression -> Réducteur de pression
+- id=16 `ep.ep_reservoir / Réservoir`: `titre_app`: RÃ©servoir -> Réservoir
+- id=17 `ep.ep_bache / Bâche`: `titre_app`: BÃ¢che -> Bâche
+- id=19 `ep.ep_st_demineralisation / Station de déminéralisation`: `titre_app`: Station de dÃ©minÃ©ralisation -> Station de déminéralisation
+- id=26 `ep.ep_traversee / Traversée`: `titre_app`: TraversÃ©e -> Traversée
+- id=72 `asst.ASS_REGARD_FACADE / Regards Façade`: `titre_app`: Regards FaÃ§ade -> Regards Façade
+- id=74 `asst.ASS_BOUCHE / Bouches d'égout`: `titre_app`: Bouches d'Ã©gout -> Bouches d'égout
+- id=75 `asst.ASS_DEVERSOIR / Déversoirs d'orage`: `titre_app`: DÃ©versoirs d'orage -> Déversoirs d'orage
+- id=82 `asst.ASS_COL_BOUCHE / Collecteur bouche d'égout`: `titre_app`: Collecteur bouche d'Ã©gout -> Collecteur bouche d'égout
+- id=84 `asst.ASS_STA_EPUR / Stations d'épuration`: `titre_app`: Stations d'Ã©puration -> Stations d'épuration
+- id=106 `asst.ASS_BASSIN_RET / Bassins de rétention`: `titre_app`: Bassins de rÃ©tention -> Bassins de rétention
+- id=107 `asst.ASS_BASSIN_RET_L / Bassins de rétention (ligne)`: `titre_app`: Bassins de rÃ©tention (ligne) -> Bassins de rétention (ligne)
+- id=108 `asst.ASS_ECOULEMENT / Écoulement`: `titre_app`: Ã‰coulement -> Écoulement
+- id=111 `asst.ASS_OUV_TRAVERSEE / Ouvrages de traversée`: `titre_app`: Ouvrages de traversÃ©e -> Ouvrages de traversée
+- id=114 `asst.ASS_REFOULEMENTR / Refoulement réutilisation`: `titre_app`: Refoulement rÃ©utilisation -> Refoulement réutilisation
+- id=116 `asst.ASS_STA_EPUR_L / Stations d'épuration (ligne)`: `titre_app`: Stations d'Ã©puration (ligne) -> Stations d'épuration (ligne)
+
+### `public.attribut_config_mobile` actuelle vs SQL depart
+- Ajouts: 0
+- Suppressions: 0
+- Modifications: 336
+
+### `public.liste_choix` actuelle vs SQL depart
+- Ajouts: 0
+- Suppressions: 0
+- Modifications: 176
+
+## Conflits potentiels stagiaire vs BD actuelle
+
+### `public.formulaire_config_mobile`
+- Conflits directs: 2
+- id=10 `ep.ep_brc_pt / Compteur abonné`
+- id=26 `ep.ep_traversee / Traversée`
+
+### `public.attribut_config_mobile`
+- Conflits directs: 30
+- id=44 `ep.ep_brc_pt.ref`
+- id=46 `ep.ep_brc_pt.abon`
+- id=51 `ep.ep_brc_pt.num_contrat`
+- id=52 `ep.ep_brc_pt.num_compteur`
+- id=55 `ep.ep_brc_pt.diametre`
+- id=57 `ep.ep_brc_pt.ep_conf_plan`
+- id=59 `ep.ep_brc_pt.ancien_ref_sap`
+- id=60 `ep.ep_brc_pt.id_geo`
+- id=133 `ep.ep_bouche_arro.ep_ref_rue`
+- id=1135 `ep.ep_bache.ep_agent_crea`
+- id=1157 `ep.ep_bf.ep_agent_crea`
+- id=1178 `ep.ep_bouche_arro.ep_agent_crea`
+- id=1201 `ep.ep_branchement.ep_agent_crea`
+- id=1221 `ep.ep_brc_pt.ep_agent_crea`
+- id=1241 `ep.ep_compteur_i.ep_agent_crea`
+- id=1263 `ep.ep_conduite.ep_agent_crea`
+- id=1299 `ep.ep_cone_reduc.ep_agent_crea`
+- id=1322 `ep.ep_forage.ep_agent_crea`
+- id=1344 `ep.ep_hydrant.ep_agent_crea`
+- id=1367 `ep.ep_noeud.ep_agent_crea`
+- id=1386 `ep.ep_obturateur.ep_agent_crea`
+- id=1408 `ep.ep_pompe.ep_agent_crea`
+- id=1430 `ep.ep_puit.ep_agent_crea`
+- id=1452 `ep.ep_reduc_pres.ep_agent_crea`
+- id=1474 `ep.ep_regard_point.ep_agent_crea`
+- id=1496 `ep.ep_reservoir.ep_agent_crea`
+- id=1540 `ep.ep_station_pompage.ep_agent_crea`
+- id=1562 `ep.ep_traversee.ep_agent_crea`
+- id=1580 `ep.ep_vanne.ep_agent_crea`
+- id=1603 `ep.ep_ventouse.ep_agent_crea`
+
+### `public.liste_choix`
+- Conflits directs: 1
+- id=1296 `ep.ep_brc_pt.ep_anomalie id=1296 code=None valeur=None`
+
+Total conflits directs: **33**

@@ -1,15 +1,17 @@
 // lib/widgets/forms/srm_point_form_widget.dart
 // ── SPRINT 5 : Formulaire dynamique SRM — entités ponctuelles ──
-// Fonctionne pour EP / ASS / ELEC selon srm_config.dart
-// Les photos photo_1..photo_4 sont portées directement par l'objet
+// Fonctionne pour EP / ASS selon srm_config.dart
+// Les photos photo_1..photo_4 restent locales avant upload; le serveur
+// centralise les references dans public.objet_photo.
 //
 // SPRINT 6 : Modifications
 //  1. uuid retiré du formulaire (généré automatiquement par Uuid().v4() dans _save)
-//  2. Champs obligatoires marqués * via SrmConfig.isRequiredField() + validator
+//  2. Champs obligatoires marqués * via AttributConfigMobileField.isRequired
 //  3. Champs auto (coordonnées GPS) affichés readOnly sans *
 //  4. Toggle "Objet Incomplet" : griser les champs + saisir raison depuis objet_incomplet
 //     (même principe que le Switch Anomalie existant)
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,13 +22,32 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/photo_validation_service.dart';
 import '../../services/photo_reference_service.dart';
+import '../../services/photo_slot_service.dart';
+import '../../services/photo_storage_service.dart';
 import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
+import '../../services/srm_field_option_service.dart';
+
+/// Option vide pour les listes déroulantes — permet à l'agent de désélectionner
+/// son choix s'il a sélectionné par erreur. La validation Champ obligatoire
+/// continue à bloquer si nécessaire.
+const DropdownMenuItem<String> _kEmptyChoiceMenuItem = DropdownMenuItem<String>(
+  value: null,
+  child: Text(
+    '—',
+    style: TextStyle(
+      color: Color(0xFF9CA3AF),
+      fontStyle: FontStyle.italic,
+    ),
+  ),
+);
 
 class SrmPointFormWidget extends StatefulWidget {
-  final String metier;      // "Eau Potable" | "Assainissement" | "Électricité"
-  final String entityType;  // ex: "Vanne", "Regard ASS", "Support"
+  final String metier; // "Eau Potable" | "Assainissement"
+  final String entityType; // ex: "Vanne", "Regard ASS"
+  final String? displayTitle;
   final double latitude;
   final double longitude;
   final double? altitude;
@@ -39,6 +60,7 @@ class SrmPointFormWidget extends StatefulWidget {
     super.key,
     required this.metier,
     required this.entityType,
+    this.displayTitle,
     required this.latitude,
     required this.longitude,
     this.altitude,
@@ -70,25 +92,133 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   bool _isSaving = false;
   final _picker = ImagePicker();
   final Map<int, String?> _photoPaths = {1: null, 2: null, 3: null, 4: null};
+  final Map<int, String?> _anomaliePhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<int, String?> _retourTerrainPhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<int, String?> _incompletPhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<int, String?> _incompletComplementPhotoPaths = {
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  };
+  final Map<String, Map<int, String?>> _initialWorkflowPhotoPaths = {};
+  bool _wasAnomalieAtOpen = false;
+  bool _wasObjetIncompletAtOpen = false;
+  int _workflowInterventionId = 0;
 
   late final Map<String, dynamic>? _entityConfig;
-  late final List<String> _fields;
-  late final List<String> _requiredFields; // NOUVEAU
+  List<String> _fields = [];
+  List<String> _requiredFields = [];
+  Map<String, AttributConfigMobileField> _attributConfigByField = {};
+  Map<String, String> _fieldValidationErrors = {};
+  // True tant que la config dynamique des champs (depuis attribut_config_mobile)
+  // n'est pas encore chargee : evite le flash entre les champs SrmConfig codes
+  // en dur et les champs reels du serveur.
+  bool _isLoadingFields = true;
+  // Quand vrai, onFieldChanged ne déclenche pas la sauvegarde de brouillon.
+  // Utilisé pendant l'application des valeurs par défaut auto (ETAFAT, dates,
+  // coordonnées GPS, mode_localisation) afin de ne pas créer un brouillon
+  // alors que l'agent n'a rien touché.
+  bool _suppressDraftSave = false;
+  Map<String, List<SrmFieldChoice>> _choicesByField = {};
   late final List<String> _typeOptions;
   late final String? _typeField;
   late final int _maxPhotos;
   late double _merchichX;
   late double _merchichY;
+  Timer? _customerLinkTimer;
+  bool _isCustomerLinkLoading = false;
+  String? _customerLinkMessage;
+  String? _lastCustomerLinkKey;
+  bool _isApplyingCustomerLink = false;
+  final Set<String> _customerLinkListenerFields = {};
+
+  bool _isTruthyFlag(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' ||
+        text == 'true' ||
+        text == 't' ||
+        text == 'yes' ||
+        text == 'oui' ||
+        text == 'o';
+  }
+
+  String get _metierCode => widget.metier == 'Eau Potable'
+      ? 'EP'
+      : widget.metier == 'Assainissement'
+          ? 'ASS'
+          : 'SRM';
+
+  String get _tableName =>
+      SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+  String get _displayTitle => (widget.displayTitle?.trim().isNotEmpty == true)
+      ? widget.displayTitle!.trim()
+      : widget.entityType;
+
+  static const String _photoContextAnomalieAvant = 'anomalie_avant';
+  static const String _photoContextRetourTerrain = 'retour_terrain_apres';
+  static const String _photoContextIncompletInitial = 'incomplet_initial';
+  static const String _photoContextIncompletComplement = 'incomplet_complement';
+
+  bool get _isEpRegardPoint =>
+      widget.metier == 'Eau Potable' && _tableName == 'ep_regard_point';
+
+  String _foldLabel(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp('[\\u00e0\\u00e1\\u00e2\\u00e3\\u00e4\\u00e5]'), 'a')
+        .replaceAll(RegExp('[\\u00e7]'), 'c')
+        .replaceAll(RegExp('[\\u00e8\\u00e9\\u00ea\\u00eb]'), 'e')
+        .replaceAll(RegExp('[\\u00ec\\u00ed\\u00ee\\u00ef]'), 'i')
+        .replaceAll(RegExp('[\\u00f1]'), 'n')
+        .replaceAll(RegExp('[\\u00f2\\u00f3\\u00f4\\u00f5\\u00f6]'), 'o')
+        .replaceAll(RegExp('[\\u00f9\\u00fa\\u00fb\\u00fc]'), 'u')
+        .replaceAll(RegExp('[\\u00fd\\u00ff]'), 'y');
+  }
+
+  bool get _isEpCompteurAbonne {
+    if (widget.metier != 'Eau Potable') return false;
+    final tableName = _tableName.toLowerCase();
+    if (tableName == 'compteur_abonne' || tableName == 'ep_brc_pt') {
+      return true;
+    }
+    final label =
+        _foldLabel('${widget.entityType} ${widget.displayTitle ?? ''}');
+    return label.contains('compteur') && label.contains('abonne');
+  }
+
+  bool get _isEpMinimalLocationForm =>
+      widget.metier == 'Eau Potable' &&
+      const {'borne_onep', 'bouche_a_cles', 'autre_objet'}.contains(_tableName);
 
   @override
   void initState() {
     super.initState();
-    _entityConfig  = SrmConfig.getEntityConfig(widget.metier, widget.entityType);
-    _fields        = SrmConfig.getFields(widget.metier, widget.entityType);
-    _requiredFields = SrmConfig.getRequiredFields(widget.metier, widget.entityType); // NOUVEAU
-    _typeOptions   = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
-    _typeField     = _entityConfig?['typeField'] as String?;
-    _maxPhotos     = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
+    _entityConfig = SrmConfig.getEntityConfig(widget.metier, widget.entityType);
+    _fields = SrmConfig.getFields(widget.metier, widget.entityType);
+    // _requiredFields est alimenté par _loadAttributConfigMobileFields()
+    // depuis la SQLite locale (synchronisée au login). Pas de hardcoding.
+    _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
+    _typeField = _entityConfig?['typeField'] as String?;
+    _maxPhotos = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
 
     final m = ProjectionService().wgs84ToMerchich(
       longitude: widget.longitude,
@@ -101,25 +231,41 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final initial = widget.existingData?[field]?.toString() ?? '';
       _controllers[field] = TextEditingController(text: initial);
     }
+    _ensureCustomerLinkListeners();
+    _loadAttributConfigMobileFields();
     _prefillCoordinates();
+    _applyEntitySpecificDefaults();
 
     if (widget.existingData != null) {
-      _hasAnomalie = widget.existingData!['anomalie'] == 1 ||
-          widget.existingData!['anomalie'] == true;
-      _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
+      _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
+          _isTruthyFlag(widget.existingData!['ep_anomalie']);
+      _typeAnomalie = widget.existingData!['type_anomalie']?.toString() ??
+          widget.existingData!['anomalie_regard']?.toString() ??
+          widget.existingData!['anomalie_tamp']?.toString();
 
       // Restaurer état objet incomplet en mode édition
-      _isObjetIncomplet = widget.existingData!['objet_incomplet'] == 1 ||
-          widget.existingData!['objet_incomplet'] == true;
+      _isObjetIncomplet =
+          _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
+      _wasAnomalieAtOpen = _hasAnomalie;
+      _wasObjetIncompletAtOpen = _isObjetIncomplet;
 
       for (int i = 1; i <= 4; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
+      _photoPaths.addAll(
+        PhotoSlotService.compact(
+          _photoPaths,
+          _maxPhotos,
+          isLockedReference: PhotoReferenceService.isRemoteReference,
+        ),
+      );
 
       _isLocked = FormLockService.isLocked(widget.existingData!);
+      _restoreLinkedObjetIncompletDetails();
+      _loadWorkflowPhotoQueues();
     }
 
     // ── SPRINT 7 : Brouillon automatique (uniquement en mode création) ──
@@ -133,32 +279,514 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
-  void _prefillCoordinates() {
-    final coordFields = {
-      'ep_coor_x':   _merchichX.toStringAsFixed(3),
-      'ep_coor_y':   _merchichY.toStringAsFixed(3),
-      'ass_coor_x':  _merchichX.toStringAsFixed(3),
-      'ass_coor_y':  _merchichY.toStringAsFixed(3),
-      'elec_coor_x': _merchichX.toStringAsFixed(3),
-      'elec_coor_y': _merchichY.toStringAsFixed(3),
-    };
-    if (widget.altitude != null) {
-      final zStr = widget.altitude!.toStringAsFixed(3);
-      coordFields['ep_coor_z']   = zStr;
-      coordFields['ass_coor_z']  = zStr;
-      coordFields['elec_coor_z'] = zStr;
-    }
-    for (final entry in coordFields.entries) {
-      if (_controllers.containsKey(entry.key)) {
-        _controllers[entry.key]!.text = entry.value;
+  Future<void> _loadAttributConfigMobileFields() async {
+    try {
+      final nomMetier =
+          AttributConfigMobileService.nomMetierForMobileMetier(widget.metier);
+      final nomTable = AttributConfigMobileService.configTableForMobileTable(
+        nomMetier,
+        _tableName,
+      );
+      final results = await Future.wait<dynamic>([
+        AttributConfigMobileService().getFormFields(
+          metier: widget.metier,
+          entityType: widget.entityType,
+          refreshIfEmpty: false,
+          forceRefresh: true,
+        ),
+        SrmFieldOptionService().getOptionsByField(
+          tableSchema: nomMetier,
+          tableName: nomTable,
+          refreshIfEmpty: false,
+        ),
+      ]);
+      final configFields = results[0] as List<AttributConfigMobileField>;
+      final rawChoicesByField = results[1] as Map<String, List<SrmFieldChoice>>;
+      if (!mounted) return;
+      if (configFields.isEmpty) return;
+
+      final formFields = <String>[];
+      final requiredFields = <String>[];
+      final byField = <String, AttributConfigMobileField>{};
+      for (final config in configFields) {
+        if (config.nomChamp.isEmpty ||
+            config.primaryKey ||
+            config.nomChamp.toLowerCase() == 'geom') {
+          continue;
+        }
+        byField[config.nomChamp] = config;
+        if (_isWorkflowManagedField(config.nomChamp)) {
+          continue;
+        }
+        if (!config.visible && !config.isAutoVisibleCoordinate) {
+          continue;
+        }
+        if (!formFields.contains(config.nomChamp)) {
+          formFields.add(config.nomChamp);
+        }
+        if (config.isRequired) {
+          requiredFields.add(config.nomChamp);
+        }
+      }
+
+      final choicesByField = Map.fromEntries(
+        rawChoicesByField.entries.where((entry) => byField.containsKey(
+              entry.key,
+            )),
+      );
+
+      setState(() {
+        _attributConfigByField = byField;
+        _choicesByField = choicesByField;
+        _fields = formFields;
+        _requiredFields = requiredFields;
+        for (final field in _fields) {
+          if (!_controllers.containsKey(field)) {
+            final controller = TextEditingController(
+              text: widget.existingData?[field]?.toString() ??
+                  byField[field]?.valeurParDefaut ??
+                  '',
+            );
+            if (widget.existingData == null) {
+              controller.addListener(onFieldChanged);
+            }
+            _controllers[field] = controller;
+          }
+        }
+        for (final config in byField.values) {
+          if (!_isAnomalieDetailField(config.nomChamp)) continue;
+          if (!config.visible) continue;
+          _controllers.putIfAbsent(
+            config.nomChamp,
+            () {
+              final controller = TextEditingController(
+                text: widget.existingData?[config.nomChamp]?.toString() ??
+                    config.valeurParDefaut,
+              );
+              if (widget.existingData == null) {
+                controller.addListener(onFieldChanged);
+              }
+              return controller;
+            },
+          );
+        }
+        _applyConfiguredDefaults();
+        _prefillCoordinates();
+        _applyEntitySpecificDefaults();
+        _ensureCustomerLinkListeners();
+      });
+    } catch (e) {
+      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Form fallback $_tableName: $e');
+    } finally {
+      // Quoi qu'il arrive (succes, config vide, exception, widget demonte),
+      // on bascule l'etat "loading" pour debloquer l'affichage du formulaire.
+      if (mounted && _isLoadingFields) {
+        setState(() {
+          _isLoadingFields = false;
+        });
       }
     }
   }
+
+  void _applyConfiguredDefaults() {
+    if (widget.existingData != null) return;
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      for (final entry in _attributConfigByField.entries) {
+        final defaultValue = _configuredDefaultValueForField(entry.key);
+        if (defaultValue.isEmpty) continue;
+        final controller = _controllers[entry.key];
+        if (controller == null || controller.text.trim().isNotEmpty) continue;
+        controller.text = defaultValue;
+      }
+    } finally {
+      _suppressDraftSave = wasSuppressed;
+    }
+  }
+
+  @override
+  void onFieldChanged() {
+    if (_suppressDraftSave) return;
+    super.onFieldChanged();
+  }
+
+  String _configuredDefaultValueForField(String field) {
+    final defaultValue = _configForField(field)?.valeurParDefaut.trim() ?? '';
+    if (defaultValue.isEmpty) return '';
+
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty &&
+        !choices.any((choice) => choice.code == defaultValue)) {
+      return '';
+    }
+    return defaultValue;
+  }
+
+  void _prefillCoordinates() {
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      if (widget.altitude == null) {
+        if (widget.existingData == null) {
+          for (final entry in _controllers.entries) {
+            if (_isCoordField(entry.key)) {
+              entry.value.clear();
+            }
+          }
+        }
+        return;
+      }
+
+      final zStr = widget.altitude!.toStringAsFixed(3);
+      final coordFields = {
+        'ep_coor_x': _merchichX.toStringAsFixed(3),
+        'ep_coor_y': _merchichY.toStringAsFixed(3),
+        'ep_coor_z': zStr,
+        'ass_coor_x': _merchichX.toStringAsFixed(3),
+        'ass_coor_y': _merchichY.toStringAsFixed(3),
+        'ass_coor_z': zStr,
+      };
+      for (final entry in _controllers.entries) {
+        final value = coordFields[entry.key.toLowerCase()];
+        if (value != null) {
+          entry.value.text = value;
+        }
+      }
+    } finally {
+      _suppressDraftSave = wasSuppressed;
+    }
+  }
+
+  Future<void> _restoreLinkedObjetIncompletDetails() async {
+    if (!_isObjetIncomplet) return;
+    if ((_raisonIncomplet?.trim().isNotEmpty ?? false) &&
+        _detailRaisonController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    final existingId = widget.existingData?['id'] is int
+        ? widget.existingData!['id'] as int
+        : int.tryParse(widget.existingData?['id']?.toString() ?? '');
+    final tableName =
+        SrmConfig.getTableName(widget.metier, widget.entityType) ?? '';
+    if (existingId == null || tableName.isEmpty) return;
+
+    final linked = await DatabaseHelper().getOpenObjetIncompletForEntity(
+      tableName: tableName,
+      idObjet: existingId,
+    );
+    if (!mounted || linked == null) return;
+
+    setState(() {
+      _raisonIncomplet ??= linked['raison']?.toString();
+      if (_detailRaisonController.text.trim().isEmpty) {
+        _detailRaisonController.text =
+            linked['detail_raison']?.toString() ?? '';
+      }
+    });
+  }
+
+  void _applyEntitySpecificDefaults() {
+    if (!_isEpRegardPoint || widget.existingData != null) return;
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      final now = DateTime.now();
+      _setControllerIfEmpty('ep_agent', 'ETAFAT');
+      _setControllerIfEmpty('ep_agent_crea', 'ETAFAT');
+      _setControllerIfEmpty('ep_date_insertion', _formatDateOnly(now));
+      _setControllerIfEmpty(
+          'id_user_creat', ApiService.userId?.toString() ?? '');
+      _setControllerIfEmpty('date_creation', now.toIso8601String());
+      _setControllerIfEmpty('mode_localisation', 'Levé topographique');
+      _setControllerIfEmpty('ep_anomalie', '0');
+    } finally {
+      _suppressDraftSave = wasSuppressed;
+    }
+  }
+
+  void _setControllerIfEmpty(String field, String value) {
+    if (value.trim().isEmpty) return;
+    final controller = _controllers[field];
+    if (controller == null) return;
+    if (controller.text.trim().isEmpty) {
+      controller.text = value;
+    }
+  }
+
+  void _ensureCustomerLinkListeners() {
+    if (!_isEpCompteurAbonne) return;
+    for (final field in const ['num_contrat', 'ancienne_police']) {
+      if (_customerLinkListenerFields.contains(field)) continue;
+      final controller = _controllers[field];
+      if (controller == null) continue;
+      controller.addListener(_scheduleCustomerLinkLookup);
+      _customerLinkListenerFields.add(field);
+    }
+  }
+
+  void _scheduleCustomerLinkLookup() {
+    if (!_isEpCompteurAbonne || _isLocked || _isApplyingCustomerLink) return;
+    _customerLinkTimer?.cancel();
+    _customerLinkTimer = Timer(
+      const Duration(milliseconds: 700),
+      _fetchCustomerLink,
+    );
+  }
+
+  Future<void> _fetchCustomerLink() async {
+    if (!_isEpCompteurAbonne || !mounted) return;
+    final numContrat = _controllers['num_contrat']?.text.trim() ?? '';
+    final anciennePolice = _controllers['ancienne_police']?.text.trim() ?? '';
+    if (numContrat.isEmpty && anciennePolice.isEmpty) {
+      setState(() {
+        _customerLinkMessage = null;
+        _isCustomerLinkLoading = false;
+      });
+      return;
+    }
+
+    final requestKey = '$numContrat|$anciennePolice|'
+        '${_merchichX.toStringAsFixed(3)}|${_merchichY.toStringAsFixed(3)}';
+    if (requestKey == _lastCustomerLinkKey) return;
+    _lastCustomerLinkKey = requestKey;
+
+    setState(() {
+      _isCustomerLinkLoading = true;
+      _customerLinkMessage = 'Recherche client ONEP...';
+    });
+
+    try {
+      final response = await ApiService.fetchCompteurAbonneCustomerLink(
+        numContrat: numContrat,
+        anciennePolice: anciennePolice,
+        x: _merchichX,
+        y: _merchichY,
+      );
+      if (!mounted || response == null) return;
+      _handleCustomerLinkResponse(response);
+    } catch (e) {
+      debugPrint('[ONEP-LINK] $e');
+      final localResponse = await DatabaseHelper().findOnepCustomerLocal(
+        numContrat: numContrat,
+        anciennePolice: anciennePolice,
+        x: _merchichX,
+        y: _merchichY,
+      );
+      if (mounted && localResponse != null) {
+        _handleCustomerLinkResponse(localResponse, offline: true);
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _customerLinkMessage = 'Liaison client indisponible hors ligne.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCustomerLinkLoading = false;
+        });
+      }
+    }
+  }
+
+  void _handleCustomerLinkResponse(
+    Map<String, dynamic> response, {
+    bool offline = false,
+  }) {
+    if (!mounted) return;
+    final matched = response['matched'] == true;
+    if (matched) {
+      final rawData = response['data'];
+      if (rawData is Map) {
+        _applyCustomerLinkData(Map<String, dynamic>.from(rawData));
+      }
+      final note = response['observation_note']?.toString().trim() ?? '';
+      if (note.isNotEmpty) {
+        _appendObservationNote(note);
+      }
+      final matchType = response['match_type']?.toString();
+      final warnings = response['warnings'];
+      final warningText = warnings is List && warnings.isNotEmpty
+          ? warnings.first.toString()
+          : '';
+      setState(() {
+        final baseMessage = matchType == 'ancienne_police_commune'
+            ? 'Client ONEP trouvé par ancienne police + commune.'
+            : 'Client ONEP trouvé par numéro de contrat.';
+        final sourceSuffix = offline ? ' (cache local).' : '';
+        _customerLinkMessage = warningText.isEmpty
+            ? '$baseMessage$sourceSuffix'
+            : '$baseMessage$sourceSuffix $warningText';
+      });
+    } else {
+      final warnings = response['warnings'];
+      final warningText = warnings is List && warnings.isNotEmpty
+          ? warnings.first.toString()
+          : 'Aucun client ONEP trouvé pour ces informations.';
+      setState(() {
+        _customerLinkMessage =
+            offline ? '$warningText (cache local).' : warningText;
+      });
+    }
+  }
+
+  void _applyCustomerLinkData(Map<String, dynamic> data) {
+    const fields = [
+      'num_contrat',
+      'ancienne_police',
+      'abon',
+      'nom',
+      'adresse',
+      'etat_abonnement',
+      'ancien_ref_sap',
+      'id_geo',
+      'ref',
+    ];
+    _isApplyingCustomerLink = true;
+    try {
+      for (final field in fields) {
+        final value = data[field]?.toString().trim() ?? '';
+        if (value.isEmpty) continue;
+        final controller = _controllers[field];
+        if (controller != null && controller.text.trim() != value) {
+          controller.text = value;
+        }
+      }
+    } finally {
+      _isApplyingCustomerLink = false;
+    }
+  }
+
+  void _appendObservationNote(String note) {
+    final cleanNote = note.trim();
+    if (cleanNote.isEmpty) return;
+    final controller =
+        _controllers['ep_observation'] ?? _controllers['observation'];
+    if (controller == null) return;
+    final current = controller.text.trim();
+    if (current.contains(cleanNote)) return;
+    controller.text = current.isEmpty ? cleanNote : '$current | $cleanNote';
+  }
+
+  String _formatDateOnly(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  bool _isConfiguredReadOnlyField(String field) {
+    return SrmConfig.getReadOnlyFields(widget.metier, widget.entityType)
+        .contains(field);
+  }
+
+  bool _isAnomalieFlagField(String field) {
+    final normalized = field.toLowerCase();
+    if (_isCompteurAbonneAnomalieChoiceField(normalized)) return false;
+    return normalized == 'anomalie' ||
+        normalized == 'ep_anomalie' ||
+        normalized == 'ass_anomalie';
+  }
+
+  bool _isAnomalieDetailField(String field) {
+    final normalized = field.toLowerCase();
+    if (_isCompteurAbonneAnomalieChoiceField(normalized)) return false;
+    if (_isAnomalieFlagField(normalized)) return false;
+    return normalized == 'type_anomalie' ||
+        normalized.startsWith('anomalie_') ||
+        normalized.endsWith('_anomalie');
+  }
+
+  bool _isAnomalieManagedField(String field) =>
+      _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+
+  bool _isCompteurAbonneAnomalieChoiceField(String field) =>
+      _isEpCompteurAbonne && field.toLowerCase() == 'ep_anomalie';
+
+  bool get _hasCompteurAbonneInformativeAnomalie {
+    if (!_isEpCompteurAbonne) return false;
+    final value = (_controllers['ep_anomalie']?.text ?? '').trim();
+    return value.isNotEmpty && !_isNoAnomalieValue(value);
+  }
+
+  bool get _hasActiveAnomalie =>
+      _hasAnomalie || _hasCompteurAbonneInformativeAnomalie;
+
+  bool _isObservationField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'observation' ||
+        normalized == 'ep_observation' ||
+        normalized == 'ass_observation' ||
+        normalized.endsWith('_observation');
+  }
+
+  List<String> _anomalieEvidenceFields() {
+    final candidates = <String>{
+      ..._anomalieDetailFields(),
+      ..._fields.where(_isObservationField),
+      ..._controllers.keys.where(_isObservationField),
+      ..._attributConfigByField.keys.where(_isObservationField),
+    };
+    return candidates
+        .where((field) =>
+            !_isAnomalieFlagField(field) && _isConfiguredVisibleField(field))
+        .toList()
+      ..sort();
+  }
+
+  String? _validateAnomalieEvidence() {
+    if (!_hasActiveAnomalie || _isObjetIncomplet) return null;
+    if (_hasCompteurAbonneInformativeAnomalie) return null;
+    final fields = _anomalieEvidenceFields();
+    if (fields.isEmpty) return null;
+    for (final field in fields) {
+      if ((_controllers[field]?.text.trim() ?? '').isNotEmpty) return null;
+    }
+    return 'Veuillez renseigner le type, l\'observation ou le detail de l\'anomalie';
+  }
+
+  AttributConfigMobileField? _configForField(String field) {
+    final direct = _attributConfigByField[field];
+    if (direct != null) return direct;
+    final normalized = field.trim().toLowerCase();
+    final lower = _attributConfigByField[normalized];
+    if (lower != null) return lower;
+    for (final entry in _attributConfigByField.entries) {
+      if (entry.key.trim().toLowerCase() == normalized) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  bool _isConfiguredVisibleField(String field) {
+    final config = _configForField(field);
+    return config == null || config.visible || config.isAutoVisibleCoordinate;
+  }
+
+  bool _isObjetIncompletManagedField(String field) {
+    final normalized = field.toLowerCase();
+    return normalized == 'objet_incomplet' ||
+        normalized == 'raison_incomplet' ||
+        normalized == 'detail_raison';
+  }
+
+  bool _isWorkflowManagedField(String field) =>
+      _isAnomalieManagedField(field) || _isObjetIncompletManagedField(field);
+
+  bool _isHiddenField(String field) => _isWorkflowManagedField(field);
+
+  bool _isCustomerLinkTriggerField(String field) =>
+      field == 'num_contrat' || field == 'ancienne_police';
 
   @override
   void dispose() {
     // ── SPRINT 7 : arrêter le timer de brouillon ──
     if (widget.existingData == null) disposeDraft();
+    _customerLinkTimer?.cancel();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -186,6 +814,22 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   @override
+  bool isDraftFieldMeaningful(String field, String value) {
+    if (!super.isDraftFieldMeaningful(field, value)) return false;
+    if (field == '__detail_raison') {
+      return _isObjetIncomplet && value.trim().isNotEmpty;
+    }
+    final config = _configForField(field);
+    if (config != null) {
+      if (!config.visible && !config.isAutoVisibleCoordinate) return false;
+    } else if (_attributConfigByField.isNotEmpty) {
+      return false;
+    }
+    final defaultValue = _configuredDefaultValueForField(field).trim();
+    return defaultValue.isEmpty || value.trim() != defaultValue;
+  }
+
+  @override
   Map<int, String?> collectPhotoPaths() => Map.from(_photoPaths);
 
   @override
@@ -210,6 +854,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   @override
   void restorePhotoPaths(Map<int, String?> photos) {
     _photoPaths.addAll(photos);
+    _photoPaths.addAll(
+      PhotoSlotService.compact(
+        _photoPaths,
+        _maxPhotos,
+        isLockedReference: PhotoReferenceService.isRemoteReference,
+      ),
+    );
   }
 
   @override
@@ -223,7 +874,28 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
 
   // Photos
-  Future<void> _pickPhoto(int index) async {
+  Future<void> _pickPhoto(
+    int index, {
+    Map<int, String?>? targetPaths,
+    String photoContext = 'collecte_initiale',
+    int? maxSlots,
+  }) async {
+    final paths = targetPaths ?? _photoPaths;
+    final slotLimit = maxSlots ??
+        (targetPaths == null
+            ? _maxPhotos
+            : _workflowPhotoSlotCount(photoContext));
+    final previousPath = paths[index]?.trim();
+    if (!PhotoSlotService.canPickSlot(paths, index, slotLimit)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ajoutez les photos dans l'ordre."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -265,7 +937,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     // on rejette la sélection avec un message explicite.
     final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
       candidatePath: picked.path,
-      existingPaths: _photoPaths,
+      existingPaths: paths,
       currentSlot: index,
     );
     if (duplicateSlot != null) {
@@ -289,18 +961,280 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
       return;
     }
     // Fin de la vérification anti-doublon.
 
+    late final String durablePath;
+    try {
+      durablePath = await PhotoStorageService.persistPickedPhoto(
+        picked: picked,
+        schemaName: _metierCode.toLowerCase(),
+        tableName: _tableName,
+        photoSlot: index,
+        photoContext: photoContext,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Photo non sauvegardee localement: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (!mounted) return;
-    setState(() => _photoPaths[index] = picked.path);
+    if (PhotoReferenceService.isLocalReference(previousPath)) {
+      await PhotoStorageService.deleteLocalPhotoReference(previousPath);
+    }
+    setState(() {
+      paths[index] = durablePath;
+      paths.addAll(
+        PhotoSlotService.compact(
+          paths,
+          slotLimit,
+          isLockedReference: PhotoReferenceService.isRemoteReference,
+        ),
+      );
+    });
+    if (targetPaths == null && widget.existingData == null) onFieldChanged();
   }
 
-  void _removePhoto(int index) => setState(() => _photoPaths[index] = null);
+  Future<void> _removePhoto(
+    int index, {
+    Map<int, String?>? targetPaths,
+    int? maxSlots,
+  }) async {
+    final paths = targetPaths ?? _photoPaths;
+    final slotLimit = maxSlots ?? _maxPhotos;
+    final removedPath = paths[index]?.trim();
+    setState(() {
+      paths.addAll(
+        PhotoSlotService.removeAndCompact(
+          paths,
+          index,
+          slotLimit,
+          isLockedReference: PhotoReferenceService.isRemoteReference,
+        ),
+      );
+    });
+    if (PhotoReferenceService.isLocalReference(removedPath)) {
+      await PhotoStorageService.deleteLocalPhotoReference(removedPath);
+    }
+    if (targetPaths == null && widget.existingData == null) onFieldChanged();
+  }
+
+  Future<void> _cancelRemovedLocalPhotoUploadsAfterSave(
+      DatabaseHelper db) async {
+    final uuid = widget.existingData?['uuid']?.toString().trim() ?? '';
+    if (uuid.isEmpty || _tableName.isEmpty) return;
+
+    for (var slot = 1; slot <= 4; slot++) {
+      final previous =
+          widget.existingData?['photo_$slot']?.toString().trim() ?? '';
+      final current = _photoPaths[slot]?.trim() ?? '';
+      if (previous.isEmpty || current == previous) continue;
+      if (!PhotoReferenceService.isRemoteReference(previous)) {
+        await db.cancelPhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+        );
+        await PhotoStorageService.deleteLocalPhotoReference(previous);
+      }
+    }
+  }
+
+  Map<int, String?> _workflowPhotoMapForContext(String photoContext) {
+    switch (photoContext) {
+      case _photoContextAnomalieAvant:
+        return _anomaliePhotoPaths;
+      case _photoContextRetourTerrain:
+        return _retourTerrainPhotoPaths;
+      case _photoContextIncompletInitial:
+        return _incompletPhotoPaths;
+      case _photoContextIncompletComplement:
+        return _incompletComplementPhotoPaths;
+      default:
+        return _anomaliePhotoPaths;
+    }
+  }
+
+  int _workflowPhotoSlotCount(String photoContext) {
+    final max = _maxPhotos <= 0 ? 0 : (_maxPhotos > 4 ? 4 : _maxPhotos);
+    if (max <= PhotoStorageService.workflowPhotoSlotLimit) return max;
+    return PhotoStorageService.workflowPhotoSlotLimit;
+  }
+
+  Future<void> _loadWorkflowPhotoQueues() async {
+    final uuid = widget.existingData?['uuid']?.toString().trim() ?? '';
+    if (uuid.isEmpty || _tableName.isEmpty) return;
+
+    try {
+      final db = DatabaseHelper();
+      final resolvedInterventionId =
+          await db.resolveInterventionAnomalieIdForObject(
+        schemaName: _metierCode.toLowerCase(),
+        tableName: _tableName,
+        uuidObjet: uuid,
+      );
+      var queueInterventionId = resolvedInterventionId;
+      var rows = await db.getPhotoSyncItemsForObject(
+        schemaName: _metierCode.toLowerCase(),
+        tableName: _tableName,
+        uuidObjet: uuid,
+        idInterventionAnomalie: queueInterventionId,
+      );
+      if (resolvedInterventionId != 0 && rows.isEmpty) {
+        queueInterventionId = 0;
+        rows = await db.getPhotoSyncItemsForObject(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          idInterventionAnomalie: queueInterventionId,
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _workflowInterventionId = queueInterventionId;
+        for (final row in rows) {
+          final photoContext =
+              row['photo_context']?.toString().trim() ?? 'collecte_initiale';
+          if (photoContext == 'collecte_initiale') continue;
+          final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
+          if (slot == null || slot < 1 || slot > 4) continue;
+          final remote = row['remote_path']?.toString().trim() ?? '';
+          final local = row['local_path']?.toString().trim() ?? '';
+          final value = remote.isNotEmpty ? remote : local;
+          if (value.isEmpty) continue;
+          _workflowPhotoMapForContext(photoContext)[slot] = value;
+        }
+        for (final context in const [
+          _photoContextAnomalieAvant,
+          _photoContextRetourTerrain,
+          _photoContextIncompletInitial,
+          _photoContextIncompletComplement,
+        ]) {
+          final paths = _workflowPhotoMapForContext(context);
+          paths.addAll(PhotoSlotService.compact(
+            paths,
+            _workflowPhotoSlotCount(context),
+            isLockedReference: PhotoReferenceService.isRemoteReference,
+          ));
+          _initialWorkflowPhotoPaths[context] = Map<int, String?>.from(paths);
+        }
+      });
+    } catch (e) {
+      debugPrint('Photos workflow ignorees: $e');
+    }
+  }
+
+  Future<void> _enqueueWorkflowPhotosAfterSave({
+    required DatabaseHelper db,
+    required String uuid,
+  }) async {
+    if (uuid.trim().isEmpty || _tableName.isEmpty) return;
+    final resolvedInterventionId =
+        await db.resolveInterventionAnomalieIdForObject(
+      schemaName: _metierCode.toLowerCase(),
+      tableName: _tableName,
+      uuidObjet: uuid,
+    );
+    final interventionId = _workflowInterventionId != 0
+        ? _workflowInterventionId
+        : resolvedInterventionId;
+
+    final allWorkflowPhotos = <String, Map<int, String?>>{
+      _photoContextAnomalieAvant: _anomaliePhotoPaths,
+      _photoContextRetourTerrain: _retourTerrainPhotoPaths,
+      _photoContextIncompletInitial: _incompletPhotoPaths,
+      _photoContextIncompletComplement: _incompletComplementPhotoPaths,
+    };
+    final activeContexts = <String>{
+      if (!_isEpCompteurAbonne && _hasActiveAnomalie && !_isObjetIncomplet)
+        _photoContextAnomalieAvant,
+      if (!_isEpCompteurAbonne && _wasAnomalieAtOpen && !_hasActiveAnomalie)
+        _photoContextRetourTerrain,
+      if (_isObjetIncomplet) _photoContextIncompletInitial,
+      if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
+        _photoContextIncompletComplement,
+    };
+
+    for (final entry in allWorkflowPhotos.entries) {
+      if (activeContexts.contains(entry.key)) continue;
+      for (var slot = 1; slot <= 4; slot++) {
+        final current = entry.value[slot]?.trim() ?? '';
+        if (!PhotoReferenceService.isLocalReference(current)) continue;
+        await db.cancelPhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+          photoContext: entry.key,
+          idInterventionAnomalie: interventionId,
+        );
+        await PhotoStorageService.deleteLocalPhotoReference(current);
+      }
+    }
+
+    for (final entry in allWorkflowPhotos.entries) {
+      if (!activeContexts.contains(entry.key)) continue;
+      final slotLimit = _workflowPhotoSlotCount(entry.key);
+      final initial =
+          _initialWorkflowPhotoPaths[entry.key] ?? const <int, String?>{};
+      for (var slot = 1; slot <= 4; slot++) {
+        final previous = initial[slot]?.trim() ?? '';
+        final current = entry.value[slot]?.trim() ?? '';
+        if (slot > slotLimit) {
+          if (PhotoReferenceService.isLocalReference(current)) {
+            await db.cancelPhotoSyncItem(
+              schemaName: _metierCode.toLowerCase(),
+              tableName: _tableName,
+              uuidObjet: uuid,
+              photoSlot: slot,
+              photoContext: entry.key,
+              idInterventionAnomalie: interventionId,
+            );
+            await PhotoStorageService.deleteLocalPhotoReference(current);
+          }
+          continue;
+        }
+        if (previous.isNotEmpty &&
+            current != previous &&
+            !PhotoReferenceService.isRemoteReference(previous)) {
+          await db.cancelPhotoSyncItem(
+            schemaName: _metierCode.toLowerCase(),
+            tableName: _tableName,
+            uuidObjet: uuid,
+            photoSlot: slot,
+            photoContext: entry.key,
+            idInterventionAnomalie: interventionId,
+          );
+        }
+        if (current.isEmpty ||
+            !PhotoReferenceService.isLocalReference(current)) {
+          continue;
+        }
+        await db.enqueuePhotoSyncItem(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          uuidObjet: uuid,
+          photoSlot: slot,
+          photoContext: entry.key,
+          idInterventionAnomalie: interventionId,
+          localPath: PhotoReferenceService.toLocalFilePath(current),
+          idAgentCrea: ApiService.userId,
+        );
+      }
+    }
+  }
 
   Widget _buildPhotoPreview(String path) {
     final remoteUrl = PhotoReferenceService.buildRemoteUrl(path);
@@ -319,15 +1253,89 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
+  void _clearFieldValidationError(String field) {
+    if (!_fieldValidationErrors.containsKey(field)) return;
+    setState(() {
+      _fieldValidationErrors = Map<String, String>.from(_fieldValidationErrors)
+        ..remove(field);
+    });
+  }
+
+  Map<String, String> _collectFieldValidationErrors() {
+    if (_isObjetIncomplet || _isLocked) return const {};
+    final errors = <String, String>{};
+    for (final field in _fields) {
+      if (_isHiddenField(field)) continue;
+      final error = _validateField(field, _controllers[field]?.text);
+      if (error != null) {
+        errors[field] = error;
+      }
+    }
+    return errors;
+  }
+
+  void _showValidationSummary(Map<String, String> errors) {
+    if (!mounted || errors.isEmpty) return;
+    final labels = errors.keys.map(_fieldLabel).take(4).join(', ');
+    final remaining = errors.length - errors.keys.take(4).length;
+    final suffix = remaining > 0 ? ' (+$remaining)' : '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Champs obligatoires manquants : $labels$suffix'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  bool _validateBeforeSave() {
+    if (_isLoadingFields || _formKey.currentState == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Formulaire en cours de préparation. Réessayez.'),
+        backgroundColor: Colors.orange,
+      ));
+      return false;
+    }
+
+    FocusScope.of(context).unfocus();
+    final errors = _collectFieldValidationErrors();
+    setState(() {
+      _fieldValidationErrors = errors;
+    });
+    final mountedFieldsValid = _formKey.currentState?.validate() ?? true;
+    if (errors.isNotEmpty || !mountedFieldsValid) {
+      _showValidationSummary(errors);
+      return false;
+    }
+    return true;
+  }
+
   // Sauvegarde
   Future<void> _save() async {
-    if (_isLocked) return;
+    if (_isLocked || _isSaving) return;
     // Si objet incomplet : on ne valide PAS les champs métier (ils sont grisés)
     // mais on valide quand même la raison
-    if (!_isObjetIncomplet && !_formKey.currentState!.validate()) return;
+    if (!_isObjetIncomplet && !_validateBeforeSave()) return;
     if (_isObjetIncomplet && _raisonIncomplet == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('⚠️ Veuillez sélectionner une raison pour l\'objet incomplet'),
+        content:
+            Text('⚠️ Veuillez sélectionner une raison pour l\'objet incomplet'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    final anomalieEvidenceError = _validateAnomalieEvidence();
+    if (anomalieEvidenceError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(anomalieEvidenceError),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    if (widget.existingData == null && widget.altitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Veuillez activer le GPS'),
         backgroundColor: Colors.orange,
       ));
       return;
@@ -344,34 +1352,48 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       // UUID : toujours automatique, jamais saisi.
       data['uuid'] = widget.existingData?['uuid'] ?? const Uuid().v4();
 
-      // ── Champs métier (ignorés si objet incomplet) ──
-      if (!_isObjetIncomplet) {
-        for (final field in _fields) {
-          final val = _controllers[field]?.text.trim();
-          if (val != null && val.isNotEmpty) {
-            data[field] = _normalizeFieldValue(field, val);
-          }
+      // Champs deja renseignes conserves meme si l'objet est incomplet.
+      for (final field in _fields) {
+        final val = _controllers[field]?.text.trim();
+        if (val != null && val.isNotEmpty) {
+          data[field] = _normalizeFieldValue(field, val);
         }
       }
 
       // ── Coordonnées GPS brutes (toujours sauvegardées) ──
-      data['latitude_gps']  = widget.latitude;
+      data['latitude_gps'] = widget.latitude;
       data['longitude_gps'] = widget.longitude;
       if (widget.altitude != null) data['altitude_gps'] = widget.altitude;
 
       // ── Coordonnées Merchich (toujours sauvegardées) ──
       // même si objet incomplet, on garde la position approximative
-      final xField = _fields.firstWhere(
-        (f) => f.endsWith('_coor_x'), orElse: () => '');
-      final yField = _fields.firstWhere(
-        (f) => f.endsWith('_coor_y'), orElse: () => '');
+      final xField = _fields.firstWhere((f) => _isCoordSuffix(f, '_coor_x'),
+          orElse: () => '');
+      final yField = _fields.firstWhere((f) => _isCoordSuffix(f, '_coor_y'),
+          orElse: () => '');
+      final zField = _fields.firstWhere((f) => _isCoordSuffix(f, '_coor_z'),
+          orElse: () => '');
       if (xField.isNotEmpty) data[xField] = _merchichX.toStringAsFixed(3);
       if (yField.isNotEmpty) data[yField] = _merchichY.toStringAsFixed(3);
+      if (zField.isNotEmpty && widget.altitude != null) {
+        data[zField] = widget.altitude!.toStringAsFixed(3);
+      }
 
       // Anomalie
-      data['anomalie'] = _hasAnomalie ? 1 : 0;
-      if (_hasAnomalie && _typeAnomalie != null) {
-        data['type_anomalie'] = _typeAnomalie;
+      _applyAnomaliePayload(data);
+
+      if (_isEpRegardPoint) {
+        data['mode_localisation'] =
+            (_controllers['mode_localisation']?.text.trim().isNotEmpty ?? false)
+                ? _controllers['mode_localisation']!.text.trim()
+                : 'Levé topographique';
+        data['id_user_creat'] ??= ApiService.userId;
+        if (widget.existingData != null) {
+          data['id_user_modif'] = ApiService.userId;
+          data['date_modif'] = DateTime.now().toIso8601String();
+        } else {
+          data['date_creation'] ??= DateTime.now().toIso8601String();
+        }
       }
 
       // ── Objet Incomplet : flag dans la table métier uniquement ──
@@ -384,15 +1406,65 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       }
 
       // ── Clés étrangères (injectées automatiquement) ──
-      data['id_projet']     = ApiService.currentProjetId;
       data['id_agent_crea'] = ApiService.userId;
-      data['mode_localisation'] = 'gnss';
-      data['synced']        = 0;
+      if (!_isEpRegardPoint) {
+        data['mode_localisation'] = 'gnss';
+      } else {
+        data['mode_localisation'] =
+            data['mode_localisation']?.toString().trim().isNotEmpty == true
+                ? data['mode_localisation']
+                : 'Levé topographique';
+      }
+      data['synced'] = 0;
       data['date_collecte'] = DateTime.now().toIso8601String();
 
       final db = DatabaseHelper();
 
+      // Resoudre id_commune via la position Merchich pour eviter d'envoyer
+      // un id local invalide au serveur (FK commune_oriental.fid).
+      if (data['id_commune'] == null &&
+          _merchichX != 0.0 &&
+          _merchichY != 0.0) {
+        try {
+          final commune = await db.findCommuneLocalByPoint(
+            x: _merchichX,
+            y: _merchichY,
+          );
+          final idCommune = commune?['id_commune'];
+          if (idCommune != null) {
+            data['id_commune'] = idCommune;
+            final idProvince = commune?['id_province'];
+            if (idProvince != null && data['id_province'] == null) {
+              data['id_province'] = idProvince;
+            }
+          }
+        } catch (e) {
+          debugPrint('id_commune via geom ignore: $e');
+        }
+      }
+
+      // Champs invisibles : remplissage automatique depuis valeur_par_defaut
+      // configurée côté serveur (n'écrase jamais une valeur déjà résolue par
+      // un bloc spécialisé plus haut : coordonnées, anomalie, FK auto, etc.).
+      // Pour les invisibles NOT NULL sans valeur_par_defaut, injection d'une
+      // sentinelle typée pour éviter une violation NOT NULL côté serveur.
+      for (final entry in _attributConfigByField.entries) {
+        final field = entry.key;
+        final config = entry.value;
+        if (config.visible) continue;
+        if (config.primaryKey) continue;
+        if (field.toLowerCase() == 'geom') continue;
+        if (data.containsKey(field) && data[field] != null) continue;
+        final defaultValue = config.valeurParDefaut.trim();
+        if (defaultValue.isNotEmpty) {
+          data[field] = _normalizeFieldValue(field, defaultValue);
+        } else if (!config.nullable) {
+          data[field] = config.fallbackValueForInvisibleNotNull;
+        }
+      }
+
       // ── INSERT ou UPDATE dans la table métier ──
+      late final int localId;
       if (widget.existingData != null && widget.existingData!['id'] != null) {
         final existingId = widget.existingData!['id'] is int
             ? widget.existingData!['id'] as int
@@ -400,6 +1472,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         if (existingId == null) {
           throw Exception('Identifiant local invalide pour la mise à jour');
         }
+        localId = existingId;
         await db.updateEntitySrm(
           tableName,
           existingId,
@@ -407,51 +1480,44 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           recordHistory: true,
         );
       } else {
-        await db.insertEntitySrm(
+        localId = await db.insertEntitySrm(
           tableName,
           data,
           recordHistory: true,
         );
       }
 
-      // ── INSERT dans objet_incomplet si toggle activé ──
       if (_isObjetIncomplet) {
-        final metierCode = widget.metier == 'Eau Potable'
-            ? 'EP'
-            : widget.metier == 'Assainissement'
-                ? 'ASS'
-                : 'ELEC';
-        final incompletData = {
-          // Colonnes exactes de public.objet_incomplet (PostgreSQL)
-          'nom_classe':        tableName,         // ex: coffret_bt
-          'metier':            metierCode,         // EP / ASS / ELEC
-          'raison':            _raisonIncomplet,   // raison choisie
-          'detail_raison':     _detailRaisonController.text.trim(),
-          'date_signalement':  DateTime.now().toIso8601String(),
-          'id_agent_signal':   ApiService.userId,
-          'statut':            'A_COMPLETER',
-          'id_projet':         ApiService.currentProjetId,
-          'synced':            0,
-          'date_collecte':     DateTime.now().toIso8601String(),
-        };
-        await db.insertEntitySrm(
-          'objet_incomplet',
-          incompletData,
-          recordHistory: true,
+        await db.upsertObjetIncompletForEntity(
+          tableName: tableName,
+          idObjet: localId,
+          metierCode: _metierCode,
+          raison: _raisonIncomplet,
+          detailRaison: _detailRaisonController.text.trim(),
+        );
+      } else {
+        await db.resolveObjetIncompletForEntity(
+          tableName: tableName,
+          idObjet: localId,
         );
       }
+
+      await _cancelRemovedLocalPhotoUploadsAfterSave(db);
+      await _enqueueWorkflowPhotosAfterSave(
+        db: db,
+        uuid: data['uuid']?.toString() ?? '',
+      );
 
       if (mounted) {
         // ── SPRINT 7 : supprimer le brouillon après enregistrement réussi ──
         await clearDraftAfterSave();
         if (!mounted) return;
         final label = _isObjetIncomplet
-            ? '⚠️ ${widget.entityType} signalé incomplet'
-            : '✅ ${widget.entityType} enregistré';
+            ? '⚠️ $_displayTitle signalé incomplet'
+            : '✅ $_displayTitle enregistré';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(label),
-          backgroundColor:
-              _isObjetIncomplet ? Colors.orange : Colors.green,
+          backgroundColor: _isObjetIncomplet ? Colors.orange : Colors.green,
         ));
         widget.onSaved();
       }
@@ -467,38 +1533,322 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  List<String> _anomalieDetailFields() {
+    final configs = _attributConfigByField.values
+        .where((config) =>
+            config.visible && _isAnomalieDetailField(config.nomChamp))
+        .toList()
+      ..sort((a, b) => a.ordre.compareTo(b.ordre));
+
+    final result = <String>[];
+    for (final config in configs) {
+      if (!result.contains(config.nomChamp)) {
+        result.add(config.nomChamp);
+      }
+    }
+    for (final field in _controllers.keys) {
+      if (_isAnomalieDetailField(field) &&
+          _isConfiguredVisibleField(field) &&
+          !result.contains(field)) {
+        result.add(field);
+      }
+    }
+    return result;
+  }
+
+  bool _hasAnomalieColumn(String field) =>
+      _attributConfigByField.containsKey(field) ||
+      _controllers.containsKey(field) ||
+      _fields.contains(field) ||
+      (widget.existingData?.containsKey(field) ?? false);
+
+  dynamic _anomalieFlagValue(String field) {
+    if (field == 'anomalie') return _hasAnomalie ? 1 : 0;
+    final type = _attributConfigByField[field]?.typeChamp.toLowerCase() ?? '';
+    if (type.contains('bool') || type.contains('int')) {
+      return _hasAnomalie ? 1 : 0;
+    }
+    return _hasAnomalie ? 'Oui' : 'Non';
+  }
+
+  bool _isNoAnomalieValue(String value) {
+    final normalized = _foldLabel(value);
+    return normalized.isEmpty ||
+        normalized == 'non' ||
+        normalized == 'no' ||
+        normalized == 'n' ||
+        normalized == '0' ||
+        normalized == 'false' ||
+        normalized == 'aucun' ||
+        normalized == 'aucune' ||
+        normalized == 'sans anomalie' ||
+        normalized == 'aucune anomalie';
+  }
+
+  void _applyCompteurAbonneAnomaliePayload(Map<String, dynamic> data) {
+    final value = (_controllers['ep_anomalie']?.text ??
+            data['ep_anomalie']?.toString() ??
+            '')
+        .trim();
+    data['ep_anomalie'] = value.isEmpty ? null : value;
+    // ep_brc_pt est exclue cote backend du cycle intervention_anomalie:
+    // cette anomalie reste informative terrain tout en gardant l'etat local.
+    data['anomalie'] = value.isNotEmpty && !_isNoAnomalieValue(value) ? 1 : 0;
+    data['type_anomalie'] = null;
+  }
+
+  void _applyAnomaliePayload(Map<String, dynamic> data) {
+    if (_isEpCompteurAbonne) {
+      _applyCompteurAbonneAnomaliePayload(data);
+      return;
+    }
+
+    data['anomalie'] = _hasAnomalie ? 1 : 0;
+
+    for (final field in const ['ep_anomalie', 'ass_anomalie']) {
+      if (_hasAnomalieColumn(field)) {
+        data[field] = _anomalieFlagValue(field);
+      }
+    }
+
+    final detailFields = _anomalieDetailFields();
+    for (final field in detailFields) {
+      if (!_hasAnomalie) {
+        data[field] = null;
+        continue;
+      }
+      if (field == 'type_anomalie') {
+        final value = (_typeAnomalie ?? _controllers[field]?.text ?? '').trim();
+        data[field] = value.isEmpty ? null : value;
+        continue;
+      }
+      final raw = _controllers[field]?.text.trim() ?? '';
+      data[field] = raw.isEmpty ? null : _normalizeFieldValue(field, raw);
+    }
+
+    if (!detailFields.contains('type_anomalie')) {
+      final value = (_typeAnomalie ?? '').trim();
+      data['type_anomalie'] = _hasAnomalie && value.isNotEmpty ? value : null;
+    }
+
+    if (_isEpRegardPoint && _hasAnomalie) {
+      final regardValue =
+          (data['anomalie_regard'] ?? _typeAnomalie ?? '').toString().trim();
+      data['anomalie_regard'] = regardValue.isEmpty ? null : regardValue;
+    }
+    if (_isEpRegardPoint && !_hasAnomalie) {
+      data['anomalie_regard'] = null;
+      data['anomalie_tamp'] = null;
+    }
+  }
+
   // Construction d'un champ
+  bool _isCoordSuffix(String field, String suffix) =>
+      field.toLowerCase().endsWith(suffix);
+
   bool _isCoordField(String field) =>
-      field.endsWith('_coor_x') ||
-      field.endsWith('_coor_y') ||
-      field.endsWith('_coor_z');
+      _isCoordSuffix(field, '_coor_x') ||
+      _isCoordSuffix(field, '_coor_y') ||
+      _isCoordSuffix(field, '_coor_z');
+
+  List<Widget> _buildDynamicFields() {
+    if (!_isEpCompteurAbonne) {
+      return _fields.map(_buildField).toList();
+    }
+    return _buildCompteurAbonneFields();
+  }
+
+  List<Widget> _buildCompteurAbonneFields() {
+    final widgets = <Widget>[];
+    final rendered = <String>{};
+
+    List<String> visibleFields(List<String> fields) {
+      return fields
+          .where((field) =>
+              _fields.contains(field) &&
+              !rendered.contains(field) &&
+              !_isHiddenField(field))
+          .toList();
+    }
+
+    void addFields(List<String> fields) {
+      for (final field in fields) {
+        rendered.add(field);
+        widgets.add(_buildField(field));
+      }
+    }
+
+    void addSection(
+      String title,
+      List<String> fields, {
+      Widget? leading,
+    }) {
+      final sectionFields = visibleFields(fields);
+      if (sectionFields.isEmpty && leading == null) return;
+      widgets.add(_buildSectionHeader(title));
+      if (leading != null) widgets.add(leading);
+      addFields(sectionFields);
+    }
+
+    final coordFields = _fields.where(_isCoordField).toList();
+    addSection('Terrain', [
+      'type_cpt',
+      'diametre',
+      ...coordFields,
+      'ep_conf_plan',
+      'mode_localisation',
+      'ep_observation',
+      'ep_anomalie',
+    ]);
+
+    addSection(
+      'Liaison clientèle',
+      const [
+        'num_contrat',
+        'ancienne_police',
+        'abon',
+        'nom',
+        'adresse',
+        'etat_abonnement',
+        'ancien_ref_sap',
+        'id_geo',
+        'ref',
+      ],
+      leading: _buildCustomerLinkStatus(),
+    );
+
+    final remaining = _fields
+        .where((field) => !rendered.contains(field) && !_isHiddenField(field))
+        .toList();
+    addSection('Autres', remaining);
+
+    return widgets;
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 18,
+            decoration: BoxDecoration(
+              color: _metierColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              color: _metierColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Divider(color: Colors.grey.shade300, height: 1)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerLinkStatus() {
+    final message = _customerLinkMessage?.trim();
+    if (!_isCustomerLinkLoading && (message == null || message.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
+    final isSuccess = !_isCustomerLinkLoading &&
+        (message?.startsWith('Client ONEP') ?? false);
+    final color = isSuccess ? Colors.green.shade700 : Colors.orange.shade700;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isCustomerLinkLoading)
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _metierColor,
+              ),
+            )
+          else
+            Icon(
+              isSuccess ? Icons.link : Icons.info_outline,
+              size: 18,
+              color: color,
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message ?? 'Recherche client ONEP...',
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildField(String field) {
-    final isCoord    = _isCoordField(field);
+    if (_isHiddenField(field)) {
+      return const SizedBox.shrink();
+    }
+
+    final isCoord = _isCoordField(field);
     final isTypeField = field == _typeField && _typeOptions.isNotEmpty;
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
-    final isRequired =
-        !isCoord && (_requiredFields.contains(field) || rule.required);
-    final label      = _fieldLabel(field);
+    final rule = _fieldRule(field);
+    final isRequired = !isCoord &&
+        !_hasActiveAnomalie &&
+        (_requiredFields.contains(field) || rule.required);
+    final label = _fieldLabel(field);
     final controller = _controllers[field]!;
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
 
     // ── NOUVEAU : grisage si objet incomplet activé ──
     // Les coordonnées restent visibles mais désactivées de toute façon (readOnly)
     Widget fieldWidget;
 
-    if (isTypeField) {
+    if (choices.isNotEmpty && !isCoord) {
+      fieldWidget = _buildChoiceField(
+        field: field,
+        label: label,
+        controller: controller,
+        choices: choices,
+        isRequired: isRequired,
+      );
+    } else if (isTypeField) {
       fieldWidget = Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: DropdownButtonFormField<String>(
           initialValue: controller.text.isEmpty ? null : controller.text,
-          decoration: _deco(label, required: isRequired && !_isLocked),
+          decoration: _deco(
+            label,
+            required: isRequired && !_isLocked,
+            errorText: _fieldValidationErrors[field],
+          ),
           isExpanded: true,
-          items: _typeOptions
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
+          items: [
+            _kEmptyChoiceMenuItem,
+            ..._typeOptions
+                .map((o) => DropdownMenuItem<String>(value: o, child: Text(o))),
+          ],
           onChanged: (_isObjetIncomplet || _isLocked)
               ? null // désactivé si objet incomplet
-              : (v) => controller.text = v ?? '',
+              : (v) {
+                  controller.text = v ?? '';
+                  _clearFieldValidationError(field);
+                },
           validator: (!_isObjetIncomplet && !_isLocked && isRequired)
               ? (v) => (v == null || v.isEmpty) ? 'Champ obligatoire *' : null
               : null,
@@ -523,12 +1873,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         ),
       );
     } else {
-      final fieldIsReadOnly = _isLocked || _isObjetIncomplet;
+      final fieldIsReadOnly =
+          _isLocked || _isObjetIncomplet || _isConfiguredReadOnlyField(field);
       fieldWidget = Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(
           controller: controller,
-          decoration: _deco(label, required: isRequired && !_isLocked && !_isObjetIncomplet).copyWith(
+          decoration: _deco(
+            label,
+            required: isRequired && !_isLocked && !_isObjetIncomplet,
+            errorText: _fieldValidationErrors[field],
+          ).copyWith(
             filled: fieldIsReadOnly,
             fillColor: fieldIsReadOnly ? Colors.grey.shade50 : null,
           ),
@@ -537,8 +1892,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           maxLength: rule.maxLength,
           inputFormatters: _inputFormatters(rule),
           readOnly: fieldIsReadOnly,
-          validator: (value) =>
-              (_isObjetIncomplet || _isLocked) ? null : _validateField(field, value),
+          onChanged: fieldIsReadOnly
+              ? null
+              : (_) {
+                  _clearFieldValidationError(field);
+                  if (_isCustomerLinkTriggerField(field)) {
+                    _scheduleCustomerLinkLookup();
+                  }
+                },
+          validator: (value) => (_isObjetIncomplet || _isLocked)
+              ? null
+              : _validateField(field, value),
         ),
       );
     }
@@ -554,7 +1918,78 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   // InputDecoration avec astérisque si requis
-  InputDecoration _deco(String label, {bool required = false}) =>
+  Widget _buildChoiceField({
+    required String field,
+    required String label,
+    required TextEditingController controller,
+    required List<SrmFieldChoice> choices,
+    required bool isRequired,
+  }) {
+    final currentValue = controller.text.trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[_kEmptyChoiceMenuItem];
+
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem<String>(
+          value: choice.code,
+          child: Text(choice.label),
+        ),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+        DropdownMenuItem<String>(
+          value: currentValue,
+          child: Text(currentValue),
+        ),
+      );
+    }
+
+    final fieldIsReadOnly =
+        _isLocked || _isObjetIncomplet || _isConfiguredReadOnlyField(field);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: currentValue.isEmpty ? null : currentValue,
+        decoration: _deco(
+          label,
+          required: isRequired && !_isLocked && !_isObjetIncomplet,
+          errorText: _fieldValidationErrors[field],
+        ).copyWith(
+          filled: fieldIsReadOnly,
+          fillColor: fieldIsReadOnly ? Colors.grey.shade50 : null,
+        ),
+        isExpanded: true,
+        items: items,
+        onChanged: fieldIsReadOnly
+            ? null
+            : (value) {
+                controller.text = value ?? '';
+                if (_isCompteurAbonneAnomalieChoiceField(field)) {
+                  setState(() {
+                    _fieldValidationErrors = <String, String>{};
+                  });
+                } else {
+                  _clearFieldValidationError(field);
+                }
+                if (widget.existingData == null) onFieldChanged();
+              },
+        validator: (_isObjetIncomplet || _isLocked || !isRequired)
+            ? null
+            : (value) =>
+                (value == null || value.isEmpty) ? 'Champ obligatoire *' : null,
+      ),
+    );
+  }
+
+  InputDecoration _deco(
+    String label, {
+    bool required = false,
+    String? errorText,
+  }) =>
       InputDecoration(
         // ── NOUVEAU : astérisque rouge sur les champs obligatoires ──
         label: required
@@ -579,7 +2014,96 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         isDense: true,
+        errorText: errorText,
       );
+
+  SrmFieldRule _fieldRule(String field) {
+    final fallback = SrmConfig.getFieldRule(
+      widget.metier,
+      widget.entityType,
+      field,
+    );
+    final config = _attributConfigByField[field];
+    if (config == null) return fallback;
+
+    final type = config.typeChamp.toLowerCase();
+    final configuredMaxLength = _configuredTextMaxLength(type);
+    if (type.contains('int') || type.contains('serial')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.integer,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('double') ||
+        type.contains('numeric') ||
+        type.contains('decimal') ||
+        type.contains('real') ||
+        type.contains('float')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.decimal,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('date') || type.contains('timestamp')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.date,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('uuid')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.uuid,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('bool')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.booleanLike,
+        maxLength: fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+      );
+    }
+    if (type.contains('char') || type.contains('text')) {
+      return SrmFieldRule(
+        kind: SrmFieldKind.text,
+        maxLength: configuredMaxLength ?? fallback.maxLength,
+        required: config.isRequired,
+        multiline: fallback.multiline,
+        readOnly: fallback.readOnly,
+        allowedValues: fallback.allowedValues,
+      );
+    }
+    return SrmFieldRule(
+      kind: fallback.kind,
+      maxLength: configuredMaxLength ?? fallback.maxLength,
+      required: config.isRequired,
+      multiline: fallback.multiline,
+      readOnly: fallback.readOnly,
+      allowedValues: fallback.allowedValues,
+    );
+  }
+
+  int? _configuredTextMaxLength(String type) {
+    final match = RegExp(
+      r'(?:character varying|varchar|character)\s*\((\d+)\)',
+    ).firstMatch(type);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
+  }
 
   TextInputType _kbType(SrmFieldRule rule) {
     switch (rule.kind) {
@@ -612,11 +2136,51 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  String? _validateConfiguredRange(
+    String field,
+    String normalized,
+    SrmFieldRule rule,
+  ) {
+    final config = _attributConfigByField[field];
+    if (config == null) return null;
+
+    if (rule.kind == SrmFieldKind.integer ||
+        rule.kind == SrmFieldKind.decimal) {
+      final number = double.tryParse(normalized.replaceAll(',', '.'));
+      if (number == null) return null;
+      final min = config.numericMin;
+      if (min != null && number < min) {
+        return 'Valeur minimale : ${config.valeurMin}';
+      }
+      final max = config.numericMax;
+      if (max != null && number > max) {
+        return 'Valeur maximale : ${config.valeurMax}';
+      }
+      return null;
+    }
+
+    if (rule.kind == SrmFieldKind.date) {
+      final date = DateTime.tryParse(normalized);
+      if (date == null) return null;
+      final min = config.dateMin;
+      if (min != null && date.isBefore(min)) {
+        return 'Date minimale : ${config.valeurMin}';
+      }
+      final max = config.dateMax;
+      if (max != null && date.isAfter(max)) {
+        return 'Date maximale : ${config.valeurMax}';
+      }
+    }
+
+    return null;
+  }
+
   String? _validateField(String field, String? value) {
     final normalized = (value ?? '').trim();
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
 
     if (normalized.isEmpty) {
+      if (_hasActiveAnomalie && !_isObjetIncomplet) return null;
       return rule.required || _requiredFields.contains(field)
           ? 'Champ obligatoire *'
           : null;
@@ -657,12 +2221,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       case SrmFieldKind.text:
         break;
     }
+
+    final rangeError = _validateConfiguredRange(field, normalized, rule);
+    if (rangeError != null) return rangeError;
+
     return null;
   }
 
   dynamic _normalizeFieldValue(String field, String value) {
     final normalized = value.trim();
-    final rule = SrmConfig.getFieldRule(widget.metier, widget.entityType, field);
+    final rule = _fieldRule(field);
 
     switch (rule.kind) {
       case SrmFieldKind.integer:
@@ -679,6 +2247,20 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   String _fieldLabel(String field) {
+    final dbLabel = _attributConfigByField[field]?.titreApp.trim() ?? '';
+    if (dbLabel.isNotEmpty) {
+      return dbLabel;
+    }
+    final configuredLabel = SrmConfig.getFieldLabel(
+      widget.metier,
+      widget.entityType,
+      field,
+    );
+    final defaultConfigLabel = field.replaceAll('_', ' ');
+    if (configuredLabel != defaultConfigLabel) {
+      return configuredLabel;
+    }
+
     final labels = <String, String>{
       'marque': 'Marque',
       'ref': 'Reference',
@@ -688,18 +2270,18 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'nom': 'Nom',
       'cin': 'CIN',
       'adresse': 'Adresse',
-      'num_contrat': 'Numero contrat',
-      'num_compteur': 'Numero compteur',
+      'num_contrat': 'Numéro contrat',
+      'num_compteur': 'Numéro compteur',
       'type_cpt': 'Type compteur',
       'type_abonnement': 'Type abonnement',
-      'etat_abonnement': 'Etat abonnement',
+      'etat_abonnement': 'État abonnement',
       'consommation': 'Consommation',
       'date_pose': 'Date pose',
-      'date_releve': 'Date releve',
-      'anne_fabr_compt': 'Annee fabrication',
+      'date_releve': 'Date relevé',
+      'anne_fabr_compt': 'Année fabrication',
       'anomalie_rdo': 'Anomalie RDO',
-      'diametre_calibre_terrain': 'Diametre calibre terrain',
-      'diametre_conduite': 'Diametre conduite',
+      'diametre_calibre_terrain': 'Diamètre calibre terrain',
+      'diametre_conduite': 'Diamètre conduite',
       // EP
       'ep_num': 'Numéro', 'ep_type': 'Type', 'ep_modele': 'Modèle',
       'ep_marque': 'Marque', 'ep_diam': 'Diamètre (mm)',
@@ -736,34 +2318,30 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'ass_coor_x': 'X Merchich (m)', 'ass_coor_y': 'Y Merchich (m)',
       'ass_coor_z': 'Z Altitude (m)', 'centre': 'Centre',
       'commentaire': 'Commentaire',
-      // ELEC
-      'type_support': 'Type support', 'console': 'Console',
-      'etat_support': 'État support', 'materiel_supp': 'Matériel',
-      'type_assemblage': 'Type assemblage', 'type_armement': 'Type armement',
-      'type_protection': 'Type protection', 'status': 'Statut',
-      'mise_a_la_terre': 'Mise à la terre', 'type_isolateur': 'Type isolateur',
-      'code_support': 'Code support', 'lumineux': 'Lumineux',
-      'hauteur_supp': 'Hauteur (m)', 'type_mise_a_la_terre': 'Type MAT',
-      'type_balise': 'Type balise', 'elec_coor_x': 'X Merchich (m)',
-      'elec_coor_y': 'Y Merchich (m)', 'elec_coor_z': 'Z Altitude (m)',
-      'nom_poste': 'Nom poste', 'type_poste': 'Type poste',
-      'nature_poste': 'Nature', 'etat_service': 'État service',
-      'tension': 'Tension (kV)', 'code_poste': 'Code poste',
-      'type_coffret': 'Type coffret', 'num_coffret': 'N° coffret',
     };
-    return labels[field] ?? field.replaceAll('_', ' ');
+    return labels[field.toLowerCase()] ?? configuredLabel;
   }
 
   // Section photos
   Widget _buildPhotoSection() {
     if (_maxPhotos == 0) return const SizedBox.shrink();
+    final hasWorkflowAnomalie = _hasActiveAnomalie && !_isEpCompteurAbonne;
+    final disabled = _isObjetIncomplet ||
+        hasWorkflowAnomalie ||
+        _wasAnomalieAtOpen ||
+        _wasObjetIncompletAtOpen ||
+        _isLocked;
+    final visibleSlotCount = PhotoSlotService.visibleSlotCount(
+      _photoPaths,
+      _maxPhotos,
+      allowAdd: !disabled,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 24),
         Text('Photos (max $_maxPhotos)',
-            style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 8),
         Text(
           'Formats autorisés: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
@@ -773,13 +2351,18 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: List.generate(_maxPhotos, (i) {
+          children: List.generate(visibleSlotCount, (i) {
             final idx = i + 1;
             final path = _photoPaths[idx];
+            final isRemotePhoto =
+                path != null && PhotoReferenceService.isRemoteReference(path);
+            final canEditSlot = !disabled &&
+                !isRemotePhoto &&
+                PhotoSlotService.canPickSlot(_photoPaths, idx, _maxPhotos);
             return GestureDetector(
-              onTap: _isObjetIncomplet ? null : () => _pickPhoto(idx),
+              onTap: canEditSlot ? () => _pickPhoto(idx) : null,
               child: Opacity(
-                opacity: _isObjetIncomplet ? 0.35 : 1.0,
+                opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
                 child: Stack(
                   children: [
                     Container(
@@ -806,16 +2389,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                               ],
                             ),
                     ),
-                    if (path != null && !_isObjetIncomplet)
+                    if (path != null && canEditSlot)
                       Positioned(
                         top: 2,
                         right: 2,
                         child: GestureDetector(
-                          onTap: () => _removePhoto(idx),
+                          onTap: () {
+                            _removePhoto(idx);
+                          },
                           child: Container(
                             decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle),
+                                color: Colors.red, shape: BoxShape.circle),
                             child: const Icon(Icons.close,
                                 color: Colors.white, size: 14),
                           ),
@@ -831,8 +2415,287 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
+  Widget _buildWorkflowPhotoSection({
+    required String title,
+    required String subtitle,
+    required String photoContext,
+    required Map<int, String?> photoPaths,
+    Color color = Colors.red,
+  }) {
+    final maxWorkflowPhotos = _workflowPhotoSlotCount(photoContext);
+    if (maxWorkflowPhotos == 0) return const SizedBox.shrink();
+    final disabled = _isLocked;
+    final visibleSlotCount = PhotoSlotService.visibleSlotCount(
+      photoPaths,
+      maxWorkflowPhotos,
+      allowAdd: !disabled,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.photo_camera_outlined, color: color, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(visibleSlotCount, (i) {
+                  final idx = i + 1;
+                  final path = photoPaths[idx];
+                  final isRemotePhoto = path != null &&
+                      PhotoReferenceService.isRemoteReference(path);
+                  final canEditSlot = !disabled &&
+                      !isRemotePhoto &&
+                      PhotoSlotService.canPickSlot(
+                        photoPaths,
+                        idx,
+                        maxWorkflowPhotos,
+                      );
+                  return GestureDetector(
+                    onTap: canEditSlot
+                        ? () => _pickPhoto(
+                              idx,
+                              targetPaths: photoPaths,
+                              photoContext: photoContext,
+                              maxSlots: maxWorkflowPhotos,
+                            )
+                        : null,
+                    child: Opacity(
+                      opacity: disabled ? 0.55 : 1.0,
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                  color: color.withValues(alpha: 0.45)),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.white,
+                            ),
+                            child: path != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: _buildPhotoPreview(path),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_a_photo,
+                                        color: color.withValues(alpha: 0.55),
+                                      ),
+                                      Text(
+                                        'Photo $idx',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: color.withValues(alpha: 0.75),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                          if (path != null && canEditSlot)
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () => _removePhoto(
+                                  idx,
+                                  targetPaths: photoPaths,
+                                  maxSlots: maxWorkflowPhotos,
+                                ),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<String> _anomalieExtraDetailFields() => _anomalieDetailFields()
+      .where((field) => field != 'type_anomalie')
+      .toList();
+
+  bool get _hasTypeAnomalieField =>
+      _isConfiguredVisibleField('type_anomalie') &&
+      (_attributConfigByField.containsKey('type_anomalie') ||
+          _controllers.containsKey('type_anomalie') ||
+          _choicesByField.containsKey('type_anomalie') ||
+          (widget.existingData?.containsKey('type_anomalie') ?? false));
+
+  List<DropdownMenuItem<String>> _choiceDropdownItemsForField(String field) {
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    final currentValue = (_controllers[field]?.text ?? '').trim();
+    final seenValues = <String>{};
+    final items = <DropdownMenuItem<String>>[_kEmptyChoiceMenuItem];
+    for (final choice in choices) {
+      if (!seenValues.add(choice.code)) continue;
+      items.add(
+        DropdownMenuItem(value: choice.code, child: Text(choice.label)),
+      );
+    }
+    if (currentValue.isNotEmpty && seenValues.add(currentValue)) {
+      items.add(
+          DropdownMenuItem(value: currentValue, child: Text(currentValue)));
+    }
+    return items;
+  }
+
+  Widget _buildTypeAnomalieField() {
+    const field = 'type_anomalie';
+    final controller = _controllers.putIfAbsent(
+      field,
+      () {
+        final controller = TextEditingController(
+          text: widget.existingData?[field]?.toString() ??
+              _attributConfigByField[field]?.valeurParDefaut ??
+              '',
+        );
+        if (widget.existingData == null) {
+          controller.addListener(onFieldChanged);
+        }
+        return controller;
+      },
+    );
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty) {
+      final value = (_typeAnomalie ?? controller.text).trim();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: DropdownButtonFormField<String>(
+          initialValue: value.isEmpty ? null : value,
+          decoration: _deco(_fieldLabel(field)),
+          hint: const Text('Selectionner'),
+          isExpanded: true,
+          items: _choiceDropdownItemsForField(field),
+          onChanged: _isLocked
+              ? null
+              : (value) => setState(() {
+                    _typeAnomalie = value;
+                    controller.text = value ?? '';
+                  }),
+        ),
+      );
+    }
+
+    final rule = _fieldRule(field);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: _deco(_fieldLabel(field)),
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        readOnly: _isLocked,
+        onChanged: (value) {
+          final normalized = value.trim();
+          _typeAnomalie = normalized.isEmpty ? null : normalized;
+        },
+        validator: _isLocked ? null : (value) => _validateField(field, value),
+      ),
+    );
+  }
+
+  Widget _buildAnomalieTextField(String field) {
+    final controller = _controllers.putIfAbsent(
+      field,
+      () {
+        final controller = TextEditingController(
+          text: widget.existingData?[field]?.toString() ??
+              _attributConfigByField[field]?.valeurParDefaut ??
+              '',
+        );
+        if (widget.existingData == null) {
+          controller.addListener(onFieldChanged);
+        }
+        return controller;
+      },
+    );
+    final choices = _choicesByField[field] ?? const <SrmFieldChoice>[];
+    if (choices.isNotEmpty) {
+      return _buildChoiceField(
+        field: field,
+        label: _fieldLabel(field),
+        controller: controller,
+        choices: choices,
+        isRequired: false,
+      );
+    }
+    final rule = _fieldRule(field);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: _deco(_fieldLabel(field)),
+        keyboardType: _kbType(rule),
+        maxLines: rule.multiline ? 3 : 1,
+        maxLength: rule.maxLength,
+        inputFormatters: _inputFormatters(rule),
+        readOnly: _isLocked,
+        validator: _isLocked
+            ? null
+            : (value) {
+                return _validateField(field, value);
+              },
+      ),
+    );
+  }
+
   // Section anomalie
   Widget _buildAnomalieSection() {
+    if (_isEpCompteurAbonne) {
+      return const SizedBox.shrink();
+    }
     final disabled = _isObjetIncomplet || _isLocked;
     return Opacity(
       opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
@@ -849,29 +2712,19 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 ? null
                 : (v) => setState(() {
                       _hasAnomalie = v;
-                      if (!v) _typeAnomalie = null;
+                      if (!v) {
+                        _typeAnomalie = null;
+                        for (final field in _anomalieDetailFields()) {
+                          _controllers[field]?.clear();
+                        }
+                      }
                     }),
             contentPadding: EdgeInsets.zero,
           ),
+          if (_hasAnomalie && !_isObjetIncomplet && _hasTypeAnomalieField)
+            _buildTypeAnomalieField(),
           if (_hasAnomalie && !_isObjetIncomplet)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DropdownButtonFormField<String>(
-                initialValue: _typeAnomalie,
-                decoration: _deco('Type d\'anomalie'),
-                hint: const Text('Sélectionner'),
-                items: const [
-                  DropdownMenuItem(value: 'Fuite',           child: Text('Fuite')),
-                  DropdownMenuItem(value: 'Corrosion',       child: Text('Corrosion')),
-                  DropdownMenuItem(value: 'Obstruction',     child: Text('Obstruction')),
-                  DropdownMenuItem(value: 'Dommage physique',child: Text('Dommage physique')),
-                  DropdownMenuItem(value: 'Dysfonctionnement',child: Text('Dysfonctionnement')),
-                  DropdownMenuItem(value: 'Absent',          child: Text('Absent')),
-                  DropdownMenuItem(value: 'Autre',           child: Text('Autre')),
-                ],
-                onChanged: _isLocked ? null : (v) => setState(() => _typeAnomalie = v),
-              ),
-            ),
+            ..._anomalieExtraDetailFields().map(_buildAnomalieTextField),
         ],
       ),
     );
@@ -900,8 +2753,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Les champs de l\'objet sont désactivés.\n'
-                    'Seule la position GPS et la raison sont enregistrées.',
+                    'Les champs obligatoires sont neutralises.\n'
+                    'Les valeurs deja saisies et les photos sont conservees.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -930,7 +2783,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             // Si on active l'incomplet, on force l'anomalie à false
             if (v) {
               _hasAnomalie = false;
-              _typeAnomalie = null;
             }
           }),
           contentPadding: EdgeInsets.zero,
@@ -948,8 +2800,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             isExpanded: true,
             items: const [
               DropdownMenuItem(
-                  value: 'ACCES_BLOQUE',
-                  child: Text('Accès bloqué')),
+                  value: 'ACCES_BLOQUE', child: Text('Accès bloqué')),
               DropdownMenuItem(
                   value: 'VEHICULE_STATIONNE',
                   child: Text('Véhicule stationné sur la voie')),
@@ -959,16 +2810,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
               DropdownMenuItem(
                   value: 'CONDITIONS_METEO',
                   child: Text('Conditions météo défavorables')),
-              DropdownMenuItem(
-                  value: 'DANGER',
-                  child: Text('Danger sur site')),
-              DropdownMenuItem(
-                  value: 'AUTRE',
-                  child: Text('Autre raison')),
+              DropdownMenuItem(value: 'DANGER', child: Text('Danger sur site')),
+              DropdownMenuItem(value: 'AUTRE', child: Text('Autre raison')),
             ],
             onChanged: (v) => setState(() => _raisonIncomplet = v),
-            validator: (v) =>
-                (v == null) ? 'Raison obligatoire *' : null,
+            validator: (v) => (v == null) ? 'Raison obligatoire *' : null,
           ),
 
           const SizedBox(height: 10),
@@ -1003,225 +2849,296 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         if (widget.existingData == null) await saveDraftBeforeExit();
       },
       child: Scaffold(
-      appBar: AppBar(
-        backgroundColor: _isLocked
-            ? Colors.grey.shade700
-            : (_isObjetIncomplet ? Colors.orange : _metierColor),
-        foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(widget.entityType,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-                if (_isLocked) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(4),
+        appBar: AppBar(
+          backgroundColor: _isLocked
+              ? Colors.grey.shade700
+              : (_isObjetIncomplet ? Colors.orange : _metierColor),
+          foregroundColor: Colors.white,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(_displayTitle,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  if (_isLocked) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline,
+                              size: 10, color: Colors.white),
+                          SizedBox(width: 3),
+                          Text('VERROUILLÉ',
+                              style: TextStyle(
+                                  fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.lock_outline, size: 10, color: Colors.white),
-                        SizedBox(width: 3),
-                        Text('VERROUILLÉ',
-                            style: TextStyle(
-                                fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
+                  ],
+                  if (_isObjetIncomplet && !_isLocked) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('INCOMPLET',
+                          style: TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
-                  ),
+                  ],
                 ],
-                if (_isObjetIncomplet && !_isLocked) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text('INCOMPLET',
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ],
-            ),
-            Text(widget.metier,
-                style:
-                    const TextStyle(fontSize: 12, color: Colors.white70)),
+              ),
+              Text(widget.metier,
+                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ],
+          ),
+          actions: [
+            if (_isSaving)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2)),
+              )
+            else if (!_isLocked)
+              IconButton(
+                  icon: const Icon(Icons.check),
+                  tooltip: 'Enregistrer',
+                  onPressed: _isLoadingFields ? null : _save)
+            else
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Icon(Icons.lock_outline, color: Colors.white70),
+              ),
           ],
         ),
-        actions: [
-          if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2)),
-            )
-          else if (!_isLocked)
-            IconButton(
-                icon: const Icon(Icons.check),
-                tooltip: 'Enregistrer',
-                onPressed: _save)
-          else
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Icon(Icons.lock_outline, color: Colors.white70),
-            ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (_isLocked)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade400),
-                ),
-                child: Row(
+        body: _isLoadingFields
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.lock_outline, color: Colors.grey.shade600, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        FormLockService.lockReason(widget.existingData!),
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                          fontStyle: FontStyle.italic,
+                    CircularProgressIndicator(color: _metierColor),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Préparation du formulaire...',
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              )
+            : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_isLocked)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade400),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_outline,
+                                color: Colors.grey.shade600, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                FormLockService.lockReason(
+                                    widget.existingData!),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade700,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            // Bandeau GPS
-            Container(
-              padding: const EdgeInsets.all(10),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: _metierColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _metierColor.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Icon(Icons.gps_fixed, size: 14, color: _metierColor),
-                    const SizedBox(width: 6),
-                    Text('Position collectée',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _metierColor,
-                            fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Lat: ${widget.latitude.toStringAsFixed(7)}  '
-                    'Lon: ${widget.longitude.toStringAsFixed(7)}',
-                    style: const TextStyle(
-                        fontSize: 11, fontFamily: 'monospace'),
-                  ),
-                  Text(
-                    'X: ${_merchichX.toStringAsFixed(3)} m  '
-                    'Y: ${_merchichY.toStringAsFixed(3)} m'
-                    '${widget.altitude != null ? "  Z: ${widget.altitude!.toStringAsFixed(3)} m" : ""}',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: _metierColor,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Légende champs obligatoires ──
-            if (_requiredFields.isNotEmpty && !_isObjetIncomplet && !_isLocked)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    Text(' * ', style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13)),
-                    Text('Champ obligatoire',
-                        style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-              ),
-
-            // Champs dynamiques
-            ..._fields.map(_buildField),
-
-            // Sections anomalie + incomplet
-            _buildAnomalieSection(),
-            if (!_isLocked) _buildObjetIncompletSection(),
-            _buildPhotoSection(),
-
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: widget.onCancel,
-                    child: const Text('Fermer'),
-                  ),
-                ),
-                if (!_isLocked) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            _isObjetIncomplet ? Colors.orange : _metierColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                    // Bandeau GPS
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: _metierColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: _metierColor.withValues(alpha: 0.3)),
                       ),
-                      icon: _isSaving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : Icon(_isObjetIncomplet
-                              ? Icons.warning_amber_rounded
-                              : Icons.save),
-                      label: Text(_isSaving
-                          ? 'Enregistrement...'
-                          : _isObjetIncomplet
-                              ? 'Signaler incomplet'
-                              : 'Enregistrer'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Icon(Icons.gps_fixed,
+                                size: 14, color: _metierColor),
+                            const SizedBox(width: 6),
+                            Text('Position collectée',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _metierColor,
+                                    fontSize: 13)),
+                          ]),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Lat: ${widget.latitude.toStringAsFixed(7)}  '
+                            'Lon: ${widget.longitude.toStringAsFixed(7)}',
+                            style: const TextStyle(
+                                fontSize: 11, fontFamily: 'monospace'),
+                          ),
+                          Text(
+                            'X: ${_merchichX.toStringAsFixed(3)} m  '
+                            'Y: ${_merchichY.toStringAsFixed(3)} m'
+                            '${widget.altitude != null ? "  Z: ${widget.altitude!.toStringAsFixed(3)} m" : ""}',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                color: _metierColor,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
+
+                    // ── Légende champs obligatoires ──
+                    if (_requiredFields.isNotEmpty &&
+                        !_isObjetIncomplet &&
+                        !_isLocked)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Text(' * ',
+                                style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
+                            Text('Champ obligatoire',
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+
+                    // Champs dynamiques
+                    ..._buildDynamicFields(),
+
+                    // Sections anomalie + incomplet
+                    if (!_isEpMinimalLocationForm && !_isEpCompteurAbonne) ...[
+                      _buildAnomalieSection(),
+                      if (!_isLocked) _buildObjetIncompletSection(),
+                    ],
+                    _buildPhotoSection(),
+                    if (!_isEpMinimalLocationForm &&
+                        !_isEpCompteurAbonne &&
+                        _hasActiveAnomalie)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos anomalie',
+                        subtitle:
+                            'Preuves separees des photos generales. Elles ne seront pas ecrasees apres synchronisation.',
+                        photoContext: _photoContextAnomalieAvant,
+                        photoPaths: _anomaliePhotoPaths,
+                        color: Colors.red,
+                      ),
+                    if (!_isEpMinimalLocationForm &&
+                        !_isEpCompteurAbonne &&
+                        _wasAnomalieAtOpen &&
+                        !_hasActiveAnomalie)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos retour terrain',
+                        subtitle:
+                            'Ajoutez les preuves apres traitement sans remplacer les photos anomalie.',
+                        photoContext: _photoContextRetourTerrain,
+                        photoPaths: _retourTerrainPhotoPaths,
+                        color: Colors.green,
+                      ),
+                    if (!_isEpMinimalLocationForm && _isObjetIncomplet)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos objet incomplet',
+                        subtitle:
+                            'Preuves de l\'incompletude separees des photos generales.',
+                        photoContext: _photoContextIncompletInitial,
+                        photoPaths: _incompletPhotoPaths,
+                        color: Colors.orange,
+                      ),
+                    if (!_isEpMinimalLocationForm &&
+                        _wasObjetIncompletAtOpen &&
+                        !_isObjetIncomplet)
+                      _buildWorkflowPhotoSection(
+                        title: 'Photos complement',
+                        subtitle:
+                            'Preuves ajoutees lors du completement de l\'objet.',
+                        photoContext: _photoContextIncompletComplement,
+                        photoPaths: _incompletComplementPhotoPaths,
+                        color: Colors.blueGrey,
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: widget.onCancel,
+                            child: const Text('Fermer'),
+                          ),
+                        ),
+                        if (!_isLocked) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: (_isSaving || _isLoadingFields)
+                                  ? null
+                                  : _save,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isObjetIncomplet
+                                    ? Colors.orange
+                                    : _metierColor,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              icon: _isSaving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2))
+                                  : Icon(_isObjetIncomplet
+                                      ? Icons.warning_amber_rounded
+                                      : Icons.save),
+                              label: Text(_isSaving
+                                  ? 'Enregistrement...'
+                                  : _isObjetIncomplet
+                                      ? 'Signaler incomplet'
+                                      : 'Enregistrer'),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
       ),
     );
   }

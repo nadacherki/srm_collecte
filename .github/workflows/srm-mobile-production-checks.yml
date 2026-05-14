@@ -1,0 +1,49 @@
+name: SRM Mobile Production Checks
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/srm-mobile-production-checks.yml"
+      - "PPRCollecte_Flutter/**"
+      - "tools/codex_dart_flutter.py"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/srm-mobile-production-checks.yml"
+      - "PPRCollecte_Flutter/**"
+      - "tools/codex_dart_flutter.py"
+  workflow_dispatch:
+
+jobs:
+  flutter-mobile:
+    name: Flutter analyze and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PPRCollecte_Flutter
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.9"
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: dart analyze
+
+      - name: Unit tests
+        run: flutter test

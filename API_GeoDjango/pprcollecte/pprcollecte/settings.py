@@ -1,6 +1,5 @@
 """
 Django settings for SRM Collecte backend.
-Adapté de pprcollecte (GeoDNGR) pour le projet SIG SRM.
 """
 
 import os
@@ -33,17 +32,17 @@ _load_local_env(BASE_DIR / ".env")
 # ============================================================
 SECRET_KEY = 'django-insecure-srm-collecte-change-this-in-production'
 DEBUG = True
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '10.0.2.2']
+_allowed_hosts_env = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
+ALLOWED_HOSTS = (
+    [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()]
+    if _allowed_hosts_env
+    else ['*']
+)
 
 # ============================================================
 # APPLICATIONS
 # ============================================================
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.gis',
     'rest_framework',
@@ -53,11 +52,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -71,8 +67,6 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -108,12 +102,7 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
 ]
 
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
+AUTH_PASSWORD_VALIDATORS = []
 
 # ============================================================
 # INTERNATIONALISATION
@@ -129,31 +118,26 @@ USE_TZ = True
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-BASEMAP_BUILD_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_SOURCE_PATH", "").strip()
-BASEMAP_BUILD_SOURCE_DIR = os.environ.get("BASEMAP_BUILD_SOURCE_DIR", "").strip()
-BASEMAP_BUILD_DEFAULT_STYLE = (
-    os.environ.get("BASEMAP_BUILD_DEFAULT_STYLE", "standard").strip() or "standard"
+
+# Basemap regional unique : un seul fichier .pmtiles vectoriel OSM-like
+# couvrant toute la zone d'intervention (Oriental). Le mobile telecharge
+# ce fichier en un seul GET au login puis le rejoue offline.
+BASEMAP_REGIONAL_PMTILES_PATH = os.environ.get(
+    "BASEMAP_REGIONAL_PMTILES_PATH", ""
+).strip()
+BASEMAP_REGIONAL_NAME = (
+    os.environ.get("BASEMAP_REGIONAL_NAME", "SRM Oriental").strip()
+    or "SRM Oriental"
 )
-BASEMAP_BUILD_SOURCE_NAME = os.environ.get("BASEMAP_BUILD_SOURCE_NAME", "").strip()
-BASEMAP_SCRIPT_PYTHON = os.environ.get("BASEMAP_SCRIPT_PYTHON", "").strip()
-BASEMAP_PMTILES_CLI_PATH = os.environ.get("BASEMAP_PMTILES_CLI_PATH", "").strip()
-BASEMAP_BUILD_PMTILES_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_PATH", "").strip()
-BASEMAP_BUILD_PMTILES_SOURCE_URL = os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_URL", "").strip()
-BASEMAP_BUILD_PMTILES_SOURCE_NAME = (
-    os.environ.get("BASEMAP_BUILD_PMTILES_SOURCE_NAME", "Protomaps basemap").strip()
-    or "Protomaps basemap"
-)
-BASEMAP_BUILD_PMTILES_ATTRIBUTION = (
+BASEMAP_REGIONAL_ATTRIBUTION = (
     os.environ.get(
-        "BASEMAP_BUILD_PMTILES_ATTRIBUTION",
+        "BASEMAP_REGIONAL_ATTRIBUTION",
         "© Protomaps © OpenStreetMap contributors",
     ).strip()
     or "© Protomaps © OpenStreetMap contributors"
 )
-BASEMAP_BUILD_OSM_SOURCE_PATH = os.environ.get("BASEMAP_BUILD_OSM_SOURCE_PATH", "").strip()
-BASEMAP_BUILD_OSM_SOURCE_NAME = (
-    os.environ.get("BASEMAP_BUILD_OSM_SOURCE_NAME", "OpenStreetMap contributors").strip()
-    or "OpenStreetMap contributors"
+REGARD_MIROIR_SQUARE_SIZE_METERS = float(
+    os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "24.0")
 )
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -202,6 +186,8 @@ if not (GDAL_LIBRARY_PATH and GEOS_LIBRARY_PATH and PROJ_LIB):
 # REST FRAMEWORK
 # ============================================================
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 500,
+    'UNAUTHENTICATED_USER': None,
 }

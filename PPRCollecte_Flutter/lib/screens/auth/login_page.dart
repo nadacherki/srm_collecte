@@ -1,22 +1,21 @@
-﻿// lib/screens/auth/login_page.dart
+// lib/screens/auth/login_page.dart
 // Login SRM : navigation directe vers HomePage apres connexion
-// Plus de ProjectSelectionPage : le projet actif est charge depuis
-// utilisateur.id_projet_actif au login. La date de collecte est
-// automatiquement enregistree a chaque objet cree (DateTime.now()).
+// La date de collecte est automatiquement enregistree a chaque objet cree.
 
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
 import '../home/home_page.dart';
-import '../../core/constants/basemap_constants.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
-import '../../services/basemap_catalog_service.dart';
 import '../../services/password_hash_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/commune_sync_service.dart';
 import '../../services/public_metrics_cache_service.dart';
 import '../../services/srm_field_option_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
+import '../../services/formulaire_config_mobile_service.dart';
+import '../../services/reference_overlay_sync_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -35,13 +34,22 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePwd = true;
   bool _isLoading = false;
 
-  Future<void> _refreshBasemapCatalogSilently() async {
+  Future<String?> _refreshBasemapCatalogSilently() async {
     try {
-      await BasemapCatalogService().refreshCatalog(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
+      final result =
+          await OfflineBasemapService().ensureRegionalBasemapDownloaded();
+      if (!result.success) {
+        final reason = result.errorMessage ?? result.userMessage ?? '';
+        debugPrint('[BASEMAP-REGIONAL] Échec téléchargement : $reason');
+        return reason.isNotEmpty
+            ? 'Carte hors ligne non téléchargée : $reason'
+            : 'Carte hors ligne non téléchargée.';
+      }
+      return null;
     } catch (e) {
-      print('[BASEMAP-CATALOG] Sync ignoree au login: $e');
+      final reason = e.toString();
+      debugPrint('[BASEMAP-REGIONAL] Exception téléchargement : $reason');
+      return 'Carte hors ligne indisponible : $reason';
     }
   }
 
@@ -49,15 +57,70 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await SrmFieldOptionService().refreshOptions();
     } catch (e) {
-      print('[SRM-FIELD-OPTIONS] Sync ignoree au login: $e');
+      debugPrint('[SRM-FIELD-OPTIONS] Sync ignoree au login: $e');
     }
+  }
+
+  Future<void> _refreshAttributConfigMobileSilently() async {
+    try {
+      await AttributConfigMobileService().refreshConfig();
+    } catch (e) {
+      debugPrint('[ATTRIBUT-CONFIG-MOBILE] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshFormulaireConfigMobileSilently() async {
+    try {
+      await FormulaireConfigMobileService().refreshConfig();
+    } catch (e) {
+      debugPrint('[FORMULAIRE-CONFIG-MOBILE] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshMobileFormConfigSilently() async {
+    await Future.wait<void>([
+      _refreshFormulaireConfigMobileSilently(),
+      _refreshAttributConfigMobileSilently(),
+      _refreshSrmFieldOptionsSilently(),
+    ]);
   }
 
   Future<void> _refreshCommunesSilently() async {
     try {
       await CommuneSyncService().refreshCommunes();
     } catch (e) {
-      print('[COMMUNES] Sync ignoree au login: $e');
+      debugPrint('[COMMUNES] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<void> _refreshReferenceOverlaysSilently() async {
+    try {
+      await ReferenceOverlaySyncService().refreshLightOverlays();
+    } catch (e) {
+      debugPrint('[REFERENCE-OVERLAYS] Sync ignoree au login: $e');
+    }
+  }
+
+  Future<String?> _refreshPublicMetricsSilently() async {
+    try {
+      // Les vues SQL agregees (UNION sur toutes les tables EP/ASS) peuvent
+      // depasser 4s sur emulateur ou en debug. 15s laisse une marge realiste
+      // tout en restant tolerable au login. En cas d'echec, le profil
+      // declenche un refresh sans timeout a l'ouverture.
+      final snapshot = await PublicMetricsCacheService()
+          .prefetchForCurrentSession(
+              requestTimeout: const Duration(seconds: 15));
+      if (snapshot.hasAnyData) {
+        final error = snapshot.error?.trim();
+        if (error != null && error.isNotEmpty) {
+          debugPrint('[METRICS] Refresh partiel au login: $error');
+        }
+        return null;
+      }
+      return snapshot.error ?? 'Aucune metrique serveur recue au login.';
+    } catch (e) {
+      debugPrint('[METRICS] Sync ignoree au login: $e');
+      return e.toString();
     }
   }
 
@@ -120,35 +183,22 @@ class _LoginPageState extends State<LoginPage> {
             ? rawUserId
             : int.tryParse(rawUserId?.toString() ?? '');
         ApiService.userLogin = user['login'] as String?;
-        ApiService.nomPrenom = user['nom_prenom'] as String?;
-        ApiService.userRole  = user['role'] as String?;
+        ApiService.userNom = user['nom']?.toString();
+        ApiService.userPrenom = user['prenom']?.toString();
+        ApiService.nomPrenom = DatabaseHelper.fullNameFromUserRow(user);
+        ApiService.userRole = user['role'] as String?;
 
-        final projetId = user['id_projet_actif'];
-        if (projetId != null) {
-          ApiService.currentProjetId = projetId is int
-              ? projetId
-              : int.tryParse(projetId.toString());
-          final projet = await DatabaseHelper()
-              .getProjetLocal(ApiService.currentProjetId!);
-          if (projet != null) {
-            ApiService.currentProjetNom    = projet['nom'] as String?;
-            ApiService.currentProjetStatut = projet['statut'] as String?;
-            ApiService.currentProjetMetier = projet['metier'] as String?;
-          }
-        }
-        print(
-          '[LOGIN] ApiService restore (offline): userId=${ApiService.userId} projet=${ApiService.currentProjetId}',
+        debugPrint(
+          '[LOGIN] ApiService restore (offline): userId=${ApiService.userId}',
         );
       }
 
       final fullName = ApiService.nomPrenom ?? 'Utilisateur Local';
       if (!mounted) return;
-      final activeBasemapPackage =
-          await OfflineBasemapService().getActivePackage();
+      final activeBasemap = await OfflineBasemapService().getActiveBasemap();
       final offlineBasemapPath =
-          activeBasemapPackage?['local_path']?.toString().trim();
-      final offlineBasemapFormat =
-          activeBasemapPackage?['format']?.toString().trim();
+          activeBasemap?['local_path']?.toString().trim();
+      final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
       if (!mounted) return;
       _navigateToHome(
         fullName,
@@ -156,14 +206,15 @@ class _LoginPageState extends State<LoginPage> {
         offlineBasemapPath: offlineBasemapPath,
         offlineBasemapFormat: offlineBasemapFormat,
         basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
-            ? "Aucune carte offline active n'a encore ete telechargee."
+            ? "Aucune carte offline active n'a encore été téléchargée."
             : null,
       );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Mode hors-ligne : identifiants introuvables localement.'),
+          content:
+              Text('Mode hors-ligne : identifiants introuvables localement.'),
         ),
       );
     }
@@ -172,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final login    = loginController.text.trim();
+    final login = loginController.text.trim();
     final password = passwordController.text;
 
     setState(() => _isLoading = true);
@@ -193,25 +244,13 @@ class _LoginPageState extends State<LoginPage> {
       final passwordHash = await PasswordHashService.hashPassword(password);
 
       await dbHelper.upsertUserSrm(
-        login:         login,
+        login: login,
         motDePasseHash: passwordHash,
-        nomPrenom:     userData['nom_prenom'],
-        role:          userData['role'],
-        apiId:         userData['id_user'],
-        idProjetActif: userData['id_projet_actif'],
+        nom: userData['nom'],
+        prenom: userData['prenom'],
+        role: userData['role'],
+        apiId: userData['id_user'],
       );
-
-      if (userData['projet_id'] != null) {
-        await dbHelper.upsertProjetLocal(
-          idProjet:    userData['projet_id'],
-          nom:         userData['projet_nom'],
-          codeAffaire: userData['projet_code'],
-          srm:         userData['projet_srm'],
-          region:      userData['projet_region'],
-          metier:      userData['projet_metier'],
-          statut:      userData['projet_statut'],
-        );
-      }
 
       await dbHelper.recordLocalEvent(
         eventType: 'LOGIN_SUCCESS_ONLINE',
@@ -220,34 +259,68 @@ class _LoginPageState extends State<LoginPage> {
         payload: {
           'login': login,
           'id_user': userData['id_user'],
-          'id_projet_actif': userData['id_projet_actif'],
         },
       );
 
-      await _refreshBasemapCatalogSilently();
-      await _refreshSrmFieldOptionsSilently();
-      await _refreshCommunesSilently();
-      unawaited(
-        PublicMetricsCacheService().prefetchForCurrentSession().catchError((_) {}),
-      );
+      // Optimisation login : on parallelise tous les refreshes au lieu de
+      // les enchainer en serie (avant ~10-15s d'attente). Tout part en
+      // background -> l'agent atterrit sur la HomePage rapidement.
+      //
+      // Le basemap est un cas particulier : si deja en cache local et
+      // sha256 OK, ensureRegionalBasemapDownloaded() retourne en ~50ms;
+      // sinon il peut prendre 10-15s pour télécharger 19 Mo. On lui
+      // accorde une courte fenetre (3s) pour le cas "deja a jour", puis
+      // on bascule en background sans bloquer l'UI.
+      final basemapFuture = _refreshBasemapCatalogSilently();
+      final metricsFuture = _refreshPublicMetricsSilently();
+      final mobileFormConfigFuture = _refreshMobileFormConfigSilently();
+      unawaited(_refreshCommunesSilently());
+      unawaited(_refreshReferenceOverlaysSilently());
 
-      final fullName = userData['nom_prenom'] ?? 'Agent SRM';
+      String? basemapError;
+      try {
+        basemapError = await basemapFuture.timeout(const Duration(seconds: 3));
+      } on TimeoutException {
+        // Le download continue en arriere-plan : le mobile affichera la
+        // carte des qu'elle est prete via _hydrateOfflineBasemapState.
+        basemapError = null;
+      } catch (_) {
+        basemapError = null;
+      }
+      final metricsError = await metricsFuture;
+      if (metricsError != null && metricsError.trim().isNotEmpty) {
+        debugPrint('[METRICS] Non chargees au login: $metricsError');
+      }
+      try {
+        await mobileFormConfigFuture.timeout(const Duration(seconds: 8));
+      } on TimeoutException {
+        debugPrint(
+          '[MOBILE-FORM-CONFIG] Refresh encore en cours au login; cache local conserve',
+        );
+      } catch (e) {
+        debugPrint('[MOBILE-FORM-CONFIG] Refresh ignore au login: $e');
+      }
+
+      final fullName = userData['nom_complet'] ?? 'Agent SRM';
       if (!mounted) return;
-      final activeBasemapPackage =
-          await OfflineBasemapService().getActivePackage();
+      final activeBasemap = await OfflineBasemapService().getActiveBasemap();
       final offlineBasemapPath =
-          activeBasemapPackage?['local_path']?.toString().trim();
-      final offlineBasemapFormat =
-          activeBasemapPackage?['format']?.toString().trim();
+          activeBasemap?['local_path']?.toString().trim();
+      final offlineBasemapFormat = activeBasemap?['format']?.toString().trim();
       if (!mounted) return;
+      // Si la carte n'a pas pu etre téléchargée, on remonte la cause exacte
+      // (au lieu d'avaler silencieusement). Permet de diagnostiquer les
+      // problemes reseau / endpoint indisponible / fichier serveur manquant.
+      final basemapNotice = basemapError ??
+          ((offlineBasemapPath == null || offlineBasemapPath.isEmpty)
+              ? "Aucune carte offline active n'a encore été téléchargée."
+              : null);
       _navigateToHome(
         fullName,
         isOnline: true,
         offlineBasemapPath: offlineBasemapPath,
         offlineBasemapFormat: offlineBasemapFormat,
-        basemapNotice: offlineBasemapPath == null || offlineBasemapPath.isEmpty
-            ? "Aucune carte offline active n'a encore ete telechargee."
-            : null,
+        basemapNotice: basemapNotice,
       );
     } on TimeoutException catch (_) {
       await _loginOffline(login, password);
@@ -276,7 +349,7 @@ class _LoginPageState extends State<LoginPage> {
       MaterialPageRoute(
         builder: (_) => HomePage(
           agentName: agentName,
-          isOnline:  isOnline,
+          isOnline: isOnline,
           initialOfflineBasemapPath: offlineBasemapPath,
           initialOfflineBasemapFormat: offlineBasemapFormat,
           initialBasemapNotice: basemapNotice,
@@ -380,7 +453,9 @@ class _LoginPageState extends State<LoginPage> {
           children: [
             // Fond haut bleu
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               height: MediaQuery.of(context).size.height * 0.42,
               child: Container(
                 decoration: const BoxDecoration(
@@ -390,29 +465,33 @@ class _LoginPageState extends State<LoginPage> {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.only(
-                    bottomLeft:  Radius.circular(40),
+                    bottomLeft: Radius.circular(40),
                     bottomRight: Radius.circular(40),
                   ),
                 ),
                 child: Stack(
                   children: [
                     Positioned(
-                      top: -40, right: -40,
+                      top: -40,
+                      right: -40,
                       child: Container(
-                        width: 160, height: 160,
+                        width: 160,
+                        height: 160,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.07),
+                          color: Colors.white.withValues(alpha: 0.07),
                         ),
                       ),
                     ),
                     Positioned(
-                      bottom: -20, left: -30,
+                      bottom: -20,
+                      left: -30,
                       child: Container(
-                        width: 120, height: 120,
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.06),
+                          color: Colors.white.withValues(alpha: 0.06),
                         ),
                       ),
                     ),
@@ -431,7 +510,8 @@ class _LoginPageState extends State<LoginPage> {
                       bottom: MediaQuery.of(context).viewInsets.bottom + 24,
                     ),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -439,13 +519,14 @@ class _LoginPageState extends State<LoginPage> {
 
                           // Logo
                           Container(
-                            width: 110, height: 110,
+                            width: 110,
+                            height: 110,
                             decoration: BoxDecoration(
                               color: Colors.white,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.15),
+                                  color: Colors.black.withValues(alpha: 0.15),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -489,21 +570,24 @@ class _LoginPageState extends State<LoginPage> {
                                 borderRadius: BorderRadius.circular(28),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF1976D2).withOpacity(0.10),
+                                    color: const Color(0xFF1976D2)
+                                        .withValues(alpha: 0.10),
                                     blurRadius: 32,
                                     offset: const Offset(0, 12),
                                   ),
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
+                              padding:
+                                  const EdgeInsets.fromLTRB(24, 30, 24, 28),
                               child: Form(
                                 key: _formKey,
-                                autovalidateMode: AutovalidateMode.onUserInteraction,
+                                autovalidateMode:
+                                    AutovalidateMode.onUserInteraction,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -524,13 +608,17 @@ class _LoginPageState extends State<LoginPage> {
                                     TextFormField(
                                       controller: loginController,
                                       keyboardType: TextInputType.text,
-                                      style: const TextStyle(color: Color(0xFF1A2340), fontSize: 14),
+                                      style: const TextStyle(
+                                          color: Color(0xFF1A2340),
+                                          fontSize: 14),
                                       decoration: _inputDeco(
                                         hint: 'Identifiant SRM',
                                         icon: Icons.person_outline_rounded,
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.trim().isEmpty) return 'Entrez votre login';
+                                        if (v == null || v.trim().isEmpty) {
+                                          return 'Entrez votre login';
+                                        }
                                         return null;
                                       },
                                     ),
@@ -541,7 +629,9 @@ class _LoginPageState extends State<LoginPage> {
                                     TextFormField(
                                       controller: passwordController,
                                       obscureText: _obscurePwd,
-                                      style: const TextStyle(color: Color(0xFF1A2340), fontSize: 14),
+                                      style: const TextStyle(
+                                          color: Color(0xFF1A2340),
+                                          fontSize: 14),
                                       decoration: _inputDeco(
                                         hint: 'Mot de passe',
                                         icon: Icons.lock_outline_rounded,
@@ -553,13 +643,17 @@ class _LoginPageState extends State<LoginPage> {
                                             color: const Color(0xFF90A4AE),
                                             size: 20,
                                           ),
-                                          onPressed: () =>
-                                              setState(() => _obscurePwd = !_obscurePwd),
+                                          onPressed: () => setState(
+                                              () => _obscurePwd = !_obscurePwd),
                                         ),
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.isEmpty) return 'Entrez votre mot de passe';
-                                        if (v.length < 4) return 'Mot de passe trop court';
+                                        if (v == null || v.isEmpty) {
+                                          return 'Entrez votre mot de passe';
+                                        }
+                                        if (v.length < 4) {
+                                          return 'Mot de passe trop court';
+                                        }
                                         return null;
                                       },
                                     ),
@@ -570,14 +664,18 @@ class _LoginPageState extends State<LoginPage> {
                                     Row(
                                       children: [
                                         SizedBox(
-                                          height: 22, width: 22,
+                                          height: 22,
+                                          width: 22,
                                           child: Checkbox(
                                             value: rememberMe,
-                                            activeColor: const Color(0xFF2196F3),
+                                            activeColor:
+                                                const Color(0xFF2196F3),
                                             shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(5)),
+                                                borderRadius:
+                                                    BorderRadius.circular(5)),
                                             side: const BorderSide(
-                                                color: Color(0xFFB0BEC5), width: 1.5),
+                                                color: Color(0xFFB0BEC5),
+                                                width: 1.5),
                                             onChanged: (val) {
                                               setState(() {
                                                 rememberMe = val ?? false;
@@ -592,7 +690,8 @@ class _LoginPageState extends State<LoginPage> {
                                         const SizedBox(width: 8),
                                         const Text('Se souvenir',
                                             style: TextStyle(
-                                                color: Color(0xFF607D8B), fontSize: 13)),
+                                                color: Color(0xFF607D8B),
+                                                fontSize: 13)),
                                         const Spacer(),
                                         GestureDetector(
                                           onTap: _showForgotPasswordDialog,
@@ -615,19 +714,25 @@ class _LoginPageState extends State<LoginPage> {
                                       width: double.infinity,
                                       height: 52,
                                       child: ElevatedButton(
-                                        onPressed: _isLoading ? null : _handleLogin,
+                                        onPressed:
+                                            _isLoading ? null : _handleLogin,
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF1976D2),
+                                          backgroundColor:
+                                              const Color(0xFF1976D2),
                                           foregroundColor: Colors.white,
                                           elevation: 4,
-                                          shadowColor: const Color(0xFF1976D2).withOpacity(0.4),
+                                          shadowColor: const Color(0xFF1976D2)
+                                              .withValues(alpha: 0.4),
                                           shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(14)),
+                                              borderRadius:
+                                                  BorderRadius.circular(14)),
                                         ),
                                         child: _isLoading
                                             ? const SizedBox(
-                                                height: 22, width: 22,
-                                                child: CircularProgressIndicator(
+                                                height: 22,
+                                                width: 22,
+                                                child:
+                                                    CircularProgressIndicator(
                                                   strokeWidth: 2.5,
                                                   color: Colors.white,
                                                 ),
@@ -652,11 +757,12 @@ class _LoginPageState extends State<LoginPage> {
 
                           const Text(
                             'Collecter. Organiser. Exploiter vos données en toute simplicité.',
-                            style: TextStyle(color: Color(0xFF90A4AE), fontSize: 11),
+                            style: TextStyle(
+                                color: Color(0xFF90A4AE), fontSize: 11),
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            'EP  •  ASS  •  ELEC',
+                            'EP  •  ASS',
                             style: TextStyle(
                               color: Color(0xFFB0BEC5),
                               fontSize: 10,

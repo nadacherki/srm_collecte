@@ -1,0 +1,72 @@
+[
+  {
+    "db": "SRM",
+    "table": "ep.vanne",
+    "pk": {
+      "fid": 321
+    },
+    "column": "ep_etat",
+    "before": ".?",
+    "after": null
+  },
+  {
+    "db": "SRM",
+    "table": "public.historique_attribut",
+    "pk": {
+      "id_historique": 6952
+    },
+    "column": "nouvelle_valeur",
+    "before": ".?",
+    "after": null
+  },
+  {
+    "db": "SRM",
+    "table": "public.historique_mobile",
+    "pk": {
+      "id_historique_mobile": 6962
+    },
+    "column": "nouvelle_valeur",
+    "before": ".?",
+    "after": null
+  },
+  {
+    "db": "SRM",
+    "table": "public.historique_mobile",
+    "pk": {
+      "id_historique_mobile": 13499
+    },
+    "column": "nouvelle_valeur",
+    "before": ".?",
+    "after": null
+  },
+  {
+    "db": "SRM_bureau",
+    "table": "ep.ep_regard",
+    "pk": {
+      "fid": 105
+    },
+    "column": "ep_observation",
+    "before": "Puisard construit côte haut ??",
+    "after": "Puisard construit côte haut"
+  },
+  {
+    "db": "SRM_bureau",
+    "table": "ep.onep_db",
+    "pk": {
+      "id": 7902
+    },
+    "column": "adresse postale client payeur",
+    "before": "ISLY null APP 19? IMM K CITE DU 6°G.M.",
+    "after": "ISLY null APP 19 IMM K CITE DU 6°G.M."
+  },
+  {
+    "db": "SRM",
+    "table": "public.historique_attribut",
+    "pk": {
+      "id_historique": 7574
+    },
+    "column": "ancienne_valeur",
+    "before": ".?",
+    "after": null
+  }
+]

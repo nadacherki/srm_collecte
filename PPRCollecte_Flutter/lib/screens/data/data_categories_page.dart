@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'anomaly_treatment_page.dart';
 import 'srm_data_status_page.dart';
 
 class DataCategoriesPage extends StatelessWidget {
@@ -67,7 +68,8 @@ class DataCategoriesPage extends StatelessWidget {
                   _buildCategoryCard(
                     context,
                     title: 'Données Enregistrées',
-                    description: 'Données créées localement, non encore synchronisées',
+                    description:
+                        'Données créées localement, non encore synchronisées',
                     icon: Icons.save,
                     color: const Color.fromARGB(255, 167, 94, 196),
                   ),
@@ -85,6 +87,25 @@ class DataCategoriesPage extends StatelessWidget {
                     icon: Icons.cloud_download,
                     color: const Color(0xFF4CAF50),
                   ),
+                  _buildCategoryCard(
+                    context,
+                    title: 'Traitement des anomalies',
+                    description:
+                        'Suivi exploitant et retours terrain à compléter',
+                    icon: Icons.construction,
+                    color: const Color(0xFFFF9800),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AnomalyTreatmentPage(
+                            isOnline: isOnline,
+                            agentName: agentName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -100,21 +121,23 @@ class DataCategoriesPage extends StatelessWidget {
     required String description,
     required IconData icon,
     required Color color,
+    VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SrmDataStatusPage(
-              title: title,
-              dataFilter: _getDataFilterType(title),
-              isOnline: isOnline,
-              agentName: agentName,
-            ),
-          ),
-        );
-      },
+      onTap: onTap ??
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SrmDataStatusPage(
+                  title: title,
+                  dataFilter: _getDataFilterType(title),
+                  isOnline: isOnline,
+                  agentName: agentName,
+                ),
+              ),
+            );
+          },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -122,7 +145,7 @@ class DataCategoriesPage extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE0E0E0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -136,7 +159,7 @@ class DataCategoriesPage extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Icon(icon, size: 28, color: color),

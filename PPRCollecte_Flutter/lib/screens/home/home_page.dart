@@ -9,9 +9,10 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // ============================================================
 // WIDGETS
@@ -19,6 +20,7 @@ import 'package:latlong2/latlong.dart';
 import '../../widgets/common/top_bar_widget.dart';
 import '../../widgets/common/bottom_buttons_widget.dart';
 import '../../widgets/common/bottom_status_bar_widget.dart';
+import '../../widgets/common/custom_marker_icons.dart';
 import '../../widgets/map/map_widget.dart';
 import '../../widgets/map/map_controls_widget.dart';
 import '../../widgets/map/legend_widget.dart';
@@ -45,6 +47,7 @@ import '../../data/remote/api_service.dart';
 // ============================================================
 // MODELS
 // ============================================================
+import '../../models/collection_models.dart';
 import '../../models/map_overlay_tap_data.dart';
 
 // ============================================================
@@ -52,14 +55,26 @@ import '../../models/map_overlay_tap_data.dart';
 // ============================================================
 import '../auth/login_page.dart';
 import '../data/data_categories_page.dart';
-import '../forms/special_line_form_page.dart';
 import '../forms/polygon_form_page.dart';
-import '../../services/special_lines_service.dart';
+import '../../services/srm_lines_service.dart';
 import '../../services/displayed_points_service.dart';
 import '../../services/offline_basemap_service.dart';
 import '../../services/downloaded_lines_service.dart';
+import '../../services/formulaire_config_mobile_service.dart';
+import '../../services/attribut_config_mobile_service.dart';
+import '../../services/srm_field_option_service.dart';
+import '../../services/commune_sync_service.dart';
+import '../../services/zone_sync_service.dart';
+import '../../services/projection_service.dart';
 import '../../core/constants/basemap_constants.dart';
 import '../../services/form_lock_service.dart';
+import '../../services/nmea_bridge_service.dart';
+import '../../services/public_metrics_cache_service.dart';
+import '../../services/capture_location_guard.dart';
+import '../../services/download_notification_service.dart';
+import '../../services/reference_overlay_sync_service.dart';
+import '../../services/srm_row_visibility_filter.dart';
+import '../../services/srm_status_flags.dart';
 
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
@@ -72,6 +87,7 @@ part 'home_page_overlays.dart';
 part 'home_page_collection_actions.dart';
 part 'home_page_bootstrap.dart';
 part 'home_page_app_actions.dart';
+part 'home_page_conduite_mode.dart';
 
 class MapFocusTarget {
   final String kind; // 'point' | 'polyline'
@@ -98,6 +114,20 @@ class MapFocusTarget {
         pointStyle = 'normal';
 }
 
+class _ConduiteRegardNode {
+  final int nodeId;
+  final int? sourceFid;
+  final LatLng point;
+  final Map<String, dynamic> row;
+
+  const _ConduiteRegardNode({
+    required this.nodeId,
+    required this.sourceFid,
+    required this.point,
+    required this.row,
+  });
+}
+
 class HomePage extends StatefulWidget {
   static MapFocusTarget? pendingFocusTarget;
   final Function onLogout;
@@ -122,9 +152,11 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   LatLng? userPosition;
   bool gpsEnabled = true;
+  String gpsSourceLabel = 'téléphone';
+  String? gpsDetailsLine;
   String _regionNom = '----';
   String _prefectureNom = '----';
   String _communeNom = '----';
@@ -135,11 +167,13 @@ class _HomePageState extends State<HomePage> {
   List<Polyline> collectedPolylines = [];
   List<Polyline> _finishedLines = [];
   List<Marker> formMarkers = [];
+  Map<String, dynamic>? _geometryEditLineItem;
+  Map<String, dynamic>? _geometryEditPolygonItem;
   bool isSyncing = false;
   bool isDownloading = false;
   SyncResult? lastSyncResult;
   double _progressValue = 0.0;
-  String _currentOperation = "Préparation de la sauvegarde...";
+  String _currentOperation = "Préparation du téléchargement...";
   int _totalItems = 0;
   int _processedItems = 0;
   double _syncProgressValue = 0.0;
@@ -148,10 +182,14 @@ class _HomePageState extends State<HomePage> {
   int _syncProcessedItems = 0;
   final List<Marker> _focusOverlayMarkers = [];
   final List<Polyline> _focusOverlayPolylines = [];
-  bool _isSpecialCollection = false;
-  String? _specialCollectionType;
   bool _isPolygonCollection = false;
+  String? _polygonEntityType;
+  final List<CollectionPointEdit> _ligneRedoPoints = [];
+  final List<CollectionPointEdit> _polygonRedoPoints = [];
   List<Polygon> _displayedPolygons = [];
+  List<Polygon> _referencePlanchePolygons = [];
+  List<Polygon> _referenceZonePolygons = [];
+  List<Polyline> _referenceFondPlanPolylines = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
   Map<String, List<Polygon>> _displayedPolygonAnomalieByTable = {};
   Map<String, List<Polygon>> _displayedPolygonIncompletByTable = {};
@@ -160,29 +198,32 @@ class _HomePageState extends State<HomePage> {
   Map<String, int> _pointCountsByTable = {};
   Map<String, int> _anomalieCountsByTable = {};
   Map<String, int> _incompletCountsByTable = {};
+  Map<String, int> _referenceOverlayCounts = {};
   MapController? _mapController;
   LatLng? _lastCameraPosition;
   late final HomeController homeController;
   final DisplayedPointsService _pointsService = DisplayedPointsService();
-  final SpecialLinesService _specialLinesService = SpecialLinesService();
-  List<Polyline> _displayedSpecialLines = [];
+  final SrmLinesService _srmLinesService = SrmLinesService();
   Map<String, List<Polyline>> _displayedSrmLinesByTable = {};
   Map<String, List<Polyline>> _displayedLineAnomalieByTable = {};
   Map<String, List<Polyline>> _displayedLineIncompletByTable = {};
   Map<String, List<Marker>> _displayedPointsByTable = {};
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
-  final bool _isSatellite = false;
-  List<Polyline> _downloadedSpecialLinesPolylines = [];
-  bool _showDownloadedSpecialLines = true;
+  bool _isSatellite = false;
 
   SrmSelection? _pendingSrmLigneSelection;
 
-
-  final DownloadedLinesService _downloadedLinesService = DownloadedLinesService();
+  final DownloadedLinesService _downloadedLinesService =
+      DownloadedLinesService();
   List<Polyline> _downloadedLinesPolylines = [];
   bool _showDownloadedLines = true; // comme pour les points
-  bool get _autoCenterSuspended => _autoCenterDisabledByUser || (_suspendAutoCenterUntil != null && DateTime.now().isBefore(_suspendAutoCenterUntil!));
+  bool get _autoCenterSuspended =>
+      _autoCenterDisabledByUser ||
+      (_suspendAutoCenterUntil != null &&
+          DateTime.now().isBefore(_suspendAutoCenterUntil!));
+  bool get _canUseAdminGpsTools =>
+      (ApiService.userRole ?? '').trim().toLowerCase() == 'admin';
   String? _lastSyncTimeText;
   String? _offlineBasemapPath;
   String? _offlineBasemapFormat;
@@ -193,7 +234,26 @@ class _HomePageState extends State<HomePage> {
   double? _offlineBasemapMinZoom;
   double? _offlineBasemapMaxZoom;
   late bool _isOnlineDynamic;
+  late bool _canUseOnlineBasemap;
   Timer? _onlineWatchTimer;
+  bool _mobileConfigAutoRefreshRunning = false;
+  DateTime? _lastMobileConfigAutoRefreshAt;
+  Timer? _nmeaBridgeWatchTimer;
+  bool _isConduiteDrawingMode = false;
+  String _conduiteModeMetier = 'ep';
+  DateTime? _conduiteModeDay;
+  List<Marker> _conduiteModeMarkers = [];
+  List<Polyline> _conduiteModePolylines = [];
+  final Map<int, _ConduiteRegardNode> _conduiteRegardNodesById = {};
+  final List<int> _conduiteSelectionHistoryNodeIds = <int>[];
+  final List<int> _conduiteRedoStackNodeIds = <int>[];
+  final Set<String> _conduiteSegmentKeys = <String>{};
+  double _conduitePreviewLengthM = 0.0;
+  LatLng? _conduiteCurrentRegardPoint;
+  bool _conduiteIsFrozenForDay = false;
+  bool _conduiteIsSaving = false;
+  String? _conduiteModeError;
+  String _conduiteModeStatusText = 'Touchez un regard pour commencer.';
 // Dans _HomePageState
   Map<String, bool> _legendVisibility = {
     'points': true,
@@ -207,9 +267,11 @@ class _HomePageState extends State<HomePage> {
     'line_submersible': true,
     'line_col': true,
     'line_autre': true,
-    'bac': true,
-    'passage_submersible': true,
     'zone_plaine': true,
+    'srm_ep_regard_polygon': true,
+    'overlay_zones': true,
+    'overlay_planche': false,
+    'overlay_fond_plan': false,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -217,7 +279,9 @@ class _HomePageState extends State<HomePage> {
   }) {
     final v = (enqueteurValue ?? '').trim();
 
-    if (v.isNotEmpty && v.toLowerCase() != 'null' && v.toLowerCase() != 'sync') {
+    if (v.isNotEmpty &&
+        v.toLowerCase() != 'null' &&
+        v.toLowerCase() != 'sync') {
       return v;
     }
 
@@ -233,6 +297,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _offlineBasemapPath = widget.initialOfflineBasemapPath;
     _offlineBasemapFormat = widget.initialOfflineBasemapFormat;
     _basemapUnavailableMessage = _offlineBasemapPath == null
@@ -247,18 +312,21 @@ class _HomePageState extends State<HomePage> {
     //_cleanupDisplayedPoints();
     _loadDisplayedLines();
     _loadDisplayedPoints();
-    _loadDisplayedSpecialLines();
+    _loadDisplayedSrmLines();
     _loadDownloadedLineOverlays();
     _isOnlineDynamic = widget.isOnline;
+    _canUseOnlineBasemap = widget.isOnline;
     homeController.setSyncAvailability(_isOnlineDynamic);
     _loadLastSyncTime();
     _startOnlineWatcher();
     _loadAdminNamesOffline();
-    _loadDownloadedSpecialLines();
     _loadDisplayedPolygons();
+    _loadReferenceOverlays();
+    unawaited(_refreshReferenceOverlaysForMapStartup());
     _hydrateOfflineBasemapState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showInitialBasemapNoticeIfNeeded();
+      _autoStartNmeaBridgeIfConfiguredImpl(this);
     });
 
     homeController.addListener(
@@ -267,11 +335,15 @@ class _HomePageState extends State<HomePage> {
           () {
             userPosition = homeController.userPosition;
             gpsEnabled = homeController.gpsEnabled;
+            gpsSourceLabel = homeController.gpsSourceLabel;
+            gpsDetailsLine = homeController.gpsDetailsLine;
             formMarkers = homeController.formMarkers;
           },
         );
 
-        if (_mapController != null && _lastCameraPosition == null && userPosition != null) {
+        if (_mapController != null &&
+            _lastCameraPosition == null &&
+            userPosition != null) {
           _mapController!.move(userPosition!, 17);
           _lastCameraPosition = userPosition;
         } else {
@@ -325,14 +397,9 @@ class _HomePageState extends State<HomePage> {
   void _showInitialBasemapNoticeIfNeeded() =>
       _showInitialBasemapNoticeIfNeededImpl(this);
 
-  Future<void> _loadDownloadedSpecialLines() =>
-      _loadDownloadedSpecialLinesImpl(this);
-
-
-
-  void _showSpecialLineDetailsSheet({
+  void _showSrmLineDetailsSheet({
     required BuildContext context,
-    required String specialType,
+    required String entityType,
     required String statut,
     String? enqueteur,
     required String region,
@@ -344,10 +411,11 @@ class _HomePageState extends State<HomePage> {
     required double endLat,
     required double endLng,
     Map<String, dynamic>? editableItem,
-  }) => _showSpecialLineDetailsSheetImpl(
+  }) =>
+      _showSrmLineDetailsSheetImpl(
         this,
         context: context,
-        specialType: specialType,
+        entityType: entityType,
         statut: statut,
         enqueteur: enqueteur,
         region: region,
@@ -381,10 +449,10 @@ class _HomePageState extends State<HomePage> {
     String? debutTravaux,
     String? finTravaux,
     String? financement,
-    String? projet,
     String? entreprise,
     Map<String, dynamic>? editableItem,
-  }) => _showLineDetailsSheetImpl(
+  }) =>
+      _showLineDetailsSheetImpl(
         this,
         context: context,
         lineCode: lineCode,
@@ -405,7 +473,6 @@ class _HomePageState extends State<HomePage> {
         debutTravaux: debutTravaux,
         finTravaux: finTravaux,
         financement: financement,
-        projet: projet,
         entreprise: entreprise,
         editableItem: editableItem,
       );
@@ -423,7 +490,8 @@ class _HomePageState extends State<HomePage> {
     required double lng,
     required String statut,
     Map<String, dynamic>? editableItem,
-  }) => _showPointDetailsSheetImpl(
+  }) =>
+      _showPointDetailsSheetImpl(
         this,
         context: context,
         type: type,
@@ -442,11 +510,17 @@ class _HomePageState extends State<HomePage> {
   Future<void> _editMapItem(Map<String, dynamic> item) =>
       _editMapItemImpl(this, item);
 
+  Future<void> _editMapGeometry(Map<String, dynamic> item) =>
+      _editMapGeometryImpl(this, item);
+
   void _handlePolylineTap(Object? hitValue) =>
       _handlePolylineTapImpl(this, hitValue);
 
   void _handlePolygonTap(Object? hitValue) =>
       _handlePolygonTapImpl(this, hitValue);
+
+  void _handlePolygonLongPress(Object? hitValue) =>
+      _handlePolygonLongPressImpl(this, hitValue);
 
   Widget _detailRow(String label, String value) {
     return Padding(
@@ -455,29 +529,33 @@ class _HomePageState extends State<HomePage> {
         children: [
           Expanded(
             flex: 4,
-            child: Text(label, style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600)),
+            child: Text(label,
+                style: TextStyle(
+                    color: Colors.grey[700], fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 10),
           Expanded(
             flex: 6,
-            child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _loadAdminNamesOffline() =>
-      _loadAdminNamesOfflineImpl(this);
+  Future<void> _loadAdminNamesOffline() => _loadAdminNamesOfflineImpl(this);
 
-  void _suspendAutoCenterFor(Duration d) =>
-      _suspendAutoCenterForImpl(this, d);
+  void _suspendAutoCenterFor(Duration d) => _suspendAutoCenterForImpl(this, d);
 
-  void _startOnlineWatcher() =>
-      _startOnlineWatcherImpl(this);
-
+  void _startOnlineWatcher() => _startOnlineWatcherImpl(this);
 
   bool _isSrmTableVisible(String tableName) {
+    if (tableName == 'ep_regard') {
+      return _isSrmTableVisible('ep_regard_point');
+    }
+
     final entityKey = 'srm_$tableName';
     if (_legendVisibility.containsKey(entityKey)) {
       return _legendVisibility[entityKey] != false;
@@ -500,6 +578,9 @@ class _HomePageState extends State<HomePage> {
 
   List<Polyline> _getFilteredPolylines() {
     final List<Polyline> filtered = List<Polyline>.from(collectedPolylines);
+    if (_legendVisibility['overlay_fond_plan'] == true) {
+      filtered.addAll(_referenceFondPlanPolylines);
+    }
     if (_legendVisibility['lines'] == true) {
       filtered.addAll(_finishedLines);
     }
@@ -544,38 +625,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    for (final l in _displayedSpecialLines) {
-      final color = l.color;
-      final isBac = color == Colors.purple;
-      final isPassage = color == Colors.cyan;
-
-      if (isBac && (_legendVisibility['bac'] == true)) {
-        filtered.add(l);
-      } else if (isPassage &&
-          (_legendVisibility['passage_submersible'] == true)) {
-        filtered.add(l);
-      }
-    }
-
-    if (_showDownloadedSpecialLines) {
-      for (final l in _downloadedSpecialLinesPolylines) {
-        // flutter_map n'a pas d'ID sur Polyline, on utilise la couleur pour identifier
-        final color = l.color;
-
-        // Bac = purple, Passage submersible = cyan
-        final isBac = color == Colors.purple;
-        final isPassage = color == Colors.cyan;
-
-        if (isBac && (_legendVisibility['bac'] == true)) {
-          filtered.add(l);
-        } else if (isPassage && (_legendVisibility['passage_submersible'] == true)) {
-          filtered.add(l);
-        } else if (!isBac && !isPassage) {
-          filtered.add(l);
-        }
-      }
-    }
-
     // 6. Lignes en cours (TOUJOURS visibles)
     // Ligne en cours
     if (homeController.ligneCollection != null) {
@@ -584,53 +633,29 @@ class _HomePageState extends State<HomePage> {
         filtered.add(
           Polyline(
             points: lignePoints,
-            color: homeController.ligneCollection!.isPaused ? Colors.orange : Colors.green,
+            color: homeController.ligneCollection!.isPaused
+                ? Colors.orange
+                : Colors.green,
             strokeWidth: 4.0,
             pattern: homeController.ligneCollection!.isPaused
-                ? StrokePattern.dashed(segments: const [
-                    10,
-                    5
-                  ])
+                ? StrokePattern.dashed(segments: const [10, 5])
                 : const StrokePattern.solid(),
           ),
         );
       }
     }
 
-    if (homeController.specialCollection != null) {
-      final specialPoints = homeController.specialCollection!.points;
-      if (specialPoints.length > 1) {
-        if (_isPolygonCollection) {
-          // Zone de Plaine : afficher comme POLYGONE semi-transparent
-          // (on ajoute le contour comme polyline + le polygone sera dans _displayedPolygons)
-          filtered.add(
-            Polyline(
-              points: [
-                ...specialPoints,
-                specialPoints.first
-              ], // fermer le contour
-              color: const Color(0xFF2E7D32),
-              strokeWidth: 3.0,
-              pattern: const StrokePattern.solid(),
-            ),
-          );
-        } else {
-          // Bac / Passage : afficher comme LIGNE
-          final specialColor = _specialCollectionType == "Bac" ? Colors.purple : Colors.deepPurple;
-          filtered.add(
-            Polyline(
-              points: specialPoints,
-              color: specialColor,
-              strokeWidth: 5.0,
-              pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: const [
-                      10,
-                      5
-                    ])
-                  : const StrokePattern.solid(),
-            ),
-          );
-        }
+    if (homeController.polygonCollection != null) {
+      final polygonPoints = homeController.polygonCollection!.points;
+      if (polygonPoints.length > 1) {
+        filtered.add(
+          Polyline(
+            points: [...polygonPoints, polygonPoints.first],
+            color: const Color(0xFF2E7D32),
+            strokeWidth: 3.0,
+            pattern: const StrokePattern.solid(),
+          ),
+        );
       }
     }
     filtered.addAll(_focusOverlayPolylines);
@@ -649,7 +674,7 @@ class _HomePageState extends State<HomePage> {
           filtered.addAll(entry.value);
         }
       }
-      return filtered;
+      return _withActiveTraceVertexMarkers(filtered);
     }
 
     // === Mode isolement incomplet ===
@@ -659,7 +684,7 @@ class _HomePageState extends State<HomePage> {
           filtered.addAll(entry.value);
         }
       }
-      return filtered;
+      return _withActiveTraceVertexMarkers(filtered);
     }
 
     // === Mode isolement anomalie + incomplet ===
@@ -671,7 +696,7 @@ class _HomePageState extends State<HomePage> {
       for (final entry in _displayedIncompletByTable.entries) {
         if (_isSrmTableVisible(entry.key)) combined.addAll(entry.value);
       }
-      return combined.toList();
+      return _withActiveTraceVertexMarkers(combined.toList());
     }
 
     for (final entry in _displayedPointsByTable.entries) {
@@ -685,13 +710,109 @@ class _HomePageState extends State<HomePage> {
       filtered.addAll(entry.value);
     }
 
-    return filtered;
+    return _withActiveTraceVertexMarkers(filtered);
+  }
+
+  List<Marker> _withActiveTraceVertexMarkers(List<Marker> markers) {
+    return <Marker>[
+      ...markers,
+      ..._getActiveTraceVertexMarkers(),
+    ];
+  }
+
+  List<Marker> _getActiveTraceVertexMarkers() {
+    final markers = <Marker>[];
+    final ligne = homeController.ligneCollection;
+    if (ligne != null) {
+      markers.addAll(
+        _buildTraceVertexMarkers(
+          points: ligne.points,
+          color: ligne.isPaused ? Colors.orange : Colors.green,
+        ),
+      );
+    }
+
+    final polygon = homeController.polygonCollection;
+    if (polygon != null) {
+      const polygonColor = Color(0xFF1B5E20);
+      markers.addAll(
+        _buildTraceVertexMarkers(
+          points: polygon.points,
+          color: polygon.isPaused ? Colors.orange : polygonColor,
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  List<Marker> _buildTraceVertexMarkers({
+    required List<LatLng> points,
+    required Color color,
+  }) {
+    return [
+      for (var i = 0; i < points.length; i++)
+        _buildTraceVertexMarker(
+          point: points[i],
+          color: color,
+          label: '${i + 1}',
+          isLast: i == points.length - 1,
+        ),
+    ];
+  }
+
+  Marker _buildTraceVertexMarker({
+    required LatLng point,
+    required Color color,
+    required String label,
+    required bool isLast,
+  }) {
+    return Marker(
+      point: point,
+      width: 30,
+      height: 30,
+      child: IgnorePointer(
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: color,
+              width: isLast ? 3 : 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: label.length > 2 ? 9 : 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<Polygon> _getFilteredPolygons() {
     final bool anomalieFilterOn = _legendVisibility['srm_anomalie'] == true;
     final bool incompletFilterOn = _legendVisibility['srm_incomplet'] == true;
     final List<Polygon> filtered = <Polygon>[];
+
+    if (_legendVisibility['overlay_zones'] != false) {
+      filtered.addAll(_referenceZonePolygons);
+    }
+    if (_legendVisibility['overlay_planche'] == true) {
+      filtered.addAll(_referencePlanchePolygons);
+    }
 
     if (anomalieFilterOn && !incompletFilterOn) {
       for (final entry in _displayedPolygonAnomalieByTable.entries) {
@@ -749,31 +870,22 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _legendVisibility = visibility;
       _showDownloadedLines = visibility['lines'] ?? true;
-
-      // Bac + Passage submersible
-      final showBac = visibility['bac'] ?? true;
-      final showPassage = visibility['passage_submersible'] ?? true;
-      _showDownloadedSpecialLines = showBac || showPassage;
     });
   }
 
-  Future<void> _checkOnlineStatus() =>
-      _checkOnlineStatusImpl(this);
+  Future<void> _checkOnlineStatus() => _checkOnlineStatusImpl(this);
 
-  Future<void> _loadLastSyncTime() =>
-      _loadLastSyncTimeImpl(this);
+  Future<bool> _refreshOnlineStatusForNetworkAction() =>
+      _refreshOnlineStatusForNetworkActionImpl(this);
 
-  String _formatTimeHHmm(DateTime dt) =>
-      _formatTimeHHmmImpl(dt);
+  Future<void> _loadLastSyncTime() => _loadLastSyncTimeImpl(this);
+
+  String _formatTimeHHmm(DateTime dt) => _formatTimeHHmmImpl(dt);
 
   Future<void> _loadDownloadedLineOverlays() =>
       _loadDownloadedLineOverlaysImpl(this);
 
-
-  double polylineDistanceKm(List<LatLng> pts) =>
-      _polylineDistanceKmImpl(pts);
-
-
+  double polylineDistanceKm(List<LatLng> pts) => _polylineDistanceKmImpl(pts);
 
   Future<void> _focusOnTarget(MapFocusTarget target) =>
       _focusOnTargetImpl(this, target);
@@ -785,59 +897,70 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _refreshAfterNavigation() async {
-    await _loadDisplayedSpecialLines();
+    await _loadDisplayedSrmLines();
     await _refreshAllPoints();
   }
 
-  Future<void> _loadDisplayedSpecialLines() =>
-      _loadDisplayedSpecialLinesImpl(this);
+  Future<void> _loadDisplayedSrmLines() => _loadDisplayedSrmLinesImpl(this);
 
-  // Dans _HomePageState
-  // Remplacer startSpecialLineCollection par :
-  Future<void> startSpecialCollection(String type) =>
-      _startSpecialCollectionImpl(type);
+  Future<void> _loadReferenceOverlays() => _loadReferenceOverlaysImpl(this);
 
-  // Remplacer finishSpecialLigneCollection par :
-  Future<void> finishSpecialCollection() =>
-      _finishSpecialCollectionImpl();
+  Future<void> _refreshReferenceOverlaysForMapStartup() async {
+    if (!_isOnlineDynamic) return;
+    try {
+      await ReferenceOverlaySyncService().refreshLightOverlays();
+      await _loadReferenceOverlays();
+    } catch (e) {
+      debugPrint('[REFERENCE-OVERLAYS] Refresh carte ignore: $e');
+    }
+  }
 
-  Future<void> cancelSpecialCollection() =>
-      _cancelSpecialCollectionImpl();
+  Future<void> finishPolygonCollection() => _finishPolygonCollectionImpl();
 
-  Future<void> _loadDisplayedPolygons() =>
-      _loadDisplayedPolygonsImpl(this);
+  Future<void> cancelPolygonCollection() => _cancelPolygonCollectionImpl();
+
+  Future<void> _loadDisplayedPolygons() => _loadDisplayedPolygonsImpl(this);
 
   bool _containsPolygonPreview(
     List<Polygon> polygons,
     List<LatLng> previewPoints,
   ) =>
       _containsPolygonPreviewImpl(polygons, previewPoints);
-  Future<void> _loadDisplayedPoints() =>
-      _loadDisplayedPointsImpl(this);
+  Future<void> _loadDisplayedPoints() => _loadDisplayedPointsImpl(this);
 
-  Future<void> _loadPointCountsByTable() =>
-      _loadPointCountsByTableImpl(this);
+  Future<void> _loadPointCountsByTable() => _loadPointCountsByTableImpl(this);
+
+  Future<void> _enterConduiteDrawingMode([String metier = 'ep']) =>
+      _enterConduiteDrawingModeImpl(this, metier: metier);
+
+  Widget _buildConduiteModeHeader() => _buildConduiteModeHeaderImpl(this);
+
+  void _handleConduiteRegardTap(Map<String, dynamic> data) =>
+      _handleConduiteRegardTapImpl(this, data);
+
+  void _handleConduiteMapTap(TapPosition tapPosition, LatLng latLng) =>
+      _handleConduiteMapTapImpl(this, tapPosition, latLng);
+
+  void _focusConduiteModeBounds() => _focusConduiteModeBoundsImpl(this);
 
   void _onMapCreated(MapController controller) =>
       _onMapCreatedImpl(this, controller);
 
-  void _moveCameraIfNeeded() =>
-      _moveCameraIfNeededImpl(this);
+  void _moveCameraIfNeeded() => _moveCameraIfNeededImpl(this);
 
-  // === SPRINT 5 : COLLECTE POINT SRM (EP / ASS / ELEC) ===
-  Future<void> addPointOfInterest() =>
-      _addPointOfInterestImpl();
+// === SPRINT 5 : COLLECTE POINT SRM (EP / ASS) ===
+  Future<void> addPointOfInterest() => _addPointOfInterestImpl();
 
+  Future<void> addStandalonePointDuringTrace() =>
+      _addStandalonePointDuringTraceImpl();
 
   // === SPRINT 5 : COLLECTE LIGNE SRM ===
-  Future<void> startLigneSrmCollection() =>
-      _startLigneSrmCollectionImpl();
-
-
+  Future<void> startLigneSrmCollection() => _startLigneSrmCollectionImpl();
 
 // === COLLECTE POLYGONE (Zone de Plaine) ===
   String? _pendingSrmPolygoneMetier;
   String? _pendingSrmPolygoneEntityType;
+  String? _pendingSrmPolygoneTitleApp;
 
   Future<void> startPolygonCollection({
     String? metier,
@@ -848,35 +971,30 @@ class _HomePageState extends State<HomePage> {
         entityType: entityType,
       );
 
-  void toggleSpecialCollection() =>
-      _toggleSpecialCollectionImpl();
+  void togglePolygonCollection() => _togglePolygonCollectionImpl();
 
-  void toggleLigneCollection() =>
-      _toggleLigneCollectionImpl();
+  void toggleLigneCollection() => _toggleLigneCollectionImpl();
 
-  Future<void> finishLigneCollection() =>
-      _finishLigneCollectionImpl();
+  void undoLignePoint() => _undoLignePointImpl();
 
-  Future<void> cancelLigneCollection() =>
-      _cancelLigneCollectionImpl();
+  void redoLignePoint() => _redoLignePointImpl();
 
+  void undoPolygonPoint() => _undoPolygonPointImpl();
+
+  void redoPolygonPoint() => _redoPolygonPointImpl();
+
+  Future<void> finishLigneCollection() => _finishLigneCollectionImpl();
+
+  Future<void> cancelLigneCollection() => _cancelLigneCollectionImpl();
 
   // Dans la classe _HomePageState
-  Future<void> _loadDisplayedLines() =>
-      _loadDisplayedLinesImpl(this);
+  Future<void> _loadDisplayedLines() => _loadDisplayedLinesImpl(this);
 
+  void _showSyncConfirmationDialog() => _showSyncConfirmationDialogImpl(this);
 
-  void _showSyncConfirmationDialog() =>
-      _showSyncConfirmationDialogImpl(this);
+  void _showSyncResult(SyncResult result) => _showSyncResultImpl(this, result);
 
-
-  void _showSyncResult(SyncResult result) =>
-      _showSyncResultImpl(this, result);
-
-
-  void _showSaveConfirmationDialog() =>
-      _showSaveConfirmationDialogImpl(this);
-
+  void _showSaveConfirmationDialog() => _showSaveConfirmationDialogImpl(this);
 
   void _showDownloadResult(
     SyncResult result, {
@@ -923,55 +1041,196 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     homeController.dispose();
     _onlineWatchTimer?.cancel();
+    _nmeaBridgeWatchTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (homeController.ligneCollection?.isActive ?? false) {
+        final edit = _geometryEditLineItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+          });
+        } else {
+          final sel = _pendingSrmLigneSelection;
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': sel?.metier,
+            'srmEntityType': sel?.entityType,
+            'srmTitleApp': sel?.titleApp,
+            'srmTableName': sel?.tableName,
+            'srmSchema': sel?.schema,
+          });
+        }
+      } else if (homeController.polygonCollection?.isActive ?? false) {
+        final edit = _geometryEditPolygonItem;
+        if (edit != null) {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': edit['source_metier'],
+            'srmEntityType': edit['source_entity'],
+            'srmTitleApp': edit['source_title'],
+            'srmTableName': edit['source_table'],
+            'geometryEdit': true,
+            'sourceId': edit['id'],
+            'isPolygonCollection': true,
+            'polygonEntityType': edit['source_entity'],
+          });
+        } else {
+          homeController.collectionManager.setSrmMetadata({
+            'srmMetier': _pendingSrmPolygoneMetier,
+            'srmEntityType': _pendingSrmPolygoneEntityType,
+            'srmTitleApp': _pendingSrmPolygoneTitleApp,
+            'isPolygonCollection': _isPolygonCollection,
+            'polygonEntityType': _polygonEntityType,
+          });
+        }
+      }
+      unawaited(
+        homeController.persistActiveCollectionDraft(
+          reason: 'app_${state.name}',
+        ),
+      );
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshMobileConfigAfterReconnectImpl(this));
+    }
   }
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    final List<Marker> filteredMarkers = _getFilteredMarkers()..addAll(_focusOverlayMarkers);
+    final bool isConduiteMode = _isConduiteDrawingMode;
+    final List<Marker> filteredMarkers = isConduiteMode
+        ? [
+            ..._conduiteModeMarkers,
+            if (_conduiteCurrentRegardPoint != null)
+              Marker(
+                point: _conduiteCurrentRegardPoint!,
+                width: 44,
+                height: 44,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00ACC1).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF00ACC1),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              const Color(0xFF00ACC1).withValues(alpha: 0.25),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ]
+        : (_getFilteredMarkers()..addAll(_focusOverlayMarkers));
 
-    final List<Polyline> filteredPolylines = _getFilteredPolylines()..addAll(_focusOverlayPolylines);
-    final List<Polygon> filteredPolygons = _getFilteredPolygons();
-    if (homeController.specialCollection != null) {
-      final specialPoints = homeController.specialCollection!.points;
-      if (specialPoints.length > 1) {
-        if (_isPolygonCollection) {
-          filteredPolylines.add(
-            Polyline(
-              points: [
-                ...specialPoints,
-                specialPoints.first
-              ],
-              color: const Color(0xFF2E7D32),
-              strokeWidth: 3.0,
-              pattern: const StrokePattern.solid(),
-            ),
-          );
-        } else {
-          final specialColor = _specialCollectionType == "Bac" ? Colors.purple : Colors.deepPurple;
-          filteredPolylines.add(
-            Polyline(
-              points: specialPoints,
-              color: specialColor,
-              strokeWidth: 5.0,
-              pattern: homeController.specialCollection!.isPaused
-                  ? StrokePattern.dashed(segments: const [
-                      10,
-                      5
-                    ])
-                  : const StrokePattern.solid(),
-            ),
-          );
-        }
+    final List<Polyline> filteredPolylines = isConduiteMode
+        ? List<Polyline>.from(_conduiteModePolylines)
+        : (_getFilteredPolylines()..addAll(_focusOverlayPolylines));
+    final List<Polygon> filteredPolygons =
+        isConduiteMode ? <Polygon>[] : _getFilteredPolygons();
+    if (isConduiteMode) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F8FF),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildConduiteModeHeader(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    MapWidget(
+                      userPosition: userPosition ?? homeController.userPosition,
+                      gpsEnabled: false,
+                      useOnlineBasemap: _canUseOnlineBasemap,
+                      markers: filteredMarkers,
+                      polylines: filteredPolylines,
+                      polygons: filteredPolygons,
+                      onPolygonTap: null,
+                      onMapCreated: _onMapCreated,
+                      formMarkers: const [],
+                      isSatellite: _isSatellite,
+                      onPolylineTap: null,
+                      onMapTap: _handleConduiteMapTap,
+                      onCameraIdle: null,
+                      offlineBasemapPath: _offlineBasemapPath,
+                      offlineBasemapFormat: _offlineBasemapFormat,
+                      basemapUnavailableMessage: _basemapUnavailableMessage,
+                      basemapCenter: _offlineBasemapCenter,
+                      basemapBounds: _offlineBasemapBounds,
+                      basemapDefaultZoom: _offlineBasemapDefaultZoom,
+                      basemapMinZoom: _offlineBasemapMinZoom,
+                      basemapMaxZoom: _offlineBasemapMaxZoom,
+                      showMapButtons: false,
+                    ),
+                    if (_conduiteModeError != null)
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        right: 12,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD32F2F)
+                                  .withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _conduiteModeError!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (homeController.polygonCollection != null) {
+      final polygonPoints = homeController.polygonCollection!.points;
+      if (polygonPoints.length > 1) {
+        filteredPolylines.add(
+          Polyline(
+            points: [...polygonPoints, polygonPoints.first],
+            color: const Color(0xFF2E7D32),
+            strokeWidth: 3.0,
+            pattern: const StrokePattern.solid(),
+          ),
+        );
       }
     }
 // === AFFICHER LE POLYGONE EN COURS DE COLLECTE ===
-    if (_isPolygonCollection && homeController.specialCollection != null) {
-      final polyPoints = homeController.specialCollection!.points;
+    if (_isPolygonCollection && homeController.polygonCollection != null) {
+      final polyPoints = homeController.polygonCollection!.points;
       if (polyPoints.length >= 3) {
         filteredPolygons.add(
           Polygon(
@@ -1004,221 +1263,256 @@ class _HomePageState extends State<HomePage> {
         filteredPolylines.add(
           Polyline(
             points: lignePoints,
-            color: homeController.ligneCollection!.isPaused ? Colors.orange : Colors.green,
+            color: homeController.ligneCollection!.isPaused
+                ? Colors.orange
+                : Colors.green,
             strokeWidth: 4.0,
             pattern: homeController.ligneCollection!.isPaused
-                ? StrokePattern.dashed(segments: const [
-                    10,
-                    5
-                  ])
+                ? StrokePattern.dashed(segments: const [10, 5])
                 : const StrokePattern.solid(),
           ),
         );
       }
     }
 
+    final hasTraceCollection = homeController.ligneCollection != null ||
+        homeController.polygonCollection != null;
+
     return Scaffold(
       backgroundColor: const Color(
         0xFFF0F8FF,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            TopBarWidget(
+        child: AbsorbPointer(
+          absorbing: isDownloading || isSyncing,
+          child: Column(
+            children: [
+              TopBarWidget(
                 agentName: widget.agentName,
                 onLogout: _showLogoutConfirmation,
-                onReturnFromProfile: _hydrateOfflineBasemapState,
+                onStartConduiteDrawing: (metier) =>
+                    _enterConduiteDrawingMode(metier),
               ),
-            Expanded(
-              child: Stack(
-                children: [
-                  MapWidget(
-                    userPosition: userPosition ?? homeController.userPosition,
-                    gpsEnabled: gpsEnabled,
-                    useOnlineBasemap: _isOnlineDynamic,
-                    markers: filteredMarkers,
-                    polylines: filteredPolylines,
-                    polygons: filteredPolygons,
-                    onPolygonTap: _handlePolygonTap,
-                    onMapCreated: _onMapCreated,
-                    formMarkers: formMarkers,
-                    isSatellite: _isSatellite,
-                    onPolylineTap: _handlePolylineTap,
-                    offlineBasemapPath: _offlineBasemapPath,
-                    offlineBasemapFormat: _offlineBasemapFormat,
-                    basemapUnavailableMessage: _basemapUnavailableMessage,
-                    basemapCenter: _offlineBasemapCenter,
-                    basemapBounds: _offlineBasemapBounds,
-                    basemapDefaultZoom: _offlineBasemapDefaultZoom,
-                    basemapMinZoom: _offlineBasemapMinZoom,
-                    basemapMaxZoom: _offlineBasemapMaxZoom,
-                    onUserInteraction: () {
-                      _autoCenterDisabledByUser = true;
-                    },
-                    onGpsButtonPressed: () {
-                      _autoCenterDisabledByUser = false;
-                    },
-                  ),
-                  LegendWidget(
-                    initialVisibility: _legendVisibility,
-                    onVisibilityChanged: _updateVisibilityFromLegend,
-                    allPolylines: filteredPolylines,
-                    allMarkers: filteredMarkers,
-                    polygonCount: _displayedPolygons.length,
-                    pointCountsByTable: _pointCountsByTable,
-                    anomalieCountsByTable: _anomalieCountsByTable,
-                    incompletCountsByTable: _incompletCountsByTable,
-                    onExpandedChanged: (expanded) {
-                      setState(() => _isLegendExpanded = expanded);
-                    },
-                  ),
-                  if (isSyncing)
-                    BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: 3,
-                        sigmaY: 3,
-                      ),
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.2),
-                      ),
+              Expanded(
+                child: Stack(
+                  children: [
+                    MapWidget(
+                      userPosition: userPosition ?? homeController.userPosition,
+                      gpsEnabled: gpsEnabled,
+                      useOnlineBasemap: _canUseOnlineBasemap,
+                      markers: filteredMarkers,
+                      polylines: filteredPolylines,
+                      polygons: filteredPolygons,
+                      onPolygonTap: _handlePolygonTap,
+                      onPolygonLongPress: _handlePolygonLongPress,
+                      onMapCreated: _onMapCreated,
+                      formMarkers: formMarkers,
+                      isSatellite: _isSatellite,
+                      onMapTypeChanged: (value) {
+                        setState(() {
+                          _isSatellite = value;
+                        });
+                      },
+                      onPolylineTap: _handlePolylineTap,
+                      onCameraIdle: null,
+                      offlineBasemapPath: _offlineBasemapPath,
+                      offlineBasemapFormat: _offlineBasemapFormat,
+                      basemapUnavailableMessage: _basemapUnavailableMessage,
+                      basemapCenter: _offlineBasemapCenter,
+                      basemapBounds: _offlineBasemapBounds,
+                      basemapDefaultZoom: _offlineBasemapDefaultZoom,
+                      basemapMinZoom: _offlineBasemapMinZoom,
+                      basemapMaxZoom: _offlineBasemapMaxZoom,
+                      showMapButtons: true,
+                      showLocationButton: !hasTraceCollection,
+                      showZoomButtons: !hasTraceCollection,
+                      onMapTap: (_, __) {
+                        if (_isLegendExpanded) {
+                          setState(() => _isLegendExpanded = false);
+                        }
+                      },
+                      onUserInteraction: () {
+                        _autoCenterDisabledByUser = true;
+                      },
+                      onGpsButtonPressed: () {
+                        _autoCenterDisabledByUser = false;
+                      },
                     ),
-
-                  if (isDownloading)
-                    BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: 3,
-                        sigmaY: 3,
-                      ),
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.2),
-                      ),
+                    LegendWidget(
+                      initialVisibility: _legendVisibility,
+                      expanded: _isLegendExpanded,
+                      onVisibilityChanged: _updateVisibilityFromLegend,
+                      allPolylines: filteredPolylines,
+                      allMarkers: filteredMarkers,
+                      polygonCount: _displayedPolygons.length,
+                      pointCountsByTable: _pointCountsByTable,
+                      anomalieCountsByTable: _anomalieCountsByTable,
+                      incompletCountsByTable: _incompletCountsByTable,
+                      referenceOverlayCounts: _referenceOverlayCounts,
+                      onExpandedChanged: (expanded) {
+                        setState(() => _isLegendExpanded = expanded);
+                      },
                     ),
+                    if (isSyncing)
+                      BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 3,
+                          sigmaY: 3,
+                        ),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.2),
+                        ),
+                      ),
 
-                  Positioned(
-                    bottom: 280,
-                    right: 16,
-                    child: Visibility(
-                      visible: kDebugMode && !_isLegendExpanded,
-                      child: FloatingActionButton(
-                        onPressed: _showMockLocationDialogSafe,
-                        backgroundColor: homeController.isMockLocationEnabled
-                            ? Colors.teal
-                            : Colors.blueGrey,
-                        mini: true,
-                        heroTag: 'mock_gps_button',
-                        child: Icon(
-                          homeController.isMockLocationEnabled
-                              ? Icons.gps_fixed
-                              : Icons.edit_location_alt,
-                          color: Colors.white,
+                    if (isDownloading)
+                      BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 3,
+                          sigmaY: 3,
+                        ),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.2),
+                        ),
+                      ),
+
+                    Positioned(
+                      bottom: 280,
+                      right: 16,
+                      child: Visibility(
+                        visible: !_isLegendExpanded && !_isConduiteDrawingMode,
+                        child: FloatingActionButton(
+                          onPressed: _showMockLocationDialogSafe,
+                          backgroundColor: homeController.isMockLocationEnabled
+                              ? Colors.teal
+                              : Colors.blueGrey,
+                          mini: true,
+                          heroTag: 'mock_gps_button',
+                          child: Icon(
+                            homeController.isMockLocationEnabled
+                                ? Icons.gps_fixed
+                                : Icons.edit_location_alt,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  if (!_isLegendExpanded)
-                    MapControlsWidget(
+                    if (!_isLegendExpanded)
+                      MapControlsWidget(
                         controller: homeController,
                         onAddPoint: addPointOfInterest,
+                        onAddStandalonePoint: addStandalonePointDuringTrace,
                         onStartLigne: startLigneSrmCollection, // Sprint 5: SRM
                         onStartPolygon: startPolygonCollection,
                         onToggleLigne: toggleLigneCollection,
-                        onTogglePolygon: toggleSpecialCollection,
+                        onTogglePolygon: togglePolygonCollection,
+                        onUndoLigne: undoLignePoint,
+                        onRedoLigne: redoLignePoint,
+                        onUndoPolygon: undoPolygonPoint,
+                        onRedoPolygon: redoPolygonPoint,
+                        canRedoLigne: _ligneRedoPoints.isNotEmpty,
+                        canRedoPolygon: _polygonRedoPoints.isNotEmpty,
                         onFinishLigne: finishLigneCollection,
-                        onFinishPolygon: finishSpecialCollection,
+                        onFinishPolygon: finishPolygonCollection,
                         onCancelLigne: cancelLigneCollection,
-                        onCancelPolygon: cancelSpecialCollection,
+                        onCancelPolygon: cancelPolygonCollection,
                         onRefresh: _loadDisplayedPoints,
-                        isSpecialCollection: _isSpecialCollection,
-                        onStopSpecial: finishSpecialCollection,
                         isPolygonCollection: _isPolygonCollection,
-                    ),
-                  // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
+                        showRefresh: !hasTraceCollection,
+                      ),
+                    // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===
 
-                // Afficher le statut de ligne si active
-                  if (homeController.ligneCollection != null)
-                    LigneStatusWidget(
-                      collection: homeController.ligneCollection!,
-                      topOffset: 16,
-                    ),
+                    // Afficher le statut de ligne si active
+                    if (homeController.ligneCollection != null)
+                      LigneStatusWidget(
+                        collection: homeController.ligneCollection!,
+                        topOffset: 16,
+                      ),
 
-                  if (homeController.specialCollection != null)
-                    SpecialStatusWidget(
-                      collection: homeController.specialCollection!,
-                      topOffset: homeController.ligneCollection != null ? 70 : 16,
-                    ),
+                    if (homeController.polygonCollection != null)
+                      PolygonStatusWidget(
+                        collection: homeController.polygonCollection!,
+                        topOffset:
+                            homeController.ligneCollection != null ? 70 : 16,
+                      ),
 
-                  // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
-                  // Remplacez le Positioned actuel par ceci :
-                  if (isDownloading)
-                    Positioned(
-                      top: 70, // Position sous la barre d'outils
-                      left: 0,
-                      right: 0,
-                      child: AnimatedSlide(
-                        duration: const Duration(
-                          milliseconds: 300,
-                        ),
-                        curve: Curves.easeOut,
-                        offset: isDownloading
-                            ? Offset.zero
-                            : const Offset(
-                                0,
-                                -1,
-                              ),
-                        child: AnimatedOpacity(
+                    // DataCountWidget(count: collectedMarkers.length + collectedPolylines.length),
+                    // Remplacez le Positioned actuel par ceci :
+                    if (isDownloading)
+                      Positioned(
+                        top: 70, // Position sous la barre d'outils
+                        left: 0,
+                        right: 0,
+                        child: AnimatedSlide(
                           duration: const Duration(
                             milliseconds: 300,
                           ),
-                          opacity: isDownloading ? 1.0 : 0.0,
-                          child: _buildProgressIndicator(),
+                          curve: Curves.easeOut,
+                          offset: isDownloading
+                              ? Offset.zero
+                              : const Offset(
+                                  0,
+                                  -1,
+                                ),
+                          child: AnimatedOpacity(
+                            duration: const Duration(
+                              milliseconds: 300,
+                            ),
+                            opacity: isDownloading ? 1.0 : 0.0,
+                            child: _buildProgressIndicator(),
+                          ),
                         ),
                       ),
-                    ),
-                  if (isSyncing)
-                    Positioned(
-                      top: 70, // Position sous la top bar
-                      left: 0,
-                      right: 0,
-                      child: AnimatedSlide(
-                        duration: const Duration(
-                          milliseconds: 300,
-                        ),
-                        curve: Curves.easeOut,
-                        offset: isSyncing
-                            ? Offset.zero
-                            : const Offset(
-                                0,
-                                -1,
-                              ),
-                        child: AnimatedOpacity(
+                    if (isSyncing)
+                      Positioned(
+                        top: 70, // Position sous la top bar
+                        left: 0,
+                        right: 0,
+                        child: AnimatedSlide(
                           duration: const Duration(
                             milliseconds: 300,
                           ),
-                          opacity: isSyncing ? 1.0 : 0.0,
-                          child: _buildSyncProgressIndicator(),
+                          curve: Curves.easeOut,
+                          offset: isSyncing
+                              ? Offset.zero
+                              : const Offset(
+                                  0,
+                                  -1,
+                                ),
+                          child: AnimatedOpacity(
+                            duration: const Duration(
+                              milliseconds: 300,
+                            ),
+                            opacity: isSyncing ? 1.0 : 0.0,
+                            child: _buildSyncProgressIndicator(),
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            BottomStatusBarWidget(
-              gpsEnabled: gpsEnabled,
-              isOnline: _isOnlineDynamic,
-              lastSyncTime: _lastSyncTimeText,
-            ),
-            BottomButtonsWidget(
-              onSave: isDownloading ? () {} : _showSaveConfirmationDialog,
-              onSync: (!_isOnlineDynamic || isSyncing)
-                  ? null
-                  : _showSyncConfirmationDialog,
-              isSyncEnabled: _isOnlineDynamic && !isSyncing,
-              onMenu: handleMenuPress,
-            ),
-          ],
+              BottomStatusBarWidget(
+                gpsEnabled: gpsEnabled,
+                gpsSourceLabel: gpsSourceLabel,
+                gpsDetailsLine: gpsDetailsLine,
+                isOnline: _isOnlineDynamic,
+                lastSyncTime: _lastSyncTimeText,
+              ),
+              BottomButtonsWidget(
+                onSave: (!_isOnlineDynamic || isDownloading || isSyncing)
+                    ? null
+                    : _showSaveConfirmationDialog,
+                isSaveEnabled: _isOnlineDynamic && !isDownloading && !isSyncing,
+                onSync: (!_isOnlineDynamic || isSyncing || isDownloading)
+                    ? null
+                    : _showSyncConfirmationDialog,
+                isSyncEnabled: _isOnlineDynamic && !isSyncing && !isDownloading,
+                onMenu: handleMenuPress,
+                isMenuEnabled: !isDownloading && !isSyncing,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-

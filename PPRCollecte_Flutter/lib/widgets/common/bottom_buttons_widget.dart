@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class BottomButtonsWidget extends StatelessWidget {
-  final VoidCallback onSave;
+  final VoidCallback? onSave;
   final VoidCallback? onSync;
-  final VoidCallback onMenu;
+  final VoidCallback? onMenu;
+  final bool isSaveEnabled;
   final bool isSyncEnabled;
+  final bool isMenuEnabled;
 
   const BottomButtonsWidget({
     super.key,
     required this.onSave,
     required this.onSync,
     required this.onMenu,
+    this.isSaveEnabled = true,
     this.isSyncEnabled = true,
+    this.isMenuEnabled = true,
   });
 
   @override
@@ -28,12 +32,16 @@ class BottomButtonsWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                disabledForegroundColor: Colors.white70,
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const FaIcon(FontAwesomeIcons.save, size: 14),
-              label: const Text("Télécharger", style: TextStyle(fontWeight: FontWeight.w500)),
-              onPressed: onSave,
+              icon: const FaIcon(FontAwesomeIcons.floppyDisk, size: 14),
+              label: const Text("Télécharger",
+                  style: TextStyle(fontWeight: FontWeight.w500)),
+              onPressed: isSaveEnabled ? onSave : null,
             ),
           ),
           const SizedBox(width: 8),
@@ -45,10 +53,12 @@ class BottomButtonsWidget extends StatelessWidget {
                 disabledBackgroundColor: Colors.grey.shade400,
                 disabledForegroundColor: Colors.white70,
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const FaIcon(FontAwesomeIcons.sync, size: 14),
-              label: const Text("Synchroniser", style: TextStyle(fontWeight: FontWeight.w500)),
+              icon: const FaIcon(FontAwesomeIcons.arrowsRotate, size: 14),
+              label: const Text("Synchroniser",
+                  style: TextStyle(fontWeight: FontWeight.w500)),
               onPressed: isSyncEnabled ? onSync : null,
             ),
           ),
@@ -58,12 +68,16 @@ class BottomButtonsWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 167, 94, 196),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                disabledForegroundColor: Colors.white70,
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               icon: const Icon(Icons.analytics, size: 18), // 📊
-              label: const Text("Données", style: TextStyle(fontWeight: FontWeight.w500)),
-              onPressed: onMenu,
+              label: const Text("Données",
+                  style: TextStyle(fontWeight: FontWeight.w500)),
+              onPressed: isMenuEnabled ? onMenu : null,
             ),
           ),
         ],

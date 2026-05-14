@@ -1,0 +1,98 @@
+# API model/endpoint audit
+
+- generated_at: `2026-05-09T12:52:17`
+- mobile_endpoints: `53`
+- router_viewsets: `55`
+- failures: `0`
+- warnings: `34`
+
+## Warnings
+- `ep/vannes` `EpVanne` -> `ep.ep_vanne` missing 12 column(s): anomalie, conformite_plan, id_agent_crea, id_conduite, id_planche, id_regard, observation, photo_1, photo_2, photo_3, photo_4, ref_rue
+- `ep/vannes-vidange` `EpVanneDeVidange` -> `ep.ep_vidange` missing 15 column(s): anomalie, conformite_plan, etage_aqua, id_agent_crea, id_conduite, id_planche, id_regard, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, secteur_aqua, type_anomalie
+- `ep/ventouses` `EpVentouse` -> `ep.ep_ventouse` missing 14 column(s): anomalie, conformite_plan, etage_aqua, id_agent_crea, id_conduite, id_planche, id_regard, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, secteur_aqua
+- `ep/hydrants` `EpHydrant` -> `ep.ep_hydrant` missing 11 column(s): anomalie, conformite_plan, ep_diam, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue
+- `ep/bornes-fontaine` `EpBorneFontaine` -> `ep.ep_bf` missing 13 column(s): anomalie, conformite_plan, ep_type, id_agent_crea, id_planche, marque, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/bornes-onep` `EpBorneOnep` -> `ep.borne_onep` missing 7 column(s): anomalie, conformite_plan, date_leve, id_agent_crea, mode_localisation, observation, type_anomalie
+- `ep/bouches-cles` `EpBoucheCles` -> `ep.bouche_a_cles` missing 9 column(s): anomalie, conformite_plan, date_leve, id_agent_crea, id_compteur_abonne, id_conduite, mode_localisation, observation, type_anomalie
+- `ep/bouches-arrosage` `EpBoucheDarrosage` -> `ep.ep_bouche_arro` missing 15 column(s): anomalie, conformite_plan, emplacement, ep_marque, etage_aqua, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, secteur_aqua, type_anomalie
+- `ep/compteurs-abonne` `EpCompteurAbonne` -> `ep.ep_brc_pt` missing 9 column(s): date_leve, diametre_calibre_terrain, diametre_conduite, ep_diam, ep_ref_rue, photo_1, photo_2, photo_3, photo_4
+- `ep/compteurs-reseau` `EpCompteurReseau` -> `ep.ep_compteur_i` missing 4 column(s): photo_1, photo_2, photo_3, photo_4
+- `ep/cones-reduction` `EpConeDeReduction` -> `ep.ep_cone_reduc` missing 11 column(s): anomalie, conformite_plan, id_agent_crea, id_planche, id_regard, observation, photo_1, photo_2, photo_3, photo_4, ref_rue
+- `ep/centres-tampon` `EpCentreTampon` -> `ep.centre_tampon` missing 17 column(s): anomalie, conformite_plan, emplacement, ep_etat, ep_num, ep_statut, ep_type, id_agent_crea, id_planche, mode_localisation, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/noeuds` `EpNoeud` -> `ep.ep_noeud` missing 18 column(s): anomalie, conformite_plan, emplacement, ep_coor_x, ep_coor_y, ep_coor_z, ep_statut, ep_type, id_agent_crea, id_planche, mode_localisation, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/obturateurs` `EpObturateur` -> `ep.ep_obturateur` missing 16 column(s): anomalie, conformite_plan, emplacement, ep_etat, ep_type, id_agent_crea, id_conduite, id_planche, id_regard, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/reducteurs-pression` `EpReducteurDePression` -> `ep.ep_reduc_pres` missing 15 column(s): anomalie, conformite_plan, ep_statut, ep_type, id_agent_crea, id_conduite, id_planche, id_regard, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/forages` `EpForage` -> `ep.ep_forage` missing 16 column(s): anomalie, conformite_plan, emplacement, ep_debit, ep_etat, ep_profondeur, ep_statut, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/puits` `EpPuit` -> `ep.ep_puit` missing 15 column(s): anomalie, conformite_plan, emplacement, ep_etat, ep_profondeur, ep_type, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/pompes` `EpPompe` -> `ep.ep_pompe` missing 16 column(s): anomalie, conformite_plan, emplacement, ep_debit, ep_etat, ep_puissance, ep_type, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/reservoirs` `EpReservoir` -> `ep.ep_reservoir` missing 15 column(s): anomalie, conformite_plan, emplacement, ep_cote_radier, ep_cote_trop_plein, ep_etat, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/stations-pompage` `EpStationDePompage` -> `ep.ep_station_pompage` missing 16 column(s): anomalie, conformite_plan, emplacement, ep_capacite, ep_etat, ep_nb_pompes, ep_type, id_agent_crea, id_planche, observation, photo_1, photo_2, photo_3, photo_4, ref_rue, type_anomalie
+- `ep/autres-objets` `EpAutreObjet` -> `ep.autre_objet` missing 10 column(s): anomalie, conformite_plan, date_leve, id_agent_crea, mode_localisation, photo_1, photo_2, photo_3, photo_4, type_anomalie
+- `ep/conduites-terrain` `EpConduiteTerrain` -> `ep.conduite_terrain` missing 26 column(s): anomalie, conformite_plan, emplacement, ep_date_interv, ep_entreprise, ep_etage_p, ep_long_c, ep_long_r, ep_num, ep_profondeur, ep_ref_marche, ep_sect_hydro, ep_statut, ep_type, etage_aqua, id_agent_crea, mode_localisation, pente, photo_1, photo_2
+- `ep/conduites-bureau` `EpConduiteBureau` -> `ep.ep_conduite` missing 7 column(s): anomalie, conformite_plan, id_agent_crea, photo_1, photo_2, ref_rue, type_anomalie
+- `ep/branchements` `EpBranchement` -> `ep.ep_branchement` missing 10 column(s): anomalie, conformite_plan, emplacement, id_agent_crea, id_planche, observation, photo_1, photo_2, ref_rue, type_anomalie
+- `ep/traverses` `EpTraverse` -> `ep.ep_traversee` missing 12 column(s): anomalie, conformite_plan, emplacement, ep_longueur, ep_type, id_agent_crea, id_planche, observation, photo_1, photo_2, ref_rue, type_anomalie
+- `ass/regards` `AssRegard` -> `asst.ASS_REGARD` missing 37 column(s): accessibilite, anomalie, ass_coor_x, ass_coor_y, ass_coor_z, centre, chute, classe_tampon, commentaire, conformite_plan, cote_radier, cote_tampon, date_pose, date_rehabilitation, elevation, etat, fid, forme, id_agent_crea, id_canalisation_aval
+- `ass/regards-branchement` `AssRegardBranchement` -> `asst.ASS_REGARD_FACADE` missing 35 column(s): accessibilite, anomalie, ass_coor_x, ass_coor_y, ass_coor_z, centre, classe_tampon, commentaire, conformite_plan, cote_radier, cote_tampon, date_pose, date_rehabilitation, emplacement, etat, fid, forme, id_agent_crea, id_branchement, id_planche
+- `ass/canalisations` `AssCanalisation` -> `asst.ASS_COLLECTEUR` missing 32 column(s): anomalie, centre, classe, commentaire, conformite_plan, date_pose, date_rehabilitation, diametre, emplacement, etat, fid, id_agent_crea, id_canalisation, id_planche, largeur_base, longueur, mode_localisation, nature, objectid, photo_1
+- `ass/canalisations-reutilisation` `AssCanalisationReutilisation` -> `asst.ASS_REFOULEMENTR` missing 32 column(s): anomalie, ass_coor_x, ass_coor_y, ass_coor_z, centre, classe, commentaire, conformite_plan, date_pose, date_rehabilitation, diametre, emplacement, etat, fid, id_agent_crea, id_canalisation_reutilisation, id_planche, longueur, mode_localisation, nature
+- `ass/branchements` `AssBranchement` -> `asst.ASS_BRANCHEMENT` missing 27 column(s): anomalie, centre, classe, commentaire, conformite_plan, date_pose, date_rehabilitation, diametre, emplacement, etat, fid, id_agent_crea, id_branchement, id_canalisation, id_planche, id_regard, longueur, mode_localisation, nature, objectid
+- `ass/bassins` `AssBassin` -> `asst.ASS_BASSIN_VERSANT` missing 33 column(s): anomalie, ass_coor_x, ass_coor_y, ass_coor_z, capacite, centre, commentaire, conformite_plan, cote_arrivee, cote_depart, cote_radier, cote_trop_plein, date_construction, diametre_amont, diametre_aval, etat, fid, forme_bassin, hauteur, id_agent_crea
+- `ass/ouvrages` `AssOuvrage` -> `asst.ASS_OUV_TRAVERSEE` missing 30 column(s): accessibilite, anomalie, ass_coor_x, ass_coor_y, ass_coor_z, capacite, centre, commentaire, conformite_plan, cote_arrivee, date_construction, etat, fid, hauteur, id_agent_crea, id_canalisation_amont, id_ouvrage, id_planche, largeur, longueur
+- `ass/equipements` `AssEquipement` -> `asst.ASS_POMPE` missing 29 column(s): anomalie, ass_coor_x, ass_coor_y, ass_coor_z, centre, commentaire, conformite_plan, cote_tn, date_pose, etat, fid, id_agent_crea, id_canalisation, id_equipement, id_ouvrage, id_planche, id_regard, marque, mode_localisation, objectid
+- `ass/stations` `AssStation` -> `asst.ASS_STA_POMP` missing 31 column(s): anomalie, ass_coor_x, ass_coor_y, ass_coor_z, capacite, centre, commentaire, conformite_plan, cote_arrivee, date_construction, debit_nominal, etat, fid, id_agent_crea, id_canalisation_amont, id_planche, id_station, largeur, longueur, mode_localisation
+
+## Mobile Endpoints
+- `/api/ass/bassins/` -> `200` `asst.ASS_BASSIN_VERSANT` columns=32 items=0 count=0
+- `/api/ass/bassins-versants/` -> `200` `asst.ASS_BASSIN_VERSANT` columns=32 items=0 count=0
+- `/api/ass/bouches/` -> `200` `asst.ASS_BOUCHE` columns=52 items=0 count=0
+- `/api/ass/branchements/` -> `200` `asst.ASS_BRANCHEMENT` columns=49 items=0 count=0
+- `/api/ass/canalisations/` -> `200` `asst.ASS_COLLECTEUR` columns=71 items=0 count=0
+- `/api/ass/canalisations-reutilisation/` -> `200` `asst.ASS_REFOULEMENTR` columns=68 items=0 count=0
+- `/api/ass/caniveaux/` -> `200` `asst.ASS_CANIVEAU` columns=51 items=0 count=0
+- `/api/ass/caniveaux-branchement/` -> `200` `asst.ASS_CANIV_BRANCHE` columns=49 items=0 count=0
+- `/api/ass/collecteurs/` -> `200` `asst.ASS_COLLECTEUR` columns=71 items=0 count=0
+- `/api/ass/collecteurs-bouche/` -> `200` `asst.ASS_COL_BOUCHE` columns=71 items=0 count=0
+- `/api/ass/deversoirs/` -> `200` `asst.ASS_DEVERSOIR` columns=73 items=0 count=0
+- `/api/ass/equipements/` -> `200` `asst.ASS_POMPE` columns=44 items=0 count=0
+- `/api/ass/exutoires/` -> `200` `asst.ASS__EXUTOIRE` columns=61 items=0 count=0
+- `/api/ass/ouvrages/` -> `200` `asst.ASS_OUV_TRAVERSEE` columns=66 items=0 count=0
+- `/api/ass/regards/` -> `200` `asst.ASS_REGARD` columns=68 items=0 count=0
+- `/api/ass/regards-borgnes/` -> `200` `asst.ASS_BORGNE` columns=66 items=0 count=0
+- `/api/ass/regards-branchement/` -> `200` `asst.ASS_REGARD_FACADE` columns=59 items=0 count=0
+- `/api/ass/regards-facade/` -> `200` `asst.ASS_REGARD_FACADE` columns=59 items=0 count=0
+- `/api/ass/stations/` -> `200` `asst.ASS_STA_POMP` columns=56 items=0 count=0
+- `/api/ass/stations-epuration/` -> `200` `asst.ASS_STA_EPUR` columns=55 items=0 count=0
+- `/api/ass/stations-pompage/` -> `200` `asst.ASS_STA_POMP` columns=56 items=0 count=0
+- `/api/ep/anomalies-conduite/` -> `200` `ep.anomalie_conduite` columns=17 items=0 count=0
+- `/api/ep/autres-objets/` -> `200` `ep.autre_objet` columns=23 items=0 count=0
+- `/api/ep/baches/` -> `200` `ep.ep_bache` columns=47 items=0 count=0
+- `/api/ep/bornes-fontaine/` -> `200` `ep.ep_bf` columns=66 items=1 count=267
+- `/api/ep/bornes-onep/` -> `200` `ep.borne_onep` columns=20 items=0 count=0
+- `/api/ep/bouches-arrosage/` -> `200` `ep.ep_bouche_arro` columns=47 items=0 count=0
+- `/api/ep/bouches-cles/` -> `200` `ep.bouche_a_cles` columns=20 items=0 count=0
+- `/api/ep/branchements/` -> `200` `ep.ep_branchement` columns=42 items=1 count=1989
+- `/api/ep/centres-tampon/` -> `200` `ep.centre_tampon` columns=19 items=0 count=0
+- `/api/ep/compteurs-abonne/` -> `200` `ep.ep_brc_pt` columns=53 items=1 count=2156
+- `/api/ep/compteurs-reseau/` -> `200` `ep.ep_compteur_i` columns=60 items=1 count=37
+- `/api/ep/conduites-bureau/` -> `200` `ep.ep_conduite` columns=76 items=1 count=1626
+- `/api/ep/conduites-terrain/` -> `200` `ep.conduite_terrain` columns=20 items=0 count=0
+- `/api/ep/cones-reduction/` -> `200` `ep.ep_cone_reduc` columns=51 items=1 count=53
+- `/api/ep/forages/` -> `200` `ep.ep_forage` columns=57 items=1 count=2
+- `/api/ep/hydrants/` -> `200` `ep.ep_hydrant` columns=63 items=1 count=19
+- `/api/ep/noeuds/` -> `200` `ep.ep_noeud` columns=37 items=1 count=227
+- `/api/ep/obturateurs/` -> `200` `ep.ep_obturateur` columns=39 items=1 count=442
+- `/api/ep/onep-db/` -> `200` `ep.onep_db` columns=15 items=1 count=10580
+- `/api/ep/pompes/` -> `200` `ep.ep_pompe` columns=47 items=1 count=1
+- `/api/ep/puits/` -> `200` `ep.ep_puit` columns=38 items=0 count=0
+- `/api/ep/reducteurs-pression/` -> `200` `ep.ep_reduc_pres` columns=57 items=1 count=1
+- `/api/ep/regards/` -> `200` `ep.ep_regard_point` columns=64 items=1 count=1439
+- `/api/ep/regards-miroir/` -> `200` `ep.ep_regard` columns=69 items=1 count=1439
+- `/api/ep/reservoirs/` -> `200` `ep.ep_reservoir` columns=64 items=1 count=32
+- `/api/ep/stations-pompage/` -> `200` `ep.ep_station_pompage` columns=56 items=1 count=5
+- `/api/ep/tn/` -> `200` `ep.tn` columns=19 items=0 count=0
+- `/api/ep/traverses/` -> `200` `ep.ep_traversee` columns=53 items=1 count=102
+- `/api/ep/vannes/` -> `200` `ep.ep_vanne` columns=58 items=1 count=511
+- `/api/ep/vannes-vidange/` -> `200` `ep.ep_vidange` columns=53 items=1 count=356
+- `/api/ep/ventouses/` -> `200` `ep.ep_ventouse` columns=53 items=1 count=441
+- `/api/ep/voies/` -> `200` `ep.voie` columns=17 items=0 count=0

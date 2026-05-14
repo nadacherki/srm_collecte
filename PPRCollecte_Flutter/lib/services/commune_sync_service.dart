@@ -8,7 +8,7 @@ class CommuneSyncService {
       : _db = databaseHelper ?? DatabaseHelper();
 
   Future<Map<String, dynamic>> refreshCommunes() async {
-    final communes = await ApiService.fetchCommunes();
+    final communes = await ApiService.fetchCommunesOriental();
     await _db.replaceCommunes(communes: communes);
     return {
       'communes_count': communes.length,

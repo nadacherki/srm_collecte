@@ -1,0 +1,14 @@
+# Trouver le bon port COM
+python tools/gps_simulator_bt.py --list
+
+# Mode statique (point fixe + jitter realiste 1.5 m)
+python tools/gps_simulator_bt.py --port COM3
+python tools/gps_simulator_bt.py --port COM3 --lat 34.68 --lon -1.908
+
+# Mode trajet anime en boucle a 25 km/h
+python tools/gps_simulator_bt.py --port COM3 --mode route `
+    --route tools/gps_routes/oujda_demo.json --speed 25 --loop
+
+# Tester sans Bluetooth (affiche le NMEA dans le terminal)
+python tools/gps_simulator_bt.py --dry-run --mode route `
+    --route tools/gps_routes/oujda_demo.json --speed 40

@@ -1,18 +1,20 @@
 // lib/widgets/common/top_bar_widget.dart
 // Sprint 6 — Icône profil cliquable → ProfilePage
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../screens/profile/profile_page.dart';
 
 class TopBarWidget extends StatelessWidget {
   final String agentName;
   final VoidCallback onLogout;
-  final VoidCallback? onReturnFromProfile;
+  final FutureOr<void> Function(String metier)? onStartConduiteDrawing;
 
   const TopBarWidget({
     super.key,
     required this.agentName,
     required this.onLogout,
-    this.onReturnFromProfile,
+    this.onStartConduiteDrawing,
   });
 
   String _getInitials(String name) {
@@ -33,7 +35,7 @@ class TopBarWidget extends StatelessWidget {
           // ── Icône profil cliquable ──
           GestureDetector(
             onTap: () async {
-              await Navigator.push(
+              final result = await Navigator.push<Object?>(
                 context,
                 MaterialPageRoute(
                   builder: (_) => ProfilePage(
@@ -42,7 +44,12 @@ class TopBarWidget extends StatelessWidget {
                   ),
                 ),
               );
-              onReturnFromProfile?.call();
+              if (result == ProfilePage.startConduiteDrawingEpResult ||
+                  result == ProfilePage.startConduiteDrawingResult) {
+                await onStartConduiteDrawing?.call('ep');
+              } else if (result == ProfilePage.startConduiteDrawingAsstResult) {
+                await onStartConduiteDrawing?.call('asst');
+              }
             },
             child: Row(
               children: [
@@ -55,7 +62,7 @@ class TopBarWidget extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -98,7 +105,7 @@ class TopBarWidget extends StatelessWidget {
                         Icon(
                           Icons.arrow_forward_ios,
                           size: 9,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                       ],
                     ),
@@ -114,8 +121,7 @@ class TopBarWidget extends StatelessWidget {
               backgroundColor: const Color(0xFF64B5F6),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
               elevation: 0,
             ),
             onPressed: onLogout,

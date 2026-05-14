@@ -26,6 +26,8 @@ class PolygonTapData {
   final String prefectureName;
   final String communeName;
   final Map<String, dynamic>? editableItem;
+  final String? statusOverride;
+  final Map<String, String> extraDetails;
 
   PolygonTapData({
     required this.nom,
@@ -45,11 +47,15 @@ class PolygonTapData {
     this.prefectureName = '',
     this.communeName = '',
     this.editableItem,
+    this.statusOverride,
+    this.extraDetails = const {},
   });
 
   String get statut {
-    if (downloaded) return 'Sauvegardee (downloaded)';
-    if (synced) return 'Synchronisee';
-    return 'Enregistree localement';
+    final customStatus = statusOverride?.trim() ?? '';
+    if (customStatus.isNotEmpty) return customStatus;
+    if (downloaded) return 'Sauvegardée (téléchargée)';
+    if (synced) return 'Synchronisée';
+    return 'Enregistrée localement';
   }
 }

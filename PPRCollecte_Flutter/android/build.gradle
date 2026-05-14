@@ -8,6 +8,30 @@ allprojects {
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+
+    // Aligne tous les plugins Flutter sur Java 11 et silence les warnings
+    // "source value 8 is obsolete" emis par les plugins encore compiles
+    // avec le target par defaut (Java 8). Les warnings "deprecated API"
+    // qui subsistent viennent du code Java/Kotlin des plugins eux-memes :
+    // seules leurs mises a jour les feront disparaitre.
+    plugins.withId("com.android.library") {
+        android {
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_11
+                targetCompatibility JavaVersion.VERSION_11
+            }
+        }
+    }
+    tasks.withType(JavaCompile).configureEach {
+        // Silence les warnings de compilation provoques par les plugins
+        // Flutter externes (rien a corriger cote app). Les "Note:" qui
+        // peuvent subsister sont des messages informatifs javac que les
+        // flags ne suppriment pas (purement informatifs, non bloquants).
+        options.compilerArgs.addAll([
+            "-Xlint:-options",
+            "-Xlint:-deprecation",
+        ])
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

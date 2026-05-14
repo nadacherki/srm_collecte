@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 import '../../screens/home/home_page.dart'; // Pour MapFocusTarget + HomePage
@@ -59,15 +59,22 @@ class _DataListViewState extends State<DataListView> {
           final nom = item['nom']?.toString().toLowerCase() ?? '';
           final type = item['type']?.toString().toLowerCase() ?? '';
           final lineCode = item['line_code']?.toString().toLowerCase() ?? '';
-          final displayTitle = item['display_title']?.toString().toLowerCase() ?? '';
-          final sourceEntity = item['source_entity']?.toString().toLowerCase() ?? '';
-          final sourceMetier = item['source_metier']?.toString().toLowerCase() ?? '';
-          final sourceTable = item['source_table']?.toString().toLowerCase() ?? '';
+          final displayTitle =
+              item['display_title']?.toString().toLowerCase() ?? '';
+          final sourceEntity =
+              item['source_entity']?.toString().toLowerCase() ?? '';
+          final sourceTitle =
+              item['source_title']?.toString().toLowerCase() ?? '';
+          final sourceMetier =
+              item['source_metier']?.toString().toLowerCase() ?? '';
+          final sourceTable =
+              item['source_table']?.toString().toLowerCase() ?? '';
           return nom.contains(query) ||
               type.contains(query) ||
               lineCode.contains(query) ||
               displayTitle.contains(query) ||
               sourceEntity.contains(query) ||
+              sourceTitle.contains(query) ||
               sourceMetier.contains(query) ||
               sourceTable.contains(query);
         }).toList();
@@ -79,7 +86,9 @@ class _DataListViewState extends State<DataListView> {
     final existence = item['existence_intersection'];
     if (existence is bool) return existence;
     if (existence is int) return existence == 1;
-    if (existence is String) return existence == '1' || existence.toLowerCase() == 'true';
+    if (existence is String) {
+      return existence == '1' || existence.toLowerCase() == 'true';
+    }
     return false;
   }
 
@@ -162,7 +171,8 @@ class _DataListViewState extends State<DataListView> {
             ),
             child: Row(
               children: [
-                Icon(Icons.compare_arrows, size: 14, color: Colors.orange.shade600),
+                Icon(Icons.compare_arrows,
+                    size: 14, color: Colors.orange.shade600),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
@@ -179,7 +189,10 @@ class _DataListViewState extends State<DataListView> {
                       if (x != null && y != null)
                         Text(
                           'X: ${double.tryParse(x.toString())?.toStringAsFixed(6) ?? x}  •  Y: ${double.tryParse(y.toString())?.toStringAsFixed(6) ?? y}',
-                          style: TextStyle(fontSize: 11, color: Colors.brown.shade700, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.brown.shade700,
+                              fontWeight: FontWeight.w500),
                         ),
                     ],
                   ),
@@ -209,7 +222,8 @@ class _DataListViewState extends State<DataListView> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.blue),
           ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         ),
         onChanged: (_) => _filterData(),
       ),
@@ -220,7 +234,9 @@ class _DataListViewState extends State<DataListView> {
     if (_filteredData.isEmpty) {
       return Center(
         child: Text(
-          _searchController.text.isEmpty ? 'Aucune donnée ${_getFilterText()}' : 'Aucun résultat pour "${_searchController.text}"',
+          _searchController.text.isEmpty
+              ? 'Aucune donnée ${_getFilterText()}'
+              : 'Aucun résultat pour "${_searchController.text}"',
           style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
       );
@@ -288,7 +304,10 @@ class _DataListViewState extends State<DataListView> {
                     Expanded(
                       child: Text(
                         '↗ $code${x != null && y != null ? '  (${double.tryParse(x.toString())?.toStringAsFixed(4) ?? x}, ${double.tryParse(y.toString())?.toStringAsFixed(4) ?? y})' : ''}',
-                        style: TextStyle(fontSize: 11, color: Colors.brown.shade700, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.brown.shade700,
+                            fontWeight: FontWeight.w500),
                       ),
                     ),
                     //  Icône œil — focus sur le point d'intersection
@@ -301,7 +320,8 @@ class _DataListViewState extends State<DataListView> {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.only(left: 6),
-                          child: Icon(Icons.visibility, size: 16, color: Colors.orange.shade700),
+                          child: Icon(Icons.visibility,
+                              size: 16, color: Colors.orange.shade700),
                         ),
                       ),
                   ],
@@ -313,7 +333,10 @@ class _DataListViewState extends State<DataListView> {
                 padding: const EdgeInsets.only(left: 18, top: 2),
                 child: Text(
                   '... et ${intersections.length - 3} autre(s)',
-                  style: TextStyle(fontSize: 11, color: Colors.orange.shade600, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.orange.shade600,
+                      fontStyle: FontStyle.italic),
                 ),
               ),
           ],
@@ -336,9 +359,15 @@ class _DataListViewState extends State<DataListView> {
   }
 
   Widget _buildListItem(Map<String, dynamic> item, BuildContext context) {
-    final hasModification = item['updated_at'] != null && item['updated_at'] != item['created_at'];
+    final hasModification =
+        item['updated_at'] != null && item['updated_at'] != item['created_at'];
     final isLine = widget.entityType == "Lignes";
-    final titleText = (item['display_title']?.toString().trim().isNotEmpty ?? false) ? item['display_title'].toString() : isLine ? 'Ligne - ${(item['line_type'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})' : (item['nom'] ?? item['line_code'] ?? 'Sans nom').toString();
+    final titleText = (item['display_title']?.toString().trim().isNotEmpty ??
+            false)
+        ? item['display_title'].toString()
+        : isLine
+            ? 'Ligne - ${(item['line_type'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})'
+            : (item['nom'] ?? item['line_code'] ?? 'Sans nom').toString();
     return Card(
       elevation: 0.8, // au lieu de default / gros shadow
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -354,22 +383,28 @@ class _DataListViewState extends State<DataListView> {
             if (item['line_code'] != null) Text('Code: ${item['line_code']}'),
             if (item['type'] != null) Text('Type: ${item['type']}'),
 
-            if (item['created_at'] != null) Text('Cr\u00E9\u00E9 : ${_formatDate(item['created_at'])}'),
+            if (item['created_at'] != null)
+              Text('Cr\u00E9\u00E9 : ${_formatDate(item['created_at'])}'),
 
             if (hasModification)
               Text(
                 'Modifi\u00E9 : ${_formatDate(item['updated_at'])}',
-                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold),
               ),
 
             // (Optionnel) tu peux supprimer cette ligne si tu ne veux plus afficher l'id
-            if (item['commune_id'] != null) Text('Commune ID: ${item['commune_id']}'),
+            if (item['commune_id'] != null)
+              Text('Commune ID: ${item['commune_id']}'),
 
             item['synced'] == 1
-                ? const Text('Statut : Synchronis\u00E9', style: TextStyle(color: Colors.green))
+                ? const Text('Statut : Synchronis\u00E9',
+                    style: TextStyle(color: Colors.green))
                 : item['downloaded'] == 1
-                    ? const Text('Statut : T\u00E9l\u00E9charg\u00E9', style: TextStyle(color: Colors.blue))
-                    : const Text('Statut : Non synchronis\u00E9', style: TextStyle(color: Colors.orange)),
+                    ? const Text('Statut : T\u00E9l\u00E9charg\u00E9',
+                        style: TextStyle(color: Colors.blue))
+                    : const Text('Statut : Non synchronis\u00E9',
+                        style: TextStyle(color: Colors.orange)),
 
             //  INTERSECTION — affiché seulement si existence_intersection > 0
             if (_hasIntersection(item)) _buildIntersectionBadge(item),
@@ -381,15 +416,19 @@ class _DataListViewState extends State<DataListView> {
             // APRÈS
             if (widget.onView != null)
               IconButton(
-                tooltip: 'Voir sur la carte',
-                icon: Icon(Icons.remove_red_eye_outlined, color: Colors.blue.shade700), // ⭐ Couleur BLEUE pour distinguer
+                tooltip: 'Zoomer sur la carte',
+                icon: Icon(Icons.center_focus_strong,
+                    color: Colors
+                        .blue.shade700), // ⭐ Couleur BLEUE pour distinguer
                 onPressed: () {
                   final itemCopy = Map<String, dynamic>.from(item);
                   //  INJECTER le nom de table pour que _goToMapForItem sache quel type de point c'est
-                  if (widget.tableName != null && itemCopy['source_table'] == null) {
+                  if (widget.tableName != null &&
+                      itemCopy['source_table'] == null) {
                     itemCopy['source_table'] = widget.tableName;
                   }
-                  print('[DataListView] onView called for ${widget.entityType}, table=${widget.tableName}, id=${itemCopy['id']}');
+                  debugPrint(
+                      '[DataListView] onView called for ${widget.entityType}, table=${widget.tableName}, id=${itemCopy['id']}');
                   widget.onView?.call(itemCopy);
                 },
               ),
@@ -468,24 +507,45 @@ class _DataListViewState extends State<DataListView> {
       final k = key.toLowerCase();
 
       // Localisation (points)
-      if (k.contains('lat') || k.contains('lon') || k == 'x' || k == 'y' || k.contains('coord') || k.contains('longitude') || k.contains('latitude')) {
+      if (k.contains('lat') ||
+          k.contains('lon') ||
+          k == 'x' ||
+          k == 'y' ||
+          k.contains('coord') ||
+          k.contains('longitude') ||
+          k.contains('latitude')) {
         return 'Localisation';
       }
 
       // Administration / rattachements
-      if (k.contains('commune') || k.contains('commune_rurale_id') || k.contains('line_code') || k.contains('region') || k.contains('prefecture')) {
+      if (k.contains('commune') ||
+          k.contains('commune_rurale_id') ||
+          k.contains('line_code') ||
+          k.contains('region') ||
+          k.contains('prefecture')) {
         return 'Administration';
       }
 
-      if (k.contains('origine') || k.contains('_origine')) return 'Origine';
-      if (k.contains('destination') || k.contains('_destination')) return 'Destination';
-      if (k.contains('intersection') || k.contains('_intersection')) return 'Intersection';
+      if (k.contains('origine') || k.contains('_origine')) {
+        return 'Origine';
+      }
+      if (k.contains('destination') || k.contains('_destination')) {
+        return 'Destination';
+      }
+      if (k.contains('intersection') || k.contains('_intersection')) {
+        return 'Intersection';
+      }
 
-      if (k.contains('occupation') || k.contains('type_occupation') || k.contains('debut_occupation') || k.contains('fin_occupation')) {
+      if (k.contains('occupation') ||
+          k.contains('type_occupation') ||
+          k.contains('debut_occupation') ||
+          k.contains('fin_occupation')) {
         return 'Occupation';
       }
 
-      if (k.contains('trafic') || k.contains('type_trafic') || k.contains('frequence_trafic')) {
+      if (k.contains('trafic') ||
+          k.contains('type_trafic') ||
+          k.contains('frequence_trafic')) {
         return 'Trafic';
       }
 
@@ -494,7 +554,8 @@ class _DataListViewState extends State<DataListView> {
       return 'Général';
     }
 
-    final entries = item.entries.where((e) => e.value != null && !isHidden(e.key)).toList();
+    final entries =
+        item.entries.where((e) => e.value != null && !isHidden(e.key)).toList();
 
     const order = {
       'Général': 0,
@@ -575,7 +636,9 @@ class _DataListViewState extends State<DataListView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 10),
-          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -588,7 +651,9 @@ class _DataListViewState extends State<DataListView> {
             child: Column(
               children: list.map((e) {
                 // ✅ 3 lignes Administration (region/pref/commune) -> toutes les données
-                if (e.key == '__region__' || e.key == '__prefecture__' || e.key == '__commune__') {
+                if (e.key == '__region__' ||
+                    e.key == '__prefecture__' ||
+                    e.key == '__commune__') {
                   final label = e.key == '__region__'
                       ? 'Région'
                       : e.key == '__prefecture__'
@@ -636,7 +701,9 @@ class _DataListViewState extends State<DataListView> {
                 Row(
                   children: [
                     const Expanded(
-                      child: Text('Détails', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: Text('Détails',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -700,7 +767,6 @@ class _DataListViewState extends State<DataListView> {
       'debut_travaux': 'Début Travaux',
       'fin_travaux': 'Fin Travaux',
       'financement': 'Financement',
-      'projet': 'Projet',
       // ===== ÉVALUATION =====
       'niveau_service': 'Niveau de Service',
       'fonctionnalite': 'Fonctionnalité',
@@ -725,7 +791,9 @@ class _DataListViewState extends State<DataListView> {
     if (key == 'enqueteur') {
       if (value == null || value.toString().trim().isEmpty) return '----';
       final v = value.toString();
-      if (v == '0' || v == '1' || v.toLowerCase().contains('sync')) return '----';
+      if (v == '0' || v == '1' || v.toLowerCase().contains('sync')) {
+        return '----';
+      }
       return v;
     }
 
@@ -740,7 +808,12 @@ class _DataListViewState extends State<DataListView> {
     }
 // ✅ Format coordonnées : limiter à 7 décimales
     final k = key.toLowerCase();
-    final isCoord = k.startsWith('x_') || k.startsWith('y_') || k.contains('latitude') || k.contains('longitude') || k.contains('lat') || k.contains('lon');
+    final isCoord = k.startsWith('x_') ||
+        k.startsWith('y_') ||
+        k.contains('latitude') ||
+        k.contains('longitude') ||
+        k.contains('lat') ||
+        k.contains('lon');
 
     if (isCoord) {
       final d = double.tryParse(value.toString());
@@ -758,7 +831,8 @@ class _DataListViewState extends State<DataListView> {
     String out;
     try {
       final date = DateTime.parse(dateString);
-      out = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} '
+      out =
+          '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} '
           '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       out = dateString;
@@ -768,4 +842,3 @@ class _DataListViewState extends State<DataListView> {
     return out;
   }
 }
-

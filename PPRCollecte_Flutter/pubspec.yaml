@@ -1,5 +1,5 @@
 name: srm_collecte
-description: "Application mobile de collecte de données géospatiales pour les réseaux EP, ASS et ELEC - SRM Maroc."
+description: "Application mobile de collecte de données géospatiales pour les réseaux EP et ASS - SRM Maroc."
 publish_to: "none"
 version: 1.0.0+1
 
@@ -20,13 +20,17 @@ dependencies:
   # HTTP & API
   http: ^1.2.1
   crypto: ^3.0.6
+  image: ^4.5.4
 
   # Cartographie
   flutter_map: ^7.0.0
   flutter_map_mbtiles: ^1.0.4
   flutter_map_pmtiles: ^1.0.5
+  pmtiles: ^1.2.0
   vector_map_tiles: ^8.0.0
   vector_map_tiles_pmtiles: ^1.5.0
+  vector_tile: ^2.0.1
+  vector_tile_renderer: ^5.2.1
   latlong2: ^0.9.0
 
   # Projection de coordonnées WGS84 <-> Merchich Nord (EPSG:26191)
@@ -61,6 +65,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  sqflite_common_ffi: ^2.3.3
 
 flutter_launcher_icons:
   android: true

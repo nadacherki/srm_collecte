@@ -1,96 +1,133 @@
 import 'package:flutter/material.dart';
+
 import '../../controllers/home_controller.dart';
 
 class MapControlsWidget extends StatelessWidget {
   final HomeController controller;
   final VoidCallback onAddPoint;
+  final VoidCallback onAddStandalonePoint;
   final VoidCallback onStartLigne;
   final VoidCallback onStartPolygon;
   final VoidCallback onToggleLigne;
   final VoidCallback onTogglePolygon;
+  final VoidCallback onUndoLigne;
+  final VoidCallback onRedoLigne;
+  final VoidCallback onUndoPolygon;
+  final VoidCallback onRedoPolygon;
   final VoidCallback onFinishLigne;
   final VoidCallback onFinishPolygon;
   final VoidCallback onCancelLigne;
   final VoidCallback onCancelPolygon;
   final VoidCallback onRefresh;
-  final bool isSpecialCollection;
+  final bool canRedoLigne;
+  final bool canRedoPolygon;
   final bool isPolygonCollection;
-  final VoidCallback onStopSpecial;
+  final bool showRefresh;
 
   const MapControlsWidget({
     super.key,
     required this.controller,
     required this.onAddPoint,
+    required this.onAddStandalonePoint,
     required this.onStartLigne,
     required this.onStartPolygon,
     required this.onToggleLigne,
     required this.onTogglePolygon,
+    required this.onUndoLigne,
+    required this.onRedoLigne,
+    required this.onUndoPolygon,
+    required this.onRedoPolygon,
     required this.onFinishLigne,
     required this.onFinishPolygon,
     required this.onCancelLigne,
     required this.onCancelPolygon,
     required this.onRefresh,
-    required this.isSpecialCollection,
-    this.isPolygonCollection = false,
-    required this.onStopSpecial,
+    required this.canRedoLigne,
+    required this.canRedoPolygon,
+    required this.isPolygonCollection,
+    this.showRefresh = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasLigneContext = controller.ligneCollection != null;
     final hasPolygonContext =
-        isSpecialCollection && isPolygonCollection && controller.specialCollection != null;
-    // SPRINT 7 fix : le bouton Point doit apparaître aussi quand la collecte est en PAUSE
-    final showAddPointForLigne = (controller.ligneCollection?.isActive ?? false) ||
-        (controller.ligneCollection?.isPaused ?? false);
+        isPolygonCollection && controller.polygonCollection != null;
+    final hasTraceContext = hasLigneContext || hasPolygonContext;
+
+    final showAddPointForLigne =
+        (controller.ligneCollection?.isActive ?? false) ||
+            (controller.ligneCollection?.isPaused ?? false);
     final showAddPointForPolygon = isPolygonCollection &&
-        ((controller.specialCollection?.isActive ?? false) ||
-            (controller.specialCollection?.isPaused ?? false));
+        ((controller.polygonCollection?.isActive ?? false) ||
+            (controller.polygonCollection?.isPaused ?? false));
 
     return Stack(
       children: [
-        // Bouton Rafraîchir
-        Positioned(
-          top: 8,
-          right: 55,
-          child: FloatingActionButton(
-            heroTag: "refreshBtn",
-            mini: true,
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            onPressed: onRefresh,
-            elevation: 6,
-            child: const Icon(Icons.refresh, size: 20),
+        if (showRefresh)
+          Positioned(
+            top: 8,
+            right: 70,
+            child: FloatingActionButton(
+              heroTag: 'refreshBtn',
+              mini: true,
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              onPressed: onRefresh,
+              elevation: 6,
+              child: const Icon(Icons.refresh, size: 20),
+            ),
           ),
-        ),
-
-        // ===== Boutons principaux en bas =====
         Positioned(
           bottom: 10,
-          left: 0,
-          right: 50,
+          left: 10,
+          right: hasTraceContext ? 10 : 80,
           child: SafeArea(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: hasLigneContext
-                  ? [
-                      if (showAddPointForLigne) _buildPointControls(),
-                      if (showAddPointForLigne) const SizedBox(width: 12),
-                      _buildLigneControls(),
-                    ]
-                  : hasPolygonContext
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final gap =
+                    hasTraceContext || constraints.maxWidth < 330 ? 8.0 : 12.0;
+                final rawButtonWidth = (constraints.maxWidth - (gap * 2)) / 3;
+                final buttonWidth =
+                    rawButtonWidth > 110 ? 110.0 : rawButtonWidth;
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: hasLigneContext
                       ? [
-                          if (showAddPointForPolygon) _buildPointControls(),
-                          if (showAddPointForPolygon) const SizedBox(width: 12),
-                          _buildPolygonControls(),
+                          if (showAddPointForLigne)
+                            _buildPointControls(compact: true),
+                          if (showAddPointForLigne) SizedBox(width: gap),
+                          if (showAddPointForLigne)
+                            _buildStandalonePointControl(),
+                          if (showAddPointForLigne) SizedBox(width: gap),
+                          _buildLigneControls(),
                         ]
-                      : [
-                          SizedBox(width: 110, child: _buildPointControls()),
-                          const SizedBox(width: 12),
-                          SizedBox(width: 110, child: _buildLigneControls()),
-                          const SizedBox(width: 12),
-                          SizedBox(width: 110, child: _buildPolygonControls()),
-                        ],
+                      : hasPolygonContext
+                          ? [
+                              if (showAddPointForPolygon)
+                                _buildPointControls(compact: true),
+                              if (showAddPointForPolygon) SizedBox(width: gap),
+                              _buildPolygonControls(),
+                            ]
+                          : [
+                              _buildDefaultControlButton(
+                                width: buttonWidth,
+                                child: _buildPointControls(),
+                              ),
+                              SizedBox(width: gap),
+                              _buildDefaultControlButton(
+                                width: buttonWidth,
+                                child: _buildLigneControls(),
+                              ),
+                              SizedBox(width: gap),
+                              _buildDefaultControlButton(
+                                width: buttonWidth,
+                                child: _buildPolygonControls(),
+                              ),
+                            ],
+                );
+              },
             ),
           ),
         ),
@@ -98,57 +135,122 @@ class MapControlsWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildPointControls() {
+  Widget _buildDefaultControlButton({
+    required double width,
+    required Widget child,
+  }) {
+    return SizedBox(
+      width: width <= 0 ? 1 : width,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(width: 110, child: child),
+      ),
+    );
+  }
+
+  Widget _buildPointControls({bool compact = false}) {
     final isManualCollectionActive =
         (controller.ligneCollection?.isActive ?? false) ||
-        (isPolygonCollection && (controller.specialCollection?.isActive ?? false));
-    final hasManualCollectionContext =
-        controller.ligneCollection != null ||
-        (isPolygonCollection && controller.specialCollection != null);
-
-    if (isSpecialCollection && !isPolygonCollection) {
-      return FloatingActionButton.extended(
-        heroTag: "stopSpecialBtn",
-        backgroundColor: const Color(0xFFE53E3E),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.stop),
-        label: const Text("Arrêt"),
-        onPressed: onStopSpecial,
-        elevation: 6,
-        highlightElevation: 12,
-      );
-    }
+            (isPolygonCollection &&
+                (controller.polygonCollection?.isActive ?? false));
+    final hasManualCollectionContext = controller.ligneCollection != null ||
+        (isPolygonCollection && controller.polygonCollection != null);
 
     if (isManualCollectionActive) {
+      if (compact) {
+        return Tooltip(
+          message: 'Ajouter un point au tracé',
+          child: FloatingActionButton(
+            heroTag: 'addPointBtn',
+            mini: true,
+            backgroundColor: const Color(0xFFF59E0B),
+            foregroundColor: Colors.white,
+            onPressed: onAddPoint,
+            elevation: 4,
+            child: const Icon(Icons.add_location_alt, size: 20),
+          ),
+        );
+      }
+
       return FloatingActionButton.extended(
-        heroTag: "addPointBtn",
+        heroTag: 'addPointBtn',
         backgroundColor: const Color(0xFFF59E0B),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_location_alt),
-        label: const Text("Ajout point"),
+        label: const Text('Ajout point'),
         onPressed: onAddPoint,
         elevation: 6,
         highlightElevation: 12,
       );
     }
 
-    // ── SPRINT 7 : Quand une collecte est en PAUSE, afficher le bouton Point
-    // pour permettre le levé de points indépendants ──
     if (!controller.hasPausedCollection) {
       if (hasManualCollectionContext || controller.hasActiveCollection) {
         return const SizedBox.shrink();
       }
     }
 
+    if (compact) {
+      return Tooltip(
+        message: 'Point',
+        child: FloatingActionButton(
+          heroTag: 'pointBtn',
+          mini: true,
+          backgroundColor: const Color(0xFFE53E3E),
+          foregroundColor: Colors.white,
+          onPressed: onAddPoint,
+          elevation: 4,
+          child: const Icon(Icons.place, size: 20),
+        ),
+      );
+    }
+
     return FloatingActionButton.extended(
-      heroTag: "pointBtn",
+      heroTag: 'pointBtn',
       backgroundColor: const Color(0xFFE53E3E),
       foregroundColor: Colors.white,
       icon: const Icon(Icons.place),
-      label: const Text("Point"),
+      label: const Text('Point'),
       onPressed: onAddPoint,
       elevation: 6,
       highlightElevation: 12,
+    );
+  }
+
+  Widget _buildStandalonePointControl() {
+    return Tooltip(
+      message: 'Lever un objet point',
+      child: FloatingActionButton(
+        heroTag: 'standalonePointDuringTraceBtn',
+        mini: true,
+        backgroundColor: const Color(0xFFE53E3E),
+        foregroundColor: Colors.white,
+        onPressed: onAddStandalonePoint,
+        elevation: 4,
+        child: const Icon(Icons.place, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildTraceActionButton({
+    required String heroTag,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    required String tooltip,
+  }) {
+    final enabled = onPressed != null;
+    return Tooltip(
+      message: tooltip,
+      child: FloatingActionButton(
+        heroTag: heroTag,
+        backgroundColor: enabled ? color : Colors.grey.shade400,
+        foregroundColor: Colors.white,
+        onPressed: onPressed,
+        mini: true,
+        elevation: enabled ? 4 : 1,
+        child: Icon(icon, size: 20),
+      ),
     );
   }
 
@@ -156,124 +258,142 @@ class MapControlsWidget extends StatelessWidget {
     final ligneCollection = controller.ligneCollection;
 
     if (ligneCollection == null || ligneCollection.isInactive) {
-      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.specialCollection != null) {
+      if (controller.hasActiveCollection ||
+          controller.hasPausedCollection ||
+          controller.polygonCollection != null) {
         return const SizedBox.shrink();
       }
 
-      // Bouton démarrer ligne
       return FloatingActionButton.extended(
-        heroTag: "ligneBtn",
+        heroTag: 'ligneBtn',
         backgroundColor: const Color(0xFF1976D2),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.timeline),
-        label: const Text("Ligne"),
+        label: const Text('Ligne'),
         onPressed: onStartLigne,
         elevation: 6,
         highlightElevation: 12,
       );
-    } else {
-      // Contrôles ligne active/en pause
-      return Row(
+    }
+
+    return FittedBox(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FloatingActionButton(
-            heroTag: "pauseLigneBtn",
-            backgroundColor: const Color(0xFF1976D2),
-            foregroundColor: Colors.white,
+          _buildTraceActionButton(
+            heroTag: 'undoLigneBtn',
+            icon: Icons.undo,
+            color: const Color(0xFF455A64),
+            onPressed: ligneCollection.points.isNotEmpty ? onUndoLigne : null,
+            tooltip: 'Revenir en arrière',
+          ),
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'redoLigneBtn',
+            icon: Icons.redo,
+            color: const Color(0xFF455A64),
+            onPressed: canRedoLigne ? onRedoLigne : null,
+            tooltip: 'Rétablir',
+          ),
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'pauseLigneBtn',
+            icon: ligneCollection.isPaused ? Icons.play_arrow : Icons.pause,
+            color: const Color(0xFF1976D2),
             onPressed: onToggleLigne,
-            mini: true,
-            elevation: 4,
-            child: Icon(
-              ligneCollection.isPaused ? Icons.play_arrow : Icons.pause,
-              size: 20,
-            ),
+            tooltip: ligneCollection.isPaused ? 'Reprendre' : 'Pause',
           ),
-          const SizedBox(width: 8),
-
-          // Bouton stop
-          FloatingActionButton(
-            heroTag: "cancelLigneBtn",
-            backgroundColor: const Color(0xFFE53E3E),
-            foregroundColor: Colors.white,
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'cancelLigneBtn',
+            icon: Icons.close,
+            color: const Color(0xFFE53E3E),
             onPressed: onCancelLigne,
-            mini: true,
-            elevation: 4,
-            child: const Icon(Icons.close, size: 20),
+            tooltip: 'Annuler le tracé',
           ),
-          const SizedBox(width: 8),
-
-          FloatingActionButton(
-            heroTag: "stopLigneBtn",
-            backgroundColor: const Color(0xFF2E7D32),
-            foregroundColor: Colors.white,
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'stopLigneBtn',
+            icon: Icons.check,
+            color: const Color(0xFF2E7D32),
             onPressed: onFinishLigne,
-            mini: true,
-            elevation: 4,
-            child: const Icon(Icons.check, size: 20),
+            tooltip: 'Valider',
           ),
         ],
-      );
-    }
+      ),
+    );
   }
 
   Widget _buildPolygonControls() {
-    final specialCollection = controller.specialCollection;
-    final isPolygonActive =
-        isSpecialCollection && isPolygonCollection && specialCollection != null;
+    final polygonCollection = controller.polygonCollection;
+    final isPolygonActive = isPolygonCollection && polygonCollection != null;
 
     if (!isPolygonActive) {
-      if (controller.hasActiveCollection || controller.hasPausedCollection || controller.ligneCollection != null || controller.specialCollection != null) {
+      if (controller.hasActiveCollection ||
+          controller.hasPausedCollection ||
+          controller.ligneCollection != null ||
+          controller.polygonCollection != null) {
         return const SizedBox.shrink();
       }
 
       return FloatingActionButton.extended(
-        heroTag: "polygonBtn",
+        heroTag: 'polygonBtn',
         backgroundColor: const Color(0xFF1B5E20),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.pentagon),
-        label: const Text("Polygone"),
+        label: const Text('Polygone'),
         onPressed: onStartPolygon,
         elevation: 6,
         highlightElevation: 12,
       );
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FloatingActionButton(
-          heroTag: "pausePolygonBtn",
-          backgroundColor: const Color(0xFF1976D2),
-          foregroundColor: Colors.white,
-          onPressed: onTogglePolygon,
-          mini: true,
-          elevation: 4,
-          child: Icon(
-            specialCollection.isPaused ? Icons.play_arrow : Icons.pause,
-            size: 20,
+    return FittedBox(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTraceActionButton(
+            heroTag: 'undoPolygonBtn',
+            icon: Icons.undo,
+            color: const Color(0xFF455A64),
+            onPressed:
+                polygonCollection.points.isNotEmpty ? onUndoPolygon : null,
+            tooltip: 'Revenir en arrière',
           ),
-        ),
-        const SizedBox(width: 8),
-        FloatingActionButton(
-          heroTag: "cancelPolygonBtn",
-          backgroundColor: const Color(0xFFE53E3E),
-          foregroundColor: Colors.white,
-          onPressed: onCancelPolygon,
-          mini: true,
-          elevation: 4,
-          child: const Icon(Icons.close, size: 20),
-        ),
-        const SizedBox(width: 8),
-        FloatingActionButton(
-          heroTag: "stopPolygonBtn",
-          backgroundColor: const Color(0xFF2E7D32),
-          foregroundColor: Colors.white,
-          onPressed: onFinishPolygon,
-          mini: true,
-          elevation: 4,
-          child: const Icon(Icons.check, size: 20),
-        ),
-      ],
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'redoPolygonBtn',
+            icon: Icons.redo,
+            color: const Color(0xFF455A64),
+            onPressed: canRedoPolygon ? onRedoPolygon : null,
+            tooltip: 'Rétablir',
+          ),
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'pausePolygonBtn',
+            icon: polygonCollection.isPaused ? Icons.play_arrow : Icons.pause,
+            color: const Color(0xFF1976D2),
+            onPressed: onTogglePolygon,
+            tooltip: polygonCollection.isPaused ? 'Reprendre' : 'Pause',
+          ),
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'cancelPolygonBtn',
+            icon: Icons.close,
+            color: const Color(0xFFE53E3E),
+            onPressed: onCancelPolygon,
+            tooltip: 'Annuler le polygone',
+          ),
+          const SizedBox(width: 6),
+          _buildTraceActionButton(
+            heroTag: 'stopPolygonBtn',
+            icon: Icons.check,
+            color: const Color(0xFF2E7D32),
+            onPressed: onFinishPolygon,
+            tooltip: 'Valider',
+          ),
+        ],
+      ),
     );
   }
 }

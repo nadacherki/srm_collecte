@@ -26,11 +26,11 @@ class CoordinateBarWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isGpsActive
-            ? const Color(0xFF1E293B).withOpacity(0.92)
-            : const Color(0xFF7F1D1D).withOpacity(0.92),
+            ? const Color(0xFF1E293B).withValues(alpha: 0.92)
+            : const Color(0xFF7F1D1D).withValues(alpha: 0.92),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),
@@ -51,7 +51,7 @@ class CoordinateBarWidget extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: (isGpsActive ? const Color(0xFF22C55E) : Colors.red)
-                        .withOpacity(0.5),
+                        .withValues(alpha: 0.5),
                     blurRadius: 4,
                     spreadRadius: 1,
                   ),
@@ -84,10 +84,10 @@ class CoordinateBarWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: _accuracyColor(accuracy).withOpacity(0.2),
+                color: _accuracyColor(accuracy).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: _accuracyColor(accuracy).withOpacity(0.5),
+                  color: _accuracyColor(accuracy).withValues(alpha: 0.5),
                   width: 0.8,
                 ),
               ),
@@ -133,8 +133,8 @@ class CoordinateBarWidget extends StatelessWidget {
 
   Color _accuracyColor(double accuracy) {
     if (accuracy <= 1.0) return const Color(0xFF22C55E); // RTK fix
-    if (accuracy <= 5.0) return const Color(0xFF3B82F6);  // Bon
+    if (accuracy <= 5.0) return const Color(0xFF3B82F6); // Bon
     if (accuracy <= 15.0) return const Color(0xFFF59E0B); // Moyen
-    return const Color(0xFFEF4444);                        // Mauvais
+    return const Color(0xFFEF4444); // Mauvais
   }
 }

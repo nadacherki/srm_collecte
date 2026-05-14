@@ -50,7 +50,7 @@ class ProvisionalFormDialog {
                   color: const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF4CAF50).withOpacity(0.3),
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
                   ),
                 ),
                 child: const Column(

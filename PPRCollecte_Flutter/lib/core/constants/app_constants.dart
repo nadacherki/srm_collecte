@@ -36,16 +36,19 @@ class AppConstants {
 
   /// États possibles d'un objet
   static const List<String> etatsObjet = [
-    'EN_SERVICE', 'HORS_SERVICE', 'EN_TRAVAUX', 'ABANDONNE', 'PROJETE',
+    'EN_SERVICE',
+    'HORS_SERVICE',
+    'EN_TRAVAUX',
+    'ABANDONNE',
+    'PROJETE',
   ];
 
   /// Rôles utilisateur SRM
   static const List<String> rolesUtilisateur = [
-    'admin', 'project_manager', 'editeur_terrain', 'editeur_bureau', 'viewer',
-  ];
-
-  /// Statuts de mission
-  static const List<String> statutsMission = [
-    'EN_COURS', 'CLOTURE', 'PROVISOIRE',
+    'admin',
+    'project_manager',
+    'editeur_terrain',
+    'editeur_bureau',
+    'viewer',
   ];
 }

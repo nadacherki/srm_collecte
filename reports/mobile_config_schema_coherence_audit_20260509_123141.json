@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-05-09T12:31:41",
+  "schemas": [
+    "ep",
+    "asst"
+  ],
+  "summary": {
+    "form_tables": 61,
+    "physical_tables_checked": 61,
+    "attributes_checked": 2864,
+    "choices_checked": 925,
+    "missing_physical_tables": 0,
+    "type_mismatches": 0,
+    "nullable_mismatches": 0,
+    "attributes_without_physical_column": 0,
+    "physical_columns_without_attribute": 0,
+    "choices_without_attribute": 0,
+    "choices_without_physical_column": 0,
+    "choice_attribute_link_mismatches": 0,
+    "choice_default_mismatches": 0
+  },
+  "issues": {
+    "missing_physical_tables": [],
+    "type_mismatches": [],
+    "nullable_mismatches": [],
+    "attributes_without_physical_column": [],
+    "physical_columns_without_attribute": [],
+    "choices_without_attribute": [],
+    "choices_without_physical_column": [],
+    "choice_attribute_link_mismatches": [],
+    "choice_default_mismatches": []
+  }
+}

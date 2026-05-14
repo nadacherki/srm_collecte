@@ -1,17 +1,22 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
 import '../../core/config/srm_config.dart';
-import '../../core/constants/basemap_constants.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
-import '../../services/basemap_catalog_service.dart';
-import '../../services/offline_basemap_service.dart';
+import '../../services/formulaire_config_mobile_service.dart';
 import '../../services/public_metrics_cache_service.dart';
+import '../../services/sync_service.dart';
 
 class ProfilePage extends StatefulWidget {
+  static const String startConduiteDrawingEpResult =
+      'start_conduite_drawing_ep';
+  static const String startConduiteDrawingAsstResult =
+      'start_conduite_drawing_asst';
+  static const String startConduiteDrawingResult = startConduiteDrawingEpResult;
+
   final String agentName;
   final VoidCallback onLogout;
 
@@ -27,6 +32,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final DatabaseHelper _db = DatabaseHelper();
+  late final FormulaireConfigMobileService _formulaireConfigService;
   late final PublicMetricsCacheService _metricsCache;
 
   bool _isLoading = true;
@@ -35,43 +41,32 @@ class _ProfilePageState extends State<ProfilePage> {
   String _login = '';
   String _role = '';
 
-  String _projetNom = '';
-  String _projetCode = '';
-  String _projetRegion = '';
-
   int? _activeAgentId;
-  int? _activeProjetId;
 
   int _totalEP = 0;
   int _totalASS = 0;
-  int _totalELEC = 0;
   int _totalSynced = 0;
   int _totalUnsynced = 0;
+  int _localPendingNew = 0;
+  int _localPendingUpdates = 0;
+  int _localPendingPhotos = 0;
+  int _localFailedPhotos = 0;
+  int _localPendingHistory = 0;
   int _totalPoints = 0;
   int _totalLignes = 0;
   int _totalPolygones = 0;
-  bool _hasOfflineBasemap = false;
-  String _offlineBasemapStatus = '';
-  String _offlineBasemapLocalPath = '';
-  String _offlineBasemapDownloadedAt = '';
-  String _offlineBasemapServerUpdatedAt = '';
-  String _activeBasemapPackageKey = '';
-  String _activeBasemapZoneId = '';
-  String _activeBasemapStyle = '';
-  String _activeBasemapFormat = '';
-  List<Map<String, dynamic>> _basemapZones = const [];
-  List<Map<String, dynamic>> _basemapPackages = const [];
-  String? _basemapCatalogError;
-  final Set<String> _downloadingBasemapPackageKeys = <String>{};
-  final Set<String> _activatingBasemapPackageKeys = <String>{};
-  bool _isPreparingBasemapPackages = false;
-  Set<String> _assignedBasemapZoneIds = <String>{};
 
   Map<String, dynamic>? _resumeMetrics;
   Map<String, dynamic>? _dayMetrics;
   Map<String, dynamic>? _weekMetrics;
   Map<String, dynamic>? _monthMetrics;
+  DateTime? _metricsFetchedAt;
   String? _metricsError;
+
+  /// Lignes locales que le sync a refuse de pousser car un champ
+  /// nullable=false etait vide. Cf. SyncService._missingRequiredFields.
+  /// Chaque entree : {metier, entity, schema, table, endpoint, uuid, missing, ts}.
+  List<Map<String, dynamic>> _preflightSkips = const [];
 
   bool get _hasServerMetrics =>
       _resumeMetrics != null ||
@@ -79,9 +74,41 @@ class _ProfilePageState extends State<ProfilePage> {
       _weekMetrics != null ||
       _monthMetrics != null;
 
+  bool get _usesCachedMetricsAfterRefreshError =>
+      _metricsError != null && _hasServerMetrics;
+
+  /// Activite locale = file d'attente > 0 OU skips preflight > 0 OU erreurs
+  /// photo > 0. Conditionne l'affichage de la section [6] : on cache la
+  /// section si rien n'est en attente (UI moins charge en regime normal).
+  bool get _hasLocalSyncActivity =>
+      _localPendingNew > 0 ||
+      _localPendingUpdates > 0 ||
+      _localPendingPhotos > 0 ||
+      _localFailedPhotos > 0 ||
+      _localPendingHistory > 0 ||
+      _preflightSkips.isNotEmpty;
+
+  /// Vrai quand tout est strictement vide : aucune donnee terrain cote serveur,
+  /// rien d'enregistre localement et aucune file d'attente. Permet d'afficher
+  /// un message explicite plutot que des cartes de 0 muettes (qui font croire
+  /// que le dashboard est casse).
+  bool get _shouldShowEmptyDashboardBanner {
+    if (!_hasServerMetrics) return false;
+    final serverTotal = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
+    final hasLocalStock = (_totalEP + _totalASS) > 0;
+    final hasQueued = _localPendingNew > 0 ||
+        _localPendingUpdates > 0 ||
+        _localPendingPhotos > 0 ||
+        _localFailedPhotos > 0 ||
+        _localPendingHistory > 0;
+    return serverTotal == 0 && !hasLocalStock && !hasQueued;
+  }
+
   @override
   void initState() {
     super.initState();
+    _formulaireConfigService =
+        FormulaireConfigMobileService(databaseHelper: _db);
     _metricsCache = PublicMetricsCacheService(databaseHelper: _db);
     _loadData();
   }
@@ -95,85 +122,50 @@ class _ProfilePageState extends State<ProfilePage> {
       final currentUser = await _db.getCurrentUserSrm();
       final activeAgentId =
           ApiService.userId ?? _asIntOrNull(currentUser?['id_user']);
-      final currentProjetId =
-          ApiService.currentProjetId ?? _asIntOrNull(currentUser?['id_projet_actif']);
-      final currentProjet = currentProjetId != null
-          ? await _db.getProjetLocal(currentProjetId)
-          : null;
       final results = await Future.wait<dynamic>([
-        _refreshBasemapCatalogIfPossible(),
         _loadLocalInventorySnapshot(),
-        _loadOfflineBasemapSnapshot(),
-        _loadOfflineBasemapCatalogSnapshot(),
         _metricsCache.loadSnapshot(
           agentId: activeAgentId,
-          projetId: currentProjetId,
         ),
+        _loadPreflightSkips(),
       ]);
-      final basemapCatalogError = results[0] as String?;
-      final inventory = results[1] as _LocalInventorySnapshot;
-      final basemap = results[2] as _OfflineBasemapSnapshot;
-      final basemapCatalog = results[3] as _OfflineBasemapCatalogSnapshot;
-      final cachedMetrics = results[4] as PublicMetricsCacheSnapshot;
-      final assignedZoneIds = basemapCatalog.zones
-          .map((zone) => zone['zone_id']?.toString().trim() ?? '')
-          .where((zoneId) => zoneId.isNotEmpty)
-          .toSet();
+      final inventory = results[0] as _LocalInventorySnapshot;
+      final cachedMetrics = results[1] as PublicMetricsCacheSnapshot;
+      final preflightSkips = results[2] as List<Map<String, dynamic>>;
 
       if (!mounted) return;
 
       setState(() {
         _nomPrenom = _coalesceText(
           ApiService.nomPrenom,
-          currentUser?['nom_prenom'],
+          DatabaseHelper.fullNameFromUserRow(currentUser),
           widget.agentName,
         );
         _login = _coalesceText(ApiService.userLogin, currentUser?['login']);
         _role = _coalesceText(ApiService.userRole, currentUser?['role']);
 
-        _projetNom = _coalesceText(
-          ApiService.currentProjetNom,
-          currentProjet?['nom'],
-        );
-        _projetCode = _coalesceText(
-          ApiService.currentProjetCode,
-          currentProjet?['code_affaire'],
-        );
-        _projetRegion = _coalesceText(
-          ApiService.currentProjetRegion,
-          currentProjet?['region'],
-        );
-
         _activeAgentId = activeAgentId;
-        _activeProjetId = currentProjetId;
+        _preflightSkips = preflightSkips;
 
         _totalEP = inventory.totalEP;
         _totalASS = inventory.totalASS;
-        _totalELEC = inventory.totalELEC;
         _totalSynced = inventory.totalSynced;
         _totalUnsynced = inventory.totalUnsynced;
+        _localPendingNew = inventory.pendingNewObjects;
+        _localPendingUpdates = inventory.pendingUpdatedObjects;
+        _localPendingPhotos = inventory.pendingPhotos;
+        _localFailedPhotos = inventory.failedPhotos;
+        _localPendingHistory = inventory.pendingHistoryItems;
         _totalPoints = inventory.totalPoints;
         _totalLignes = inventory.totalLignes;
         _totalPolygones = inventory.totalPolygones;
-        _hasOfflineBasemap = basemap.isReady;
-        _offlineBasemapStatus = basemap.statusLabel;
-        _offlineBasemapLocalPath = basemap.localPath;
-        _offlineBasemapDownloadedAt = basemap.downloadedAt;
-        _offlineBasemapServerUpdatedAt = basemap.serverUpdatedAt;
-        _activeBasemapPackageKey = basemap.packageKey;
-        _activeBasemapZoneId = basemap.zoneId;
-        _activeBasemapStyle = basemap.style;
-        _activeBasemapFormat = basemap.format;
-        _basemapZones = basemapCatalog.zones;
-        _basemapPackages = basemapCatalog.packages;
-        _basemapCatalogError = basemapCatalogError;
-        _assignedBasemapZoneIds = assignedZoneIds;
 
         if (cachedMetrics.hasAnyData) {
           _resumeMetrics = cachedMetrics.resume;
           _dayMetrics = cachedMetrics.day;
           _weekMetrics = cachedMetrics.week;
           _monthMetrics = cachedMetrics.month;
+          _metricsFetchedAt = cachedMetrics.fetchedAt;
         }
         _metricsError = cachedMetrics.error;
 
@@ -182,7 +174,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final refreshFuture = _refreshMetricsInBackground(
         agentId: activeAgentId,
-        projetId: currentProjetId,
       );
       if (waitForMetricsRefresh) {
         await refreshFuture;
@@ -200,11 +191,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _refreshMetricsInBackground({
     required int? agentId,
-    required int? projetId,
   }) async {
     final freshMetrics = await _metricsCache.refreshAndSave(
       agentId: agentId,
-      projetId: projetId,
     );
     if (!mounted) return;
 
@@ -214,111 +203,48 @@ class _ProfilePageState extends State<ProfilePage> {
         _dayMetrics = freshMetrics.day;
         _weekMetrics = freshMetrics.week;
         _monthMetrics = freshMetrics.month;
+        _metricsFetchedAt = freshMetrics.fetchedAt;
       }
       _metricsError = freshMetrics.error;
     });
   }
 
-  Future<_OfflineBasemapSnapshot> _loadOfflineBasemapSnapshot() async {
-    final activePackage = await OfflineBasemapService().getActivePackage();
-    final readyPackages = await OfflineBasemapService().getReadyPackages(
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-    final localPath =
-        activePackage?['local_path']?.toString().trim() ??
-        await OfflineBasemapService().getActiveBasemapPath() ??
-        '';
-    final packageKey =
-        activePackage?['package_key']?.toString().trim() ?? '';
-    final zoneId = activePackage?['zone_id']?.toString().trim() ?? '';
-    final style = activePackage?['style']?.toString().trim() ?? '';
-    final format = activePackage?['format']?.toString().trim() ?? '';
-    final downloadedAt =
-        activePackage?['downloaded_at']?.toString().trim() ?? '';
-    final serverUpdatedAt =
-        activePackage?['generated_at']?.toString().trim() ?? '';
-
-    final isReady = localPath.isNotEmpty;
-    final statusLabel = isReady
-        ? (packageKey.isNotEmpty ? 'Package actif' : 'Telechargee')
-        : (readyPackages.isNotEmpty
-              ? 'Aucun package actif'
-              : 'Aucun package telecharge');
-
-    return _OfflineBasemapSnapshot(
-      isReady: isReady,
-      statusLabel: statusLabel,
-      localPath: localPath,
-      downloadedAt: downloadedAt,
-      serverUpdatedAt: serverUpdatedAt,
-      packageKey: packageKey,
-      zoneId: zoneId,
-      style: style,
-      format: format,
-    );
-  }
-
-  Future<String?> _refreshBasemapCatalogIfPossible() async {
-    final isReachable = await _isApiReachableQuickly();
-    if (!isReachable) {
-      return null;
-    }
-
+  /// Lit l'app_metadata `sync_preflight_skips_v1` ecrit par SyncService a la
+  /// fin de chaque cycle. Renvoie [] si pas de cache, json invalide ou
+  /// structure inattendue (jamais d'exception remontee a l'UI).
+  Future<List<Map<String, dynamic>>> _loadPreflightSkips() async {
     try {
-      await BasemapCatalogService(databaseHelper: _db).refreshCatalog(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
-      return null;
-    } catch (e) {
-      return _cleanErrorMessage(e);
-    }
-  }
-
-  Future<bool> _isApiReachableQuickly() async {
-    try {
-      final uri = Uri.parse(ApiService.baseUrl);
-      final host = uri.host;
-      final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: const Duration(milliseconds: 800),
-      );
-      socket.destroy();
-      return true;
+      final raw = await _db.getAppMetadataValue(SyncService.preflightSkipsKey);
+      if (raw == null || raw.trim().isEmpty) return const [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const [];
+      final items = decoded['items'];
+      if (items is! List) return const [];
+      return items
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
     } catch (_) {
-      return false;
+      return const [];
     }
-  }
-
-  Future<_OfflineBasemapCatalogSnapshot> _loadOfflineBasemapCatalogSnapshot() async {
-    final zones = await _db.getOfflineBasemapZones(
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-    final packages = await _db.getOfflineBasemapPackages(
-      citySlug: BasemapConstants.catalogCitySlug,
-    );
-
-    return _OfflineBasemapCatalogSnapshot(
-      zones: zones,
-      packages: packages,
-    );
   }
 
   Future<_LocalInventorySnapshot> _loadLocalInventorySnapshot() async {
     var epCount = 0;
     var assCount = 0;
-    var elecCount = 0;
     var synced = 0;
     var unsynced = 0;
+    var pendingNewObjects = 0;
+    var pendingUpdatedObjects = 0;
     var points = 0;
     var lignes = 0;
     var polygones = 0;
 
     for (final metier in SrmConfig.getMetiers()) {
-      for (final entity in SrmConfig.getEntitiesForMetier(metier)) {
-        final tableName = SrmConfig.getTableName(metier, entity);
-        if (tableName == null || tableName.isEmpty) {
+      final entities = await _profileEntitiesForMetier(metier);
+      for (final entity in entities) {
+        final tableName = entity.tableName;
+        if (tableName.isEmpty) {
           continue;
         }
 
@@ -328,88 +254,88 @@ class _ProfilePageState extends State<ProfilePage> {
 
           if (metier == 'Eau Potable') epCount += count;
           if (metier == 'Assainissement') assCount += count;
-          if (metier == 'Électricité') elecCount += count;
 
           for (final row in rows) {
-            final isSynced = row['synced']?.toString() == '1';
+            final isSynced = _isLocalFlagEnabled(row['synced']);
+            final isDownloaded = _isLocalFlagEnabled(row['downloaded']);
             if (isSynced) {
               synced++;
             } else {
               unsynced++;
+              if (isDownloaded) {
+                pendingUpdatedObjects++;
+              } else {
+                pendingNewObjects++;
+              }
             }
           }
 
-          final config = SrmConfig.getEntityConfig(metier, entity);
-          final geometryType = config?['geometryType'] as String? ?? 'Point';
-          if (geometryType == 'Point') points += count;
-          if (geometryType == 'LineString') lignes += count;
-          if (geometryType == 'Polygon') polygones += count;
+          if (entity.isPolygon) {
+            polygones += count;
+          } else if (entity.isLine) {
+            lignes += count;
+          } else {
+            points += count;
+          }
         } catch (_) {
           // Table absente localement.
         }
       }
     }
 
+    final pendingPhotos = await _db.getPendingPhotoSyncItems(limit: 10000);
+    final failedPhotos = await _db.countFailedPhotoSyncItems();
+    final pendingHistoryItems = await _db.countPendingLocalHistoryItems();
+
     return _LocalInventorySnapshot(
       totalEP: epCount,
       totalASS: assCount,
-      totalELEC: elecCount,
       totalSynced: synced,
       totalUnsynced: unsynced,
+      pendingNewObjects: pendingNewObjects,
+      pendingUpdatedObjects: pendingUpdatedObjects,
+      pendingPhotos: pendingPhotos.length,
+      failedPhotos: failedPhotos,
+      pendingHistoryItems: pendingHistoryItems,
       totalPoints: points,
       totalLignes: lignes,
       totalPolygones: polygones,
     );
   }
 
-  // ignore: unused_element
-  Future<_MetricsSnapshot> _loadMetricsSnapshot({
-    required int? agentId,
-    required int? projetId,
-  }) async {
-    if (agentId == null || projetId == null) {
-      return const _MetricsSnapshot(
-        error: 'Agent ou projet actif introuvable pour les métriques serveur.',
+  Future<List<FormulaireConfigMobileEntity>> _profileEntitiesForMetier(
+    String metier,
+  ) async {
+    final entities = <FormulaireConfigMobileEntity>[];
+    final seenTables = <String>{};
+
+    for (final geometryFilter in const ['point', 'line', 'polygon']) {
+      final configured = await _formulaireConfigService.getMobileEntities(
+        mobileMetier: metier,
+        geometryFilter: geometryFilter,
+        refreshIfEmpty: false,
       );
+      for (final entity in configured) {
+        final tableName = entity.tableName.trim();
+        if (tableName.isEmpty) {
+          continue;
+        }
+        final key = '${entity.schema}.$tableName'.toLowerCase();
+        if (seenTables.add(key)) {
+          entities.add(entity);
+        }
+      }
     }
 
-    final now = DateTime.now();
-    final isoWeek = _computeIsoWeek(now);
+    return entities;
+  }
 
-    try {
-      final responses = await Future.wait<Map<String, dynamic>?>([
-        ApiService.fetchAgentPublicResume(
-          idAgent: agentId,
-          idProjet: projetId,
-        ),
-        ApiService.fetchAgentPublicJour(
-          idAgent: agentId,
-          idProjet: projetId,
-          jour: now,
-        ),
-        ApiService.fetchAgentPublicSemaine(
-          idAgent: agentId,
-          idProjet: projetId,
-          anneeIso: isoWeek.year,
-          semaineIso: isoWeek.week,
-        ),
-        ApiService.fetchAgentPublicMois(
-          idAgent: agentId,
-          idProjet: projetId,
-          annee: now.year,
-          moisNumero: now.month,
-        ),
-      ]);
-
-      return _MetricsSnapshot(
-        resume: responses[0],
-        day: responses[1],
-        week: responses[2],
-        month: responses[3],
-      );
-    } catch (e) {
-      return _MetricsSnapshot(error: _cleanErrorMessage(e));
-    }
+  bool _isLocalFlagEnabled(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' || text == 'true' || text == 't' || text == 'yes';
   }
 
   @override
@@ -444,29 +370,43 @@ class _ProfilePageState extends State<ProfilePage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // [1] Identite
                   _buildProfileCard(),
                   const SizedBox(height: 16),
-                  _buildProjetCard(),
-                  const SizedBox(height: 16),
-                  _buildOfflineBasemapSection(),
-                  const SizedBox(height: 16),
-                  if (_hasServerMetrics || _metricsError == null) ...[
-                    _buildPublicOverviewSection(),
+                  // Empty state global si rien a montrer
+                  if (_shouldShowEmptyDashboardBanner) ...[
+                    _buildEmptyDashboardBanner(),
                     const SizedBox(height: 16),
-                    _buildPublicQualitySection(),
+                  ],
+                  // [2] Aujourd'hui (jour courant + cumul du jour, CTA sync)
+                  if (_hasServerMetrics) ...[
+                    _buildTodaySection(),
                     const SizedBox(height: 16),
-                    _buildPublicPeriodsSection(),
+                  ],
+                  // [3] Ma collecte cumulee (totaux + qualite + dates)
+                  if (_resumeMetrics != null) ...[
+                    _buildCumulativeSection(),
                     const SizedBox(height: 16),
-                  ] else ...[
+                  ],
+                  // [4] Tendance recente : 7j et 30j
+                  if (_resumeMetrics != null) ...[
+                    _buildTrendSection(),
+                    const SizedBox(height: 16),
+                  ],
+                  // Cas metriques indisponibles : on signale au lieu de
+                  // sauter silencieusement.
+                  if (!_hasServerMetrics) ...[
                     _buildMetricsUnavailableSection(),
                     const SizedBox(height: 16),
                   ],
-                  _buildLocalMetierSection(),
+                  // [5] Donnees sur ce telephone (stock par metier + geom)
+                  _buildLocalDataSection(),
                   const SizedBox(height: 16),
-                  _buildLocalGeometrySection(),
-                  const SizedBox(height: 16),
-                  _buildLocalSyncSection(),
-                  const SizedBox(height: 24),
+                  // [6] File d'attente sync (uniquement si activite)
+                  if (_hasLocalSyncActivity) ...[
+                    _buildLocalSyncSection(),
+                    const SizedBox(height: 16),
+                  ],
                   _buildLogoutButton(),
                   const SizedBox(height: 16),
                 ],
@@ -503,656 +443,205 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
       padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1B4F72),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1B4F72).withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _nomPrenom.isNotEmpty ? _nomPrenom : widget.agentName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1B4F72),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _login.isNotEmpty ? '@$_login' : '@agent',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF666666),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildBadge(
-                      label: _role.isNotEmpty ? _role : 'agent',
-                      color: roleColor,
-                    ),
-                    if (_activeAgentId != null)
-                      _buildBadge(
-                        label: 'Agent #$_activeAgentId',
-                        color: const Color(0xFF1976D2),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProjetCard() {
-    return _buildSection(
-      title: 'Projet',
-      color: const Color(0xFF1976D2),
-      children: [
-        _buildInfoRow(Icons.work_outline, 'Projet', _projetNom),
-        _buildInfoRow(Icons.tag, 'Code affaire', _projetCode),
-        _buildInfoRow(Icons.map_outlined, 'Région', _projetRegion),
-        _buildInfoRow(
-          Icons.folder_shared_outlined,
-          'Projet actif',
-          _activeProjetId != null ? '#$_activeProjetId' : '—',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOfflineBasemapSection() {
-    final statusColor = _hasOfflineBasemap
-        ? const Color(0xFF27AE60)
-        : const Color(0xFFF39C12);
-    final activeFileName = _offlineBasemapLocalPath.isNotEmpty
-        ? _offlineBasemapLocalPath.split(Platform.pathSeparator).last
-        : 'Aucun package actif';
-    final downloadedPackages = _basemapPackages
-        .where(
-          (row) => (row['status']?.toString().trim().toLowerCase() ?? '') == 'ready',
-        )
-        .length;
-    final basemapNotice = _hasOfflineBasemap
-        ? "Un package de carte offline est actif sur ce mobile."
-        : _basemapPackages.isNotEmpty
-            ? "Le catalogue de zones est disponible, mais aucun package n'est encore actif sur ce mobile."
-            : "Aucune zone de carte offline n'est encore disponible dans le catalogue local.";
-
-    return _buildSection(
-      title: 'Cartes hors ligne',
-      color: const Color(0xFF16A085),
-      children: [
-        _buildNoticeCard(
-          icon: _hasOfflineBasemap
-              ? Icons.map_outlined
-              : Icons.cloud_download_outlined,
-          color: statusColor,
-          text: basemapNotice,
-        ),
-        const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.location_city_outlined,
-            'Ville',
-            BasemapConstants.catalogCityLabel,
-          ),
-        _buildInfoRow(
-          Icons.check_circle_outline,
-          'Statut',
-          _offlineBasemapStatus,
-        ),
-        _buildInfoRow(
-          Icons.map_outlined,
-          'Zone active',
-          _activeBasemapZoneId.isNotEmpty ? _activeBasemapZoneId : 'Aucune',
-        ),
-        _buildInfoRow(
-          Icons.layers_outlined,
-          'Style actif',
-          _activeBasemapStyle.isNotEmpty
-              ? _activeBasemapStyle.toUpperCase()
-              : 'Aucun',
-        ),
-        _buildInfoRow(
-          Icons.dataset_outlined,
-          'Format actif',
-          _activeBasemapFormat.isNotEmpty
-              ? _activeBasemapFormat.toUpperCase()
-              : 'Inconnu',
-        ),
-        _buildInfoRow(
-          Icons.inventory_2_outlined,
-          'Package actif',
-          activeFileName,
-        ),
-        _buildInfoRow(
-          Icons.schedule_outlined,
-          'Telechargee le',
-          _formatDateLabel(_offlineBasemapDownloadedAt),
-        ),
-        _buildInfoRow(
-          Icons.update_outlined,
-          'Version serveur',
-          _formatDateLabel(_offlineBasemapServerUpdatedAt),
-        ),
-        _buildInfoRow(
-          Icons.grid_view_outlined,
-          'Zones de l agent',
-          '${_basemapZones.length}',
-        ),
-        _buildInfoRow(
-          Icons.person_pin_circle_outlined,
-          'Zones visibles',
-          '${_assignedBasemapZoneIds.length}',
-        ),
-        _buildInfoRow(
-          Icons.layers_outlined,
-          'Packages catalogue',
-          '${_basemapPackages.length}',
-        ),
-        _buildInfoRow(
-          Icons.download_done_outlined,
-          'Packages telecharges',
-          '$downloadedPackages',
-        ),
-        if (_offlineBasemapLocalPath.isNotEmpty)
-          _buildInfoRow(
-            Icons.folder_open_outlined,
-            'Chemin local',
-            _offlineBasemapLocalPath,
-          ),
-        if (_basemapCatalogError != null) ...[
-          const SizedBox(height: 8),
-          _buildNoticeCard(
-            icon: Icons.info_outline,
-            color: const Color(0xFFF39C12),
-            text: 'Catalogue zones: $_basemapCatalogError',
-          ),
-        ],
-        if (_assignedBasemapZoneIds.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _downloadingBasemapPackageKeys.isNotEmpty ||
-                      _isPreparingBasemapPackages
-                  ? null
-                  : _downloadAssignedBasemapPackages,
-              icon: _downloadingBasemapPackageKeys.isNotEmpty ||
-                      _isPreparingBasemapPackages
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.cloud_download_outlined),
-              label: Text(
-                _isPreparingBasemapPackages
-                    ? 'Preparation des cartes en cours...'
-                    : _downloadingBasemapPackageKeys.isNotEmpty
-                    ? 'Telechargement des cartes en cours...'
-                    : 'Telecharger la carte de mes zones',
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1976D2),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-        ],
-        if (_basemapZones.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          ..._basemapZones.map(_buildBasemapZoneCard),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildBasemapZoneCard(Map<String, dynamic> zone) {
-    final zoneId = zone['zone_id']?.toString() ?? '';
-    final zoneName = _coalesceText(zone['nom'], zoneId);
-    final minZoom = _asIntOrNull(zone['min_zoom']);
-    final maxZoom = _asIntOrNull(zone['max_zoom']);
-    final zonePackages = _basemapPackages
-        .where((row) => row['zone_id']?.toString() == zoneId)
-        .toList();
-    final selectedPackage = _selectAutomaticPackageForZone(zonePackages);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF16A085).withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF16A085).withValues(alpha: 0.18),
-        ),
-      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.map_outlined,
-                size: 18,
-                color: Color(0xFF16A085),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B4F72),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1B4F72).withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  zoneName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF154360),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _nomPrenom.isNotEmpty ? _nomPrenom : widget.agentName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        height: 1.18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B4F72),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _login.isNotEmpty ? _login : 'agent',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.2,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildBadge(
+                          label: _role.isNotEmpty ? _role : 'agent',
+                          color: roleColor,
+                        ),
+                        if (_activeAgentId != null)
+                          _buildBadge(
+                            label: 'Agent #$_activeAgentId',
+                            color: const Color(0xFF1976D2),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _startConduiteDrawingMode('ep'),
+                  icon: const Icon(Icons.water_drop_outlined),
+                  label: const Text(
+                    'Conduite EP',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1B4F72),
+                    side: const BorderSide(color: Color(0xFF1B4F72)),
+                    minimumSize: const Size(0, 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _startConduiteDrawingMode('asst'),
+                  icon: const Icon(Icons.plumbing_outlined),
+                  label: const Text(
+                    'Conduite ASS',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2E7D32),
+                    side: const BorderSide(color: Color(0xFF2E7D32)),
+                    minimumSize: const Size(0, 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            zoneId,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF666666),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildBadge(
-                label: 'Zoom ${minZoom ?? '?'}-${maxZoom ?? '?'}',
-                color: const Color(0xFF1976D2),
-              ),
-              _buildBadge(
-                label:
-                    '${zonePackages.length} package${zonePackages.length > 1 ? 's' : ''}',
-                color: const Color(0xFF16A085),
-              ),
-              if (_activeBasemapZoneId == zoneId)
-                _buildBadge(
-                  label: 'Zone active',
-                  color: const Color(0xFF27AE60),
-                ),
-              _buildBadge(
-                label: 'Zone de l agent',
-                color: const Color(0xFF8E44AD),
-              ),
-            ],
-          ),
-          if (zonePackages.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _buildBasemapPackageDownloadRow(selectedPackage!),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildBasemapPackageDownloadRow(Map<String, dynamic> packageRow) {
-    final packageKey = packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
-    final style = packageRow['style']?.toString() ?? 'standard';
-    final format = packageRow['format']?.toString().toUpperCase() ?? 'MBTILES';
-    final version = packageRow['version']?.toString() ?? 'v?';
-    final statusRaw = packageRow['status'];
-    final statusLabel = _basemapPackageStatusLabel(statusRaw);
-    final statusColor = _basemapPackageStatusColor(statusRaw);
-    final sizeLabel = _formatFileSize(_asIntOrNull(packageRow['size_bytes']));
-    final isDownloading = _downloadingBasemapPackageKeys.contains(packageKey);
-    final isActivating = _activatingBasemapPackageKeys.contains(packageKey);
-    final isActivePackage = _activeBasemapPackageKey == packageKey;
-    final isReady =
-        (statusRaw ?? '').toString().trim().toLowerCase() == 'ready';
-    final canActivate = !isActivating && isReady && !isActivePackage;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 16, color: statusColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${style.toUpperCase()} | $format | $version'
-              '${sizeLabel.isNotEmpty ? ' | $sizeLabel' : ''}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF444444),
-              ),
-            ),
-          ),
-          if (isActivePackage) ...[
-            const SizedBox(width: 8),
-            _buildBadge(
-              label: 'Actif',
-              color: const Color(0xFF27AE60),
-            ),
-          ],
-          if (canActivate) ...[
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () => _activateBasemapPackage(packageRow),
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF27AE60).withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle_outline,
-                  size: 18,
-                  color: Color(0xFF27AE60),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(width: 8),
-          Text(
-            isDownloading
-                ? 'Telechargement...'
-                : (isActivating ? 'Activation...' : statusLabel),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: statusColor,
-            ),
-          ),
-        ],
-      ),
+  void _startConduiteDrawingMode(String metier) {
+    Navigator.of(context).pop(
+      metier == 'asst'
+          ? ProfilePage.startConduiteDrawingAsstResult
+          : ProfilePage.startConduiteDrawingEpResult,
     );
   }
 
-  Future<void> _downloadAssignedBasemapPackages() async {
-    if (_downloadingBasemapPackageKeys.isNotEmpty || _isPreparingBasemapPackages) {
-      return;
-    }
-    final packageKeys = <String>{};
-
-    try {
-      setState(() {
-        _isPreparingBasemapPackages = true;
-      });
-
-      final prepareSummary =
-          await BasemapCatalogService(databaseHelper: _db).prepareAssignedCatalog(
-        citySlug: BasemapConstants.catalogCitySlug,
-      );
-
-      if (!mounted) return;
-
-      await _loadData();
-      if (!mounted) return;
-
-      final selectedPackages = _selectedAutomaticPackagesForAssignedZones();
-      if (selectedPackages.isEmpty) {
-        final backendMessage =
-            (prepareSummary['message'] ?? '').toString().trim();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              backendMessage.isNotEmpty
-                  ? backendMessage
-                  : 'Aucune carte disponible pour les zones de cet agent.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      final packagesToDownload = selectedPackages.where((packageRow) {
-        final status =
-            (packageRow['status'] ?? '').toString().trim().toLowerCase();
-        return status != 'ready';
-      }).toList();
-
-      if (packagesToDownload.isEmpty) {
-        final generatedCount = _asIntOrNull(prepareSummary['generated_count']) ?? 0;
-        final reusedCount = _asIntOrNull(prepareSummary['reused_count']) ?? 0;
-        final backendMessage =
-            (prepareSummary['message'] ?? '').toString().trim();
-        final message = generatedCount > 0 || reusedCount > 0
-            ? backendMessage
-            : 'Toutes les cartes des zones de cet agent sont deja telechargees.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-        return;
-      }
-
-      packageKeys.addAll(
-        packagesToDownload.map(_basemapPackageKey),
-      );
-
-      setState(() {
-        _isPreparingBasemapPackages = false;
-        _downloadingBasemapPackageKeys.addAll(packageKeys);
-      });
-
-      var successCount = 0;
-      var failedCount = 0;
-
-      for (final packageRow in packagesToDownload) {
-        final result = await OfflineBasemapService().downloadCatalogPackage(
-          packageRow,
-        );
-        if (result.success) {
-          successCount++;
-        } else {
-          failedCount++;
-        }
-      }
-
-      if (!mounted) return;
-      await _loadData();
-      if (!mounted) return;
-
-      final alreadyReadyCount =
-          selectedPackages.length - packagesToDownload.length;
-      final parts = <String>[];
-      final generatedCount = _asIntOrNull(prepareSummary['generated_count']) ?? 0;
-      final reusedCount = _asIntOrNull(prepareSummary['reused_count']) ?? 0;
-      if (generatedCount > 0) {
-        parts.add('$generatedCount preparee(s) sur le serveur');
-      } else if (reusedCount > 0) {
-        parts.add('$reusedCount deja disponible(s) sur le serveur');
-      }
-      if (successCount > 0) {
-        parts.add('$successCount zone(s) telechargee(s)');
-      }
-      if (alreadyReadyCount > 0) {
-        parts.add('$alreadyReadyCount deja a jour');
-      }
-      if (failedCount > 0) {
-        parts.add('$failedCount en echec');
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            parts.isEmpty
-                ? 'Aucun telechargement necessaire.'
-                : 'Cartes agent : ${parts.join(', ')}.',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanErrorMessage(e))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPreparingBasemapPackages = false;
-        });
-      }
-      if (mounted && _downloadingBasemapPackageKeys.isNotEmpty) {
-        setState(() {
-          _downloadingBasemapPackageKeys.removeAll(packageKeys);
-        });
-      }
-    }
-  }
-
-  Future<void> _activateBasemapPackage(Map<String, dynamic> packageRow) async {
-    final packageKey = packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
-
-    if (_activatingBasemapPackageKeys.contains(packageKey)) {
-      return;
-    }
-
-    setState(() {
-      _activatingBasemapPackageKeys.add(packageKey);
-    });
-
-    try {
-      await OfflineBasemapService().setActivePackage(packageKey);
-      if (!mounted) return;
-
-      await _loadData();
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Le package de zone est maintenant actif sur ce mobile.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanErrorMessage(e))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _activatingBasemapPackageKeys.remove(packageKey);
-        });
-      }
-    }
-  }
-
-  List<Map<String, dynamic>> _selectedAutomaticPackagesForAssignedZones() {
-    final selected = <Map<String, dynamic>>[];
-    for (final zoneId in _assignedBasemapZoneIds) {
-      final zonePackages = _basemapPackages
-          .where((row) => row['zone_id']?.toString() == zoneId)
-          .toList();
-      final selectedPackage = _selectAutomaticPackageForZone(zonePackages);
-      if (selectedPackage != null) {
-        selected.add(selectedPackage);
-      }
-    }
-    return selected;
-  }
-
-  Map<String, dynamic>? _selectAutomaticPackageForZone(
-    List<Map<String, dynamic>> zonePackages,
-  ) {
-    if (zonePackages.isEmpty) return null;
-    final sorted = List<Map<String, dynamic>>.from(zonePackages)
-      ..sort(_compareAutomaticPackagePriority);
-    return sorted.first;
-  }
-
-  int _compareAutomaticPackagePriority(
-    Map<String, dynamic> a,
-    Map<String, dynamic> b,
-  ) {
-    final styleRankCompare =
-        _automaticStyleRank(a).compareTo(_automaticStyleRank(b));
-    if (styleRankCompare != 0) return styleRankCompare;
-
-    final formatRankCompare =
-        _automaticFormatRank(a).compareTo(_automaticFormatRank(b));
-    if (formatRankCompare != 0) return formatRankCompare;
-
-    final generatedAtA =
-        DateTime.tryParse(a['generated_at']?.toString().trim() ?? '');
-    final generatedAtB =
-        DateTime.tryParse(b['generated_at']?.toString().trim() ?? '');
-    if (generatedAtA != null && generatedAtB != null) {
-      final generatedCompare = generatedAtB.compareTo(generatedAtA);
-      if (generatedCompare != 0) return generatedCompare;
-    } else if (generatedAtA != null) {
-      return -1;
-    } else if (generatedAtB != null) {
-      return 1;
-    }
-
-    final versionA = a['version']?.toString().trim() ?? '';
-    final versionB = b['version']?.toString().trim() ?? '';
-    return versionB.compareTo(versionA);
-  }
-
-  int _automaticStyleRank(Map<String, dynamic> packageRow) {
-    final style = packageRow['style']?.toString().trim().toLowerCase() ?? '';
-    if (style == 'standard') return 0;
-    return 1;
-  }
-
-  int _automaticFormatRank(Map<String, dynamic> packageRow) {
-    final format = packageRow['format']?.toString().trim().toLowerCase() ?? '';
-    if (format == 'pmtiles') return 0;
-    if (format == 'mbtiles') return 1;
-    return 2;
-  }
-
-  String _basemapPackageKey(Map<String, dynamic> packageRow) {
-    return packageRow['package_key']?.toString().trim() ??
-        '${packageRow['zone_id']}:${packageRow['style']}:${packageRow['version']}';
-  }
-
-  Widget _buildPublicOverviewSection() {
-    final total = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
-    final currentWeek = _metricInt(_resumeMetrics, 'nb_objets_semaine_courante');
-    final recentWeek = _metricInt(_resumeMetrics, 'nb_objets_7j');
-    final activeDays = _metricInt(_resumeMetrics, 'nb_jours_actifs');
-
+  /// [2] AUJOURD'HUI : focus sur le jour courant. Cards "crees aujourd'hui"
+  /// (serveur) + "a synchroniser maintenant" (local). Sub-line dernière sync.
+  Widget _buildTodaySection() {
+    final createdToday = _metricInt(_dayMetrics, 'nb_objets_crees');
+    final pendingNow = _localPendingNew + _localPendingUpdates;
     return _buildSection(
-      title: 'Performance terrain',
+      title: "Aujourd'hui",
+      color: const Color(0xFF1976D2),
+      headerTrailing: Text(
+        _formatDateLabel(
+          _dayMetrics?['jour'] ?? DateTime.now().toIso8601String(),
+        ),
+        style: const TextStyle(fontSize: 12, color: Color(0xFF666666)),
+      ),
+      children: [
+        _buildStatsGrid(
+          childAspectRatio: 1.45,
+          children: [
+            _buildStatCard(
+              icon: Icons.add_location_alt_outlined,
+              label: "Créés aujourd'hui",
+              value: '$createdToday',
+              color: const Color(0xFF1976D2),
+              helper: 'serveur (id_user_creat)',
+            ),
+            _buildStatCard(
+              icon: Icons.outbox_outlined,
+              label: 'À synchroniser',
+              value: '$pendingNow',
+              color: const Color(0xFF27AE60),
+              helper: _localPendingUpdates > 0
+                  ? '$_localPendingNew nouv. + $_localPendingUpdates modif.'
+                  : 'nouveaux objets locaux',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildInfoRow(
+          Icons.sync_outlined,
+          'Dernière synchro métriques',
+          _formatDateTimeLabel(_metricsFetchedAt),
+        ),
+        if (_usesCachedMetricsAfterRefreshError)
+          _buildInfoRow(
+            Icons.cloud_off_outlined,
+            'Source métriques',
+            'Cache local (serveur indisponible)',
+          ),
+      ],
+    );
+  }
+
+  /// [3] MA COLLECTE CUMULÉE : totaux serveur depuis l'arrivée de l'agent +
+  /// qualité (anomalies, photos) + dates d'activite. Fusion de l'ancien
+  /// "Travail terrain" + "Qualite et completude".
+  Widget _buildCumulativeSection() {
+    final total = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
+    final anomalies = _metricInt(_resumeMetrics, 'nb_objets_anomalie_total');
+    final anomalyRate =
+        _metricDouble(_resumeMetrics, 'taux_anomalie_global_pct');
+    final photosUploaded =
+        _metricInt(_resumeMetrics, 'nb_photos_uploadees_total');
+    final objectsWithPhoto =
+        _metricInt(_resumeMetrics, 'nb_objets_avec_photo_total');
+    final activeDays = _metricInt(_resumeMetrics, 'nb_jours_actifs');
+    final photoCoverage = total > 0 ? (objectsWithPhoto * 100 / total) : 0.0;
+    return _buildSection(
+      title: 'Ma collecte cumulée',
       color: const Color(0xFF1B4F72),
       headerTrailing: const Icon(
         Icons.cloud_done_outlined,
@@ -1160,44 +649,38 @@ class _ProfilePageState extends State<ProfilePage> {
         color: Color(0xFF1B4F72),
       ),
       children: [
-        if (_metricsError != null) ...[
-          _buildNoticeCard(
-            icon: Icons.info_outline,
-            color: const Color(0xFFF39C12),
-            text: _metricsError!,
-          ),
-          const SizedBox(height: 12),
-        ],
         _buildStatsGrid(
           childAspectRatio: 1.45,
           children: [
             _buildStatCard(
               icon: Icons.layers_outlined,
-              label: 'Total collecté',
+              label: 'Total créés',
               value: '$total',
               color: const Color(0xFF1B4F72),
-              helper: 'objets tracés',
+              helper: 'cumul serveur',
             ),
             _buildStatCard(
-              icon: Icons.insights_outlined,
-              label: '7 derniers jours',
-              value: '$recentWeek',
-              color: const Color(0xFF1976D2),
-              helper: 'rythme récent',
+              icon: Icons.report_problem_outlined,
+              label: 'Anomalies',
+              value: '$anomalies',
+              color: const Color(0xFFE74C3C),
+              helper: _formatPercent(anomalyRate),
             ),
             _buildStatCard(
-              icon: Icons.calendar_view_week_outlined,
-              label: 'Semaine courante',
-              value: '$currentWeek',
+              icon: Icons.cloud_upload_outlined,
+              label: 'Photos uploadées',
+              value: '$photosUploaded',
               color: const Color(0xFF27AE60),
-              helper: 'depuis lundi',
+              helper: objectsWithPhoto > 0
+                  ? '$objectsWithPhoto objet${objectsWithPhoto > 1 ? 's' : ''} avec photo (${_formatPercent(photoCoverage)})'
+                  : 'aucun objet avec photo',
             ),
             _buildStatCard(
               icon: Icons.event_available_outlined,
-              label: 'Jours actifs',
+              label: 'Jours avec activité',
               value: '$activeDays',
               color: const Color(0xFF8E44AD),
-              helper: 'avec activité',
+              helper: 'création + sync + modif.',
             ),
           ],
         ),
@@ -1213,7 +696,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _formatDateLabel(_resumeMetrics?['derniere_activite']),
         ),
         if (_buildOverviewBadges().isNotEmpty) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1224,87 +707,34 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPublicQualitySection() {
-    final total = _metricInt(_resumeMetrics, 'nb_objets_crees_total');
-    final anomalies = _metricInt(_resumeMetrics, 'nb_objets_anomalie_total');
-    final anomalyRate =
-        _metricDouble(_resumeMetrics, 'taux_anomalie_global_pct');
-    final objectsWithPhoto =
-        _metricInt(_resumeMetrics, 'nb_objets_avec_photo_total');
-    final photosUploaded =
-        _metricInt(_resumeMetrics, 'nb_photos_uploadees_total');
-    final photoCoverage = total > 0 ? (objectsWithPhoto * 100 / total) : 0.0;
-
+  /// [4] TENDANCE RÉCENTE : 7j vs 30j (focus court terme). Remplace la
+  /// section "Periodes en cours" qui dupliquait deja "Aujourd'hui" et
+  /// presentait semaine/mois en double avec 7j/30j.
+  Widget _buildTrendSection() {
+    final recentWeek = _metricInt(_resumeMetrics, 'nb_objets_7j');
+    final recentMonth = _metricInt(_resumeMetrics, 'nb_objets_30j');
     return _buildSection(
-      title: 'Qualité et complétude',
-      color: const Color(0xFF8E44AD),
+      title: 'Tendance récente',
+      color: const Color(0xFF16A085),
       children: [
         _buildStatsGrid(
           childAspectRatio: 1.45,
           children: [
             _buildStatCard(
-              icon: Icons.report_problem_outlined,
-              label: 'Objets anomalie',
-              value: '$anomalies',
-              color: const Color(0xFFE74C3C),
-              helper: _formatPercent(anomalyRate),
+              icon: Icons.insights_outlined,
+              label: '7 derniers jours',
+              value: '$recentWeek',
+              color: const Color(0xFF8E44AD),
+              helper: 'objets créés',
             ),
             _buildStatCard(
-              icon: Icons.photo_library_outlined,
-              label: 'Objets avec photo',
-              value: '$objectsWithPhoto',
-              color: const Color(0xFF1976D2),
-              helper: _formatPercent(photoCoverage),
-            ),
-            _buildStatCard(
-              icon: Icons.cloud_upload_outlined,
-              label: 'Photos uploadées',
-              value: '$photosUploaded',
-              color: const Color(0xFF27AE60),
-              helper:
-                  '${_metricInt(_resumeMetrics, 'nb_photos_renseignees_total')} renseignées',
-            ),
-            _buildStatCard(
-              icon: Icons.rule_folder_outlined,
-              label: 'Incomplets en solde',
-              value:
-                  '${_metricInt(_resumeMetrics, 'nb_objets_incomplets_signales_total') - _metricInt(_resumeMetrics, 'nb_objets_incomplets_completes_total')}',
+              icon: Icons.calendar_month_outlined,
+              label: '30 derniers jours',
+              value: '$recentMonth',
               color: const Color(0xFFF39C12),
-              helper:
-                  '${_metricInt(_resumeMetrics, 'nb_objets_incomplets_completes_total')} complétés',
+              helper: 'objets créés',
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPublicPeriodsSection() {
-    return _buildSection(
-      title: 'Périodes en cours',
-      color: const Color(0xFF16A085),
-      children: [
-        _buildPeriodCard(
-          title: 'Aujourd\'hui',
-          subtitle: _formatDateLabel(
-            _dayMetrics?['jour'] ?? DateTime.now().toIso8601String(),
-          ),
-          metrics: _dayMetrics,
-          color: const Color(0xFF1976D2),
-        ),
-        const SizedBox(height: 12),
-        _buildPeriodCard(
-          title: 'Semaine',
-          subtitle: _weekPeriodLabel(),
-          metrics: _weekMetrics,
-          color: const Color(0xFF27AE60),
-        ),
-        const SizedBox(height: 12),
-        _buildPeriodCard(
-          title: 'Mois',
-          subtitle: _monthPeriodLabel(),
-          metrics: _monthMetrics,
-          color: const Color(0xFFF39C12),
         ),
       ],
     );
@@ -1318,19 +748,68 @@ class _ProfilePageState extends State<ProfilePage> {
         _buildNoticeCard(
           icon: Icons.cloud_off_outlined,
           color: const Color(0xFFF39C12),
-          text: _metricsError ??
-              'Les métriques serveur ne sont pas disponibles pour le moment.',
+          text: _metricsUnavailableMessage(),
         ),
       ],
     );
   }
 
-  Widget _buildLocalMetierSection() {
-    final total = _totalEP + _totalASS + _totalELEC;
+  String _metricsUnavailableMessage() {
+    if (_metricsError == null || _metricsError!.trim().isEmpty) {
+      return 'Aucune métrique serveur chargée pour cet agent. Rafraîchissez pour vérifier.';
+    }
 
+    return '${_metricsError!} Aucun cache serveur n’est disponible sur ce téléphone pour cet agent.';
+  }
+
+  Widget _buildEmptyDashboardBanner() {
+    final role = _role.trim().toLowerCase();
+    final isFieldAgent =
+        role.isEmpty || role == 'editeur_terrain' || role == 'agent';
+    final message = isFieldAgent
+        ? "Vous n'avez encore collecte aucun objet terrain. "
+            'Ouvrez la carte et placez votre premier point pour demarrer.'
+        : "Aucune collecte enregistree sur ce compte. Les compteurs serveur "
+            'restent a zero tant que vous ne creez pas d\'objets.';
     return _buildSection(
-      title: 'Stock local par métier',
+      title: 'Aucune activite terrain pour le moment',
       color: const Color(0xFF1B4F72),
+      headerTrailing: const Icon(
+        Icons.info_outline,
+        size: 18,
+        color: Color(0xFF1B4F72),
+      ),
+      children: [
+        Text(
+          message,
+          style: const TextStyle(fontSize: 14, color: Color(0xFF333333)),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Les cartes ci-dessous afficheront vos statistiques des '
+          'que la premiere donnee sera synchronisee.',
+          style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+        ),
+      ],
+    );
+  }
+
+  /// [5] DONNÉES SUR CE TÉLÉPHONE : tout ce qui est dans la SQLite locale,
+  /// independamment du workflow de sync. Fusion de l'ancien
+  /// "Stock par metier" + "Stock par geometrie".
+  Widget _buildLocalDataSection() {
+    final total = _totalEP + _totalASS;
+    return _buildSection(
+      title: 'Données sur ce téléphone',
+      color: const Color(0xFF1B4F72),
+      headerTrailing: Text(
+        '$total objet${total > 1 ? 's' : ''}',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1B4F72),
+        ),
+      ),
       children: [
         _buildMetierBar(
           'Eau Potable',
@@ -1345,49 +824,7 @@ class _ProfilePageState extends State<ProfilePage> {
           total,
           const Color(0xFF27AE60),
         ),
-        const SizedBox(height: 8),
-        _buildMetierBar(
-          'Électricité',
-          _totalELEC,
-          total,
-          const Color(0xFFF39C12),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1B4F72).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.smartphone_outlined,
-                size: 20,
-                color: Color(0xFF1B4F72),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Total local : $total objet${total > 1 ? 's' : ''}',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B4F72),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocalGeometrySection() {
-    return _buildSection(
-      title: 'Stock local par géométrie',
-      color: const Color(0xFF8E44AD),
-      children: [
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -1425,32 +862,79 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildLocalSyncSection() {
     final total = _totalSynced + _totalUnsynced;
     final pct = total > 0 ? _totalSynced / total : 0.0;
+    final pendingTransport =
+        _localPendingNew + _localPendingUpdates + _localPendingPhotos;
 
     return _buildSection(
-      title: 'État de synchronisation locale',
+      title: 'File d’attente locale',
       color: const Color(0xFF2196F3),
       children: [
         Row(
           children: [
             Expanded(
               child: _buildSyncCard(
-                'En attente',
-                _totalUnsynced,
+                'Nouveaux objets',
+                _localPendingNew,
                 const Color(0xFFF39C12),
-                Icons.schedule,
+                Icons.add_location_alt_outlined,
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _buildSyncCard(
-                'Synchronisés',
-                _totalSynced,
-                const Color(0xFF27AE60),
-                Icons.cloud_done_outlined,
+                'Objets modifiés',
+                _localPendingUpdates,
+                const Color(0xFF8E44AD),
+                Icons.edit_location_alt_outlined,
               ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSyncCard(
+                'Photos à envoyer',
+                _localPendingPhotos,
+                const Color(0xFF1976D2),
+                Icons.photo_library_outlined,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSyncCard(
+                'Erreurs photo',
+                _localFailedPhotos,
+                const Color(0xFFE74C3C),
+                Icons.error_outline,
+              ),
+            ),
+          ],
+        ),
+        if (_localPendingHistory > 0) ...[
+          const SizedBox(height: 12),
+          _buildNoticeCard(
+            icon: Icons.history_outlined,
+            color: const Color(0xFF8E44AD),
+            text:
+                'Historique local en attente : $_localPendingHistory événement(s).',
+          ),
+        ],
+        if (pendingTransport == 0 &&
+            _localPendingHistory == 0 &&
+            _preflightSkips.isEmpty) ...[
+          const SizedBox(height: 12),
+          _buildNoticeCard(
+            icon: Icons.verified_outlined,
+            color: const Color(0xFF27AE60),
+            text: 'Aucune donnée locale en attente sur ce téléphone.',
+          ),
+        ],
+        if (_preflightSkips.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildPreflightSkipsTile(),
+        ],
         const SizedBox(height: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1459,7 +943,7 @@ class _ProfilePageState extends State<ProfilePage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Progression sync locale',
+                  'Objets locaux déjà reçus serveur',
                   style: TextStyle(fontSize: 13),
                 ),
                 Text(
@@ -1488,6 +972,90 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Tile expandable listant les lignes locales que le sync a refuse de
+  /// pousser (champ NOT NULL vide). L'agent doit revenir les completer puis
+  /// relancer la sync. Source : SyncService.preflightSkipsKey persiste en fin
+  /// de chaque cycle de sync.
+  Widget _buildPreflightSkipsTile() {
+    const accent = Color(0xFFE74C3C);
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: const Icon(Icons.warning_amber_outlined, color: accent),
+          title: Text(
+            'À compléter avant sync (${_preflightSkips.length})',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+          ),
+          subtitle: const Text(
+            'Champ obligatoire vide → le serveur a refusé l\'enregistrement.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF666666)),
+          ),
+          children: _preflightSkips
+              .map((item) => _buildPreflightSkipEntry(item, accent))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreflightSkipEntry(Map<String, dynamic> item, Color accent) {
+    final entity = (item['entity'] ?? item['table'] ?? '?').toString();
+    final uuid = (item['uuid'] ?? '').toString();
+    final shortUuid = uuid.length > 8 ? uuid.substring(0, 8) : (uuid.isEmpty ? '?' : uuid);
+    final missingRaw = item['missing'];
+    final missing = missingRaw is List
+        ? missingRaw.map((e) => e.toString()).join(', ')
+        : missingRaw?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.fiber_manual_record, size: 8, color: accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$entity · uuid $shortUuid…',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                if (missing.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Manque : $missing',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1684,133 +1252,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPeriodCard({
-    required String title,
-    required String subtitle,
-    required Map<String, dynamic>? metrics,
-    required Color color,
-  }) {
-    final total = _metricInt(metrics, 'nb_objets_crees');
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF666666),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '$total',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                    const Text(
-                      'objets',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF666666),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildMiniMetric('Points', _metricInt(metrics, 'nb_points')),
-              _buildMiniMetric('Lignes', _metricInt(metrics, 'nb_lignes')),
-              _buildMiniMetric('Surfaces', _metricInt(metrics, 'nb_surfaces')),
-              _buildMiniMetric(
-                'Anomalies',
-                _metricInt(metrics, 'nb_objets_anomalie'),
-              ),
-              _buildMiniMetric(
-                'Photos',
-                _metricInt(metrics, 'nb_photos_uploadees'),
-              ),
-              _buildMiniMetric(
-                'Syncs',
-                _metricInt(metrics, 'nb_evenements_sync'),
-              ),
-            ],
-          ),
-          if (total == 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                'Aucune activité tracée sur cette période pour le moment.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: color.withValues(alpha: 0.85),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniMetric(String label, int value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$label : $value',
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF333333),
-        ),
-      ),
-    );
-  }
 
   Widget _buildNoticeCard({
     required IconData icon,
@@ -1867,22 +1308,15 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   List<Widget> _buildOverviewBadges() {
+    // Note : "30 derniers jours" est deja affiche en stat card depuis la
+    // refonte profil ; on garde ici uniquement les badges complementaires
+    // (modifs terrain, sessions sync) pour eviter la redondance visuelle.
     final badges = <Widget>[];
 
-    final missions = _metricInt(_resumeMetrics, 'nb_missions_total');
     final modifications =
         _metricInt(_resumeMetrics, 'nb_modifications_terrain_total');
     final syncs = _metricInt(_resumeMetrics, 'nb_evenements_sync_total');
-    final last30Days = _metricInt(_resumeMetrics, 'nb_objets_30j');
 
-    if (missions > 0) {
-      badges.add(
-        _buildBadge(
-          label: 'Missions : $missions',
-          color: const Color(0xFF1976D2),
-        ),
-      );
-    }
     if (modifications > 0) {
       badges.add(
         _buildBadge(
@@ -1896,14 +1330,6 @@ class _ProfilePageState extends State<ProfilePage> {
         _buildBadge(
           label: 'Syncs : $syncs',
           color: const Color(0xFF27AE60),
-        ),
-      );
-    }
-    if (last30Days > 0) {
-      badges.add(
-        _buildBadge(
-          label: '30 jours : $last30Days',
-          color: const Color(0xFFF39C12),
         ),
       );
     }
@@ -2122,132 +1548,27 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
   }
 
-  String _weekPeriodLabel() {
-    if (_weekMetrics != null) {
-      final start = _formatShortDate(_weekMetrics?['semaine_debut']);
-      final end = _formatShortDate(_weekMetrics?['semaine_fin']);
-      if (start != '—' && end != '—') {
-        return '$start - $end';
-      }
-    }
-
-    final now = DateTime.now();
-    final monday = now.subtract(Duration(days: now.weekday - 1));
-    final sunday = monday.add(const Duration(days: 6));
-    return '${_formatShortDate(monday.toIso8601String())} - ${_formatShortDate(sunday.toIso8601String())}';
+  String _formatDateTimeLabel(DateTime? value) {
+    if (value == null) return '—';
+    final local = value.toLocal();
+    final date = _formatDateLabel(local.toIso8601String());
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$date à $hour:$minute';
   }
 
-  String _monthPeriodLabel() {
-    if (_monthMetrics != null) {
-      return _formatMonthYear(_monthMetrics?['mois']);
-    }
-    return _formatMonthYear(DateTime.now().toIso8601String());
-  }
-
-  String _formatShortDate(dynamic rawValue) {
-    final text = rawValue?.toString().trim() ?? '';
-    if (text.isEmpty) return '—';
-
-    final parsed = DateTime.tryParse(text);
-    if (parsed == null) return text;
-    final day = parsed.day.toString().padLeft(2, '0');
-    final month = parsed.month.toString().padLeft(2, '0');
-    return '$day/$month';
-  }
-
-  String _formatMonthYear(dynamic rawValue) {
-    final text = rawValue?.toString().trim() ?? '';
-    if (text.isEmpty) return '—';
-
-    final parsed = DateTime.tryParse(text);
-    if (parsed == null) return text;
-
-    const months = <String>[
-      'janvier',
-      'février',
-      'mars',
-      'avril',
-      'mai',
-      'juin',
-      'juillet',
-      'août',
-      'septembre',
-      'octobre',
-      'novembre',
-      'décembre',
-    ];
-
-    return '${months[parsed.month - 1]} ${parsed.year}';
-  }
-
-  String _basemapPackageStatusLabel(dynamic rawStatus) {
-    switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
-      case 'ready':
-        return 'Telecharge';
-      case 'downloading':
-        return 'Telechargement';
-      case 'update_available':
-        return 'Maj dispo';
-      case 'failed':
-        return 'Echec';
-      case 'not_downloaded':
-      default:
-        return 'Non telecharge';
-    }
-  }
-
-  Color _basemapPackageStatusColor(dynamic rawStatus) {
-    switch ((rawStatus ?? '').toString().trim().toLowerCase()) {
-      case 'ready':
-        return const Color(0xFF27AE60);
-      case 'downloading':
-        return const Color(0xFF1976D2);
-      case 'update_available':
-        return const Color(0xFFF39C12);
-      case 'failed':
-        return const Color(0xFFE74C3C);
-      case 'not_downloaded':
-      default:
-        return const Color(0xFF7F8C8D);
-    }
-  }
-
-  String _formatFileSize(int? sizeBytes) {
-    if (sizeBytes == null || sizeBytes <= 0) return '';
-    if (sizeBytes >= 1024 * 1024) {
-      final value = sizeBytes / (1024 * 1024);
-      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} Mo';
-    }
-    if (sizeBytes >= 1024) {
-      final value = sizeBytes / 1024;
-      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} Ko';
-    }
-    return '$sizeBytes o';
-  }
-
-  // ignore: unused_element
-  _IsoWeek _computeIsoWeek(DateTime date) {
-    final localDate = DateTime(date.year, date.month, date.day);
-    final currentWeekStart =
-        localDate.subtract(Duration(days: localDate.weekday - 1));
-    final thursday = localDate.add(Duration(days: 4 - localDate.weekday));
-    final isoYear = thursday.year;
-    final firstThursday = DateTime(isoYear, 1, 4);
-    final firstWeekStart =
-        firstThursday.subtract(Duration(days: firstThursday.weekday - 1));
-    final week =
-        1 + currentWeekStart.difference(firstWeekStart).inDays ~/ 7;
-
-    return _IsoWeek(year: isoYear, week: week);
-  }
 }
 
 class _LocalInventorySnapshot {
   final int totalEP;
   final int totalASS;
-  final int totalELEC;
   final int totalSynced;
   final int totalUnsynced;
+  final int pendingNewObjects;
+  final int pendingUpdatedObjects;
+  final int pendingPhotos;
+  final int failedPhotos;
+  final int pendingHistoryItems;
   final int totalPoints;
   final int totalLignes;
   final int totalPolygones;
@@ -2255,73 +1576,15 @@ class _LocalInventorySnapshot {
   const _LocalInventorySnapshot({
     required this.totalEP,
     required this.totalASS,
-    required this.totalELEC,
     required this.totalSynced,
     required this.totalUnsynced,
+    required this.pendingNewObjects,
+    required this.pendingUpdatedObjects,
+    required this.pendingPhotos,
+    required this.failedPhotos,
+    required this.pendingHistoryItems,
     required this.totalPoints,
     required this.totalLignes,
     required this.totalPolygones,
-  });
-}
-
-// ignore: unused_element
-class _MetricsSnapshot {
-  final Map<String, dynamic>? resume;
-  final Map<String, dynamic>? day;
-  final Map<String, dynamic>? week;
-  final Map<String, dynamic>? month;
-  final String? error;
-
-  const _MetricsSnapshot({
-    this.resume,
-    this.day,
-    this.week,
-    this.month,
-    this.error,
-  });
-}
-
-class _OfflineBasemapSnapshot {
-  final bool isReady;
-  final String statusLabel;
-  final String localPath;
-  final String downloadedAt;
-  final String serverUpdatedAt;
-  final String packageKey;
-  final String zoneId;
-  final String style;
-  final String format;
-
-  const _OfflineBasemapSnapshot({
-    required this.isReady,
-    required this.statusLabel,
-    required this.localPath,
-    required this.downloadedAt,
-    required this.serverUpdatedAt,
-    required this.packageKey,
-    required this.zoneId,
-    required this.style,
-    required this.format,
-  });
-}
-
-class _OfflineBasemapCatalogSnapshot {
-  final List<Map<String, dynamic>> zones;
-  final List<Map<String, dynamic>> packages;
-
-  const _OfflineBasemapCatalogSnapshot({
-    required this.zones,
-    required this.packages,
-  });
-}
-
-// ignore: unused_element
-class _IsoWeek {
-  final int year;
-  final int week;
-
-  const _IsoWeek({
-    required this.year,
-    required this.week,
   });
 }

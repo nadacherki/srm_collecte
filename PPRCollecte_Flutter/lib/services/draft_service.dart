@@ -2,7 +2,7 @@
 // ── SPRINT 7 : Service de brouillon automatique des formulaires ──
 // Sauvegarde/restauration automatique des données de formulaire en SQLite.
 // Clé unique : formType + metier + entityType
-// Ex: "point__Électricité_Coffret BT", "srm_ligne__Eau Potable_Conduite EP"
+// Ex: "point__Eau Potable_Vanne", "srm_ligne__Eau Potable_Conduite EP"
 
 import 'dart:async';
 import 'dart:convert';
@@ -14,6 +14,147 @@ class DraftService {
   static final DraftService _instance = DraftService._internal();
   factory DraftService() => _instance;
   DraftService._internal();
+
+  static bool hasMeaningfulDraftContent({
+    required Map<String, String> formData,
+    Map<int, String?>? photoPaths,
+    Map<String, dynamic>? extraState,
+  }) {
+    final hasFormData = formData.entries.any(
+      (entry) => isDraftFieldMeaningfulValue(entry.key, entry.value),
+    );
+    final hasPhotos =
+        photoPaths?.values.any((p) => (p ?? '').trim().isNotEmpty) ?? false;
+    final hasExtraState = extraState?.entries.any(
+          (entry) => isDraftExtraStateMeaningfulValue(entry.key, entry.value),
+        ) ??
+        false;
+    return hasFormData || hasPhotos || hasExtraState;
+  }
+
+  static bool isDraftFieldMeaningfulValue(String field, String value) {
+    final cleanValue = value.trim();
+    if (cleanValue.isEmpty) return false;
+    final key = field.trim().toLowerCase();
+    if (_isAutomaticDraftField(key)) return false;
+    if (_isNeutralDefaultDraftValue(key, cleanValue)) return false;
+    return true;
+  }
+
+  static bool isDraftExtraStateMeaningfulValue(String key, dynamic value) {
+    final cleanKey = key.trim().toLowerCase();
+    if (cleanKey == 'regardepuuid' || cleanKey == 'regard_ep_uuid') {
+      return false;
+    }
+    if ((cleanKey == 'typeanomalie' || cleanKey == 'type_anomalie') &&
+        value is String &&
+        _isNeutralDefaultDraftValue(cleanKey, value)) {
+      return false;
+    }
+    return _isMeaningfulDraftValue(value);
+  }
+
+  static bool _isAutomaticDraftField(String key) {
+    const automaticFields = {
+      'id',
+      'fid',
+      'uuid',
+      'source',
+      'mode_localisation',
+      'latitude',
+      'longitude',
+      'altitude',
+      'latitude_gps',
+      'longitude_gps',
+      'altitude_gps',
+      'altitude_z_moy',
+      'x',
+      'y',
+      'z',
+      'lat',
+      'lon',
+      'lng',
+      'x_debut',
+      'y_debut',
+      'x_fin',
+      'y_fin',
+      'lat_debut',
+      'lon_debut',
+      'lat_fin',
+      'lon_fin',
+      'distance_m',
+      'nb_points',
+      'points_json',
+      'id_agent_crea',
+      'id_user_creat',
+      'id_user_modif',
+      'id_commune',
+      'id_province',
+      'id_zone',
+      'id_mission',
+      'id_planche',
+      'agent',
+      'ep_agent',
+      'ep_agent_crea',
+      'date_collecte',
+      'date_sync',
+      'date_creation',
+      'ep_date_insertion',
+      'date_modif',
+      'date_validation',
+      'code_gps',
+    };
+    if (automaticFields.contains(key)) return true;
+    if (RegExp(r'(^|_)(coor|coord|coords|coordinate)_?[xyz]$').hasMatch(key)) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool _isNeutralDefaultDraftValue(String key, String value) {
+    final normalized = _normalizeDraftValue(value);
+    if ((key.contains('anomalie') || key == 'typeanomalie') &&
+        const {'non', 'false', '0'}.contains(normalized)) {
+      return true;
+    }
+    if ((key.contains('conf') && key.contains('plan')) &&
+        normalized == 'objet decouvert') {
+      return true;
+    }
+    if (key == 'mode_localisation' &&
+        const {'gnss', 'gps', 'mock', 'nmea'}.contains(normalized)) {
+      return true;
+    }
+    return false;
+  }
+
+  static String _normalizeDraftValue(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\u00e9', 'e')
+        .replaceAll('\u00e8', 'e')
+        .replaceAll('\u00ea', 'e')
+        .replaceAll('\u00eb', 'e')
+        .replaceAll('\u00e0', 'a')
+        .replaceAll('\u00e2', 'a')
+        .replaceAll('\u00f9', 'u')
+        .replaceAll('\u00fb', 'u')
+        .replaceAll('\u00ee', 'i')
+        .replaceAll('\u00ef', 'i')
+        .replaceAll('\u00f4', 'o')
+        .replaceAll('\u00e7', 'c');
+  }
+
+  static bool _isMeaningfulDraftValue(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is String) return value.trim().isNotEmpty;
+    if (value is num) return value != 0;
+    if (value is Iterable) return value.isNotEmpty;
+    if (value is Map) return value.isNotEmpty;
+    return true;
+  }
 
   // ══════════════════════════════════════════════════════
   // ██ TABLE CREATION (appelé par DatabaseHelper)
@@ -30,7 +171,7 @@ class DraftService {
         updated_at TEXT NOT NULL
       )
     ''');
-    print('[DRAFT] table form_drafts creee');
+    debugPrint('[DRAFT] table form_drafts creee');
   }
 
   // ══════════════════════════════════════════════════════
@@ -38,7 +179,7 @@ class DraftService {
   // ══════════════════════════════════════════════════════
 
   /// Génère la clé unique pour un brouillon.
-  /// Ex: "point__Électricité_Coffret BT"
+  /// Ex: "point__Eau Potable_Vanne"
   static String buildDraftKey({
     required String formType,
     required String metier,
@@ -79,8 +220,7 @@ class DraftService {
           'draft_key': draftKey,
           'form_data': jsonEncode(formData),
           'photo_paths': photoPaths != null
-              ? jsonEncode(
-                  photoPaths.map((k, v) => MapEntry(k.toString(), v)))
+              ? jsonEncode(photoPaths.map((k, v) => MapEntry(k.toString(), v)))
               : null,
           'extra_state': extraState != null ? jsonEncode(extraState) : null,
           'created_at': createdAt,
@@ -95,11 +235,14 @@ class DraftService {
         payload: {
           'draft_key': draftKey,
           'field_count': formData.length,
-          'photo_count': photoPaths?.values.where((p) => p != null && p.isNotEmpty).length ?? 0,
+          'photo_count': photoPaths?.values
+                  .where((p) => p != null && p.isNotEmpty)
+                  .length ??
+              0,
         },
       );
     } catch (e) {
-      print('[DRAFT] erreur saveDraft: $e');
+      debugPrint('[DRAFT] erreur saveDraft: $e');
     }
   }
 
@@ -129,8 +272,8 @@ class DraftService {
       if (row['photo_paths'] != null) {
         final photoRaw =
             jsonDecode(row['photo_paths'] as String) as Map<String, dynamic>;
-        photoPaths = photoRaw
-            .map((k, v) => MapEntry(int.parse(k), v as String?));
+        photoPaths =
+            photoRaw.map((k, v) => MapEntry(int.parse(k), v as String?));
       }
 
       Map<String, dynamic>? extraState;
@@ -148,7 +291,7 @@ class DraftService {
         updatedAt: DateTime.parse(row['updated_at'] as String),
       );
     } catch (e) {
-      print('[DRAFT] erreur loadDraft: $e');
+      debugPrint('[DRAFT] erreur loadDraft: $e');
       return null;
     }
   }
@@ -173,9 +316,9 @@ class DraftService {
         cleLigne: draftKey,
         payload: {'draft_key': draftKey},
       );
-      print('[DRAFT] brouillon supprime: $draftKey');
+      debugPrint('[DRAFT] brouillon supprime: $draftKey');
     } catch (e) {
-      print('[DRAFT] erreur deleteDraft: $e');
+      debugPrint('[DRAFT] erreur deleteDraft: $e');
     }
   }
 
@@ -188,9 +331,9 @@ class DraftService {
         eventType: 'DELETE_ALL_FORM_DRAFTS',
         tableName: 'form_drafts',
       );
-      print('[DRAFT] tous les brouillons supprimes');
+      debugPrint('[DRAFT] tous les brouillons supprimes');
     } catch (e) {
-      print('[DRAFT] erreur deleteAllDrafts: $e');
+      debugPrint('[DRAFT] erreur deleteAllDrafts: $e');
     }
   }
 
@@ -201,9 +344,15 @@ class DraftService {
   /// Retourne un texte lisible comme "il y a 5 minutes", "il y a 2 heures".
   static String timeAgoText(DateTime dateTime) {
     final diff = DateTime.now().difference(dateTime);
-    if (diff.inSeconds < 60) return 'il y a quelques secondes';
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''}';
-    if (diff.inHours < 24) return 'il y a ${diff.inHours} heure${diff.inHours > 1 ? 's' : ''}';
+    if (diff.inSeconds < 60) {
+      return 'il y a quelques secondes';
+    }
+    if (diff.inMinutes < 60) {
+      return 'il y a ${diff.inMinutes} minute${diff.inMinutes > 1 ? 's' : ''}';
+    }
+    if (diff.inHours < 24) {
+      return 'il y a ${diff.inHours} heure${diff.inHours > 1 ? 's' : ''}';
+    }
     return 'il y a ${diff.inDays} jour${diff.inDays > 1 ? 's' : ''}';
   }
 }
@@ -394,6 +543,7 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
           'updated_at': draft.updatedAt.toIso8601String(),
         },
       );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Brouillon restauré'),
@@ -414,21 +564,23 @@ mixin FormDraftMixin<T extends StatefulWidget> on State<T> {
     Map<int, String?>? photoPaths,
     Map<String, dynamic>? extraState,
   }) {
-    final hasFormData = formData.values.any((v) => v.trim().isNotEmpty);
+    final hasFormData = formData.entries.any(
+      (entry) => isDraftFieldMeaningful(entry.key, entry.value),
+    );
     final hasPhotos =
         photoPaths?.values.any((p) => (p ?? '').trim().isNotEmpty) ?? false;
-    final hasExtraState =
-        extraState?.values.any(_isMeaningfulDraftValue) ?? false;
+    final hasExtraState = extraState?.entries.any(
+          (entry) => isDraftExtraStateMeaningful(entry.key, entry.value),
+        ) ??
+        false;
     return hasFormData || hasPhotos || hasExtraState;
   }
 
-  bool _isMeaningfulDraftValue(dynamic value) {
-    if (value == null) return false;
-    if (value is bool) return value;
-    if (value is String) return value.trim().isNotEmpty;
-    if (value is num) return value != 0;
-    if (value is Iterable) return value.isNotEmpty;
-    if (value is Map) return value.isNotEmpty;
-    return true;
+  bool isDraftFieldMeaningful(String field, String value) {
+    return DraftService.isDraftFieldMeaningfulValue(field, value);
+  }
+
+  bool isDraftExtraStateMeaningful(String key, dynamic value) {
+    return DraftService.isDraftExtraStateMeaningfulValue(key, value);
   }
 }

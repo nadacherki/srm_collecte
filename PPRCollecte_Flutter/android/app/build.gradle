@@ -59,6 +59,12 @@ android {
             signingConfig = signingConfigs.debug
         }
     }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            output.outputFileName = "SRM_Collecte-${variant.buildType.name}.apk"
+        }
+    }
 }
 
 flutter {

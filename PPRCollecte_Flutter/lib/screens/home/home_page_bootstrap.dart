@@ -6,16 +6,24 @@ Future<void> _checkPausedCollectionDraftImpl(_HomePageState state) async {
 
   final type = draft['collectionType'] as String? ?? '?';
   final nbPoints = (draft['points'] as List?)?.length ?? 0;
+
+  // Brouillon vide (0 point) -> rien a reprendre. On purge silencieusement
+  // pour ne pas reproposer le dialog au prochain demarrage.
+  if (nbPoints < 1) {
+    await state.homeController.collectionManager.clearPausedDraft();
+    return;
+  }
+
   final pausedAt = draft['pausedAt'] as String?;
-  final timeAgo = pausedAt != null
-      ? CollectionManager.pauseTimeAgo(pausedAt)
-      : '?';
+  final timeAgo =
+      pausedAt != null ? CollectionManager.pauseTimeAgo(pausedAt) : '?';
 
   final shouldRestore = await showDialog<bool>(
     context: state.context,
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
-      icon: const Icon(Icons.pause_circle_filled, color: Colors.orange, size: 36),
+      icon:
+          const Icon(Icons.pause_circle_filled, color: Colors.orange, size: 36),
       title: const Text('Collecte en pause'),
       content: Text(
         'Une collecte de $type avec $nbPoints points a été '
@@ -59,12 +67,22 @@ void _restorePausedCollectionImpl(
   switch (type) {
     case 'ligne':
       state.homeController.collectionManager.restoreLigneCollection(draft);
-      if (srmMeta != null && srmMeta['srmMetier'] != null) {
+      if (srmMeta != null && srmMeta['geometryEdit'] == true) {
+        state._geometryEditLineItem = {
+          'id': srmMeta['sourceId'] ?? draft['id'],
+          'source_metier': srmMeta['srmMetier'],
+          'source_entity': srmMeta['srmEntityType'],
+          'source_title': srmMeta['srmTitleApp'],
+          'source_table': srmMeta['srmTableName'],
+          'geometry_type': 'LineString',
+        };
+      } else if (srmMeta != null && srmMeta['srmMetier'] != null) {
         state._pendingSrmLigneSelection = SrmSelection(
           metier: srmMeta['srmMetier'] as String,
           entityType: srmMeta['srmEntityType'] as String? ?? '',
           tableName: srmMeta['srmTableName'] as String? ?? '',
           schema: srmMeta['srmSchema'] as String? ?? '',
+          titleApp: srmMeta['srmTitleApp'] as String? ?? '',
           isLine: true,
         );
       }
@@ -74,16 +92,34 @@ void _restorePausedCollectionImpl(
       }
       break;
 
-    case 'special':
-      state.homeController.collectionManager.restoreSpecialCollection(draft);
-      if (srmMeta != null) {
+    case 'polygon':
+      state.homeController.collectionManager.restorePolygonCollection(draft);
+      if (srmMeta != null && srmMeta['geometryEdit'] == true) {
+        state._geometryEditPolygonItem = {
+          'id': srmMeta['sourceId'] ?? draft['id'],
+          'source_metier': srmMeta['srmMetier'],
+          'source_entity': srmMeta['srmEntityType'],
+          'source_title': srmMeta['srmTitleApp'],
+          'source_table': srmMeta['srmTableName'],
+          'geometry_type': 'Polygon',
+        };
         state._pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
         state._pendingSrmPolygoneEntityType =
             srmMeta['srmEntityType'] as String?;
-        state._isPolygonCollection = srmMeta['isPolygonCollection'] == true;
-        state._isSpecialCollection = srmMeta['isSpecialCollection'] == true;
-        state._specialCollectionType =
-            srmMeta['specialCollectionType'] as String?;
+        state._pendingSrmPolygoneTitleApp = srmMeta['srmTitleApp'] as String?;
+        state._isPolygonCollection = true;
+        state._polygonEntityType = srmMeta['polygonEntityType'] as String? ??
+            srmMeta['srmEntityType'] as String?;
+      } else if (srmMeta != null) {
+        state._pendingSrmPolygoneMetier = srmMeta['srmMetier'] as String?;
+        state._pendingSrmPolygoneEntityType =
+            srmMeta['srmEntityType'] as String?;
+        state._pendingSrmPolygoneTitleApp = srmMeta['srmTitleApp'] as String?;
+        state._isPolygonCollection = true;
+        state._polygonEntityType = srmMeta['polygonEntityType'] as String?;
+      } else {
+        state._isPolygonCollection = true;
+        state._polygonEntityType = draft['entityType'] as String?;
       }
       break;
   }
@@ -103,68 +139,27 @@ void _restorePausedCollectionImpl(
 }
 
 Future<void> _hydrateOfflineBasemapStateImpl(_HomePageState state) async {
-  final db = DatabaseHelper();
-  final activePackage = await OfflineBasemapService().getActivePackage();
-  final packagePath = activePackage?['local_path']?.toString().trim();
-  final packageFormat = activePackage?['format']?.toString().trim();
-  final activeZoneId = activePackage?['zone_id']?.toString().trim();
-  final activeZone = activeZoneId == null || activeZoneId.isEmpty
-      ? null
-      : await db.getOfflineBasemapZoneById(activeZoneId);
-  final localPath =
-      (packagePath != null && packagePath.isNotEmpty) ? packagePath : null;
+  final activeBasemap = await OfflineBasemapService().getActiveBasemap();
+  await _applyOfflineBasemapPackageStateImpl(state, activeBasemap);
+}
+
+Future<void> _applyOfflineBasemapPackageStateImpl(
+  _HomePageState state,
+  Map<String, dynamic>? basemap,
+) async {
+  final localPath = basemap?['local_path']?.toString().trim();
+  final format = basemap?['format']?.toString().trim();
 
   if (!state.mounted) return;
 
   state._setStateFromPart(() {
     if (localPath != null && localPath.isNotEmpty) {
       state._offlineBasemapPath = localPath;
-      state._offlineBasemapFormat = packageFormat;
+      state._offlineBasemapFormat = format;
       state._basemapUnavailableMessage = null;
-    }
-
-    if (activeZone != null) {
-      final centerLat = _asDoubleOrNullImpl(activeZone['center_latitude']);
-      final centerLng = _asDoubleOrNullImpl(activeZone['center_longitude']);
-      final west = _asDoubleOrNullImpl(activeZone['bbox_west']);
-      final south = _asDoubleOrNullImpl(activeZone['bbox_south']);
-      final east = _asDoubleOrNullImpl(activeZone['bbox_east']);
-      final north = _asDoubleOrNullImpl(activeZone['bbox_north']);
-      final minZoom = _asDoubleOrNullImpl(activeZone['min_zoom']);
-      final maxZoom = _asDoubleOrNullImpl(activeZone['max_zoom']);
-
-      if (centerLat != null && centerLng != null) {
-        state._offlineBasemapCenter = LatLng(centerLat, centerLng);
-      }
-      if (west != null && south != null && east != null && north != null) {
-        state._offlineBasemapBounds = LatLngBounds(
-          LatLng(north, west),
-          LatLng(south, east),
-        );
-      }
-      if (minZoom != null) {
-        state._offlineBasemapMinZoom = minZoom;
-      }
-      if (maxZoom != null) {
-        state._offlineBasemapMaxZoom = maxZoom;
-      }
-      if (state._offlineBasemapMinZoom != null &&
-          state._offlineBasemapMaxZoom != null) {
-        state._offlineBasemapDefaultZoom =
-            (state._offlineBasemapMinZoom! + state._offlineBasemapMaxZoom!) / 2;
-      }
-    }
-
-    if (state._mapController != null &&
-        state._lastCameraPosition == null &&
-        state.userPosition == null &&
-        state._offlineBasemapCenter != null) {
-      state._mapController!.move(
-        state._offlineBasemapCenter!,
-        state._offlineBasemapDefaultZoom ??
-            BasemapConstants.fallbackDefaultZoom,
-      );
-      state._lastCameraPosition = state._offlineBasemapCenter;
+    } else if (state._offlineBasemapPath == null ||
+        state._offlineBasemapPath!.isEmpty) {
+      state._basemapUnavailableMessage = BasemapConstants.unavailableMessage;
     }
   });
 }
@@ -188,14 +183,10 @@ double? _asDoubleOrNullImpl(dynamic value) {
 
 Future<void> _loadAdminNamesOfflineImpl(_HomePageState state) async {
   try {
-    final projetRegion =
-        (ApiService.currentProjetRegion ?? '').toString().trim();
-    final projetNom = (ApiService.currentProjetNom ?? '').toString().trim();
-
     if (!state.mounted) return;
     state._setStateFromPart(() {
-      state._regionNom = projetRegion.isNotEmpty ? projetRegion : '----';
-      state._prefectureNom = projetNom.isNotEmpty ? projetNom : '----';
+      state._regionNom = '----';
+      state._prefectureNom = '----';
       state._communeNom = '----';
     });
   } catch (_) {
@@ -218,7 +209,30 @@ void _startOnlineWatcherImpl(_HomePageState state) {
 }
 
 Future<void> _checkOnlineStatusImpl(_HomePageState state) async {
-  final reachable = await _isApiReachableForStatusImpl();
+  final checks = await Future.wait<bool>([
+    _isApiReachableForStatusImpl(),
+    _isOnlineBasemapReachableImpl(),
+  ]);
+  await _applyOnlineStatusImpl(state, checks[0]);
+  _applyOnlineBasemapStatusImpl(state, checks[1]);
+}
+
+Future<bool> _refreshOnlineStatusForNetworkActionImpl(
+    _HomePageState state) async {
+  final checks = await Future.wait<bool>([
+    _isApiReachableForStatusImpl(),
+    _isOnlineBasemapReachableImpl(),
+  ]);
+  final reachable = checks[0];
+  await _applyOnlineStatusImpl(state, reachable);
+  _applyOnlineBasemapStatusImpl(state, checks[1]);
+  return reachable;
+}
+
+Future<void> _applyOnlineStatusImpl(
+  _HomePageState state,
+  bool reachable,
+) async {
   if (!state.mounted) return;
 
   final wasOffline = !state._isOnlineDynamic;
@@ -231,7 +245,83 @@ Future<void> _checkOnlineStatusImpl(_HomePageState state) async {
 
     if (wasOffline && reachable) {
       await _restoreApiServiceFromLocalImpl(state);
+      unawaited(_refreshMobileConfigAfterReconnectImpl(state));
     }
+  }
+}
+
+void _applyOnlineBasemapStatusImpl(
+  _HomePageState state,
+  bool reachable,
+) {
+  if (!state.mounted) return;
+  if (reachable == state._canUseOnlineBasemap) return;
+
+  state._setStateFromPart(() {
+    state._canUseOnlineBasemap = reachable;
+  });
+}
+
+Future<void> _refreshMobileConfigAfterReconnectImpl(
+  _HomePageState state,
+) async {
+  if (!state.mounted) return;
+  if (state._mobileConfigAutoRefreshRunning) return;
+
+  final now = DateTime.now();
+  final lastRefresh = state._lastMobileConfigAutoRefreshAt;
+  if (lastRefresh != null &&
+      now.difference(lastRefresh) < const Duration(minutes: 2)) {
+    return;
+  }
+
+  state._mobileConfigAutoRefreshRunning = true;
+  state._lastMobileConfigAutoRefreshAt = now;
+
+  try {
+    await _restoreApiServiceFromLocalImpl(state);
+    await Future.wait<void>([
+      _runReconnectRefreshStep(
+        'FORMULAIRE-CONFIG-MOBILE',
+        FormulaireConfigMobileService().refreshConfig(),
+      ),
+      _runReconnectRefreshStep(
+        'ATTRIBUT-CONFIG-MOBILE',
+        AttributConfigMobileService().refreshConfig(),
+      ),
+      _runReconnectRefreshStep(
+        'SRM-FIELD-OPTIONS',
+        SrmFieldOptionService().refreshOptions(),
+      ),
+      _runReconnectRefreshStep(
+        'COMMUNES',
+        CommuneSyncService().refreshCommunes(),
+      ),
+      _runReconnectRefreshStep(
+        'REFERENCE-OVERLAYS',
+        ReferenceOverlaySyncService().refreshLightOverlays(),
+      ),
+      _runReconnectRefreshStep(
+        'METRICS',
+        PublicMetricsCacheService().prefetchForCurrentSession(
+            requestTimeout: const Duration(seconds: 15)),
+      ),
+    ]);
+    await state._loadReferenceOverlays();
+    debugPrint('[RECONNECT-CONFIG] Refresh auto termine');
+  } finally {
+    state._mobileConfigAutoRefreshRunning = false;
+  }
+}
+
+Future<void> _runReconnectRefreshStep(
+  String label,
+  Future<dynamic> future,
+) async {
+  try {
+    await future;
+  } catch (e) {
+    debugPrint('[$label] Refresh reconnexion ignore: $e');
   }
 }
 
@@ -247,28 +337,290 @@ Future<void> _restoreApiServiceFromLocalImpl(_HomePageState state) async {
         : int.tryParse(user['id_user']?.toString() ?? '');
     ApiService.userRole = user['role']?.toString();
     ApiService.userLogin = user['login']?.toString();
-    ApiService.nomPrenom = user['nom_prenom']?.toString();
-
-    final idProjetActif = user['id_projet_actif'];
-    if (idProjetActif != null && ApiService.currentProjetId == null) {
-      ApiService.currentProjetId = idProjetActif is int
-          ? idProjetActif
-          : int.tryParse(idProjetActif.toString());
-
-      if (ApiService.currentProjetId != null) {
-        final projet = await DatabaseHelper()
-            .getProjetLocal(ApiService.currentProjetId!);
-        if (projet != null) {
-          ApiService.currentProjetNom = projet['nom']?.toString();
-          ApiService.currentProjetStatut = projet['statut']?.toString();
-          ApiService.currentProjetMetier = projet['metier']?.toString();
-          ApiService.currentProjetRegion = projet['region']?.toString();
-        }
-      }
-    }
+    ApiService.userNom = user['nom']?.toString();
+    ApiService.userPrenom = user['prenom']?.toString();
+    ApiService.nomPrenom = DatabaseHelper.fullNameFromUserRow(user);
   } catch (_) {
     // Échec silencieux : on retentera au prochain retour en ligne.
   }
+}
+
+Future<void> _autoStartNmeaBridgeIfConfiguredImpl(_HomePageState state) async {
+  if (!Platform.isAndroid) return;
+  if (!state.mounted) return;
+
+  try {
+    final bridge = NmeaBridgeService();
+    final status = await bridge.getStatus();
+    if (!status.mockLocationSelected) {
+      debugPrint(
+          '[NMEA] Auto-connect ignore: SRM Collecte non selectionnee en position fictive');
+      return;
+    }
+
+    if (!_isNmeaBridgeDisconnectedStatus(status.status)) {
+      debugPrint(
+          '[NMEA] Auto-connect ignore: pont deja actif (${status.status})');
+      state.homeController.markNmeaBridgePending(
+        deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+        bridgeStatus: status.status,
+        lastNmea: status.lastNmea,
+      );
+      _applyNmeaBridgeFixToMapImpl(
+        state,
+        status,
+        recenter: state._lastCameraPosition == null,
+      );
+      _startNmeaBridgeWatchImpl(state);
+      return;
+    }
+
+    final permissionsOk = await _ensureNmeaBluetoothPermissionsImpl();
+    if (!permissionsOk) {
+      debugPrint(
+          '[NMEA] Auto-connect ignore: permissions Bluetooth non accordees');
+      return;
+    }
+
+    final device = await bridge.resolveAutoConnectDevice();
+    if (device == null) {
+      debugPrint('[NMEA] Auto-connect ignore: aucun GNSS appaire reconnu');
+      return;
+    }
+
+    await bridge.connectBluetooth(device.address);
+    debugPrint('[NMEA] Auto-connect lance vers ${device.label}');
+    state.homeController.markNmeaBridgePending(deviceLabel: device.label);
+    _startNmeaBridgeWatchImpl(state);
+    unawaited(_centerOnNmeaFirstFixImpl(state, bridge));
+  } catch (e) {
+    debugPrint('[NMEA] Auto-connect echec: $e');
+  }
+}
+
+void _startNmeaBridgeWatchImpl(_HomePageState state) {
+  state._nmeaBridgeWatchTimer?.cancel();
+  final bridge = NmeaBridgeService();
+
+  state._nmeaBridgeWatchTimer = Timer.periodic(
+    const Duration(seconds: 1),
+    (timer) async {
+      if (!state.mounted) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        final status = await bridge.getStatus();
+        if (_isNmeaBridgeDisconnectedStatus(status.status)) {
+          timer.cancel();
+          return;
+        }
+        final applied = _applyNmeaBridgeFixToMapImpl(
+          state,
+          status,
+          recenter: false,
+        );
+        if (!applied &&
+            state.homeController.gpsSourceLabel.startsWith('GNSS externe')) {
+          state.homeController.markNmeaBridgePending(
+            deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+            bridgeStatus: status.status,
+            lastNmea: status.lastNmea,
+          );
+        }
+      } catch (e) {
+        debugPrint('[NMEA] Suivi pont GNSS ignore: $e');
+      }
+    },
+  );
+}
+
+Future<void> _centerOnNmeaFirstFixImpl(
+  _HomePageState state,
+  NmeaBridgeService bridge,
+) async {
+  const maxAttempts = 20;
+  const retryDelay = Duration(milliseconds: 700);
+
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    if (!state.mounted) return;
+
+    try {
+      final status = await bridge.getStatus();
+      final applied = _applyNmeaBridgeFixToMapImpl(state, status);
+      if (applied) {
+        return;
+      }
+    } catch (e) {
+      debugPrint('[NMEA] Attente premier fix GNSS: $e');
+    }
+
+    await Future.delayed(retryDelay);
+  }
+
+  debugPrint(
+      '[NMEA] Aucun fix GNSS exploitable recu pour recentrage automatique');
+}
+
+bool _applyNmeaBridgeFixToMapImpl(
+  _HomePageState state,
+  NmeaBridgeStatus status, {
+  bool recenter = true,
+}) {
+  final nativeLocation = status.lastLocation;
+  final source = nativeLocation?['source']?.toString();
+  if (source != 'nmea_bridge') {
+    return false;
+  }
+
+  final nativeLat = _asDoubleOrNullImpl(nativeLocation?['latitude']);
+  final nativeLon = _asDoubleOrNullImpl(nativeLocation?['longitude']);
+  final normalizedPosition = _normalizeGnssCoordinatesImpl(
+    nativeLocation: nativeLocation!,
+    latitude: nativeLat,
+    longitude: nativeLon,
+  );
+  if (normalizedPosition == null) {
+    return false;
+  }
+
+  final accuracy = _asDoubleOrNullImpl(nativeLocation['accuracy']);
+  final altitude = _asDoubleOrNullImpl(nativeLocation['altitude']);
+  final speed = _asDoubleOrNullImpl(nativeLocation['speed']);
+  final bearing = _asDoubleOrNullImpl(nativeLocation['bearing']);
+  final hdop = _asDoubleOrNullImpl(nativeLocation['hdop']);
+  final fixQuality = _asIntOrNullImpl(nativeLocation['fixQuality']);
+  final satellites = _asIntOrNullImpl(nativeLocation['satellites']);
+  final timestamp = _asIntOrNullImpl(
+    nativeLocation['nmeaReceivedAt'] ?? nativeLocation['time'],
+  );
+  final mockInjectedAt = _asIntOrNullImpl(nativeLocation['mockInjectedAt']);
+  final nmea = nativeLocation['nmea']?.toString() ?? status.lastNmea;
+  final bluetoothName =
+      nativeLocation['bluetoothName']?.toString() ?? status.bluetoothName;
+  final bluetoothAddress =
+      nativeLocation['bluetoothAddress']?.toString() ?? status.bluetoothAddress;
+  final target = LatLng(
+    normalizedPosition.latitude,
+    normalizedPosition.longitude,
+  );
+
+  state.homeController.applyNmeaBridgeLocation(
+    latitude: target.latitude,
+    longitude: target.longitude,
+    accuracy: accuracy,
+    altitude: altitude,
+    speed: speed,
+    bearing: bearing,
+    fixQuality: fixQuality,
+    satellites: satellites,
+    hdop: hdop,
+    nmea: nmea,
+    bluetoothName: bluetoothName,
+    bluetoothAddress: bluetoothAddress,
+    timestampMs: timestamp,
+    mockInjectedAtMs: mockInjectedAt,
+  );
+
+  if (recenter) {
+    state._autoCenterDisabledByUser = false;
+    if (state._mapController != null) {
+      state._mapController!.move(target, 17);
+      state._lastCameraPosition = target;
+    }
+    debugPrint(
+        '[NMEA] Carte recentree sur fix GNSS externe source=nmea_bridge');
+  }
+  return true;
+}
+
+({double latitude, double longitude})? _normalizeGnssCoordinatesImpl({
+  required Map<String, dynamic> nativeLocation,
+  required double? latitude,
+  required double? longitude,
+}) {
+  if (latitude != null &&
+      longitude != null &&
+      latitude.abs() <= 90 &&
+      longitude.abs() <= 180) {
+    return (latitude: latitude, longitude: longitude);
+  }
+
+  final explicitX = _firstDoubleValueImpl(nativeLocation, const [
+    'x',
+    'X',
+    'easting',
+    'E',
+    'merchich_x',
+    'coor_x',
+  ]);
+  final explicitY = _firstDoubleValueImpl(nativeLocation, const [
+    'y',
+    'Y',
+    'northing',
+    'N',
+    'merchich_y',
+    'coor_y',
+  ]);
+
+  double? x = explicitX;
+  double? y = explicitY;
+  if (x == null &&
+      y == null &&
+      latitude != null &&
+      longitude != null &&
+      (latitude.abs() > 90 || longitude.abs() > 180)) {
+    x = longitude;
+    y = latitude;
+  }
+
+  if (x == null || y == null || !_looksLikeProjectedXyImpl(x, y)) {
+    return null;
+  }
+
+  final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
+  if (wgs84.latitude.abs() > 90 || wgs84.longitude.abs() > 180) {
+    return null;
+  }
+  return (latitude: wgs84.latitude, longitude: wgs84.longitude);
+}
+
+double? _firstDoubleValueImpl(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = _asDoubleOrNullImpl(data[key]);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+bool _looksLikeProjectedXyImpl(double x, double y) {
+  return x.abs() > 180 &&
+      y.abs() > 90 &&
+      x.abs() < 2000000 &&
+      y.abs() < 2000000;
+}
+
+bool _isNmeaBridgeDisconnectedStatus(String status) {
+  final normalized = status.trim().toLowerCase();
+  return normalized.isEmpty ||
+      normalized == 'idle' ||
+      normalized == 'erreur' ||
+      normalized == 'bluetooth_disconnected' ||
+      normalized.startsWith('bluetooth_error');
+}
+
+Future<bool> _ensureNmeaBluetoothPermissionsImpl() async {
+  final connectStatus = await Permission.bluetoothConnect.request();
+  final scanStatus = await Permission.bluetoothScan.request();
+  return connectStatus.isGranted && scanStatus.isGranted;
+}
+
+int? _asIntOrNullImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString());
 }
 
 Future<bool> _isApiReachableForStatusImpl() async {
@@ -277,6 +629,22 @@ Future<bool> _isApiReachableForStatusImpl() async {
     final host = uri.host;
     final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
 
+    return _canConnectSocketImpl(host, port);
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> _isOnlineBasemapReachableImpl() async {
+  final checks = await Future.wait<bool>([
+    _canConnectSocketImpl('tile.openstreetmap.org', 443),
+    _canConnectSocketImpl('mt1.google.com', 443),
+  ]);
+  return checks.any((reachable) => reachable);
+}
+
+Future<bool> _canConnectSocketImpl(String host, int port) async {
+  try {
     final socket = await Socket.connect(
       host,
       port,
@@ -301,6 +669,20 @@ String _formatTimeHHmmImpl(DateTime dt) {
   final h = dt.hour.toString().padLeft(2, '0');
   final m = dt.minute.toString().padLeft(2, '0');
   return '$h:$m';
+}
+
+const Duration _focusOverlayVisibleDuration = Duration(seconds: 2);
+
+double _focusTargetZoomImpl(_HomePageState state) {
+  final rawMaxZoom = state._mapController?.camera.maxZoom ??
+      state._offlineBasemapMaxZoom ??
+      BasemapConstants.fallbackMaxZoom;
+  final maxZoom = rawMaxZoom.isFinite
+      ? rawMaxZoom.toDouble()
+      : BasemapConstants.fallbackMaxZoom;
+
+  if (maxZoom < 15.0) return maxZoom;
+  return maxZoom.clamp(15.0, BasemapConstants.fallbackMaxZoom).toDouble();
 }
 
 Future<void> _focusOnTargetImpl(
@@ -368,6 +750,8 @@ Future<void> _focusOnTargetImpl(
   }
 
   state._setStateFromPart(() {
+    state._focusOverlayPolylines.clear();
+    state._focusOverlayMarkers.clear();
     if (focusPolyline != null) state._focusOverlayPolylines.add(focusPolyline);
     if (focusMarker != null) state._focusOverlayMarkers.add(focusMarker);
   });
@@ -376,7 +760,7 @@ Future<void> _focusOnTargetImpl(
 
   if (state._mapController != null) {
     if (target.kind == 'point' && target.point != null) {
-      state._mapController!.move(target.point!, 15);
+      state._mapController!.move(target.point!, _focusTargetZoomImpl(state));
       state._lastCameraPosition = target.point;
     } else if (target.kind == 'polyline' &&
         target.polyline != null &&
@@ -389,7 +773,7 @@ Future<void> _focusOnTargetImpl(
     }
   }
 
-  Future.delayed(const Duration(seconds: 15), () {
+  Future.delayed(_focusOverlayVisibleDuration, () {
     if (!state.mounted) return;
     state._setStateFromPart(() {
       if (focusPolyline != null) {
@@ -404,6 +788,11 @@ Future<void> _focusOnTargetImpl(
 
 void _onMapCreatedImpl(_HomePageState state, MapController controller) {
   state._mapController = controller;
+
+  if (state._isConduiteDrawingMode && state._conduiteModeMarkers.isNotEmpty) {
+    state._focusConduiteModeBounds();
+    return;
+  }
 
   if (state.widget.initialFocus != null) {
     state._suspendAutoCenterFor(const Duration(seconds: 10));
@@ -429,6 +818,7 @@ void _onMapCreatedImpl(_HomePageState state, MapController controller) {
 }
 
 void _moveCameraIfNeededImpl(_HomePageState state) {
+  if (state._isConduiteDrawingMode) return;
   if (state._mapController == null || state.userPosition == null) return;
 
   try {

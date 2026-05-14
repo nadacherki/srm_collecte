@@ -1,6 +1,21 @@
 part of 'home_page.dart';
 
-void _showSyncConfirmationDialogImpl(_HomePageState state) {
+void _showSyncConfirmationDialogImpl(_HomePageState state) async {
+  final reachable = await state._refreshOnlineStatusForNetworkAction();
+  if (!state.mounted) return;
+
+  if (!reachable) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Synchronisation impossible en mode hors ligne.',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
@@ -10,7 +25,7 @@ void _showSyncConfirmationDialogImpl(_HomePageState state) {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Etes-vous sur de vouloir synchroniser vos donnees locales vers le serveur ?',
+            'Êtes-vous sûr de vouloir synchroniser vos données locales vers le serveur ?',
           ),
         ],
       ),
@@ -20,9 +35,9 @@ void _showSyncConfirmationDialogImpl(_HomePageState state) {
           child: const Text('Non'),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             Navigator.pop(ctx);
-            state._performSync();
+            await state._performSync();
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
           child: const Text(
@@ -45,14 +60,40 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
       final remaining = result.errors.length - errorsToShow.length;
       final warningsToShow = result.warnings.take(10).toList();
       final remainingWarnings = result.warnings.length - warningsToShow.length;
+      final syncLog = result.syncSessionLog;
+      final syncSessionUuid = result.syncSessionUuid;
+      String? syncJournalText;
+      if (syncLog != null) {
+        final status = syncLog['statut']?.toString().trim();
+        final receivedItems = syncLog['received_items'] ?? 0;
+        final totalItems = syncLog['total_items'] ?? 0;
+        final receivedAttachments = syncLog['received_attachments'] ?? 0;
+        final totalAttachments = syncLog['total_attachments'] ?? 0;
+        final failedItems = syncLog['failed_items'] ?? 0;
+        syncJournalText =
+            'Journal serveur : ${status?.isNotEmpty == true ? status : "statut inconnu"} '
+            '· données $receivedItems/$totalItems '
+            '· photos $receivedAttachments/$totalAttachments'
+            '${failedItems == 0 ? "" : " · erreurs $failedItems"}';
+      } else if (syncSessionUuid != null && syncSessionUuid.isNotEmpty) {
+        syncJournalText =
+            'Journal serveur : ${result.syncSessionStatus ?? "vérification indisponible"} '
+            '· session $syncSessionUuid';
+      }
 
-      final hasConnectionErrors = result.errors.any(
-        (error) =>
-            error.contains('connexion perdue') ||
-            error.contains('serveur injoignable') ||
-            error.contains('Timeout') ||
-            error.contains('reseau'),
-      );
+      bool isConnectionError(String error) {
+        final lower = error.toLowerCase();
+        return lower.contains('connexion perdue') ||
+            lower.contains('serveur injoignable') ||
+            lower.contains('timeout') ||
+            lower.contains('reseau') ||
+            lower.contains('réseau') ||
+            lower.contains('socketexception') ||
+            lower.contains('connection refused') ||
+            lower.contains('failed host lookup');
+      }
+
+      final hasConnectionErrors = result.errors.any(isConnectionError);
 
       final String title;
       final IconData titleIcon;
@@ -61,25 +102,92 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
       if (result.failedCount == 0 &&
           result.warningCount == 0 &&
           result.successCount > 0) {
-        title = 'Synchronisation reussie';
+        title = 'Synchronisation réussie';
         titleIcon = Icons.check_circle;
         titleColor = Colors.green;
       } else if (result.failedCount == 0 && result.warningCount > 0) {
-        title = 'Synchronisation terminee avec avertissements';
+        title = 'Synchronisation terminée avec avertissements';
         titleIcon = Icons.info_outline;
         titleColor = Colors.orange;
       } else if (result.successCount > 0 && result.failedCount > 0) {
         title = 'Synchronisation partielle';
         titleIcon = Icons.warning_amber;
         titleColor = Colors.orange;
+      } else if (result.successCount == 0 &&
+          result.failedCount > 0 &&
+          hasConnectionErrors) {
+        title = 'Connexion au serveur indisponible';
+        titleIcon = Icons.cloud_off;
+        titleColor = Colors.red;
       } else if (result.successCount == 0 && result.failedCount > 0) {
-        title = 'Synchronisation echouee';
+        title = 'Synchronisation échouée';
         titleIcon = Icons.error;
         titleColor = Colors.red;
       } else {
-        title = 'Aucune donnee a synchroniser';
+        title = 'Aucune donnée à synchroniser';
         titleIcon = Icons.info;
         titleColor = Colors.blue;
+      }
+
+      final isNoDataResult = result.successCount == 0 &&
+          result.failedCount == 0 &&
+          result.warningCount == 0 &&
+          errorsToShow.isEmpty &&
+          warningsToShow.isEmpty;
+
+      if (isNoDataResult) {
+        return AlertDialog(
+          contentPadding: const EdgeInsets.fromLTRB(24, 22, 24, 6),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: titleColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(titleIcon, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Aucune donnée à synchroniser',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Tout est déjà à jour sur ce téléphone.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
       }
 
       return AlertDialog(
@@ -101,7 +209,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '$displaySuccessCount donnee(s) synchronisee(s)',
+                    _syncSyncedDataText(displaySuccessCount),
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,
@@ -112,7 +220,7 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${result.failedCount} donnee(s) non synchronisee(s)',
+                    _syncUnsyncedDataText(result.failedCount),
                     style: const TextStyle(
                       color: Colors.red,
                       fontWeight: FontWeight.w600,
@@ -123,13 +231,28 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${result.warningCount} avertissement(s) sur le journal local',
+                    '${_syncWarningCountText(result.warningCount)} sur le journal local',
                     style: const TextStyle(
                       color: Colors.orange,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+              if (syncJournalText != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Text(
+                    syncJournalText,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
               if (hasConnectionErrors && result.successCount > 0) ...[
                 const SizedBox(height: 10),
                 Container(
@@ -140,20 +263,43 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                     border: Border.all(color: Colors.orange.shade300),
                   ),
                   child: const Text(
-                    'La connexion a ete interrompue pendant la synchronisation. Les donnees deja envoyees ont ete sauvegardees. Relancez la synchronisation pour envoyer le reste.',
+                    'La connexion a été interrompue pendant la synchronisation. Les données déjà envoyées ont été sauvegardées. Relancez la synchronisation pour envoyer le reste.',
                     style: TextStyle(fontSize: 13),
                   ),
+                ),
+              ] else if (hasConnectionErrors && result.failedCount > 0) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: const Text(
+                    "La synchronisation n'a pas pu joindre le serveur SRM. Cela peut venir d'une connexion Internet absente, d'un réseau instable, ou d'un backend Django arrêté ou inaccessible.",
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Vérifiez le réseau de l'appareil, puis assurez-vous que le serveur Django est démarré et joignable avant de réessayer.",
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Détails techniques : ${_syncUnableToSendDataText(result.failedCount)}.',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ] else if (result.failedCount > 0) ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'Verifiez votre connexion internet et reessayez.',
+                  'Vérifiez votre connexion internet et réessayez.',
                 ),
               ],
               if (errorsToShow.isNotEmpty && !hasConnectionErrors) ...[
                 const SizedBox(height: 10),
                 const Text(
-                  'Details des erreurs :',
+                  'Détails des erreurs :',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 5),
@@ -218,17 +364,32 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
   });
 }
 
-void _showSaveConfirmationDialogImpl(_HomePageState state) {
+void _showSaveConfirmationDialogImpl(_HomePageState state) async {
+  final reachable = await state._refreshOnlineStatusForNetworkAction();
+  if (!state.mounted) return;
+
+  if (!reachable) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Téléchargement impossible en mode hors ligne.',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Confirmation de telechargement'),
+      title: const Text('Confirmation de téléchargement'),
       content: const Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Etes-vous sur de vouloir telecharger les donnees SRM depuis le serveur ?',
+            'Êtes-vous sûr de vouloir télécharger les données SRM depuis le serveur ?',
           ),
         ],
       ),
@@ -238,9 +399,9 @@ void _showSaveConfirmationDialogImpl(_HomePageState state) {
           child: const Text('Non'),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             Navigator.pop(ctx);
-            state._performDownload();
+            await state._performDownload();
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
           child: const Text(
@@ -264,14 +425,44 @@ void _showDownloadResultImpl(
     builder: (ctx) {
       final errorsToShow = result.errors.take(10).toList();
       final remaining = result.errors.length - errorsToShow.length;
+      bool isLikelyNetworkFailure(String error) {
+        final lower = error.toLowerCase();
+        return lower.contains('connexion interrompue') ||
+            lower.contains('erreur reseau') ||
+            lower.contains('erreur réseau') ||
+            lower.contains('timeout') ||
+            lower.contains('socketexception') ||
+            lower.contains('connection refused') ||
+            lower.contains('failed host lookup');
+      }
+
+      final hasFailures = result.failedCount > 0;
+      final fullFailure =
+          hasFailures && result.successCount == 0 && result.skippedCount == 0;
+      final partialFailure = hasFailures &&
+          !fullFailure &&
+          !alreadyDownloaded &&
+          !nothingAvailable;
+      final networkOnlyFailure = result.interrupted ||
+          (hasFailures &&
+              result.errors.isNotEmpty &&
+              result.errors.every(isLikelyNetworkFailure));
 
       return AlertDialog(
         title: Text(
           alreadyDownloaded
-              ? 'Aucune nouvelle donnee a telecharger'
+              ? 'Données déjà à jour'
               : nothingAvailable
-                  ? 'Aucune donnee disponible'
-                  : 'Telechargement termine',
+                  ? 'Aucune donnée disponible'
+                  : result.interrupted
+                      ? 'Téléchargement interrompu'
+                      : fullFailure
+                          ? networkOnlyFailure
+                              ? 'Connexion au serveur indisponible'
+                              : 'Téléchargement impossible'
+                          : partialFailure
+                              ? 'Téléchargement partiel'
+                              : 'Téléchargement terminé',
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -280,40 +471,56 @@ void _showDownloadResultImpl(
             children: [
               if (alreadyDownloaded) ...[
                 const Text(
-                  'Les donnees du serveur pour ce projet et cette mission sont deja telechargees ou deja a jour sur cet appareil.',
+                  'Toutes les données des zones affectées à votre compte sont déjà téléchargées.',
                 ),
-                const SizedBox(height: 8),
-                const Text('Toutes les donnees etaient deja a jour.'),
+                if (result.updatedCount > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                      '${result.updatedCount} objet(s) rafraîchi(s) (modifications serveur)'),
+                ],
               ],
               if (nothingAvailable) ...[
                 const Text(
-                  'Aucune donnee n a ete trouvee sur le serveur pour votre compte.',
+                  "Aucune donnée n'a été trouvée dans les zones affectées à votre compte.",
+                ),
+              ],
+              if (result.interrupted) ...[
+                const Text(
+                  'Connexion interrompue. Vérifiez Internet puis relancez pour reprendre.',
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Causes possibles :\n- Aucune donnee n est encore associee a votre zone\n- Vos permissions ne sont pas encore configurees\n- Les donnees n ont pas encore ete collectees dans votre zone',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+              ],
+              if (fullFailure && !result.interrupted) ...[
+                Text(
+                  networkOnlyFailure
+                      ? "Aucune donnée n'a pu être téléchargée pour le moment."
+                      : "Aucune donnée n'a pu être téléchargée.",
                 ),
+                const SizedBox(height: 8),
               ],
               if (!nothingAvailable &&
                   !alreadyDownloaded &&
+                  !fullFailure &&
                   result.successCount > 0)
-                Text('${result.successCount} nouvelles donnees telechargees'),
+                Text('${result.successCount} nouvelles données téléchargées'),
+              if (!nothingAvailable &&
+                  !alreadyDownloaded &&
+                  !fullFailure &&
+                  result.updatedCount > 0)
+                Text(
+                    '${result.updatedCount} objet(s) déjà présents rafraîchi(s)'),
               if (!nothingAvailable && result.skippedCount > 0)
-                Text('${result.skippedCount} donnees deja a jour'),
+                Text(
+                    '${result.skippedCount} données ignorées (format invalide)'),
               if (result.failedCount > 0)
                 Text(
-                  '${result.failedCount} types de donnees n ont pas pu etre mis a jour',
+                  networkOnlyFailure
+                      ? '${result.failedCount} type(s) de données en attente.'
+                      : "${result.failedCount} type(s) de données n'ont pas pu être mis à jour.",
                 ),
-              if (result.failedCount > 0) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'Verifiez votre connexion internet ou reessayez plus tard.',
-                ),
-              ],
-              if (errorsToShow.isNotEmpty) ...[
+              if (errorsToShow.isNotEmpty && !networkOnlyFailure) ...[
                 const SizedBox(height: 10),
-                const Text('Details des erreurs :'),
+                const Text('Détails des erreurs :'),
                 const SizedBox(height: 5),
                 ...errorsToShow.map(
                   (error) => Text(
@@ -324,7 +531,7 @@ void _showDownloadResultImpl(
                 if (remaining > 0) ...[
                   const SizedBox(height: 5),
                   Text(
-                    '- ... et $remaining autres problemes.',
+                    '- ... et $remaining autres problèmes.',
                     style: const TextStyle(
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
@@ -341,7 +548,6 @@ void _showDownloadResultImpl(
               Navigator.pop(ctx);
               state._loadDisplayedPolygons();
               state._loadDownloadedLineOverlays();
-              state._loadDownloadedSpecialLines();
             },
             child: const Text('OK'),
           ),
@@ -355,9 +561,9 @@ void _showLogoutConfirmationImpl(_HomePageState state) {
   showDialog(
     context: state.context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Confirmation de deconnexion'),
+      title: const Text('Confirmation de déconnexion'),
       content: const Text(
-        'Etes-vous sur de vouloir vous deconnecter ?',
+        'Êtes-vous sûr de vouloir vous déconnecter ?',
       ),
       actions: [
         TextButton(
@@ -391,42 +597,95 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
   final longitudeController = TextEditingController(
     text: initialPosition.longitude.toStringAsFixed(6),
   );
+  final initialAltitude =
+      state.homeController.mockAltitude ?? state.homeController.currentAltitude;
+  final altitudeController = TextEditingController(
+    text: (initialAltitude ?? 0.0).toStringAsFixed(3),
+  );
 
   try {
     final result = await showDialog<Map<String, dynamic>>(
       context: hostContext,
       builder: (dialogContext) {
+        final media = MediaQuery.of(dialogContext);
+        final availableHeight = media.size.height -
+            media.viewInsets.vertical -
+            media.padding.vertical;
+        final maxContentHeight =
+            (availableHeight * 0.48).clamp(170.0, 320.0).toDouble();
+
         return AlertDialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           title: const Text('Position GPS mock'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: latitudeController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Latitude',
-                  hintText: 'Ex: 33.573110',
-                ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxContentHeight),
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: latitudeController,
+                    scrollPadding: const EdgeInsets.only(bottom: 96),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Latitude',
+                      hintText: 'Ex: 33.573110',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: longitudeController,
+                    scrollPadding: const EdgeInsets.only(bottom: 96),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Longitude',
+                      hintText: 'Ex: -7.589843',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: altitudeController,
+                    scrollPadding: const EdgeInsets.only(bottom: 120),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Z / altitude (m)',
+                      hintText: 'Ex: 500.000',
+                      isDense: true,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: longitudeController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Longitude',
-                  hintText: 'Ex: -7.589843',
-                ),
-              ),
-            ],
+            ),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
           actions: [
+            TextButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop({
+                'action': 'read_gnss',
+              }),
+              icon: const Icon(Icons.gps_fixed, size: 18),
+              label: const Text('Lire GPS/GNSS'),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop({
+                'action': 'nmea_bridge',
+              }),
+              icon: const Icon(Icons.settings_input_antenna, size: 18),
+              label: const Text('Pont NMEA'),
+            ),
             if (state.homeController.isMockLocationEnabled)
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop({
@@ -448,6 +707,9 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
                   'lon': double.tryParse(
                     longitudeController.text.trim().replaceAll(',', '.'),
                   ),
+                  'altitude': double.tryParse(
+                    altitudeController.text.trim().replaceAll(',', '.'),
+                  ),
                 });
               },
               child: const Text('Appliquer'),
@@ -463,6 +725,93 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     if (!state.mounted) return;
 
     final action = (result['action'] ?? '').toString();
+
+    if (action == 'nmea_bridge') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!state.mounted) return;
+        unawaited(_showNmeaBridgeDialog(state, messenger));
+      });
+      return;
+    }
+
+    if (action == 'read_gnss') {
+      try {
+        final bridge = NmeaBridgeService();
+        final bridgeStatus = await bridge.getStatus();
+        final appliedExternal = _applyNmeaBridgeFixToMapImpl(
+          state,
+          bridgeStatus,
+        );
+        if (appliedExternal) {
+          final position = state.homeController.userPosition;
+          messenger?.showSnackBar(
+            SnackBar(
+              content: Text(
+                'GNSS externe lu: ${position.latitude.toStringAsFixed(6)}, '
+                '${position.longitude.toStringAsFixed(6)}',
+              ),
+              backgroundColor: Colors.teal,
+            ),
+          );
+          return;
+        }
+
+        final expectingExternal =
+            state.homeController.gpsSourceLabel.startsWith('GNSS externe') ||
+                bridgeStatus.status.toLowerCase().contains('bluetooth') ||
+                bridgeStatus.status.toLowerCase().contains('nmea');
+        if (expectingExternal) {
+          messenger?.showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Pont NMEA actif mais aucun fix GNSS externe recu. '
+                'Aucune position telephone utilisee.',
+              ),
+              backgroundColor: Colors.orange.shade800,
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        // Fallback to phone GNSS when the NMEA bridge is unavailable.
+      }
+
+      final enriched = await state.homeController.refreshFromDeviceGps();
+      if (!state.mounted) return;
+
+      final lat = enriched?.raw.latitude;
+      final lon = enriched?.raw.longitude;
+      if (enriched == null || lat == null || lon == null) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('Position GPS/GNSS indisponible.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final gnssPosition = LatLng(lat, lon);
+      if (state._mapController != null) {
+        state._mapController!.move(gnssPosition, 17);
+        state._lastCameraPosition = gnssPosition;
+      }
+
+      final altitude = enriched.raw.altitude;
+      final zText = altitude == null
+          ? 'Z non disponible'
+          : 'Z=${altitude.toStringAsFixed(2)} m';
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'GNSS lu: X=${enriched.merchichX.toStringAsFixed(2)}, '
+            'Y=${enriched.merchichY.toStringAsFixed(2)}, $zText',
+          ),
+          backgroundColor: Colors.teal,
+        ),
+      );
+      return;
+    }
 
     if (action == 'clear') {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -487,24 +836,25 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
 
     final lat = result['lat'] as double?;
     final lon = result['lon'] as double?;
+    final altitude = result['altitude'] as double?;
 
-    if (lat == null || lon == null) {
+    if (lat == null || lon == null || altitude == null) {
       messenger?.showSnackBar(
         const SnackBar(
-          content: Text('Latitude ou longitude invalide'),
+          content: Text('Latitude, longitude ou Z invalide'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    try {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!state.mounted) return;
-
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!state.mounted) return;
+      try {
         state.homeController.setMockPosition(
           latitude: lat,
           longitude: lon,
+          altitude: altitude,
         );
         final mockPosition = LatLng(lat, lon);
         if (state._mapController != null) {
@@ -514,23 +864,291 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         messenger?.showSnackBar(
           SnackBar(
             content: Text(
-              'Mock GPS applique: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}',
+              'Mock GPS applique: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}, Z=${altitude.toStringAsFixed(3)} m',
             ),
             backgroundColor: Colors.teal,
           ),
         );
-      });
-    } catch (e) {
-      if (!state.mounted) return;
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+      } catch (e) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
   } finally {
     latitudeController.dispose();
     longitudeController.dispose();
+    altitudeController.dispose();
   }
+}
+
+Future<void> _showNmeaBridgeDialog(
+  _HomePageState state,
+  ScaffoldMessengerState? messenger,
+) async {
+  final bridge = NmeaBridgeService();
+  final nmeaController = TextEditingController(
+    text:
+        r'$GPGGA,120000.00,3441.0000,N,00154.0000,W,4,12,0.8,500.0,M,0.0,M,,*00',
+  );
+
+  var status = const NmeaBridgeStatus(
+    status: 'chargement',
+    mockLocationSelected: false,
+  );
+  var devices = <NmeaBridgeDevice>[];
+  String? loadError;
+  var isLoadingDevices = false;
+  var didScheduleInitialLoad = false;
+
+  try {
+    status = await bridge.getStatus();
+    final preferred = await bridge.getPreferredBluetoothDevice();
+    if (preferred != null) {
+      devices = [preferred];
+    }
+  } catch (e) {
+    loadError = _friendlyNmeaBridgeError(e);
+  }
+
+  try {
+    if (!state.mounted) return;
+    await showDialog<void>(
+      context: state.context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> loadBluetoothDevices() async {
+              setDialogState(() {
+                isLoadingDevices = true;
+                loadError = null;
+              });
+              try {
+                if (Platform.isAndroid) {
+                  await Permission.bluetoothConnect.request();
+                  await Permission.bluetoothScan.request();
+                }
+                final loadedStatus = await bridge.getStatus();
+                final loadedDevices = await bridge.listBondedBluetoothDevices();
+                if (!dialogContext.mounted) return;
+                setDialogState(() {
+                  status = loadedStatus;
+                  devices = loadedDevices;
+                  isLoadingDevices = false;
+                });
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+                setDialogState(() {
+                  loadError = _friendlyNmeaBridgeError(e);
+                  isLoadingDevices = false;
+                });
+              }
+            }
+
+            if (!didScheduleInitialLoad) {
+              didScheduleInitialLoad = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!dialogContext.mounted) return;
+                unawaited(loadBluetoothDevices());
+              });
+            }
+
+            return AlertDialog(
+              title: const Text('Pont NMEA Oscar'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        status.mockLocationSelected
+                            ? 'SRM Collecte est selectionnee comme app de position fictive.'
+                            : 'Selectionnez SRM Collecte comme app de position fictive Android.',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: status.mockLocationSelected
+                              ? Colors.green.shade700
+                              : Colors.orange.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Etat du pont : ${status.status}'),
+                      if (isLoadingDevices) ...[
+                        const SizedBox(height: 8),
+                        const LinearProgressIndicator(),
+                      ],
+                      if (loadError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          loadError ?? '',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Appareils Bluetooth appaires',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      if (devices.isEmpty)
+                        const Text(
+                          'Chargement automatique des appareils appaires en cours.',
+                        )
+                      else
+                        ...devices.map(
+                          (device) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.bluetooth),
+                            title: Text(_nmeaDeviceTitle(device)),
+                            subtitle: Text(device.address),
+                            onTap: () async {
+                              try {
+                                await bridge
+                                    .savePreferredBluetoothDevice(device);
+                                await bridge.connectBluetooth(device.address);
+                                state.homeController.markNmeaBridgePending(
+                                  deviceLabel: device.label,
+                                );
+                                _startNmeaBridgeWatchImpl(state);
+                                unawaited(
+                                  _centerOnNmeaFirstFixImpl(state, bridge),
+                                );
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
+                                messenger?.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Connexion pont NMEA lancee vers ${device.label}',
+                                    ),
+                                    backgroundColor: Colors.teal,
+                                  ),
+                                );
+                              } catch (e) {
+                                messenger?.showSnackBar(
+                                  SnackBar(
+                                    content: Text(_friendlyNmeaBridgeError(e)),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      if (state._canUseAdminGpsTools) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: nmeaController,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Test manuel NMEA GGA/RMC',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => bridge.openMockLocationSettings(),
+                  child: const Text('Options mock'),
+                ),
+                TextButton(
+                  onPressed: () => bridge.openBluetoothSettings(),
+                  child: const Text('Bluetooth'),
+                ),
+                TextButton(
+                  onPressed: isLoadingDevices
+                      ? null
+                      : () => unawaited(loadBluetoothDevices()),
+                  child: const Text('Verifier'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await bridge.disconnectBluetooth();
+                      messenger?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Pont NMEA deconnecte.'),
+                          backgroundColor: Colors.blueGrey,
+                        ),
+                      );
+                    } catch (_) {
+                      // Ignore disconnect errors.
+                    }
+                  },
+                  child: const Text('Deconnecter'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Fermer'),
+                ),
+                if (state._canUseAdminGpsTools)
+                  ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        final pushed =
+                            await bridge.pushNmea(nmeaController.text);
+                        final currentStatus = await bridge.getStatus();
+                        _applyNmeaBridgeFixToMapImpl(state, currentStatus);
+                        final lat = pushed['latitude'];
+                        final lon = pushed['longitude'];
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                        messenger?.showSnackBar(
+                          SnackBar(
+                            content: Text('NMEA injecte: $lat, $lon'),
+                            backgroundColor: Colors.teal,
+                          ),
+                        );
+                      } catch (e) {
+                        messenger?.showSnackBar(
+                          SnackBar(
+                            content: Text(_friendlyNmeaBridgeError(e)),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Injecter'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    nmeaController.dispose();
+  }
+}
+
+String _nmeaDeviceTitle(NmeaBridgeDevice device) {
+  final name = device.name?.trim();
+  return name != null && name.isNotEmpty ? name : device.address;
+}
+
+String _friendlyNmeaBridgeError(Object error) {
+  final message = error is PlatformException
+      ? (error.message ?? error.code)
+      : error.toString();
+  if (message.contains('position fictive') ||
+      message.contains('MOCK') ||
+      message.contains('mock')) {
+    return 'Sélectionnez SRM Collecte dans Options développeur > Application de position fictive.';
+  }
+  if (message.contains('BLUETOOTH') || message.contains('Bluetooth')) {
+    return 'Autorisez Bluetooth et appairez Oscar dans les paramètres Android.';
+  }
+  return message;
 }
