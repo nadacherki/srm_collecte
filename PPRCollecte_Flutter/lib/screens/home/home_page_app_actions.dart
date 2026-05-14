@@ -4,6 +4,43 @@ extension _HomePageAppActions on _HomePageState {
   Future<void> _performDownload() async {
     if (isDownloading || isSyncing) return;
 
+    // Court-circuit "session deja synchro" : si un telechargement a deja
+    // reussi pendant cette session de login, on n'invoque PAS le serveur a
+    // chaque clic du bouton. Le re-check serveur ne se fait qu'au prochain
+    // login (le timestamp `srm_session.last_login` est mis a jour a chaque
+    // setCurrentUserLogin).
+    final db = DatabaseHelper();
+    final lastDownloadAt = await db.getLastDownloadTime();
+    final lastLoginAt = await db.getLastLoginAt();
+    if (!mounted) return;
+    if (lastDownloadAt != null &&
+        lastLoginAt != null &&
+        lastDownloadAt.isAfter(lastLoginAt)) {
+      final local = lastDownloadAt.toLocal();
+      String pad2(int n) => n.toString().padLeft(2, '0');
+      final lastCheckLabel =
+          '${pad2(local.day)}/${pad2(local.month)}/${local.year} '
+          'à ${pad2(local.hour)}:${pad2(local.minute)}';
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Données déjà téléchargées'),
+          content: Text(
+            'Toutes les données des zones affectées à votre compte sont déjà '
+            'téléchargées pendant cette session.\n\n'
+            'Dernière vérification : $lastCheckLabel.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final reachable = await _refreshOnlineStatusForNetworkAction();
     if (!mounted) return;
 
@@ -148,8 +185,16 @@ extension _HomePageAppActions on _HomePageState {
         nothingAvailable: nothingAvailable,
       );
 
+      String buildDownloadSnackbarSuccess() {
+        final parts = <String>['Téléchargement : ${result.successCount} nouvelles'];
+        if (result.skippedCount > 0) {
+          parts.add('${result.skippedCount} ignorées (format invalide)');
+        }
+        return parts.join(', ');
+      }
+
       final snackBarMessage = alreadyDownloaded
-          ? 'Données des zones affectées déjà à jour'
+          ? 'Données des zones affectées déjà téléchargées'
           : nothingAvailable
               ? 'Aucune donnée dans les zones affectées à votre compte'
               : result.interrupted
@@ -162,7 +207,7 @@ extension _HomePageAppActions on _HomePageState {
                       : partialFailure
                           ? 'Téléchargement partiel : ${result.successCount} nouvelles, ${result.failedCount} erreurs'
                           : result.successCount > 0
-                              ? 'Téléchargement : ${result.successCount} nouvelles, ${result.skippedCount} ignorées (format invalide)'
+                              ? buildDownloadSnackbarSuccess()
                               : 'Toutes les données reçues sont ignorées (format invalide) (${result.skippedCount})';
 
       final snackBarColor = alreadyDownloaded

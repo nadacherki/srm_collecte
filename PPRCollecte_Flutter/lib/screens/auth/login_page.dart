@@ -117,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
         }
         return null;
       }
-      return snapshot.error ?? 'Aucune metrique serveur recue au login.';
+      return snapshot.error ?? 'Aucune métrique serveur reçue au login.';
     } catch (e) {
       debugPrint('[METRICS] Sync ignoree au login: $e');
       return e.toString();

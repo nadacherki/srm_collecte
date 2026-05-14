@@ -515,7 +515,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
   Future<void> _goToLinkedObjectOnMap(Map<String, dynamic> intervention) async {
     final ref = _resolveObjectRef(intervention);
     if (ref == null) {
-      _showMessage('Objet lie non reconnu sur ce telephone.');
+      _showMessage('Objet lié non reconnu sur ce téléphone.');
       return;
     }
 
@@ -526,7 +526,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
     );
     if (item == null) {
       _showMessage(
-        'Objet lie non disponible localement. Telechargez les donnees puis reessayez.',
+        'Objet lié non disponible localement. Téléchargez les données puis réessayez.',
       );
       return;
     }

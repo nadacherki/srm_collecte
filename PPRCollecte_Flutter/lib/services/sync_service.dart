@@ -23,6 +23,15 @@ class SyncResult {
   int failedCount = 0;
   int skippedCount = 0;
   int updatedCount = 0;
+  // Decomposition du successCount par categorie pour l'affichage utilisateur :
+  // - referentielCount      : onep_db (referentiel ONEP, hors zones)
+  // - zoneFeatureCount      : objets metier dans les zones affectees
+  // - anomalieCount         : interventions anomalies terrain (zone-filtrees)
+  // - incompletCount        : objets incomplets (zone-filtrees)
+  int referentielCount = 0;
+  int zoneFeatureCount = 0;
+  int anomalieCount = 0;
+  int incompletCount = 0;
   bool interrupted = false;
   String? interruptionMessage;
   final List<String> errors = [];
@@ -218,6 +227,7 @@ class SyncService {
               downloadedForTable++;
               result.successCount++;
               result.entitySuccessCount++;
+              result.referentielCount++;
               continue;
             }
 
@@ -252,6 +262,11 @@ class SyncService {
             if (upsertRes.wasInserted) {
               result.successCount++;
               result.entitySuccessCount++;
+              if (info.table == 'objet_incomplet') {
+                result.incompletCount++;
+              } else {
+                result.zoneFeatureCount++;
+              }
             } else {
               result.updatedCount++;
             }
@@ -459,6 +474,7 @@ class SyncService {
         await dbHelper.upsertDownloadedInterventionAnomalieTerrain(normalized);
         result.successCount++;
         result.entitySuccessCount++;
+        result.anomalieCount++;
       }
       await dbHelper.saveLastDownloadTimeForTable(tableName, startedAt);
       await dbHelper.saveAppMetadataValue(scopeMetadataKey, scopeMetadataValue);
@@ -773,8 +789,8 @@ class SyncService {
           receivedAttachments < totalAttachments) {
         result.warnings.add(
           'Journal sync serveur partiel: '
-          '$receivedItems/$totalItems donnees, '
-          '$receivedAttachments/$totalAttachments photos recues.',
+          '$receivedItems/$totalItems données, '
+          '$receivedAttachments/$totalAttachments photos reçues.',
         );
       }
     } catch (e) {
@@ -1367,7 +1383,7 @@ class SyncService {
             table: table,
             endpoint: endpoint,
             geometryLabel: isReference
-                ? 'Referentiel'
+                ? 'Référentiel'
                 : _geometryLabel(mobileMetier, entity),
             isReference: isReference,
           ),

@@ -4983,6 +4983,27 @@ class DatabaseHelper {
     }
   }
 
+  /// Horodatage du dernier login (= debut de la session courante). Utilise
+  /// par le court-circuit "Donnees deja telechargees" cote home_page pour
+  /// eviter de retaper le serveur a chaque clic du bouton Telecharger
+  /// pendant la meme session de login.
+  Future<DateTime?> getLastLoginAt() async {
+    try {
+      final db = await database;
+      final rows = await db.query(
+        'srm_session',
+        columns: ['last_login'],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      final raw = rows.first['last_login']?.toString();
+      if (raw == null || raw.isEmpty) return null;
+      return DateTime.tryParse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<int> countDownloadedSrmRows() async {
     final db = await database;
     int total = 0;

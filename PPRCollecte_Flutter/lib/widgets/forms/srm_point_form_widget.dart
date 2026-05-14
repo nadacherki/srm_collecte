@@ -982,7 +982,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Photo non sauvegardee localement: $e'),
+          content: Text('Photo non sauvegardée localement: $e'),
           backgroundColor: Colors.red,
         ),
       );
