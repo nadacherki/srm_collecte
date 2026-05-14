@@ -767,12 +767,12 @@ class _ProfilePageState extends State<ProfilePage> {
     final isFieldAgent =
         role.isEmpty || role == 'editeur_terrain' || role == 'agent';
     final message = isFieldAgent
-        ? "Vous n'avez encore collecte aucun objet terrain. "
-            'Ouvrez la carte et placez votre premier point pour demarrer.'
-        : "Aucune collecte enregistree sur ce compte. Les compteurs serveur "
-            'restent a zero tant que vous ne creez pas d\'objets.';
+        ? "Vous n'avez encore collecté aucun objet terrain. "
+            'Ouvrez la carte et placez votre premier point pour démarrer.'
+        : "Aucune collecte enregistrée sur ce compte. Les compteurs serveur "
+            'restent à zéro tant que vous ne créez pas d\'objets.';
     return _buildSection(
-      title: 'Aucune activite terrain pour le moment',
+      title: 'Aucune activité terrain pour le moment',
       color: const Color(0xFF1B4F72),
       headerTrailing: const Icon(
         Icons.info_outline,
@@ -786,8 +786,8 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Les cartes ci-dessous afficheront vos statistiques des '
-          'que la premiere donnee sera synchronisee.',
+          'Les cartes ci-dessous afficheront vos statistiques dès '
+          'que la première donnée sera synchronisée.',
           style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
         ),
       ],

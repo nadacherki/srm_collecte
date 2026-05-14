@@ -451,7 +451,7 @@ void _showDownloadResultImpl(
       return AlertDialog(
         title: Text(
           alreadyDownloaded
-              ? 'Données déjà à jour'
+              ? 'Données déjà téléchargées'
               : nothingAvailable
                   ? 'Aucune donnée disponible'
                   : result.interrupted
@@ -501,8 +501,21 @@ void _showDownloadResultImpl(
               if (!nothingAvailable &&
                   !alreadyDownloaded &&
                   !fullFailure &&
-                  result.successCount > 0)
-                Text('${result.successCount} nouvelles données téléchargées'),
+                  result.successCount > 0) ...[
+                Text(
+                  '${result.successCount} nouvelles données téléchargées',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                if (result.zoneFeatureCount > 0)
+                  Text('  • Zones affectées : ${result.zoneFeatureCount}'),
+                if (result.referentielCount > 0)
+                  Text('  • Référentiel ONEP : ${result.referentielCount}'),
+                if (result.anomalieCount > 0)
+                  Text('  • Anomalies terrain : ${result.anomalieCount}'),
+                if (result.incompletCount > 0)
+                  Text('  • Objets incomplets : ${result.incompletCount}'),
+              ],
               if (!nothingAvailable &&
                   !alreadyDownloaded &&
                   !fullFailure &&

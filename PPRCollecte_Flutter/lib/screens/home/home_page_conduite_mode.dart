@@ -835,11 +835,11 @@ Future<void> _saveConduiteValidationLocally(_HomePageState state) async {
     state._conduiteCurrentRegardPoint = null;
     state._conduiteModeError = null;
     state._conduiteModeStatusText =
-        'Conduite enregistree localement. Elle partira au prochain Synchroniser.';
+        'Conduite enregistrée localement. Elle partira au prochain Synchroniser.';
   });
   _showConduiteModeSnack(
     state,
-    'Conduite sauvegardee localement pour synchronisation.',
+    'Conduite sauvegardée localement pour synchronisation.',
   );
 }
 
