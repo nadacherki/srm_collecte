@@ -1,6 +1,45 @@
 part of 'home_page.dart';
 
 void _showSyncConfirmationDialogImpl(_HomePageState state) async {
+  // Court-circuit "rien a synchroniser" avant meme la confirmation : on
+  // n'a pas a demander de confirmation si aucune donnee locale n'est en
+  // attente d'envoi. Le check est local (count synced=0) donc rapide et
+  // ne necessite pas le serveur.
+  final db = DatabaseHelper();
+  final pending = await db.countPendingSync();
+  if (!state.mounted) return;
+  if (pending == 0) {
+    final lastSync = await db.getLastFullSyncTime();
+    if (!state.mounted) return;
+    String lastSyncLabel;
+    if (lastSync == null) {
+      lastSyncLabel = 'jamais';
+    } else {
+      final local = lastSync.toLocal();
+      String pad2(int n) => n.toString().padLeft(2, '0');
+      lastSyncLabel =
+          'le ${pad2(local.day)}/${pad2(local.month)}/${local.year} '
+          'à ${pad2(local.hour)}:${pad2(local.minute)}';
+    }
+    await showDialog<void>(
+      context: state.context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Aucune donnée à synchroniser'),
+        content: Text(
+          'Toutes vos données locales ont déjà été envoyées au serveur.\n\n'
+          'Dernière synchronisation complète : $lastSyncLabel.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
+
   final reachable = await state._refreshOnlineStatusForNetworkAction();
   if (!state.mounted) return;
 
@@ -20,11 +59,16 @@ void _showSyncConfirmationDialogImpl(_HomePageState state) async {
     context: state.context,
     builder: (ctx) => AlertDialog(
       title: const Text('Confirmation de synchronisation'),
-      content: const Column(
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
+            '$pending donnée(s) locale(s) en attente d\'envoi.',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          const Text(
             'Êtes-vous sûr de vouloir synchroniser vos données locales vers le serveur ?',
           ),
         ],

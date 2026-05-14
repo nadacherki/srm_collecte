@@ -23,6 +23,11 @@ class MapControlsWidget extends StatelessWidget {
   final bool canRedoPolygon;
   final bool isPolygonCollection;
   final bool showRefresh;
+  // Quand l'app est en train de telecharger ou synchroniser : les actions
+  // sont deja bloquees logiquement, mais ce flag rend l'etat visible :
+  //  - bouton refresh masque (deplacement vers la zone de progress dialog)
+  //  - boutons Point/Ligne/Polygone grises + non-cliquables
+  final bool isBlocked;
 
   const MapControlsWidget({
     super.key,
@@ -46,6 +51,7 @@ class MapControlsWidget extends StatelessWidget {
     required this.canRedoPolygon,
     required this.isPolygonCollection,
     this.showRefresh = true,
+    this.isBlocked = false,
   });
 
   @override
@@ -64,7 +70,7 @@ class MapControlsWidget extends StatelessWidget {
 
     return Stack(
       children: [
-        if (showRefresh)
+        if (showRefresh && !isBlocked)
           Positioned(
             top: 8,
             right: 70,
@@ -83,7 +89,11 @@ class MapControlsWidget extends StatelessWidget {
           left: 10,
           right: hasTraceContext ? 10 : 80,
           child: SafeArea(
-            child: LayoutBuilder(
+            child: IgnorePointer(
+              ignoring: isBlocked,
+              child: Opacity(
+                opacity: isBlocked ? 0.45 : 1.0,
+                child: LayoutBuilder(
               builder: (context, constraints) {
                 final gap =
                     hasTraceContext || constraints.maxWidth < 330 ? 8.0 : 12.0;
@@ -128,6 +138,8 @@ class MapControlsWidget extends StatelessWidget {
                             ],
                 );
               },
+            ),
+              ),
             ),
           ),
         ),
