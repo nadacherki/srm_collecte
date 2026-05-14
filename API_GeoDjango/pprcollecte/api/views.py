@@ -3852,6 +3852,31 @@ class ObjetIncompletViewSet(viewsets.ModelViewSet):
         if open_only:
             qs = qs.filter(statut='A_COMPLETER')
 
+        # Filtrage par zones affectees a l'agent (header X-User-Id) : on ne
+        # renvoie que les incomplets dont l'objet metier reference par
+        # (nom_table, id_objet) intersecte au moins une zone active de
+        # l'agent. La PK varie selon le schema (`fid` ep / `id` ass) - la
+        # fonction PG `srm_object_geom_by_id` resout dynamiquement.
+        # Sans ce filtre, le mobile telechargeait tous les incomplets
+        # (volume faible mais bruite par les autres regions/agents).
+        user_id = _resolve_request_user_id(self.request)
+        if user_id is not None:
+            qs = qs.extra(where=[
+                """EXISTS (
+                    SELECT 1
+                    FROM public.zone_utilisateur __zu
+                    JOIN public.zone __z ON __z.id_zone = __zu.id_zone
+                    WHERE __zu.id_user = %s
+                      AND COALESCE(__zu.actif, false) = true
+                      AND __z.geom IS NOT NULL
+                      AND ST_Intersects(
+                          __z.geom,
+                          public.srm_object_geom_by_id(public.objet_incomplet.nom_table,
+                                                       public.objet_incomplet.id_objet)
+                      )
+                )"""
+            ], params=[user_id])
+
         return qs
 
     def _find_existing_for_payload(self, serializer):
@@ -3957,6 +3982,29 @@ class InterventionAnomalieTerrainViewSet(viewsets.ModelViewSet):
                     timezone.get_current_timezone(),
                 )
             qs = qs.filter(updated_at__gt=parsed_updated_after)
+
+        # Filtrage par zones affectees a l'agent (header X-User-Id) : ne
+        # renvoie que les anomalies dont l'objet metier reference par
+        # (nom_table, id_objet) intersecte une zone active. Sans ce
+        # filtre, le mobile recevait toutes les anomalies actives du
+        # systeme (~390 lignes) quelles que soient les zones de l'agent.
+        user_id = _resolve_request_user_id(self.request)
+        if user_id is not None:
+            qs = qs.extra(where=[
+                """EXISTS (
+                    SELECT 1
+                    FROM public.zone_utilisateur __zu
+                    JOIN public.zone __z ON __z.id_zone = __zu.id_zone
+                    WHERE __zu.id_user = %s
+                      AND COALESCE(__zu.actif, false) = true
+                      AND __z.geom IS NOT NULL
+                      AND ST_Intersects(
+                          __z.geom,
+                          public.srm_object_geom_by_id(public.intervention_anomalie.nom_table,
+                                                       public.intervention_anomalie.id_objet)
+                      )
+                )"""
+            ], params=[user_id])
 
         return qs
 
