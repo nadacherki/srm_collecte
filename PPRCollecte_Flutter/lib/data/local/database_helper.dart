@@ -4746,6 +4746,78 @@ class DatabaseHelper {
     }
   }
 
+  /// Sauve l'horodatage d'une synchro COMPLETE (failedCount==0). Distinct
+  /// de `last_sync_time` qui marque la derniere sync au moins partielle :
+  /// `last_sync_time`      -> label visuel "Sync: HH:mm"
+  /// `last_full_sync_time` -> court-circuit "rien a synchro" + dialog
+  Future<void> saveLastFullSyncTime(DateTime dt) async {
+    final db = await database;
+    await db.insert(
+      'app_metadata',
+      {'key': 'last_full_sync_time', 'value': dt.toIso8601String()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<DateTime?> getLastFullSyncTime() async {
+    final db = await database;
+    final res = await db.query('app_metadata',
+        where: 'key = ?', whereArgs: ['last_full_sync_time'], limit: 1);
+    if (res.isEmpty) return null;
+    final raw = res.first['value'] as String?;
+    if (raw == null) return null;
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Compte les rows locales en attente de synchronisation (synced=0 ET
+  /// downloaded=0) sur toutes les tables SRM. Utilise par le court-circuit
+  /// du bouton Synchroniser : si 0 -> message direct "Aucune donnee a
+  /// synchroniser" sans interroger le serveur.
+  ///
+  /// Les rows qui ont echoue lors d'un sync precedent restent `synced=0`
+  /// et sont donc toujours comptees ici, garantissant qu'elles seront
+  /// re-tentees au prochain clic sans etre faussement marquees "fait".
+  Future<int> countPendingSync() async {
+    final db = await database;
+    int total = 0;
+    for (final tableName in _allowedSrmTables()) {
+      try {
+        final exists = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          [tableName],
+        );
+        if (exists.isEmpty) continue;
+        final res = await db.rawQuery(
+          'SELECT COUNT(*) AS n FROM "$tableName" '
+          'WHERE (synced IS NULL OR synced = 0) '
+          'AND (downloaded IS NULL OR downloaded = 0)',
+        );
+        if (res.isNotEmpty) {
+          total += _toInt(res.first['n']);
+        }
+      } catch (e) {
+        debugPrint('countPendingSync $tableName: $e');
+      }
+    }
+    // Photos en attente d'envoi
+    try {
+      final res = await db.rawQuery(
+        "SELECT COUNT(*) AS n FROM photo_sync_queue "
+        "WHERE status IS NULL OR status IN ('pending','failed')",
+      );
+      if (res.isNotEmpty) {
+        total += _toInt(res.first['n']);
+      }
+    } catch (_) {
+      // Table absente sur builds anciens : ignore.
+    }
+    return total;
+  }
+
   Future<void> saveAppMetadataValue(
     String key,
     String value, {
