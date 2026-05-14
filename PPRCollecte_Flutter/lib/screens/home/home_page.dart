@@ -211,7 +211,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
   bool _isSatellite = false;
-  bool _showOrthophoto = false;
 
   SrmSelection? _pendingSrmLigneSelection;
 
@@ -1182,8 +1181,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapDefaultZoom: _offlineBasemapDefaultZoom,
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
-                      showOrthophoto: _showOrthophoto,
-                      orthophotoOpacity: 0.75,
                       showMapButtons: false,
                     ),
                     if (_conduiteModeError != null)
@@ -1326,13 +1323,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapDefaultZoom: _offlineBasemapDefaultZoom,
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
-                      showOrthophoto: _showOrthophoto,
-                      orthophotoOpacity: 0.75,
-                      onOrthophotoChanged: (value) {
-                        setState(() {
-                          _showOrthophoto = value;
-                        });
-                      },
                       showMapButtons: true,
                       showLocationButton: !hasTraceCollection,
                       showZoomButtons: !hasTraceCollection,

@@ -11,7 +11,6 @@ import '../data/remote/api_service.dart';
 import 'attribut_config_mobile_service.dart';
 import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
-import 'offline_orthophoto_service.dart';
 import 'photo_reference_service.dart';
 import 'photo_validation_service.dart';
 import 'projection_service.dart';
@@ -102,7 +101,7 @@ class SyncService {
   }) async {
     final tables = await _collectSrmTables();
     final result = SyncResult();
-    final total = tables.length + 3;
+    final total = tables.length + 2;
     final nowIso = DateTime.now().toIso8601String();
     final downloadStartedAt = DateTime.now().toUtc();
     final updatedAfter = await dbHelper.getLastDownloadTime();
@@ -116,21 +115,11 @@ class SyncService {
       return result;
     }
 
-    final canContinueAfterOrthophoto =
-        await _ensureOrthophotoCoverageForDownload(
-      result: result,
-      onProgress: onProgress,
-      total: total,
-    );
-    if (!canContinueAfterOrthophoto || result.interrupted) {
-      return result;
-    }
-
     await _ensureReferenceOverlaysForDownload(result: result);
 
     for (int index = 0; index < tables.length; index++) {
       final info = tables[index];
-      final current = index + 3;
+      final current = index + 2;
       final tableStartedAt = DateTime.now().toUtc();
       final tableStatus = await dbHelper.getDownloadTableStatus(info.table);
       final statusText =
@@ -328,7 +317,7 @@ class SyncService {
     await _downloadTerrainInterventions(
       result: result,
       onProgress: onProgress,
-      current: tables.length + 3,
+      current: tables.length + 2,
       total: total,
       updatedAfterFallback: updatedAfter,
       nowIso: nowIso,
@@ -408,86 +397,6 @@ class SyncService {
       1 / total,
       'Carte offline vérifiée',
       1,
-      total,
-    );
-    return true;
-  }
-
-  Future<bool> _ensureOrthophotoCoverageForDownload({
-    required SyncResult result,
-    required Function(double, String, int, int)? onProgress,
-    required int total,
-  }) async {
-    onProgress?.call(
-      1 / total,
-      'Telechargement orthophoto offline',
-      1,
-      total,
-    );
-
-    try {
-      final downloadResult =
-          await OfflineOrthophotoService().ensureAgentOrthophotoDownloaded(
-        onProgress: (progress, operation, processed, totalTiles) {
-          final clamped = progress.isNaN || progress.isInfinite
-              ? 0.0
-              : progress.clamp(0.0, 1.0).toDouble();
-          onProgress?.call(
-            (1 + clamped) / total,
-            operation,
-            processed,
-            totalTiles,
-          );
-        },
-      );
-      if (downloadResult.success) {
-        final message = downloadResult.partial
-            ? 'Orthophoto offline partielle: '
-                '${downloadResult.downloadedTiles} telechargees, '
-                '${downloadResult.alreadyCachedTiles} deja en cache.'
-            : 'Orthophoto offline: '
-                '${downloadResult.downloadedTiles} telechargees, '
-                '${downloadResult.alreadyCachedTiles} deja en cache.';
-        result.warnings.add(downloadResult.warningMessage ?? message);
-      } else {
-        final errorText = downloadResult.errorMessage ?? 'erreur inconnue';
-        if (_isNetworkInterruption(errorText)) {
-          result.failedCount++;
-          result.stopForInterruption(_downloadInterruptedMessage);
-          onProgress?.call(
-            1 / total,
-            'Téléchargement arrêté - connexion interrompue',
-            1,
-            total,
-          );
-          return false;
-        }
-        result.warnings.add(
-          'Orthophoto offline non mise a jour : '
-          '$errorText',
-        );
-      }
-    } catch (e) {
-      if (_isNetworkInterruption(e)) {
-        result.failedCount++;
-        result.stopForInterruption(_downloadInterruptedMessage);
-        onProgress?.call(
-          1 / total,
-          'Téléchargement arrêté - connexion interrompue',
-          1,
-          total,
-        );
-        return false;
-      }
-      result.warnings.add(
-        'Orthophoto offline non mise a jour : ${_short(e)}',
-      );
-    }
-
-    onProgress?.call(
-      2 / total,
-      'Orthophoto offline verifiee',
-      2,
       total,
     );
     return true;

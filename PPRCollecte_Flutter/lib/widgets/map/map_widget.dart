@@ -19,7 +19,6 @@ import 'package:vector_tile/vector_tile.dart' as vt;
 import 'package:vector_tile_renderer/vector_tile_renderer.dart' as vtr;
 
 import '../../core/constants/basemap_constants.dart';
-import '../../services/offline_orthophoto_service.dart';
 
 class MapWidget extends StatefulWidget {
   static const String onlineOsmUrlTemplate =
@@ -56,9 +55,6 @@ class MapWidget extends StatefulWidget {
   final bool showLocationButton;
   final bool showZoomButtons;
   final bool showMapTypeButton;
-  final bool showOrthophoto;
-  final double orthophotoOpacity;
-  final ValueChanged<bool>? onOrthophotoChanged;
 
   const MapWidget({
     super.key,
@@ -91,9 +87,6 @@ class MapWidget extends StatefulWidget {
     this.showLocationButton = true,
     this.showZoomButtons = true,
     this.showMapTypeButton = true,
-    this.showOrthophoto = false,
-    this.orthophotoOpacity = 0.75,
-    this.onOrthophotoChanged,
   });
 
   @override
@@ -167,21 +160,12 @@ class _MapWidgetState extends State<MapWidget> {
   Set<String> _vectorSpriteNames = const {};
   List<Marker> _offlinePoiMarkers = const [];
   Timer? _offlinePoiRefreshTimer;
-  Timer? _orthophotoRefreshDebounce;
   pmtiles.PmTilesArchive? _offlinePoiArchive;
   String? _offlinePoiArchivePath;
-  late final OfflineOrthophotoService _orthophotoService =
-      OfflineOrthophotoService();
-  late final OrthophotoTileProvider _orthophotoTileProvider =
-      OrthophotoTileProvider(
-    service: _orthophotoService,
-    onTileAvailable: _scheduleOrthophotoRefresh,
-  );
   bool _isBasemapLoading = false;
   int _basemapLoadRequestId = 0;
   int _offlinePoiRefreshRequestId = 0;
   int _basemapLayerRevision = 0;
-  int _orthophotoLayerRevision = 0;
   String? _lastIconDiagnosticsKey;
   String? _lastOfflinePoiRefreshKey;
   final Map<String, bool> _offlinePoiAssetAvailabilityCache = {};
@@ -200,7 +184,6 @@ class _MapWidgetState extends State<MapWidget> {
       widget.offlineBasemapPath,
       widget.offlineBasemapFormat,
     );
-    unawaited(_warmUpOrthophotoLayer());
   }
 
   @override
@@ -233,29 +216,9 @@ class _MapWidgetState extends State<MapWidget> {
     _polylineHitNotifier.removeListener(_onPolylineHit);
     _polygonHitNotifier.removeListener(_onPolygonHit);
     _offlinePoiRefreshTimer?.cancel();
-    _orthophotoRefreshDebounce?.cancel();
     _rasterTileProvider?.dispose();
-    _orthophotoTileProvider.dispose();
     _mapController.dispose();
     super.dispose();
-  }
-
-  Future<void> _warmUpOrthophotoLayer() async {
-    await _orthophotoService.warmUp();
-    if (!mounted) return;
-    setState(() {
-      _orthophotoLayerRevision++;
-    });
-  }
-
-  void _scheduleOrthophotoRefresh() {
-    _orthophotoRefreshDebounce?.cancel();
-    _orthophotoRefreshDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
-      setState(() {
-        _orthophotoLayerRevision++;
-      });
-    });
   }
 
   void _onPolylineHit() {
@@ -1583,8 +1546,6 @@ class _MapWidgetState extends State<MapWidget> {
         desiredInitialZoom.clamp(minZoom, effectiveMaxZoom).toDouble();
     final hasOfflineBasemap = (hasRasterBasemap || hasVectorBasemap) &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
-    final hasOrthophotoLayer = widget.showOrthophoto &&
-        (_orthophotoService.activeStateSync?.isUsable ?? false);
     final initialCenter =
         _controllerReady ? _mapController.camera.center : requestedCenterRaw;
 
@@ -1641,20 +1602,6 @@ class _MapWidgetState extends State<MapWidget> {
                 tileProvider: _rasterTileProvider!,
                 userAgentPackageName: 'com.example.srmcollecte',
                 maxZoom: effectiveMaxZoom,
-              ),
-            if (hasOrthophotoLayer)
-              Opacity(
-                opacity: widget.orthophotoOpacity.clamp(0.0, 1.0).toDouble(),
-                child: TileLayer(
-                  key: ValueKey('orthophoto-$_orthophotoLayerRevision'),
-                  tileProvider: _orthophotoTileProvider,
-                  userAgentPackageName: 'com.srm.collecte',
-                  minNativeZoom:
-                      _orthophotoService.activeStateSync?.minZoom ?? 17,
-                  maxNativeZoom:
-                      _orthophotoService.activeStateSync?.maxZoom ?? 22,
-                  maxZoom: math.max(effectiveMaxZoom, 22.0),
-                ),
               ),
             if (hasVectorBasemap)
               vmt.VectorTileLayer(
@@ -1772,11 +1719,6 @@ class _MapWidgetState extends State<MapWidget> {
           MapTypeToggle(
             isSatellite: widget.isSatellite,
             onMapTypeChanged: widget.onMapTypeChanged!,
-          ),
-        if (widget.showMapButtons && widget.onOrthophotoChanged != null)
-          OrthophotoToggle(
-            isOn: widget.showOrthophoto,
-            onChanged: widget.onOrthophotoChanged!,
           ),
         if (widget.showMapButtons && widget.showZoomButtons)
           Positioned(
@@ -1933,68 +1875,6 @@ class MapTypeToggle extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class OrthophotoToggle extends StatelessWidget {
-  final bool isOn;
-  final ValueChanged<bool> onChanged;
-
-  const OrthophotoToggle({
-    super.key,
-    required this.isOn,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 128,
-      right: 10,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => onChanged(!isOn),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.layers,
-                    size: 22,
-                    color: isOn ? const Color(0xFF00695C) : Colors.grey,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Ortho',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          isOn ? const Color(0xFF00695C) : Colors.grey.shade700,
                     ),
                   ),
                 ],
