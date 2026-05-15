@@ -30,14 +30,62 @@ _load_local_env(BASE_DIR / ".env")
 # ============================================================
 # SÉCURITÉ
 # ============================================================
-SECRET_KEY = 'django-insecure-srm-collecte-change-this-in-production'
-DEBUG = True
+# SECRET_KEY DOIT venir de l'environnement en prod. Le fallback dev est un
+# placeholder explicite qui doit echouer le startup si quelqu'un tente
+# de demarrer en prod sans avoir defini DJANGO_SECRET_KEY.
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "dev-only-INSECURE-replace-via-DJANGO_SECRET_KEY-env-var",
+)
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+# ALLOWED_HOSTS : whitelist explicite. Plus de fallback ['*'].
+# En dev sans variable definie -> localhost uniquement.
 _allowed_hosts_env = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = (
     [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()]
     if _allowed_hosts_env
-    else ['*']
+    else ["127.0.0.1", "localhost", "10.0.2.2"]
 )
+
+# Garde-fou : refuse de booter en prod avec la SECRET_KEY de dev.
+if not DEBUG and SECRET_KEY.startswith("dev-only-"):
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY doit etre defini en production "
+        "(la valeur de developpement n'est pas autorisee avec DEBUG=False)."
+    )
+
+# ============================================================
+# HEADERS DE SECURITE HTTP
+# ============================================================
+# Anti-MIME sniffing : empeche le navigateur d'interpreter une reponse
+# avec un Content-Type different de celui declare.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Anti-clickjacking : interdit l'inclusion en iframe.
+X_FRAME_OPTIONS = "DENY"
+
+# Referrer Policy : ne pas leak l'URL d'origine vers les domaines tiers.
+SECURE_REFERRER_POLICY = "same-origin"
+
+# Headers HTTPS-only : actives seulement en prod (DEBUG=False) car le dev
+# tourne sur http://10.0.2.2:8000 sans TLS.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 an
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Le mobile passe par un reverse proxy qui termine TLS : faire
+    # confiance au header X-Forwarded-Proto pour la detection HTTPS.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ============================================================
 # APPLICATIONS
@@ -52,10 +100,33 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'csp.middleware.CSPMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# ============================================================
+# CONTENT SECURITY POLICY (django-csp 4.x)
+# ============================================================
+# Backend principalement JSON. Politique stricte : pas de script/style
+# tiers, pas d'embarquement en iframe, pas de base-uri detournee. Les
+# rares surfaces HTML (DRF browsable API / admin) restent fonctionnelles
+# avec 'self' + style inline (DRF en a besoin).
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ["'none'"],
+        "script-src": ["'self'"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "img-src": ["'self'", "data:"],
+        "font-src": ["'self'"],
+        "connect-src": ["'self'"],
+        "form-action": ["'self'"],
+        "frame-ancestors": ["'none'"],
+        "base-uri": ["'none'"],
+        "object-src": ["'none'"],
+    },
+}
 
 ROOT_URLCONF = 'pprcollecte.urls'
 
@@ -186,8 +257,44 @@ if not (GDAL_LIBRARY_PATH and GEOS_LIBRARY_PATH and PROJ_LIB):
 # REST FRAMEWORK
 # ============================================================
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'api.jwt_auth.SrmJWTAuthentication',
+    ],
+    # Fail-closed : tout endpoint exige un JWT valide par defaut. Les
+    # rares vues publiques (login, refresh) re-declarent explicitement
+    # @permission_classes([AllowAny]). Sans ca, un anonyme recevait les
+    # donnees NON filtrees par zone (resolve_user_id -> None -> pas de
+    # filtre). C'est le verrou qui rend le cloisonnement P1 effectif.
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 500,
     'UNAUTHENTICATED_USER': None,
+    # Rate limiting global. Les vues sensibles (login, photo upload)
+    # appliquent en plus une throttle dediee via @throttle_classes.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        # Limites globales : large pour ne pas penaliser la sync legitime
+        # (qui peut faire des centaines de requetes en rafale).
+        'anon': '60/min',
+        'user': '600/min',
+        # Throttle dedies : invoquees par les vues via scope=...
+        'login': '10/min',         # 10 tentatives par IP/min sur /api/login/
+        'login_burst': '3/sec',    # anti-brute-force fin
+        'photo_upload': '60/min',  # uploads photo
+    },
 }
+
+# ============================================================
+# JWT (auth custom : api/jwt_auth.py)
+# ============================================================
+JWT_ACCESS_LIFETIME_MINUTES = int(
+    os.environ.get("JWT_ACCESS_LIFETIME_MINUTES", "15")
+)
+JWT_REFRESH_LIFETIME_DAYS = int(
+    os.environ.get("JWT_REFRESH_LIFETIME_DAYS", "7")
+)

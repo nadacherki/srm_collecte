@@ -91,6 +91,17 @@ class _SessionGateState extends State<SessionGate> {
 
     _restoreApiServiceFromUser(user);
 
+    // Restaure le JWT depuis le Keystore (sinon les appels API post-restart
+    // partiraient sans Bearer -> 401). Si l'access token est expire mais le
+    // refresh encore valide, _authedGet declenchera un refresh au 1er 401.
+    final tokenRestored = await ApiService.restoreTokensFromStore();
+    if (tokenRestored) {
+      // Tentative de refresh proactif silencieux : si online et access
+      // expire, on obtient un access frais des le demarrage. Si offline,
+      // l'echec est ignore (le mode offline n'a pas besoin du serveur).
+      unawaited(ApiService.refreshAccessToken());
+    }
+
     // Session restaurée (jusqu'à 7 jours sans re-login) : on rafraîchit
     // silencieusement la config des formulaires depuis le serveur en
     // background. Si offline, l'erreur est ignorée et la SQLite existante

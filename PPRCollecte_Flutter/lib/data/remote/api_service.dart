@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
+import '../local/secure_token_store.dart';
+
 class ApiPageResult {
   final List<dynamic> items;
   final int? nextPage;
@@ -30,7 +32,8 @@ class ApiService {
   );
 
   // ── Authentification ──
-  static String? authToken;
+  static String? authToken; // = access token JWT (en memoire)
+  static String? refreshToken; // = refresh token JWT (en memoire)
   static int? userId; // = id_user (table public.utilisateur)
   static String? userLogin; // = login SRM (pas email)
   static String? userRole; // admin, project_manager, editeur_terrain…
@@ -115,8 +118,21 @@ class ApiService {
       nomPrenom = _buildFullName(userPrenom, userNom, userMap['nom_complet']);
       userRole = userMap['role'];
 
-      // ── Token (si l'API en renvoie un à l'avenir) ──
-      authToken = data['token'] ?? data['access'];
+      // ── Tokens JWT signes (access + refresh) ──
+      final auth = data['auth'];
+      if (auth is Map) {
+        authToken = auth['access']?.toString();
+        refreshToken = auth['refresh']?.toString();
+        if (authToken != null && refreshToken != null) {
+          await SecureTokenStore.saveTokens(
+            access: authToken!,
+            refresh: refreshToken!,
+          );
+        }
+      } else {
+        // Compat ancien backend (ne devrait plus arriver).
+        authToken = data['token'] ?? data['access'];
+      }
 
       debugPrint('SRM Login OK: user=$login (id_user=$userId) role=$userRole');
 
@@ -914,9 +930,7 @@ class ApiService {
         .replace(queryParameters: params.isNotEmpty ? params : null);
 
     try {
-      final response = await http
-          .get(uri, headers: _headers())
-          .timeout(const Duration(seconds: 30));
+      final response = await _authedGet(uri);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -1307,11 +1321,30 @@ class ApiService {
 
   static Map<String, String> _headers() => {
         'Content-Type': 'application/json',
+        // L'identite de l'agent est portee UNIQUEMENT par le JWT signe.
+        // Le header X-User-Id (spoofable) n'est plus envoye : le serveur
+        // resout l'agent via le Bearer token.
         if (authToken != null) 'Authorization': 'Bearer $authToken',
-        // Identifie l'agent appelant pour le filtrage par zone d'affectation
-        // cote serveur (zones, planches, donnees EP/ASS).
-        if (userId != null) 'X-User-Id': userId!.toString(),
       };
+
+  /// GET authentifie avec retry unique apres refresh du token sur 401.
+  /// Si le refresh echoue ou le 2e essai retourne encore 401, la reponse
+  /// 401 est renvoyee telle quelle (l'appelant gere le re-login).
+  static Future<http.Response> _authedGet(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    var response =
+        await http.get(uri, headers: _headers()).timeout(timeout);
+    if (response.statusCode == 401 && (refreshToken != null)) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response =
+            await http.get(uri, headers: _headers()).timeout(timeout);
+      }
+    }
+    return response;
+  }
 
   static String _formatDateParam(DateTime date) {
     final year = date.year.toString().padLeft(4, '0');
@@ -1328,15 +1361,58 @@ class ApiService {
     };
   }
 
-  /// Reset complet (logout)
+  /// Reset complet (logout). Efface aussi les tokens du Keystore.
   static void resetSession() {
     authToken = null;
+    refreshToken = null;
     userId = null;
     userRole = null;
     userLogin = null;
     userNom = null;
     userPrenom = null;
     nomPrenom = null;
+    // Fire-and-forget : le clear secure storage est async mais on ne
+    // veut pas bloquer le logout dessus.
+    SecureTokenStore.clear();
+  }
+
+  /// Recharge l'access token depuis le Keystore au demarrage de l'app
+  /// (avant que l'utilisateur ne re-saisisse ses identifiants). Retourne
+  /// true si un token a ete restaure.
+  static Future<bool> restoreTokensFromStore() async {
+    final access = await SecureTokenStore.readAccess();
+    final refresh = await SecureTokenStore.readRefresh();
+    if (access == null || access.isEmpty) return false;
+    authToken = access;
+    refreshToken = refresh;
+    return true;
+  }
+
+  /// Tente de rafraichir l'access token via /api/auth/refresh/.
+  /// Retourne true si reussi (authToken mis a jour + persiste).
+  static Future<bool> refreshAccessToken() async {
+    final refresh = refreshToken ?? await SecureTokenStore.readRefresh();
+    if (refresh == null || refresh.isEmpty) return false;
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/auth/refresh/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refresh': refresh}),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return false;
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      final auth = data['auth'];
+      final newAccess = (auth is Map) ? auth['access']?.toString() : null;
+      if (newAccess == null || newAccess.isEmpty) return false;
+      authToken = newAccess;
+      await SecureTokenStore.saveAccess(newAccess);
+      return true;
+    } catch (e) {
+      debugPrint('refreshAccessToken failed: $e');
+      return false;
+    }
   }
 
   static String? _buildFullName(Object? prenom, Object? nom, Object? fallback) {

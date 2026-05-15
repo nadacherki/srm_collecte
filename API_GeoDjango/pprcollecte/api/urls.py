@@ -96,6 +96,7 @@ mobile_srm_urlpatterns = [
 urlpatterns = [
     # Login (vue fonction, pas un ViewSet)
     path('api/login/', views.login_view, name='login'),
+    path('api/auth/refresh/', views.token_refresh_view, name='token-refresh'),
     path('api/basemaps/region/manifest/', views.regional_basemap_manifest_view, name='basemap-regional-manifest'),
     path('api/basemaps/region/download/', views.regional_basemap_download_view, name='basemap-regional-download'),
     path('api/reference-overlays/planches/', views.reference_planches_overlay_view, name='reference-overlays-planches'),
