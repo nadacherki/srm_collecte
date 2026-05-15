@@ -20,14 +20,27 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import check_password
 from rest_framework import viewsets
-from rest_framework.decorators import api_view, parser_classes
-from rest_framework.exceptions import ValidationError
+from rest_framework.decorators import (
+    api_view,
+    parser_classes,
+    throttle_classes,
+    permission_classes,
+)
+from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework import status
+from rest_framework import exceptions
+
+from .jwt_auth import generate_token_pair, refresh_access_token
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 from psycopg2 import sql as pg_sql
 try:
     from PIL import Image, ExifTags
@@ -1368,15 +1381,116 @@ def mobile_srm_table_view(request, endpoint):
         writable=writable,
     )
     existing_pk = None
+    existing_row_values = None
     if payload.get('uuid') and 'uuid' in columns:
+        select_cols = list(writable.keys())
+        lock_column = _mobile_timestamp_filter_column(columns)
+        if lock_column and lock_column not in select_cols:
+            select_cols.append(lock_column)
+        col_idents = [pg_sql.Identifier(pk_column)] + [
+            pg_sql.Identifier(c) for c in select_cols
+        ]
         query = pg_sql.SQL('SELECT {} FROM {} WHERE uuid = %s LIMIT 1').format(
-            pg_sql.Identifier(pk_column),
+            pg_sql.SQL(', ').join(col_idents),
             qualified,
         )
         with connection.cursor() as cursor:
             cursor.execute(query, [payload.get('uuid')])
             existing = cursor.fetchone()
-            existing_pk = existing[0] if existing else None
+            if existing:
+                existing_pk = existing[0]
+                existing_row_values = dict(zip(select_cols, existing[1:]))
+
+    # ── Optimistic lock ─────────────────────────────────────────────
+    # Si le client envoie l'horodatage sur lequel il a base sa modif et
+    # que le serveur a une version PLUS recente, c'est que le client a
+    # modifie une donnee perimee : on refuse (HTTP 409) pour qu'il
+    # re-telecharge avant de re-sync (pas d'ecrasement silencieux).
+    if existing_pk is not None and existing_row_values is not None:
+        lock_column = _mobile_timestamp_filter_column(columns)
+        if lock_column and lock_column in payload:
+            client_ts = parse_datetime(str(payload.get(lock_column) or ''))
+            server_ts_raw = existing_row_values.get(lock_column)
+            server_ts = (
+                server_ts_raw
+                if hasattr(server_ts_raw, 'isoformat')
+                else parse_datetime(str(server_ts_raw or ''))
+            )
+            if client_ts and server_ts and server_ts > client_ts:
+                return JsonResponse(
+                    {
+                        'detail': (
+                            'Conflit de version : la donnee a ete modifiee '
+                            'cote serveur depuis votre derniere '
+                            'synchronisation. Re-telechargez avant de '
+                            'renvoyer cette modification.'
+                        ),
+                        'code': 'stale_write',
+                        'server_updated_at': (
+                            server_ts.isoformat()
+                            if hasattr(server_ts, 'isoformat')
+                            else str(server_ts)
+                        ),
+                    },
+                    status=409,
+                )
+
+    # ── Idempotence ─────────────────────────────────────────────────
+    # Replay d'un meme payload (sync rejouee) : si toutes les colonnes
+    # ecrites sont deja identiques ET la geometrie inchangee, on ne fait
+    # NI UPDATE NI ecriture d'audit. Retourne 200 avec la ligne courante.
+    if existing_pk is not None and existing_row_values is not None:
+        def _norm(v):
+            return '' if v is None else str(v).strip()
+
+        attrs_identical = all(
+            _norm(existing_row_values.get(col)) == _norm(val)
+            for col, val in writable.items()
+        )
+        geom_identical = True
+        if geometry_value is not None:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    pg_sql.SQL(
+                        'SELECT ST_Equals({}, '
+                        'ST_SetSRID(ST_GeomFromGeoJSON(%s), 26191)) '
+                        'FROM {} WHERE {} = %s'
+                    ).format(
+                        pg_sql.Identifier('geom'),
+                        qualified,
+                        pg_sql.Identifier(pk_column),
+                    ),
+                    [geometry_value, existing_pk],
+                )
+                res = cursor.fetchone()
+                geom_identical = bool(res and res[0])
+        if attrs_identical and geom_identical:
+            # No-op : on marque quand meme l'item comme recu pour que le
+            # client arrete de le rejouer, mais SANS UPDATE ni audit.
+            row = _mobile_fetch_row(
+                schema_name, table_name, columns, pk_column, existing_pk
+            )
+            response_uuid = None
+            if row:
+                response_uuid = row.get('uuid') or row.get('uuid_objet')
+            if response_uuid in (None, ''):
+                response_uuid = (
+                    payload.get('uuid')
+                    or payload.get('uuid_objet')
+                    or existing_pk
+                )
+            _mark_sync_item_received_for_table(
+                sync_uuid=sync_session_uuid,
+                nom_schema=schema_name,
+                nom_table=table_name,
+                uuid_objet=str(response_uuid),
+                response_pk=existing_pk,
+                client_item_uuid=sync_client_item_uuid,
+            )
+            return Response(
+                row or {'id': existing_pk},
+                status=status.HTTP_200_OK,
+            )
 
     try:
         with transaction.atomic():
@@ -2643,12 +2757,24 @@ def _parse_bool_value(raw_value, default=False):
 
 
 def _resolve_request_user_id(request):
-    """Lit le header X-User-Id pour identifier l'agent appelant.
+    """Identifie l'agent appelant.
 
-    Retourne un int > 0 ou None (header absent / invalide). Quand None
-    est retourne, les vues ne doivent PAS filtrer par zone (compat avec
-    audits, scripts admin, et anciens clients qui n'envoient pas le header).
+    Source de verite : `request.user` injecte par SrmJWTAuthentication
+    apres validation cryptographique du Bearer token. Le header
+    `X-User-Id` n'est PLUS une source d'identite (trivialement spoofable) :
+    il n'est tolere qu'en transition pour les anciennes versions de l'APK
+    pas encore migrees, et UNIQUEMENT si aucun JWT n'est present, avec un
+    log WARNING. A retirer une fois le parc mobile 100% migre.
+
+    Retourne un int > 0 ou None.
     """
+    # 1) JWT (authentifie) : source de verite
+    user = getattr(request, 'user', None)
+    user_id = getattr(user, 'id_user', None)
+    if isinstance(user_id, int) and user_id > 0:
+        return user_id
+
+    # 2) Transition uniquement : header X-User-Id non signe.
     raw = request.META.get('HTTP_X_USER_ID')
     if raw is None:
         return None
@@ -2659,7 +2785,15 @@ def _resolve_request_user_id(request):
         value = int(raw)
     except (TypeError, ValueError):
         return None
-    return value if value > 0 else None
+    if value > 0:
+        logger.warning(
+            "X-User-Id=%s utilise sans JWT (client mobile non migre, "
+            "path=%s). A bannir une fois le parc a jour.",
+            value,
+            getattr(request, 'path', '?'),
+        )
+        return value
+    return None
 
 
 def _user_zone_geom_filter_sql(geom_expr, user_id):
@@ -2692,6 +2826,37 @@ def _user_zone_geom_filter_sql(geom_expr, user_id):
         f")"
     )
     return sql_fragment, [user_id]
+
+
+# Roles autorises a voir les donnees trans-agents (audit, metriques de
+# tous les agents, affectations de tous). Least privilege : seuls les
+# administrateurs. project_manager/editeur restent scopes a leur perimetre.
+_ADMIN_ROLES = frozenset({'admin', 'superadmin'})
+
+
+def _request_user_role(request):
+    user = getattr(request, 'user', None)
+    role = getattr(user, 'role', None)
+    return str(role).strip().lower() if role else None
+
+
+def _request_is_admin(request):
+    """True si l'agent JWT-authentifie a un role administrateur."""
+    return _request_user_role(request) in _ADMIN_ROLES
+
+
+def _scope_queryset_to_user(request, qs, field_name):
+    """Restreint `qs` a l'agent courant sur `field_name`, sauf si admin.
+
+    Source d'identite : request.user (JWT). Si non identifie -> queryset
+    vide (fail-closed) cote endpoints sensibles. Un admin voit tout.
+    """
+    if _request_is_admin(request):
+        return qs
+    user_id = _resolve_request_user_id(request)
+    if user_id is None:
+        return qs.none()
+    return qs.filter(**{field_name: user_id})
 
 
 def _request_param(request, name):
@@ -2793,26 +2958,55 @@ class MetricFilterMixin:
             if value not in (None, ''):
                 qs = qs.filter(**{field_name: value})
 
-        for param in ('id_agent',):
-            value = self._parse_positive_int_param(param)
-            if value is not None:
-                qs = qs.filter(**{param: value})
+        requested_agent = self._parse_positive_int_param('id_agent')
 
-        return qs
+        if _request_is_admin(self.request):
+            # Admin : peut consulter les metriques de n'importe quel agent.
+            if requested_agent is not None:
+                qs = qs.filter(id_agent=requested_agent)
+            return qs
+
+        # Non-admin : strictement scope a ses propres metriques. Tout
+        # ?id_agent= different de son id est rejete (pas d'espionnage de
+        # la productivite d'un collegue).
+        current_user_id = _resolve_request_user_id(self.request)
+        if current_user_id is None:
+            return qs.none()
+        if requested_agent is not None and requested_agent != current_user_id:
+            raise PermissionDenied(
+                "Acces refuse : vous ne pouvez consulter que vos propres "
+                "metriques."
+            )
+        return qs.filter(id_agent=current_user_id)
 
 
 # =====================================================================
 #  AUTHENTIFICATION
 # =====================================================================
 
+class _LoginRateThrottle(AnonRateThrottle):
+    """10 tentatives par IP / minute sur /api/login/."""
+    scope = 'login'
+
+
+class _LoginBurstThrottle(AnonRateThrottle):
+    """Anti burst : 3 requetes / seconde par IP sur /api/login/."""
+    scope = 'login_burst'
+
+
 @csrf_exempt
 @api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([_LoginRateThrottle, _LoginBurstThrottle])
 def login_view(request):
     """
     POST /api/login/
     Body: { "login": "username", "mot_de_passe": "password" }
     Vérifie le mot de passe via les hashers Django configurés.
     Le backend ne modifie jamais automatiquement la base des mots de passe.
+
+    Rate-limited a 10 tentatives/min par IP + anti-burst 3 req/sec
+    (cf settings.REST_FRAMEWORK.DEFAULT_THROTTLE_RATES).
     """
     try:
         payload = json.loads(request.body)
@@ -2856,6 +3050,8 @@ def login_view(request):
     user.dernier_login = timezone.now()
     user.save(update_fields=['dernier_login'])
 
+    tokens = generate_token_pair(user)
+
     return JsonResponse({
         'success': True,
         'user': {
@@ -2867,7 +3063,34 @@ def login_view(request):
             'role': user.role,
             'nb_objets_collectes_total': user.nb_objets_collectes_total,
         },
+        'auth': tokens,
     })
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([_LoginRateThrottle])
+def token_refresh_view(request):
+    """
+    POST /api/auth/refresh/
+    Body: { "refresh": "<refresh_token>" }
+    Renvoie un nouvel access token si le refresh est valide.
+    """
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {'error': 'Corps de la requête invalide (JSON attendu)'},
+            status=400,
+        )
+    refresh = (payload or {}).get('refresh')
+    if not refresh:
+        return JsonResponse({'error': 'Champ "refresh" requis'}, status=400)
+    try:
+        return JsonResponse({'success': True, 'auth': refresh_access_token(refresh)})
+    except exceptions.AuthenticationFailed as exc:
+        return JsonResponse({'error': str(exc.detail)}, status=401)
 
 
 @api_view(['GET'])
@@ -3729,14 +3952,22 @@ class ZoneUtilisateurViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = ZoneUtilisateur.objects.all().order_by('id_user', 'id_zone')
-        id_user = _parse_positive_int_value(self.request.query_params.get('id_user'))
         id_zone = _parse_positive_int_value(self.request.query_params.get('id_zone'))
         active_only = _parse_bool_value(
             self.request.query_params.get('active_only'),
             default=False,
         )
-        if id_user is not None:
-            qs = qs.filter(id_user=id_user)
+        # Cloisonnement : un non-admin ne voit QUE ses propres affectations,
+        # quel que soit le parametre id_user fourni (ignore pour eux). Un
+        # admin peut filtrer par ?id_user=.
+        if _request_is_admin(self.request):
+            id_user = _parse_positive_int_value(
+                self.request.query_params.get('id_user')
+            )
+            if id_user is not None:
+                qs = qs.filter(id_user=id_user)
+        else:
+            qs = _scope_queryset_to_user(self.request, qs, 'id_user')
         if id_zone is not None:
             qs = qs.filter(id_zone=id_zone)
         if active_only:
@@ -3771,6 +4002,11 @@ class HistoriqueActionViewSet(viewsets.ReadOnlyModelViewSet):
                 qs = qs.filter(**{param: int(raw_value)})
             except (TypeError, ValueError):
                 continue
+
+        # Cloisonnement : un agent non-admin ne voit que SON journal
+        # d'audit. Empeche l'enumeration des actions des autres agents
+        # meme en omettant / falsifiant le filtre id_user.
+        qs = _scope_queryset_to_user(self.request, qs, 'id_user')
 
         return qs
 

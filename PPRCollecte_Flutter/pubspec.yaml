@@ -40,6 +40,9 @@ dependencies:
   sqflite: ^2.2.8+4
   sqlite3_flutter_libs: ^0.5.24
 
+  # Stockage securise des tokens JWT (Android Keystore / iOS Keychain)
+  flutter_secure_storage: ^9.2.2
+
   # GPS
   location: ^8.0.1
 
