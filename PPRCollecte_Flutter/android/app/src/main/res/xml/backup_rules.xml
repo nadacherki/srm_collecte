@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Exclusion de la base SQLite locale + flutter_secure_storage du
+    backup automatique Android. Empeche l'exfiltration des credentials
+    et donnees agent via `adb backup` ou cloud backup Google.
+-->
+<full-backup-content>
+    <exclude domain="database" path="srm_collecte.db" />
+    <exclude domain="database" path="srm_collecte.db-journal" />
+    <exclude domain="database" path="line_storage.db" />
+    <exclude domain="database" path="line_storage.db-journal" />
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+</full-backup-content>

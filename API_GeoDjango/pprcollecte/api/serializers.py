@@ -539,13 +539,49 @@ class UtilisateurSerializer(StrictModelSerializer):
 class ObjetPhotoSerializer(StrictModelSerializer):
     class Meta:
         model = ObjetPhoto
-        fields = '__all__'
+        # Whitelist explicite : un futur champ ajoute au modele ne sera
+        # PAS expose automatiquement.
+        fields = (
+            'id_photo',
+            'uuid_objet',
+            'nom_schema',
+            'nom_table',
+            'num_photo',
+            'contexte_photo',
+            'id_intervention_anomalie',
+            'nom_fichier',
+            'chemin_relatif',
+            'hash_sha256',
+            'mime_type',
+            'taille_octets',
+            'id_agent_crea',
+            'date_prise_reelle',
+            'date_upload',
+            'actif',
+        )
         read_only_fields = ('id_photo',)
 
 
 class InterventionAnomalieTerrainSerializer(StrictModelSerializer):
     writable_fields = {'etat_terrain', 'commentaire_terrain', 'id_user_terrain'}
     allowed_terrain_states = {'en_attente', 'traite'}
+
+    # Machine a etats : rang monotone du workflow d'anomalie. Une
+    # transition ne peut JAMAIS faire reculer le rang (sauf cloture/annule
+    # qui sont des etats terminaux poses cote bureau, pas via ce
+    # serializer terrain). Le terrain ne peut produire que
+    # `terrain_traite` (depuis un etat de rang inferieur) ou laisser le
+    # statut inchange.
+    _STATUT_RANK = {
+        None: 0,
+        '': 0,
+        'signale': 1,
+        'retour_terrain': 1,
+        'exploitant_traite': 2,
+        'terrain_traite': 3,
+        'cloture': 4,
+        'annule': 4,
+    }
 
     class Meta:
         model = InterventionAnomalie
@@ -616,17 +652,54 @@ class InterventionAnomalieTerrainSerializer(StrictModelSerializer):
             )
         return clean_value
 
+    def _rank(self, statut):
+        return self._STATUT_RANK.get(
+            (statut or '').strip() or None,
+            # Statut inconnu -> rang max pour bloquer toute transition
+            # potentiellement regressive depuis un etat non modelise.
+            max(self._STATUT_RANK.values()),
+        )
+
     def update(self, instance, validated_data):
         for field in ('commentaire_terrain', 'id_user_terrain'):
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
 
         if 'etat_terrain' in validated_data:
+            current_statut = instance.statut
+            current_rank = self._rank(current_statut)
+
+            # Un etat terminal (cloture/annule) ne peut plus etre touche
+            # par le terrain.
+            if current_statut in ('cloture', 'annule'):
+                raise serializers.ValidationError({
+                    'statut': (
+                        f"Anomalie deja en etat terminal "
+                        f"'{current_statut}', non modifiable depuis le "
+                        f"terrain."
+                    )
+                })
+
             instance.etat_terrain = validated_data['etat_terrain']
+
             if instance.etat_terrain == 'traite':
-                instance.statut = 'terrain_traite'
-            elif instance.statut in (None, '', 'signale', 'retour_terrain'):
-                instance.statut = 'signale'
+                target_statut = 'terrain_traite'
+            else:
+                # etat_terrain='en_attente' : on NE retrograde pas le
+                # statut existant (machine a etats monotone). On le laisse
+                # tel quel.
+                target_statut = current_statut
+
+            target_rank = self._rank(target_statut)
+            if target_rank < current_rank:
+                raise serializers.ValidationError({
+                    'statut': (
+                        f"Transition non autorisee "
+                        f"'{current_statut}' -> '{target_statut}' "
+                        f"(le workflow ne peut pas reculer)."
+                    )
+                })
+            instance.statut = target_statut
 
         instance.save()
         return instance
@@ -701,13 +774,26 @@ class ZoneSerializer(StrictGeoFeatureModelSerializer):
 class ZoneUtilisateurSerializer(StrictModelSerializer):
     class Meta:
         model = ZoneUtilisateur
-        fields = '__all__'
+        fields = ('id', 'id_zone', 'id_user', 'date_affectation', 'actif')
 
 
 class HistoriqueActionSerializer(StrictModelSerializer):
     class Meta:
         model = HistoriqueAction
-        fields = '__all__'
+        # `old_data`/`new_data` (snapshots JSON complets des lignes
+        # modifiees) sont volontairement EXCLUS : ils peuvent contenir
+        # des valeurs sensibles et le mobile n'a besoin que des
+        # metadonnees de l'evenement.
+        fields = (
+            'id',
+            'nom_table',
+            'id_objet',
+            'action',
+            'source',
+            'id_user',
+            'nom_user',
+            'date_action',
+        )
 
 
 class ObjetIncompletSerializer(StrictModelSerializer):
@@ -715,7 +801,18 @@ class ObjetIncompletSerializer(StrictModelSerializer):
 
     class Meta:
         model = ObjetIncomplet
-        fields = '__all__'
+        fields = (
+            'id_incomplet',
+            'uuid',
+            'nom_table',
+            'id_objet',
+            'detail_raison',
+            'date_signalement',
+            'id_agent_incomplet',
+            'statut',
+            'date_completion',
+            'id_agent_completement',
+        )
 
     def validate_statut(self, value):
         if value in (None, ''):

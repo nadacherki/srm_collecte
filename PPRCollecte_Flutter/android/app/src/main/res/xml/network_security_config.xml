@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Politique reseau Android. Par defaut on refuse le HTTP cleartext :
+    seul un petit nombre d'hosts de developpement est autorise.
+
+    Pour la prod, le domaine HTTPS du backend SRM doit etre utilise (qui
+    sera automatiquement accepte car HTTPS, sans domain-config necessaire).
+
+    Si l'agent test sur WiFi entreprise (cf Plan B 2026-05-11), ajouter
+    son IP/192.168.x.x ici temporairement.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Emulateur Android : alias vers le localhost du host -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Device physique sur WiFi local : IP du PC backend -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

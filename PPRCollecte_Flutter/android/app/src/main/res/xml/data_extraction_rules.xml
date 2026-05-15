@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ : exclusion equivalente pour Backup Cloud + Device-to-Device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="srm_collecte.db" />
+        <exclude domain="database" path="srm_collecte.db-journal" />
+        <exclude domain="database" path="line_storage.db" />
+        <exclude domain="database" path="line_storage.db-journal" />
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="srm_collecte.db" />
+        <exclude domain="database" path="srm_collecte.db-journal" />
+        <exclude domain="database" path="line_storage.db" />
+        <exclude domain="database" path="line_storage.db-journal" />
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+    </device-transfer>
+</data-extraction-rules>

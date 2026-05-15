@@ -180,8 +180,10 @@ class DatabaseHelper {
     debugPrint('✅ Table srm_session');
 
     // ── utilisateur_local ──
-    // Miroir de public.utilisateur
-    // mot_de_passe stocké EN CLAIR (comme dans PostgreSQL)
+    // Miroir de public.utilisateur pour le login OFFLINE.
+    // `mot_de_passe` contient un HASH (PasswordHashService.hashPassword),
+    // jamais le mot de passe en clair. La comparaison se fait via
+    // PasswordHashService.verifyPassword dans validateUser().
     await db.execute('''
       CREATE TABLE IF NOT EXISTS utilisateur_local (
         id_user INTEGER PRIMARY KEY,
@@ -1353,6 +1355,14 @@ class DatabaseHelper {
         return await PasswordHashService.verifyPassword(password, storedValue);
       }
 
+      // Transition uniquement : ligne ecrite par un ancien APK qui stockait
+      // le mot de passe en clair. On accepte la comparaison directe mais on
+      // log un warning - ces lignes doivent etre re-ecrites au prochain
+      // login online (qui stocke desormais un hash).
+      debugPrint(
+        '⚠️ validateUser: hash legacy en clair pour "$login" '
+        '(re-login online recommande pour migrer vers un hash).',
+      );
       return storedValue == password;
     } catch (e) {
       debugPrint('❌ Erreur validateUser: $e');
