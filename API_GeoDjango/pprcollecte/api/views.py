@@ -2233,6 +2233,11 @@ def _insert_statistique_conduite_segments(
     schema = config['schema']
     segment_table = config['segment_table']
     stat_table = config['stat_table']
+    # nosec justification (B608) : schema/segment_table/stat_table
+    # proviennent de _CONDUITE_METIER_CONFIG[key] avec key normalisee par
+    # _normalize_conduite_metier() vers un enum ferme ('ep'...). Aucune
+    # de ces valeurs n'est controlee par le client ; les valeurs metier
+    # restent parametrees via %s. Pas d'injection possible.
     with connection.cursor() as cursor:
         cursor.executemany(
             f"""
@@ -2252,7 +2257,7 @@ def _insert_statistique_conduite_segments(
                 %s,
                 %s
             )
-            """,
+            """,  # nosec B608
             rows,
         )
         cursor.execute(
@@ -2260,7 +2265,7 @@ def _insert_statistique_conduite_segments(
             UPDATE {schema}.{segment_table}
                SET longueur_segment_m = ST_Length(geom)
              WHERE id_statistique_conduite = %s
-            """,
+            """,  # nosec B608
             [id_statistique_conduite],
         )
         cursor.execute(
@@ -2276,7 +2281,7 @@ def _insert_statistique_conduite_segments(
                      WHERE id_statistique_conduite = %s
               ) AS sub
              WHERE id_statistique_conduite = %s
-            """,
+            """,  # nosec B608
             [id_statistique_conduite, id_statistique_conduite],
         )
 
@@ -3602,6 +3607,8 @@ def photo_upload_view(request):
         pg_sql.Identifier(schema_name),
         pg_sql.Identifier(table_name),
     )
+    object_columns = _mobile_table_columns(schema_name, table_name)
+    object_has_geom = 'geom' in object_columns
     with connection.cursor() as cursor:
         cursor.execute(
             pg_sql.SQL('SELECT 1 FROM {} WHERE uuid = %s LIMIT 1').format(qualified),
@@ -3612,6 +3619,41 @@ def photo_upload_view(request):
                 {'error': f'Objet introuvable pour uuid={uuid_objet}'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+    # Ownership : un agent non-admin ne peut televerser une photo que sur
+    # un objet situe dans une de SES zones affectees. Empeche le
+    # detournement (uploader sur l'objet d'un autre agent en forgeant
+    # nom_table/uuid_objet). L'objet doit avoir une geometrie intersectant
+    # l'union des zones actives de request.user.
+    if not _request_is_admin(request) and object_has_geom:
+        owner_user_id = _resolve_request_user_id(request)
+        if owner_user_id is None:
+            return Response(
+                {'error': "Identite agent requise pour televerser une photo."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        zone_sql, zone_params = _user_zone_geom_filter_sql(
+            f'"{schema_name}"."{table_name}"."geom"', owner_user_id,
+        )
+        if zone_sql is not None:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    pg_sql.SQL(
+                        'SELECT 1 FROM {} WHERE uuid = %s AND geom IS NOT NULL '
+                        'AND ' + zone_sql + ' LIMIT 1'
+                    ).format(qualified),
+                    [uuid_objet, *zone_params],
+                )
+                if cursor.fetchone() is None:
+                    return Response(
+                        {
+                            'error': (
+                                "Acces refuse : cet objet n'est pas dans une "
+                                "zone qui vous est affectee."
+                            )
+                        },
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
     id_intervention_anomalie = _resolve_photo_intervention_anomalie_id(
         schema_name=schema_name,

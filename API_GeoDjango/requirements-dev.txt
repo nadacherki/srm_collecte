@@ -1,0 +1,7 @@
+# Outillage securite / qualite (hors runtime prod).
+# Installer : pip install -r API_GeoDjango/requirements-dev.txt
+-r requirements.txt
+
+bandit==1.9.4        # SAST Python (injections, secrets, eval, etc.)
+pip-audit==2.10.0    # CVE des dependances (base OSV/PyPI, PyPA officiel)
+safety               # CVE des dependances (complementaire, peut requerir une cle)
