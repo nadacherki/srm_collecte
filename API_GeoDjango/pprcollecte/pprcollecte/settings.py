@@ -298,3 +298,45 @@ JWT_ACCESS_LIFETIME_MINUTES = int(
 JWT_REFRESH_LIFETIME_DAYS = int(
     os.environ.get("JWT_REFRESH_LIFETIME_DAYS", "7")
 )
+
+# ============================================================
+# LOGGING (filtre les secrets : JWT / Cookie / X-User-Id / mdp)
+# ============================================================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "redact_secrets": {
+            "()": "api.logging_filters.SensitiveDataFilter",
+        },
+    },
+    "formatters": {
+        "standard": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["redact_secrets"],
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG" if DEBUG else "WARNING",
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING" if not DEBUG else "INFO",
+            "propagate": False,
+        },
+        "api": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+    },
+}

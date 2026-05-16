@@ -7,6 +7,9 @@ from django.utils import timezone
 from django.db import connection
 from .models import *
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TemporalAnalysisAPIView(APIView):
     """
@@ -25,8 +28,8 @@ class TemporalAnalysisAPIView(APIView):
         specific_month = request.GET.get('month', '')
         specific_day = request.GET.get('day', '')
         
-        print(f"\n🔍 === ANALYSE TEMPORELLE FINALE ===")
-        print(f"📋 Paramètres: period_type={period_type}, types={types_param}")
+        logger.debug(f"\n🔍 === ANALYSE TEMPORELLE FINALE ===")
+        logger.debug(f"📋 Paramètres: period_type={period_type}, types={types_param}")
         
         try:
             # Configuration des modèles avec types corrigés
@@ -35,11 +38,11 @@ class TemporalAnalysisAPIView(APIView):
             # Si aucun type spécifié, utiliser tous les types disponibles
             if not types_param:
                 types_param = list(models_config.keys())
-                print(f"✅ Types utilisés (tous): {types_param}")
+                logger.debug(f"✅ Types utilisés (tous): {types_param}")
             else:
                 # Mapper les types frontend vers backend
                 types_param = self._map_frontend_types(types_param)
-                print(f"✅ Types mappés: {types_param}")
+                logger.debug(f"✅ Types mappés: {types_param}")
             
             # Déterminer la plage de dates
             start_date, end_date = self._calculate_date_range(
@@ -47,7 +50,7 @@ class TemporalAnalysisAPIView(APIView):
                 specific_day, date_from, date_to
             )
             
-            print(f"📅 Période d'analyse: {start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}")
+            logger.debug(f"📅 Période d'analyse: {start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}")
             
             # Fonction de troncature selon la période
             trunc_functions = {
@@ -65,14 +68,14 @@ class TemporalAnalysisAPIView(APIView):
             # Analyser chaque type demandé
             for type_name in types_param:
                 if type_name not in models_config:
-                    print(f"⚠️ Type {type_name} non trouvé dans la config")
+                    logger.warning("Type %s non trouve dans la config", type_name)
                     continue
                 
                 config = models_config[type_name]
-                print(f"\n🔧 Configuration pour {type_name}:")
-                print(f"  Model: {config['model'].__name__}")
-                print(f"  Date field: {config['date_field']}")
-                print(f"  Is VARCHAR: {config['is_varchar_date']}")
+                logger.debug(f"\n🔧 Configuration pour {type_name}:")
+                logger.debug(f"  Model: {config['model'].__name__}")
+                logger.debug(f"  Date field: {config['date_field']}")
+                logger.debug(f"  Is VARCHAR: {config['is_varchar_date']}")
                 
                 try:
                     if config['is_varchar_date']:
@@ -91,12 +94,12 @@ class TemporalAnalysisAPIView(APIView):
                     
                     if type_results:
                         results[type_name] = type_results
-                        print(f"✅ {type_name}: {len(type_results)} périodes trouvées")
+                        logger.debug(f"✅ {type_name}: {len(type_results)} périodes trouvées")
                     else:
-                        print(f"⚠️ {type_name}: aucune donnée dans la période")
+                        logger.warning("%s: aucune donnee dans la periode", type_name)
                 
                 except Exception as model_error:
-                    print(f"❌ Erreur {type_name}: {model_error}")
+                    logger.error("Erreur %s: %s", type_name, model_error)
                     debug_details[type_name] = {'error': str(model_error)}
                     continue
             
@@ -113,7 +116,7 @@ class TemporalAnalysisAPIView(APIView):
                 'tendance': self._calculate_trend(all_counts)
             }
             
-            print(f"🎯 Résultats finaux: {len(results)} types, {total_collectes} collectes total")
+            logger.debug(f"🎯 Résultats finaux: {len(results)} types, {total_collectes} collectes total")
             
             return Response({
                 'success': True,
@@ -138,9 +141,7 @@ class TemporalAnalysisAPIView(APIView):
             })
             
         except Exception as e:
-            print(f"💥 Erreur globale: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Erreur globale analyse temporelle: %s", e)
             return Response({
                 'success': False,
                 'error': str(e),
@@ -151,7 +152,7 @@ class TemporalAnalysisAPIView(APIView):
                                       period_type, total_by_period):
         """Traitement UNIQUEMENT SQL pour éviter l'ORM Django"""
         
-        print(f"\n📊 Analyse {type_name.upper()} - VARCHAR (SQL SEUL)")
+        logger.debug(f"\n📊 Analyse {type_name.upper()} - VARCHAR (SQL SEUL)")
         
         model = config['model']
         date_field = config['date_field']
@@ -176,24 +177,24 @@ class TemporalAnalysisAPIView(APIView):
                 LIMIT 1000
                 """
                 
-                print(f"  🔍 SQL: {sql}")
+                logger.debug(f"  🔍 SQL: {sql}")
                 cursor.execute(sql)
                 raw_records = cursor.fetchall()
                 
         except Exception as sql_error:
-            print(f"  ❌ Erreur SQL: {sql_error}")
+            logger.debug(f"  ❌ Erreur SQL: {sql_error}")
             return [], {'total_records': 0, 'valid_dates': 0, 'in_range_dates': 0, 'sql_error': str(sql_error)}
         
         total_records = len(raw_records)
-        print(f"  📊 Enregistrements récupérés: {total_records}")
+        logger.debug(f"  📊 Enregistrements récupérés: {total_records}")
         
         if total_records == 0:
             return [], {'total_records': 0, 'valid_dates': 0, 'in_range_dates': 0}
         
         # Afficher exemples pour debug
-        print(f"  📋 Exemples de dates:")
+        logger.debug(f"  📋 Exemples de dates:")
         for i, record in enumerate(raw_records[:3]):
-            print(f"    {i+1}. ID={record[0]}, Date='{record[1]}'")
+            logger.debug(f"    {i+1}. ID={record[0]}, Date='{record[1]}'")
         
         # Parser manuellement chaque date
         period_counts = {}
@@ -232,9 +233,9 @@ class TemporalAnalysisAPIView(APIView):
             except Exception as e:
                 continue
         
-        print(f"  ✅ Dates valides: {valid_count}/{total_records}")
-        print(f"  📅 Dans la période: {in_range_count}")
-        print(f"  📊 Périodes trouvées: {len(period_counts)}")
+        logger.debug(f"  ✅ Dates valides: {valid_count}/{total_records}")
+        logger.debug(f"  📅 Dans la période: {in_range_count}")
+        logger.debug(f"  📊 Périodes trouvées: {len(period_counts)}")
         
         # Convertir en format attendu
         results = []
@@ -427,7 +428,7 @@ class TemporalAnalysisAPIView(APIView):
                                        period_type, total_by_period, trunc_func):
         """Traitement pour les champs DateTime natifs (table pistes)"""
         
-        print(f"\n📊 Analyse {type_name.upper()} - DATETIME")
+        logger.debug(f"\n📊 Analyse {type_name.upper()} - DATETIME")
         
         model = config['model']
         date_field = config['date_field']
@@ -452,9 +453,9 @@ class TemporalAnalysisAPIView(APIView):
             count=Count(id_field)
         ).order_by('period_truncated')
         
-        print(f"  📊 Total enregistrements: {total_records}")
-        print(f"  📅 Dans la période: {in_range_count}")
-        print(f"  📊 Périodes trouvées: {len(temporal_data)}")
+        logger.debug(f"  📊 Total enregistrements: {total_records}")
+        logger.debug(f"  📅 Dans la période: {in_range_count}")
+        logger.debug(f"  📊 Périodes trouvées: {len(temporal_data)}")
         
         # Formater les résultats avec tri correct
         results = []
