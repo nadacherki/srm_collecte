@@ -1,0 +1,42 @@
+#!/usr/bin/env sh
+# Hook pre-commit : analyse SAST rapide (bandit) sur les fichiers Python
+# du backend mis en staging. Volontairement local & rapide (pas de
+# safety/pip-audit reseau ici -> ceux-ci tournent en CI).
+#
+# Active via : git config core.hooksPath .githooks
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+# Fichiers .py du backend ajoutes/modifies dans ce commit.
+staged_py="$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '^API_GeoDjango/.*\.py$' || true)"
+
+if [ -z "$staged_py" ]; then
+  exit 0
+fi
+
+# Resolution de bandit : venv srmenv en priorite, sinon PATH.
+bandit_bin=""
+if [ -x "srmenv/Scripts/bandit.exe" ]; then
+  bandit_bin="srmenv/Scripts/bandit.exe"
+elif [ -x "srmenv/bin/bandit" ]; then
+  bandit_bin="srmenv/bin/bandit"
+elif command -v bandit >/dev/null 2>&1; then
+  bandit_bin="bandit"
+fi
+
+if [ -z "$bandit_bin" ]; then
+  echo "pre-commit: bandit introuvable (pip install -r API_GeoDjango/requirements-dev.txt). Commit bloque." >&2
+  exit 1
+fi
+
+echo "pre-commit: bandit sur $(echo "$staged_py" | wc -l) fichier(s) Python..."
+# Seuil ALIGNE sur la CI (security-backend.yml) : -ll -ii = ne bloque
+# que sur severite >= MEDIUM ET confiance >= MEDIUM. Les findings LOW /
+# faible confiance restent visibles mais ne bloquent pas le commit
+# (le job CI applique le meme seuil de facon autoritaire).
+# shellcheck disable=SC2086
+"$bandit_bin" -ll -ii -q $staged_py
+echo "pre-commit: bandit OK."

@@ -1,0 +1,49 @@
+name: SRM Backend Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/security-backend.yml"
+      - "API_GeoDjango/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/security-backend.yml"
+      - "API_GeoDjango/**"
+  workflow_dispatch:
+
+jobs:
+  backend-security:
+    name: bandit + pip-audit + safety
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: API_GeoDjango
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install security tooling
+        run: pip install bandit pip-audit safety
+
+      # SAST : bloque sur severite/confiance >= MEDIUM. Les findings LOW
+      # sont rapportes mais non bloquants.
+      - name: Bandit SAST
+        run: bandit -r pprcollecte -ll -ii -x pprcollecte/api/migrations
+
+      # CVE des dependances declarees. Bloquant.
+      - name: pip-audit (CVE dependances)
+        run: pip-audit -r requirements.txt --strict
+
+      # Complementaire ; non bloquant (peut requerir une cle API selon
+      # la version / la base de vulnerabilites).
+      - name: Safety (non bloquant)
+        continue-on-error: true
+        run: safety check -r requirements.txt
