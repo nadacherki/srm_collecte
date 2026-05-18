@@ -20,6 +20,9 @@ bool _isIgnorableAppError(Object error) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Fail-fast : un build release doit pointer vers un backend HTTPS de
+  // prod (jamais l'emulateur en clair). Leve une StateError sinon.
+  ApiService.validateBaseUrl();
   DArgon2Flutter.init();
 
   final previousFlutterError = FlutterError.onError;

@@ -55,6 +55,9 @@ API_GeoDjango/pprcollecte/media/**
 !API_GeoDjango/pprcollecte/media/basemaps/
 !API_GeoDjango/pprcollecte/media/basemaps/region.pmtiles
 
+# Statics generes par collectstatic (jamais commiter)
+API_GeoDjango/pprcollecte/staticfiles/
+
 # Local basemap scratch / downloads
 bbbike_extract_page.html
 backups/

@@ -1,0 +1,13 @@
+# Copier en `android/key.properties` (NON commite : cf .gitignore).
+# Genere le keystore une seule fois, garde-le hors du depot et sauvegarde-le
+# de facon securisee (sa perte = impossible de mettre a jour l'app signee) :
+#
+#   keytool -genkey -v -keystore srm-release.jks \
+#     -keyalg RSA -keysize 4096 -validity 10000 -alias srm
+#
+# storeFile : chemin vers le .jks, RELATIF au module android/app/
+#             (ex: ../srm-release.jks place dans android/) ou chemin absolu.
+storeFile=../srm-release.jks
+storePassword=CHANGE_ME
+keyAlias=srm
+keyPassword=CHANGE_ME
