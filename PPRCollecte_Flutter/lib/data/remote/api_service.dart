@@ -25,11 +25,37 @@ class ApiPageResult {
 
 class ApiService {
   // ── URL de base du serveur Django SRM ──
-  // Émulateur Android : 10.0.2.2 = localhost de la machine hôte
+  // Definie au build via --dart-define=API_BASE_URL=https://api.exemple.ma
+  // Defaut = emulateur Android (10.0.2.2 = localhost de l'hote) UNIQUEMENT
+  // utilisable en debug. En release, validateBaseUrl() impose https://
+  // et un host non-loopback (fail-fast au demarrage).
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:8000',
   );
+
+  static const Set<String> _devOnlyHosts = {
+    '10.0.2.2',
+    'localhost',
+    '127.0.0.1',
+  };
+
+  /// A appeler une fois au bootstrap (main). En release, refuse de
+  /// demarrer si l'URL backend n'est pas HTTPS ou pointe vers un host de
+  /// dev : empeche de livrer un APK qui parle en clair a l'emulateur.
+  static void validateBaseUrl() {
+    if (!kReleaseMode) return;
+    final uri = Uri.tryParse(baseUrl);
+    final host = uri?.host ?? '';
+    final isHttps = uri?.scheme == 'https';
+    final isDevHost = _devOnlyHosts.contains(host) || host.isEmpty;
+    if (!isHttps || isDevHost) {
+      throw StateError(
+        'API_BASE_URL invalide pour un build release: "$baseUrl". '
+        'Rebuilder avec --dart-define=API_BASE_URL=https://<domaine-prod>.',
+      );
+    }
+  }
 
   // ── Authentification ──
   static String? authToken; // = access token JWT (en memoire)

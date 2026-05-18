@@ -100,6 +100,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise juste apres SecurityMiddleware : sert /static/ (admin +
+    # DRF browsable API) sans dependre du reverse proxy.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'csp.middleware.CSPMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -187,8 +190,23 @@ USE_TZ = True
 # FICHIERS STATIQUES
 # ============================================================
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# WhiteNoise : compression + manifest hashe en prod.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": (
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            if not DEBUG
+            else "django.contrib.staticfiles.storage.StaticFilesStorage"
+        ),
+    },
+}
 
 # Basemap regional unique : un seul fichier .pmtiles vectoriel OSM-like
 # couvrant toute la zone d'intervention (Oriental). Le mobile telecharge
@@ -290,6 +308,38 @@ REST_FRAMEWORK = {
 }
 
 # ============================================================
+# CACHE (backend du rate-limiting DRF)
+# ============================================================
+# Sans backend partage, DRF utilise LocMemCache PAR PROCESS : avec
+# plusieurs workers gunicorn, le throttle login devient N x plus
+# permissif (brute-force possible). En prod -> Redis partage obligatoire.
+_redis_url = os.environ.get("REDIS_URL", "").strip()
+if _redis_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": _redis_url,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+            "KEY_PREFIX": "srm",
+        }
+    }
+else:
+    # Dev local uniquement (mono-process). Interdit en prod : le
+    # garde-fou ci-dessous bloque le boot si DEBUG=False sans Redis.
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "REDIS_URL est requis en production : le rate-limiting DRF "
+            "doit s'appuyer sur un cache partage entre workers gunicorn."
+        )
+
+# ============================================================
 # JWT (auth custom : api/jwt_auth.py)
 # ============================================================
 JWT_ACCESS_LIFETIME_MINUTES = int(
@@ -340,3 +390,54 @@ LOGGING = {
         },
     },
 }
+
+# ============================================================
+# REMONTEE D'ERREURS (Sentry + mail ADMINS)
+# ============================================================
+# Sentry : opt-in via SENTRY_DSN. Sans DSN -> desactive (dev). Les
+# donnees sensibles ne sont PAS envoyees (send_default_pii=False) et le
+# filtre logging redige deja les secrets en amont.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            LoggingIntegration(level=None, event_level="ERROR"),
+        ],
+        environment=os.environ.get("SENTRY_ENV", "production"),
+        traces_sample_rate=float(
+            os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.0")
+        ),
+        send_default_pii=False,
+        release=os.environ.get("SENTRY_RELEASE") or None,
+    )
+
+# Mail ADMINS : fallback/complement a Sentry. Les 500 sont envoyes par
+# mail si un backend SMTP est configure via env.
+_admins_env = os.environ.get("DJANGO_ADMINS", "").strip()
+ADMINS = [
+    (part.split(":", 1)[0].strip(), part.split(":", 1)[1].strip())
+    for part in _admins_env.split(",")
+    if ":" in part
+]
+MANAGERS = ADMINS
+SERVER_EMAIL = os.environ.get("DJANGO_SERVER_EMAIL", "srm-collecte@localhost")
+DEFAULT_FROM_EMAIL = SERVER_EMAIL
+if os.environ.get("EMAIL_HOST"):
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.environ["EMAIL_HOST"]
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() in {
+        "1", "true", "yes", "on",
+    }
+else:
+    # Pas de SMTP configure : on n'echoue pas, mais les mails ADMINS
+    # ne partiront pas (Sentry reste le canal principal recommande).
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

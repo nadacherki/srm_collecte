@@ -22,6 +22,20 @@ if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
 
+// Keystore release : lu depuis android/key.properties (NON commite, cf
+// .gitignore). Absent -> on retombe sur la signature debug pour les
+// builds locaux/dev, mais un build `release` sans keystore est refuse
+// explicitement (voir buildTypes.release plus bas).
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = false
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader("UTF-8") { reader ->
+        keystoreProperties.load(reader)
+    }
+    hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
+}
+
 android {
     namespace = "com.srm.collecte"
     compileSdk = 36
@@ -54,9 +68,42 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(keystoreProperties.getProperty("storeFile"))
+                storePassword keystoreProperties.getProperty("storePassword")
+                keyAlias keystoreProperties.getProperty("keyAlias")
+                keyPassword keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.release
+                minifyEnabled = true
+                shrinkResources = true
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
+                )
+            } else {
+                // Build release SANS keystore : interdit pour une vraie
+                // distribution. On garde la signature debug uniquement
+                // pour permettre un `flutter run --release` local, mais
+                // on AVERTIT bruyamment.
+                logger.warn(
+                    "ATTENTION: build release sans android/key.properties " +
+                    "-> signe avec la cle DEBUG. NE PAS distribuer. " +
+                    "Voir android/key.properties.example."
+                )
+                signingConfig = signingConfigs.debug
+            }
+        }
+        debug {
+            applicationIdSuffix = ".debug"
         }
     }
 
