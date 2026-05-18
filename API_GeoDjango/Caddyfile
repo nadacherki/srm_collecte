@@ -1,0 +1,49 @@
+# Reverse proxy TLS pour SRM Collecte.
+# Caddy provisionne et renouvelle automatiquement le certificat
+# Let's Encrypt pour le domaine ${SRM_DOMAIN}. Termine TLS et transmet
+# X-Forwarded-Proto=https (lu par SECURE_PROXY_SSL_HEADER cote Django).
+
+{$SRM_DOMAIN} {
+    encode zstd gzip
+
+    # Fichiers statiques (admin + DRF browsable) servis directement.
+    handle_path /static/* {
+        root * /srv/static
+        file_server
+    }
+
+    # Photos uploadees : servies par Caddy (volume partage avec Django),
+    # mais derriere TLS uniquement. L'autorisation applicative reste
+    # geree par Django pour l'upload ; l'acces lecture est suppose
+    # interne au reseau d'agents authentifies.
+    handle_path /media/* {
+        root * /srv/media
+        file_server
+    }
+
+    # Tout le reste -> gunicorn.
+    reverse_proxy web:8000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-For {remote_host}
+        header_up Host {host}
+    }
+
+    # Defense en profondeur (Django pose deja ces headers ; on les
+    # re-affirme au bord et on retire la banniere serveur).
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "same-origin"
+        -Server
+    }
+
+    request_body {
+        max_size 25MB
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}

@@ -1,0 +1,13 @@
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*
+!**/.env.example
+pprcollecte/media/
+pprcollecte/staticfiles/
+../backups/
+../srmenv/
+**/.git
+**/.pytest_cache
+requirements-dev.txt
+migration_error.txt
