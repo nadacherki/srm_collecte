@@ -105,6 +105,21 @@ class SyncService {
   /// cycle. Une entree = {table, endpoint, uuid, missing, metier, entity}.
   final List<Map<String, dynamic>> _currentSyncPreflightSkips = [];
 
+  String _syncManifestTableName(String schema, String table) {
+    final cleanSchema = schema.trim().toLowerCase();
+    final cleanTable = table.trim();
+    if (cleanTable.isEmpty) {
+      return cleanTable;
+    }
+    if (cleanSchema == 'ep' || cleanSchema == 'asst') {
+      return AttributConfigMobileService.configTableForMobileTable(
+        cleanSchema,
+        cleanTable,
+      );
+    }
+    return cleanTable;
+  }
+
   Future<SyncResult> downloadAllData({
     Function(double, String, int, int)? onProgress,
   }) async {
@@ -694,6 +709,9 @@ class SyncService {
         syncSessionUuid: syncSessionUuid,
       );
     }
+    if (!result.interrupted) {
+      await _refreshTerrainInterventionsAfterSync(result);
+    }
     if (syncSessionUuid != null) {
       await _verifySyncSessionLog(syncSessionUuid, result);
     }
@@ -796,6 +814,42 @@ class SyncService {
     } catch (e) {
       result.warnings.add(
         'Verification du journal sync impossible: ${_short(e)}',
+      );
+    }
+  }
+
+  Future<void> _refreshTerrainInterventionsAfterSync(SyncResult result) async {
+    const tableName = 'intervention_anomalie';
+    const scopeMetadataKey = 'intervention_anomalie_download_scope';
+    const scopeMetadataValue = 'active_all_v1';
+    final startedAt = DateTime.now().toUtc();
+
+    try {
+      final currentScope = await dbHelper.getAppMetadataValue(scopeMetadataKey);
+      final updatedAfter = currentScope == scopeMetadataValue
+          ? await dbHelper.getLastDownloadTimeForTable(tableName)
+          : null;
+      final nowIso = DateTime.now().toIso8601String();
+      final rows = await ApiService.fetchTerrainInterventions(
+        updatedAfter: updatedAfter,
+      );
+      for (final row in rows) {
+        final normalized = Map<String, dynamic>.from(row);
+        normalized['downloaded'] = 1;
+        normalized['synced'] = 1;
+        normalized['date_sync'] = nowIso;
+        await dbHelper.upsertDownloadedInterventionAnomalieTerrain(normalized);
+      }
+      await dbHelper.saveLastDownloadTimeForTable(tableName, startedAt);
+      await dbHelper.saveAppMetadataValue(scopeMetadataKey, scopeMetadataValue);
+      await dbHelper.saveDownloadTableStatus(
+        tableName,
+        status: 'completed',
+        downloadedCount: rows.length,
+      );
+    } catch (e) {
+      result.warnings.add(
+        'Rafraichissement anomalies apres synchro impossible: ${_short(e)}',
       );
     }
   }
@@ -1166,6 +1220,7 @@ class SyncService {
     for (final info in tables) {
       final requiredFieldNames = await _requiredFieldNamesForInfo(info);
       final rows = await dbHelper.getUnsyncedSrm(info.table);
+      final syncTableName = _syncManifestTableName(info.schema, info.table);
       for (final row in rows) {
         if (_isDownloadedRow(row)) {
           continue;
@@ -1199,13 +1254,14 @@ class SyncService {
         items.add({
           'client_item_uuid': _clientItemUuid(info, row),
           'nom_schema': info.schema,
-          'nom_table': info.table,
+          'nom_table': syncTableName,
           'uuid_objet': uuid,
           'local_id': _asIntOrNull(row['id']),
           'operation': 'upsert',
           'payload_hash': _hashPayload(payload),
           'payload_summary': {
-            'table': info.table,
+            'table': syncTableName,
+            'mobile_table': info.table,
             'local_id': _asIntOrNull(row['id']),
             'photos_locales': localPhotos.length,
           },
@@ -1216,7 +1272,7 @@ class SyncService {
             attachments: attachments,
             attachmentKeys: attachmentKeys,
             schemaName: info.schema,
-            tableName: info.table,
+            tableName: syncTableName,
             uuidObjet: uuid,
             photoSlot: photo.key,
             localPath: photo.value,
@@ -1291,6 +1347,7 @@ class SyncService {
     for (final item in pendingPhotos) {
       final schemaName = item['schema_name']?.toString().trim() ?? '';
       final tableName = item['table_name']?.toString().trim() ?? '';
+      final syncTableName = _syncManifestTableName(schemaName, tableName);
       final uuidObjet = item['uuid_objet']?.toString().trim() ?? '';
       final localPath = item['local_path']?.toString().trim() ?? '';
       final photoSlot = _asIntOrNull(item['photo_slot']);
@@ -1307,7 +1364,7 @@ class SyncService {
         attachments: attachments,
         attachmentKeys: attachmentKeys,
         schemaName: schemaName,
-        tableName: tableName,
+        tableName: syncTableName,
         uuidObjet: uuidObjet,
         photoSlot: photoSlot,
         localPath: localPath,

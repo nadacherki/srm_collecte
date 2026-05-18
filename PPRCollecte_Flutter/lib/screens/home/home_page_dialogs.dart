@@ -137,7 +137,18 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
             lower.contains('failed host lookup');
       }
 
+      bool isSessionExpiredError(String error) {
+        final lower = error.toLowerCase();
+        return lower.contains('session expir') ||
+            lower.contains('token expire') ||
+            lower.contains('token expiré') ||
+            lower.contains('jwt expired') ||
+            lower.contains('401 unauthorized') ||
+            lower.contains('401');
+      }
+
       final hasConnectionErrors = result.errors.any(isConnectionError);
+      final hasSessionExpiredErrors = result.errors.any(isSessionExpiredError);
 
       final String title;
       final IconData titleIcon;
@@ -157,6 +168,12 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
         title = 'Synchronisation partielle';
         titleIcon = Icons.warning_amber;
         titleColor = Colors.orange;
+      } else if (result.successCount == 0 &&
+          result.failedCount > 0 &&
+          hasSessionExpiredErrors) {
+        title = 'Session expirée';
+        titleIcon = Icons.lock_clock;
+        titleColor = Colors.red;
       } else if (result.successCount == 0 &&
           result.failedCount > 0 &&
           hasConnectionErrors) {
@@ -333,6 +350,11 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                 Text(
                   'Détails techniques : ${_syncUnableToSendDataText(result.failedCount)}.',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ] else if (hasSessionExpiredErrors) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Session expirée. Veuillez vous reconnecter.',
                 ),
               ] else if (result.failedCount > 0) ...[
                 const SizedBox(height: 8),

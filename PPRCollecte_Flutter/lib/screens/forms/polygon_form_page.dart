@@ -987,6 +987,24 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           );
         }
 
+        final uuidObjet = data['uuid']?.toString().trim() ?? '';
+        if (_hasAnomalie && !_isObjetIncomplet && uuidObjet.isNotEmpty) {
+          await dbHelper.upsertLocalInterventionAnomalieSignalement(
+            schemaName: _metierCode.toLowerCase(),
+            tableName: _tableName,
+            idObjet: localId,
+            uuidObjet: uuidObjet,
+            rowData: data,
+          );
+        } else {
+          await dbHelper.resolveLocalInterventionAnomalieSignalement(
+            schemaName: _metierCode.toLowerCase(),
+            tableName: _tableName,
+            idObjet: localId,
+            uuidObjet: uuidObjet,
+          );
+        }
+
         if (mounted) {
           await clearDraftAfterSave();
           if (!mounted) return;
@@ -1103,6 +1121,24 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         await dbHelper.resolveObjetIncompletForEntity(
           tableName: _tableName,
           idObjet: localId,
+        );
+      }
+
+      final uuidObjet = data['uuid']?.toString().trim() ?? '';
+      if (_hasAnomalie && !_isObjetIncomplet && uuidObjet.isNotEmpty) {
+        await dbHelper.upsertLocalInterventionAnomalieSignalement(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          idObjet: localId,
+          uuidObjet: uuidObjet,
+          rowData: data,
+        );
+      } else {
+        await dbHelper.resolveLocalInterventionAnomalieSignalement(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: _tableName,
+          idObjet: localId,
+          uuidObjet: uuidObjet,
         );
       }
 

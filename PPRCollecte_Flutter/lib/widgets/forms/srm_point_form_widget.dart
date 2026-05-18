@@ -117,7 +117,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     4: null,
   };
   final Map<String, Map<int, String?>> _initialWorkflowPhotoPaths = {};
-  bool _wasAnomalieAtOpen = false;
   bool _wasObjetIncompletAtOpen = false;
   int _workflowInterventionId = 0;
 
@@ -177,6 +176,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   static const String _photoContextRetourTerrain = 'retour_terrain_apres';
   static const String _photoContextIncompletInitial = 'incomplet_initial';
   static const String _photoContextIncompletComplement = 'incomplet_complement';
+  static const int _requiredGeneralPhotoCount = 4;
+  static const int _requiredWorkflowPhotoCount = 2;
 
   bool get _isEpRegardPoint =>
       widget.metier == 'Eau Potable' && _tableName == 'ep_regard_point';
@@ -218,7 +219,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     // depuis la SQLite locale (synchronisée au login). Pas de hardcoding.
     _typeOptions = SrmConfig.getTypeOptions(widget.metier, widget.entityType);
     _typeField = _entityConfig?['typeField'] as String?;
-    _maxPhotos = SrmConfig.getMaxPhotos(widget.metier, widget.entityType);
+    _maxPhotos = _requiredGeneralPhotoCount;
 
     final m = ProjectionService().wgs84ToMerchich(
       longitude: widget.longitude,
@@ -249,7 +250,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
-      _wasAnomalieAtOpen = _hasAnomalie;
       _wasObjetIncompletAtOpen = _isObjetIncomplet;
 
       for (int i = 1; i <= 4; i++) {
@@ -715,26 +715,18 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   bool get _hasActiveAnomalie =>
       _hasAnomalie || _hasCompteurAbonneInformativeAnomalie;
 
-  bool _isObservationField(String field) {
-    final normalized = field.toLowerCase();
-    return normalized == 'observation' ||
-        normalized == 'ep_observation' ||
-        normalized == 'ass_observation' ||
-        normalized.endsWith('_observation');
-  }
-
   List<String> _anomalieEvidenceFields() {
-    final candidates = <String>{
-      ..._anomalieDetailFields(),
-      ..._fields.where(_isObservationField),
-      ..._controllers.keys.where(_isObservationField),
-      ..._attributConfigByField.keys.where(_isObservationField),
-    };
-    return candidates
-        .where((field) =>
-            !_isAnomalieFlagField(field) && _isConfiguredVisibleField(field))
+    return _anomalieDetailFields()
+        .where((field) => _isAnomalieEvidenceFieldVisibleOnForm(field))
         .toList()
       ..sort();
+  }
+
+  bool _isAnomalieEvidenceFieldVisibleOnForm(String field) {
+    if (_isAnomalieFlagField(field)) return false;
+    if (field == 'type_anomalie') return _hasTypeAnomalieField;
+    final config = _configForField(field);
+    return config != null && config.visible;
   }
 
   String? _validateAnomalieEvidence() {
@@ -745,7 +737,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     for (final field in fields) {
       if ((_controllers[field]?.text.trim() ?? '').isNotEmpty) return null;
     }
-    return 'Veuillez renseigner le type, l\'observation ou le detail de l\'anomalie';
+    return 'Veuillez renseigner le type ou un detail de l\'anomalie';
   }
 
   AttributConfigMobileField? _configForField(String field) {
@@ -873,6 +865,34 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   Color get _metierColor => Color(SrmConfig.getMetierColor(widget.metier));
 
+  List<({String label, Map<int, String?> paths})> _allPhotoGroups() {
+    return [
+      (label: 'photos standards', paths: _photoPaths),
+      (label: 'photos anomalie', paths: _anomaliePhotoPaths),
+      (label: 'photos incomplet', paths: _incompletPhotoPaths),
+      (label: 'photos complément', paths: _incompletComplementPhotoPaths),
+      (label: 'photos retour terrain', paths: _retourTerrainPhotoPaths),
+    ];
+  }
+
+  Future<String?> _findDuplicatePhotoLocation({
+    required String candidatePath,
+    required Map<int, String?> currentPaths,
+    required int currentSlot,
+  }) async {
+    for (final group in _allPhotoGroups()) {
+      final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
+        candidatePath: candidatePath,
+        existingPaths: group.paths,
+        currentSlot: identical(group.paths, currentPaths) ? currentSlot : null,
+      );
+      if (duplicateSlot != null) {
+        return '${group.label} / Photo $duplicateSlot';
+      }
+    }
+    return null;
+  }
+
   // Photos
   Future<void> _pickPhoto(
     int index, {
@@ -935,12 +955,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     // On compare la photo sélectionnée avec toutes les autres slots déjà remplis.
     // Si une photo identique est détectée (même chemin ou même contenu binaire),
     // on rejette la sélection avec un message explicite.
-    final duplicateSlot = await PhotoValidationService.findDuplicateSlot(
+    final duplicateLocation = await _findDuplicatePhotoLocation(
       candidatePath: picked.path,
-      existingPaths: paths,
+      currentPaths: paths,
       currentSlot: index,
     );
-    if (duplicateSlot != null) {
+    if (duplicateLocation != null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -950,7 +970,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Photo déjà utilisée dans le slot Photo $duplicateSlot. '
+                  'Photo déjà utilisée dans $duplicateLocation. '
                   'Veuillez sélectionner une photo différente.',
                   style: const TextStyle(fontSize: 13),
                 ),
@@ -1068,9 +1088,71 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   int _workflowPhotoSlotCount(String photoContext) {
-    final max = _maxPhotos <= 0 ? 0 : (_maxPhotos > 4 ? 4 : _maxPhotos);
-    if (max <= PhotoStorageService.workflowPhotoSlotLimit) return max;
     return PhotoStorageService.workflowPhotoSlotLimit;
+  }
+
+  int _countFilledPhotos(
+    Map<int, String?> photoPaths,
+    int maxSlots,
+  ) {
+    var count = 0;
+    for (var slot = 1; slot <= maxSlots; slot++) {
+      final value = photoPaths[slot]?.trim() ?? '';
+      if (value.isNotEmpty) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  bool get _requiresWorkflowAnomaliePhotos =>
+      !_isEpMinimalLocationForm &&
+      !_isEpCompteurAbonne &&
+      _hasActiveAnomalie;
+
+  bool get _requiresWorkflowIncompletPhotos =>
+      !_isEpMinimalLocationForm &&
+      (_isObjetIncomplet || (_wasObjetIncompletAtOpen && !_isObjetIncomplet));
+
+  String? _validatePhotoRequirements() {
+    if (_isLocked) return null;
+
+    if (_requiresWorkflowAnomaliePhotos) {
+      const context = _photoContextAnomalieAvant;
+      const label = 'photos anomalie';
+      final count = _countFilledPhotos(
+        _workflowPhotoMapForContext(context),
+        _workflowPhotoSlotCount(context),
+      );
+      if (count < _requiredWorkflowPhotoCount) {
+        return 'Veuillez ajouter au moins $_requiredWorkflowPhotoCount $label.';
+      }
+    }
+
+    if (_requiresWorkflowIncompletPhotos) {
+      final context = _isObjetIncomplet
+          ? _photoContextIncompletInitial
+          : _photoContextIncompletComplement;
+      final label = _isObjetIncomplet
+          ? 'photos objet incomplet'
+          : 'photos de complement';
+      final count = _countFilledPhotos(
+        _workflowPhotoMapForContext(context),
+        _workflowPhotoSlotCount(context),
+      );
+      if (count < _requiredWorkflowPhotoCount) {
+        return 'Veuillez ajouter au moins $_requiredWorkflowPhotoCount $label.';
+      }
+    }
+
+    final generalCount = _countFilledPhotos(_photoPaths, _maxPhotos);
+    if (generalCount < _requiredGeneralPhotoCount &&
+        !_requiresWorkflowAnomaliePhotos &&
+        !_requiresWorkflowIncompletPhotos) {
+      return 'Veuillez ajouter les $_requiredGeneralPhotoCount photos obligatoires.';
+    }
+
+    return null;
   }
 
   Future<void> _loadWorkflowPhotoQueues() async {
@@ -1099,6 +1181,20 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           tableName: _tableName,
           uuidObjet: uuid,
           idInterventionAnomalie: queueInterventionId,
+        );
+      }
+      if (rows.isEmpty) {
+        rows = _selectWorkflowPhotoRows(
+          await db.getPhotoSyncItemsForObject(
+            schemaName: _metierCode.toLowerCase(),
+            tableName: _tableName,
+            uuidObjet: uuid,
+          ),
+          preferredInterventionId: resolvedInterventionId,
+        );
+        queueInterventionId = _detectWorkflowInterventionId(
+          rows,
+          fallback: queueInterventionId,
         );
       }
       if (!mounted) return;
@@ -1136,6 +1232,81 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
   }
 
+  List<Map<String, dynamic>> _selectWorkflowPhotoRows(
+    List<Map<String, dynamic>> rows, {
+    required int preferredInterventionId,
+  }) {
+    if (rows.isEmpty) return rows;
+
+    final selected = <String, Map<String, dynamic>>{};
+    for (final row in rows) {
+      final photoContext = row['photo_context']?.toString().trim() ?? '';
+      if (photoContext.isEmpty || photoContext == 'collecte_initiale') continue;
+      final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
+      if (slot == null || slot < 1 || slot > 4) continue;
+      final key = '$photoContext|$slot';
+      final current = selected[key];
+      if (current == null ||
+          _workflowPhotoRowScore(
+                row,
+                preferredInterventionId: preferredInterventionId,
+              ) >
+              _workflowPhotoRowScore(
+                current,
+                preferredInterventionId: preferredInterventionId,
+              )) {
+        selected[key] = row;
+      }
+    }
+
+    final normalized = selected.values
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+    normalized.sort((a, b) {
+      final contextA = a['photo_context']?.toString() ?? '';
+      final contextB = b['photo_context']?.toString() ?? '';
+      final contextCompare = contextA.compareTo(contextB);
+      if (contextCompare != 0) return contextCompare;
+      final slotA = int.tryParse(a['photo_slot']?.toString() ?? '') ?? 0;
+      final slotB = int.tryParse(b['photo_slot']?.toString() ?? '') ?? 0;
+      return slotA.compareTo(slotB);
+    });
+    return normalized;
+  }
+
+  int _workflowPhotoRowScore(
+    Map<String, dynamic> row, {
+    required int preferredInterventionId,
+  }) {
+    final rowInterventionId =
+        int.tryParse(row['id_intervention_anomalie']?.toString() ?? '') ?? 0;
+    final remote = row['remote_path']?.toString().trim() ?? '';
+    final local = row['local_path']?.toString().trim() ?? '';
+    final synced = int.tryParse(row['synced']?.toString() ?? '') ?? 0;
+
+    var score = 0;
+    if (preferredInterventionId > 0 && rowInterventionId == preferredInterventionId) {
+      score += 100;
+    }
+    if (rowInterventionId > 0) score += 20;
+    if (remote.isNotEmpty) score += 10;
+    if (synced == 1) score += 5;
+    if (local.isNotEmpty) score += 1;
+    return score;
+  }
+
+  int _detectWorkflowInterventionId(
+    List<Map<String, dynamic>> rows, {
+    required int fallback,
+  }) {
+    for (final row in rows) {
+      final value =
+          int.tryParse(row['id_intervention_anomalie']?.toString() ?? '') ?? 0;
+      if (value > 0) return value;
+    }
+    return fallback;
+  }
+
   Future<void> _enqueueWorkflowPhotosAfterSave({
     required DatabaseHelper db,
     required String uuid,
@@ -1160,8 +1331,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final activeContexts = <String>{
       if (!_isEpCompteurAbonne && _hasActiveAnomalie && !_isObjetIncomplet)
         _photoContextAnomalieAvant,
-      if (!_isEpCompteurAbonne && _wasAnomalieAtOpen && !_hasActiveAnomalie)
-        _photoContextRetourTerrain,
       if (_isObjetIncomplet) _photoContextIncompletInitial,
       if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
         _photoContextIncompletComplement,
@@ -1328,6 +1497,15 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     if (anomalieEvidenceError != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(anomalieEvidenceError),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    final photoRequirementError = _validatePhotoRequirements();
+    if (photoRequirementError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(photoRequirementError),
         backgroundColor: Colors.orange,
       ));
       return;
@@ -1502,10 +1680,31 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         );
       }
 
+      final uuidObjet = data['uuid']?.toString().trim() ?? '';
+      if (!_isEpCompteurAbonne &&
+          _hasActiveAnomalie &&
+          !_isObjetIncomplet &&
+          uuidObjet.isNotEmpty) {
+        await db.upsertLocalInterventionAnomalieSignalement(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: tableName,
+          idObjet: localId,
+          uuidObjet: uuidObjet,
+          rowData: data,
+        );
+      } else {
+        await db.resolveLocalInterventionAnomalieSignalement(
+          schemaName: _metierCode.toLowerCase(),
+          tableName: tableName,
+          idObjet: localId,
+          uuidObjet: uuidObjet,
+        );
+      }
+
       await _cancelRemovedLocalPhotoUploadsAfterSave(db);
       await _enqueueWorkflowPhotosAfterSave(
         db: db,
-        uuid: data['uuid']?.toString() ?? '',
+        uuid: uuidObjet,
       );
 
       if (mounted) {
@@ -2328,7 +2527,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final hasWorkflowAnomalie = _hasActiveAnomalie && !_isEpCompteurAbonne;
     final disabled = _isObjetIncomplet ||
         hasWorkflowAnomalie ||
-        _wasAnomalieAtOpen ||
         _wasObjetIncompletAtOpen ||
         _isLocked;
     final visibleSlotCount = PhotoSlotService.visibleSlotCount(
@@ -2340,8 +2538,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 24),
-        Text('Photos (max $_maxPhotos)',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const Text('Photos obligatoires ($_requiredGeneralPhotoCount requises)',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 8),
         Text(
           'Formats autorisés: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
@@ -2417,7 +2615,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
   Widget _buildWorkflowPhotoSection({
     required String title,
-    required String subtitle,
+    String? subtitle,
     required String photoContext,
     required Map<int, String?> photoPaths,
     Color color = Colors.red,
@@ -2459,11 +2657,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-              ),
+              if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+              ],
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -3050,30 +3250,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                         !_isEpCompteurAbonne &&
                         _hasActiveAnomalie)
                       _buildWorkflowPhotoSection(
-                        title: 'Photos anomalie',
-                        subtitle:
-                            'Preuves separees des photos generales. Elles ne seront pas ecrasees apres synchronisation.',
+                        title:
+                            'Photos anomalie ($_requiredWorkflowPhotoCount requises)',
                         photoContext: _photoContextAnomalieAvant,
                         photoPaths: _anomaliePhotoPaths,
                         color: Colors.red,
                       ),
-                    if (!_isEpMinimalLocationForm &&
-                        !_isEpCompteurAbonne &&
-                        _wasAnomalieAtOpen &&
-                        !_hasActiveAnomalie)
-                      _buildWorkflowPhotoSection(
-                        title: 'Photos retour terrain',
-                        subtitle:
-                            'Ajoutez les preuves apres traitement sans remplacer les photos anomalie.',
-                        photoContext: _photoContextRetourTerrain,
-                        photoPaths: _retourTerrainPhotoPaths,
-                        color: Colors.green,
-                      ),
                     if (!_isEpMinimalLocationForm && _isObjetIncomplet)
                       _buildWorkflowPhotoSection(
-                        title: 'Photos objet incomplet',
-                        subtitle:
-                            'Preuves de l\'incompletude separees des photos generales.',
+                        title:
+                            'Photos objet incomplet ($_requiredWorkflowPhotoCount requises)',
                         photoContext: _photoContextIncompletInitial,
                         photoPaths: _incompletPhotoPaths,
                         color: Colors.orange,
@@ -3082,7 +3268,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                         _wasObjetIncompletAtOpen &&
                         !_isObjetIncomplet)
                       _buildWorkflowPhotoSection(
-                        title: 'Photos complement',
+                        title:
+                            'Photos complement ($_requiredWorkflowPhotoCount requises)',
                         subtitle:
                             'Preuves ajoutees lors du completement de l\'objet.',
                         photoContext: _photoContextIncompletComplement,

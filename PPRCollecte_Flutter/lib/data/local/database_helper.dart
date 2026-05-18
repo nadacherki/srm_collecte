@@ -2642,6 +2642,33 @@ class DatabaseHelper {
       return;
     }
 
+    final nomTable = row['nom_table']?.toString().trim() ?? '';
+    final uuidObjet = row['uuid_objet']?.toString().trim() ?? '';
+    final idObjet = _asInt(row['id_objet']);
+    final provisional = existing.isEmpty
+        ? await db.query(
+            'intervention_anomalie',
+            where: '''
+              id_intervention <= 0
+              AND (statut IS NULL OR lower(statut) NOT IN ('cloture', 'annule'))
+              AND lower(COALESCE(nom_table, '')) = lower(?)
+              AND (
+                (? <> '' AND lower(COALESCE(uuid_objet, '')) = lower(?))
+                OR (? IS NOT NULL AND id_objet = ?)
+              )
+            ''',
+            whereArgs: [
+              nomTable,
+              uuidObjet,
+              uuidObjet,
+              idObjet,
+              idObjet,
+            ],
+            orderBy: 'id DESC',
+            limit: 1,
+          )
+        : const <Map<String, Object?>>[];
+
     final nowIso = DateTime.now().toIso8601String();
     final payload = <String, dynamic>{
       'id_intervention': idIntervention,
@@ -2682,10 +2709,169 @@ class DatabaseHelper {
       return;
     }
 
+    if (provisional.isNotEmpty) {
+      await db.update(
+        'intervention_anomalie',
+        payload,
+        where: 'id = ?',
+        whereArgs: [_asInt(provisional.first['id'])],
+      );
+      return;
+    }
+
     await db.insert('intervention_anomalie', {
       ...payload,
       'date_collecte': nowIso,
     });
+  }
+
+  Future<void> upsertLocalInterventionAnomalieSignalement({
+    required String schemaName,
+    required String tableName,
+    required int idObjet,
+    required String uuidObjet,
+    Map<String, dynamic>? rowData,
+  }) async {
+    final cleanUuid = uuidObjet.trim();
+    if (idObjet <= 0 || cleanUuid.isEmpty) return;
+
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final qualifiedTable = _qualifiedInterventionNomTable(schemaName, tableName);
+    final nowIso = DateTime.now().toIso8601String();
+    final commentaire = _localAnomalyComment(rowData ?? const {});
+
+    final existing = await db.query(
+      'intervention_anomalie',
+      where: '''
+        (statut IS NULL OR lower(statut) NOT IN ('cloture', 'annule'))
+        AND lower(COALESCE(nom_table, '')) = lower(?)
+        AND (
+          lower(COALESCE(uuid_objet, '')) = lower(?)
+          OR id_objet = ?
+        )
+      ''',
+      whereArgs: [qualifiedTable, cleanUuid, idObjet],
+      orderBy: 'id DESC',
+      limit: 1,
+    );
+
+    final payload = <String, dynamic>{
+      'id_objet': idObjet,
+      'nom_classe': tableName,
+      'nom_table': qualifiedTable,
+      'uuid_objet': cleanUuid,
+      'retour_terrain': 0,
+      'statut': 'signale',
+      'responsable_actuel': 'exploitant',
+      'etat_exploitant': 'en_attente',
+      'commentaire_exploitant': commentaire.isEmpty ? null : commentaire,
+      'date_exploitant': null,
+      'etat_terrain': 'en_attente',
+      'commentaire_terrain': null,
+      'date_terrain': null,
+      'id_user_terrain': null,
+      'etat_bureau': 'en_attente',
+      'commentaire_bureau': null,
+      'date_bureau': null,
+      'date_creation': nowIso,
+      'date_cloture': null,
+      'created_at': nowIso,
+      'updated_at': nowIso,
+      'synced': 1,
+      'downloaded': 1,
+      'date_collecte': nowIso,
+      'date_sync': nowIso,
+      'last_error': null,
+    };
+
+    if (existing.isNotEmpty) {
+      final existingIdIntervention = _asInt(existing.first['id_intervention']);
+      await db.update(
+        'intervention_anomalie',
+        {
+          ...payload,
+          'id_intervention':
+              (existingIdIntervention != null && existingIdIntervention > 0)
+                  ? existingIdIntervention
+                  : await _nextLocalInterventionPlaceholderId(db),
+        },
+        where: 'id = ?',
+        whereArgs: [_asInt(existing.first['id'])],
+      );
+      return;
+    }
+
+    await db.insert('intervention_anomalie', {
+      'id_intervention': await _nextLocalInterventionPlaceholderId(db),
+      ...payload,
+    });
+  }
+
+  Future<void> resolveLocalInterventionAnomalieSignalement({
+    required String schemaName,
+    required String tableName,
+    required int idObjet,
+    required String uuidObjet,
+  }) async {
+    final cleanUuid = uuidObjet.trim();
+    if (idObjet <= 0 && cleanUuid.isEmpty) return;
+
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final qualifiedTable = _qualifiedInterventionNomTable(schemaName, tableName);
+    await db.delete(
+      'intervention_anomalie',
+      where: '''
+        id_intervention <= 0
+        AND lower(COALESCE(nom_table, '')) = lower(?)
+        AND (
+          (? <> '' AND lower(COALESCE(uuid_objet, '')) = lower(?))
+          OR (? > 0 AND id_objet = ?)
+        )
+      ''',
+      whereArgs: [qualifiedTable, cleanUuid, cleanUuid, idObjet, idObjet],
+    );
+  }
+
+  String _qualifiedInterventionNomTable(String schemaName, String tableName) {
+    final schema = schemaName.trim().toLowerCase();
+    final table = tableName.trim();
+    return schema.isEmpty ? table : '$schema.$table';
+  }
+
+  String _localAnomalyComment(Map<String, dynamic> rowData) {
+    for (final fieldName in const [
+      'type_anomalie',
+      'anomalie_regard',
+      'anomalie_tamp',
+      'ep_observation',
+      'observation',
+      'commentaire',
+      'ASS_OBSERV',
+      'ass_observ',
+    ]) {
+      final value = rowData[fieldName];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  Future<int> _nextLocalInterventionPlaceholderId(Database db) async {
+    var candidate = -DateTime.now().microsecondsSinceEpoch;
+    while (true) {
+      final rows = await db.query(
+        'intervention_anomalie',
+        columns: ['id'],
+        where: 'id_intervention = ?',
+        whereArgs: [candidate],
+        limit: 1,
+      );
+      if (rows.isEmpty) return candidate;
+      candidate -= 1;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedInterventionAnomalieTerrain({

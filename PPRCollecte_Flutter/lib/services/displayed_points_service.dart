@@ -71,8 +71,9 @@ class DisplayedPointsService {
               editableItem['longitude_gps'] = latLng.longitude;
             }
 
-            final hasAnomalie = SrmStatusFlags.hasAnomalie(row);
-            final hasIncomplet = SrmStatusFlags.hasIncomplet(row);
+            final statusFlags = _resolveStatusFlags(row, tableName);
+            final hasAnomalie = statusFlags.hasAnomalie;
+            final hasIncomplet = statusFlags.hasIncomplet;
             final markerSize = _resolveMarkerSize(
               tableName,
               hasAnomalie: hasAnomalie,
@@ -87,6 +88,11 @@ class DisplayedPointsService {
               'table_name': tableName,
               'anomalie': hasAnomalie,
               'objet_incomplet': hasIncomplet,
+              'status_conflict': statusFlags.hasConflict,
+              'status_conflict_unresolved': statusFlags.isUnresolvedConflict,
+              'resolved_status': statusFlags.statusName,
+              'anomalie_status_date': statusFlags.anomalieDateIso,
+              'incomplet_status_date': statusFlags.incompletDateIso,
               'type_anomalie': (row['type_anomalie'] ??
                       row['anomalie_regard'] ??
                       row['anomalie_tamp'] ??
@@ -215,8 +221,9 @@ class DisplayedPointsService {
         editableItem['source_entity'] = entityType;
         editableItem['geometry_type'] = 'Point';
 
-        final hasAnomalie = SrmStatusFlags.hasAnomalie(row);
-        final hasIncomplet = SrmStatusFlags.hasIncomplet(row);
+        final statusFlags = _resolveStatusFlags(row, tableName);
+        final hasAnomalie = statusFlags.hasAnomalie;
+        final hasIncomplet = statusFlags.hasIncomplet;
         final markerSize = _resolveMarkerSize(
           tableName,
           hasAnomalie: hasAnomalie,
@@ -248,6 +255,11 @@ class DisplayedPointsService {
                 'existing_item': editableItem,
                 'anomalie': hasAnomalie,
                 'objet_incomplet': hasIncomplet,
+                'status_conflict': statusFlags.hasConflict,
+                'status_conflict_unresolved': statusFlags.isUnresolvedConflict,
+                'resolved_status': statusFlags.statusName,
+                'anomalie_status_date': statusFlags.anomalieDateIso,
+                'incomplet_status_date': statusFlags.incompletDateIso,
               });
             },
             child: Center(
@@ -280,6 +292,36 @@ class DisplayedPointsService {
       debugPrint('Error in getDisplayedRegardMarkersForDay: $e');
       return [];
     }
+  }
+
+
+  _ResolvedPointStatus _resolveStatusFlags(
+    Map<String, dynamic> row,
+    String tableName,
+  ) {
+    final resolvedStatus = SrmStatusFlags.resolveStatus(row);
+    final hasRawConflict = SrmStatusFlags.hasStatusConflict(row);
+    final anomalieDate = SrmStatusFlags.latestAnomalieDate(row);
+    final incompletDate = SrmStatusFlags.latestIncompletDate(row);
+
+    if (resolvedStatus == SrmResolvedStatus.conflictUnknown) {
+      debugPrint(
+        '[SRM_STATUS_CONFLICT] table=$tableName '
+        "fid=${row['fid']} id=${row['id']} uuid=${row['uuid']} "
+        'anomalieDate=$anomalieDate incompletDate=$incompletDate '
+        "type_anomalie=${row['type_anomalie']} "
+        "ep_anomalie=${row['ep_anomalie']} "
+        "objet_incomplet=${row['objet_incomplet']} "
+        "raison_incomplet=${row['raison_incomplet']}",
+      );
+    }
+
+    return _ResolvedPointStatus(
+      status: resolvedStatus,
+      hasRawConflict: hasRawConflict,
+      anomalieDate: anomalieDate,
+      incompletDate: incompletDate,
+    );
   }
 
   double _resolveMarkerSize(
@@ -387,4 +429,35 @@ class DisplayedPointsService {
     }
     return fallback;
   }
+}
+
+class _ResolvedPointStatus {
+  final SrmResolvedStatus status;
+  final bool hasRawConflict;
+  final DateTime? anomalieDate;
+  final DateTime? incompletDate;
+
+  const _ResolvedPointStatus({
+    required this.status,
+    required this.hasRawConflict,
+    required this.anomalieDate,
+    required this.incompletDate,
+  });
+
+  bool get hasAnomalie {
+    return status == SrmResolvedStatus.anomalie ||
+        status == SrmResolvedStatus.conflictUnknown;
+  }
+
+  bool get hasIncomplet => status == SrmResolvedStatus.incomplet;
+
+  bool get hasConflict => hasRawConflict;
+
+  bool get isUnresolvedConflict => status == SrmResolvedStatus.conflictUnknown;
+
+  String get statusName => SrmStatusFlags.resolvedStatusName(status);
+
+  String? get anomalieDateIso => anomalieDate?.toIso8601String();
+
+  String? get incompletDateIso => incompletDate?.toIso8601String();
 }

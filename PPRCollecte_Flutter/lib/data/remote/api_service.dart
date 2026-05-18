@@ -66,6 +66,8 @@ class ApiService {
   static String? userNom;
   static String? userPrenom;
   static String? nomPrenom; // nom complet affiche dans l'app
+  static const String sessionExpiredMessage =
+      'Session expirée. Veuillez vous reconnecter.';
 
   static String _extractApiErrorMessage(String body, String fallback) {
     try {
@@ -616,9 +618,10 @@ class ApiService {
     }
 
     try {
-      final response = await http
-          .patch(uri, headers: _headers(), body: jsonEncode(payload))
-          .timeout(const Duration(seconds: 30));
+      final response = await _authedPatch(
+        uri,
+        body: jsonEncode(payload),
+      );
       final body = utf8.decode(response.bodyBytes);
 
       if (response.statusCode == 200) {
@@ -627,6 +630,10 @@ class ApiService {
           return decoded;
         }
         throw Exception('Reponse intervention terrain invalide');
+      }
+
+      if (_isUnauthorized(response)) {
+        throw Exception(sessionExpiredMessage);
       }
 
       throw Exception(
@@ -705,9 +712,10 @@ class ApiService {
         payload['_sync_client_item_uuid'] = cleanClientItemUuid;
       }
 
-      final response = await http
-          .post(url, headers: _headers(), body: jsonEncode(payload))
-          .timeout(const Duration(seconds: 30));
+      final response = await _authedPost(
+        url,
+        body: jsonEncode(payload),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         try {
@@ -718,6 +726,9 @@ class ApiService {
       } else {
         debugPrint('❌ Erreur API POST ($endpoint): '
             '${response.statusCode} - ${response.body}');
+        if (_isUnauthorized(response)) {
+          throw Exception(sessionExpiredMessage);
+        }
         if (throwOnError) {
           var message = 'Erreur POST $endpoint: ${response.statusCode}';
           try {
@@ -772,9 +783,10 @@ class ApiService {
     };
 
     try {
-      final response = await http
-          .post(uri, headers: _headers(), body: jsonEncode(payload))
-          .timeout(const Duration(seconds: 30));
+      final response = await _authedPost(
+        uri,
+        body: jsonEncode(payload),
+      );
       final body = utf8.decode(response.bodyBytes);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -783,6 +795,10 @@ class ApiService {
           return decoded;
         }
         throw Exception('Reponse manifeste sync invalide');
+      }
+
+      if (_isUnauthorized(response)) {
+        throw Exception(sessionExpiredMessage);
       }
 
       throw Exception(
@@ -810,9 +826,10 @@ class ApiService {
 
     final uri = Uri.parse('$baseUrl/api/sync/session/$cleanSyncUuid/');
     try {
-      final response = await http
-          .get(uri, headers: _headers())
-          .timeout(const Duration(seconds: 20));
+      final response = await _authedGet(
+        uri,
+        timeout: const Duration(seconds: 20),
+      );
       final body = utf8.decode(response.bodyBytes);
 
       if (response.statusCode == 200) {
@@ -821,6 +838,10 @@ class ApiService {
           return decoded;
         }
         throw Exception('Reponse statut sync invalide');
+      }
+
+      if (_isUnauthorized(response)) {
+        throw Exception(sessionExpiredMessage);
       }
 
       throw Exception(
@@ -851,37 +872,33 @@ class ApiService {
     String? endpoint,
   }) async {
     final uri = Uri.parse('$baseUrl/api/photos/upload/');
-    final request = http.MultipartRequest('POST', uri);
-
-    if (authToken != null) {
-      request.headers['Authorization'] = 'Bearer $authToken';
-    }
-
-    request.fields['schema_name'] = schemaName;
-    request.fields['table_name'] = tableName;
-    request.fields['uuid_objet'] = uuidObjet;
-    request.fields['photo_slot'] = photoSlot.toString();
-    request.fields['photo_context'] = photoContext;
-    request.fields['id_intervention_anomalie'] =
-        idInterventionAnomalie.toString();
+    final fields = <String, String>{
+      'schema_name': schemaName,
+      'table_name': tableName,
+      'uuid_objet': uuidObjet,
+      'photo_slot': photoSlot.toString(),
+      'photo_context': photoContext,
+      'id_intervention_anomalie': idInterventionAnomalie.toString(),
+    };
     final cleanEndpoint = endpoint?.trim() ?? '';
     if (cleanEndpoint.isNotEmpty) {
-      request.fields['endpoint'] = cleanEndpoint;
+      fields['endpoint'] = cleanEndpoint;
     }
     final cleanSyncUuid = syncSessionUuid?.trim() ?? '';
     if (cleanSyncUuid.isNotEmpty) {
-      request.fields['sync_session_uuid'] = cleanSyncUuid;
+      fields['sync_session_uuid'] = cleanSyncUuid;
     }
     if (idAgentCrea != null) {
-      request.fields['id_agent_crea'] = idAgentCrea.toString();
+      fields['id_agent_crea'] = idAgentCrea.toString();
     }
 
-    request.files.add(await http.MultipartFile.fromPath('file', localPath));
-
     try {
-      final streamed =
-          await request.send().timeout(const Duration(seconds: 60));
-      final response = await http.Response.fromStream(streamed);
+      final response = await _authedMultipartPost(
+        uri,
+        fields: fields,
+        fileFieldName: 'file',
+        filePath: localPath,
+      );
       final body = utf8.decode(response.bodyBytes);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -890,6 +907,10 @@ class ApiService {
           return decoded;
         }
         throw Exception('Réponse upload photo invalide');
+      }
+
+      if (_isUnauthorized(response)) {
+        throw Exception(sessionExpiredMessage);
       }
 
       try {
@@ -1239,9 +1260,10 @@ class ApiService {
     }
 
     try {
-      final response = await http
-          .post(uri, headers: _headers(), body: jsonEncode(payload))
-          .timeout(const Duration(seconds: 30));
+      final response = await _authedPost(
+        uri,
+        body: jsonEncode(payload),
+      );
       final body = utf8.decode(response.bodyBytes);
 
       if (response.statusCode == 200 ||
@@ -1252,6 +1274,10 @@ class ApiService {
           return decoded;
         }
         throw Exception('Réponse validation conduite invalide');
+      }
+
+      if (_isUnauthorized(response)) {
+        throw Exception(sessionExpiredMessage);
       }
 
       throw Exception(
@@ -1353,6 +1379,9 @@ class ApiService {
         if (authToken != null) 'Authorization': 'Bearer $authToken',
       };
 
+  static bool _isUnauthorized(http.Response response) =>
+      response.statusCode == 401;
+
   /// GET authentifie avec retry unique apres refresh du token sur 401.
   /// Si le refresh echoue ou le 2e essai retourne encore 401, la reponse
   /// 401 est renvoyee telle quelle (l'appelant gere le re-login).
@@ -1367,6 +1396,73 @@ class ApiService {
       if (refreshed) {
         response =
             await http.get(uri, headers: _headers()).timeout(timeout);
+      }
+    }
+    return response;
+  }
+
+  static Future<http.Response> _authedPost(
+    Uri uri, {
+    Object? body,
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    var response =
+        await http.post(uri, headers: _headers(), body: body).timeout(timeout);
+    if (_isUnauthorized(response) && (refreshToken != null)) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await http
+            .post(uri, headers: _headers(), body: body)
+            .timeout(timeout);
+      }
+    }
+    return response;
+  }
+
+  static Future<http.Response> _authedPatch(
+    Uri uri, {
+    Object? body,
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    var response = await http
+        .patch(uri, headers: _headers(), body: body)
+        .timeout(timeout);
+    if (_isUnauthorized(response) && (refreshToken != null)) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await http
+            .patch(uri, headers: _headers(), body: body)
+            .timeout(timeout);
+      }
+    }
+    return response;
+  }
+
+  static Future<http.Response> _authedMultipartPost(
+    Uri uri, {
+    required Map<String, String> fields,
+    required String fileFieldName,
+    required String filePath,
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    Future<http.Response> sendOnce() async {
+      final request = http.MultipartRequest('POST', uri);
+      if (authToken != null) {
+        request.headers['Authorization'] = 'Bearer $authToken';
+      }
+      request.fields.addAll(fields);
+      request.files.add(
+        await http.MultipartFile.fromPath(fileFieldName, filePath),
+      );
+      final streamed = await request.send().timeout(timeout);
+      return http.Response.fromStream(streamed);
+    }
+
+    var response = await sendOnce();
+    if (_isUnauthorized(response) && (refreshToken != null)) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await sendOnce();
       }
     }
     return response;
