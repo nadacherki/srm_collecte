@@ -159,11 +159,40 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", "geoinfo"),
         "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
         "PORT": os.environ.get("DB_PORT", "5432"),
+        # Connexions persistantes : evite de rouvrir une connexion
+        # PostgreSQL a chaque requete (cout TCP+auth+SSL non negligeable
+        # sous charge). Defaut prod 60s, dev 0 (comportement Django
+        # historique). Mettre DB_CONN_MAX_AGE=0 si pgbouncer en mode
+        # transaction est intercale.
+        "CONN_MAX_AGE": int(
+            os.environ.get("DB_CONN_MAX_AGE", "0" if DEBUG else "60")
+        ),
+        # Django 4.1+ : verifie que la connexion reutilisee est vivante
+        # en debut de requete (evite les "server closed the connection").
+        "CONN_HEALTH_CHECKS": os.environ.get(
+            "DB_CONN_HEALTH_CHECKS", "True"
+        ).strip().lower() in {"1", "true", "yes", "on"},
         "OPTIONS": {
             "client_encoding": os.environ.get("DB_CLIENT_ENCODING", "UTF8"),
         },
     }
 }
+
+# Tests : tous les modeles sont managed=False et les migrations 0054+
+# operent en RawSQL sur des tables metier (ep.*) qui n'existent pas dans
+# une DB de test fraiche (CI). On desactive donc les migrations pendant
+# les tests : la suite securite est 100% SimpleTestCase (DB-free), la DB
+# de test reste vide mais inutilisee. Active via SRM_TEST_NO_MIGRATIONS=1
+# (positionne automatiquement par le runner CI).
+if os.environ.get("SRM_TEST_NO_MIGRATIONS", "").strip() in {"1", "true", "yes"}:
+    class _DisableMigrations:
+        def __contains__(self, item):
+            return True
+
+        def __getitem__(self, item):
+            return None
+
+    MIGRATION_MODULES = _DisableMigrations()
 
 # ============================================================
 # MOT DE PASSE — Argon2

@@ -47,3 +47,56 @@ jobs:
       - name: Safety (non bloquant)
         continue-on-error: true
         run: safety check -r requirements.txt
+
+  backend-tests:
+    name: Tests securite (Django)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: API_GeoDjango
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: srm_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Libs geospatiales (django.contrib.gis)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gdal-bin libgdal-dev libgeos-dev libproj-dev proj-bin
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      # Migrations desactivees (SRM_TEST_NO_MIGRATIONS) : modeles
+      # managed=False + RawSQL sur tables metier absentes en CI. La
+      # suite securite est 100% SimpleTestCase (DB-free).
+      - name: Django security tests
+        working-directory: API_GeoDjango/pprcollecte
+        env:
+          DJANGO_DEBUG: "True"
+          SRM_TEST_NO_MIGRATIONS: "1"
+          DJANGO_SECRET_KEY: ci-only-secret-key-not-used-in-prod-0123456789
+          DB_NAME: srm_test
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_HOST: 127.0.0.1
+          DB_PORT: "5432"
+        run: python manage.py test api.test_security api.tests -v2

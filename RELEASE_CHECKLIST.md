@@ -170,15 +170,21 @@ flutter build apk --release \
 
 ---
 
-## 6. Durcissement réseau mobile (optionnel mais recommandé)
+## 6. Durcissement réseau mobile — AUTOMATIQUE ✅
 
-Pour fermer totalement le HTTP en distribution :
+Plus d'action manuelle. La config réseau est désormais scindée par
+build-variant :
 
-- ☐ Dans
-  `PPRCollecte_Flutter/android/app/src/main/res/xml/network_security_config.xml`,
-  retirer le bloc `<domain-config cleartextTrafficPermitted="true">`
-  (10.0.2.2/localhost/127.0.0.1) — il n'est utile qu'en dev émulateur.
-- ☐ Rebuild l'APK (étape 5) et re-tester.
+- `src/main/res/xml/network_security_config.xml` (RELEASE) : cleartext
+  **interdit partout**, aucun domaine d'exception.
+- `src/debug/res/xml/network_security_config.xml` (DEBUG only) : autorise
+  10.0.2.2/localhost pour l'émulateur — jamais embarqué en release.
+
+Le build release de l'étape 5 est donc strict par construction.
+
+✅ Vérification (optionnelle) : décompiler l'APK release et confirmer
+que `network_security_config.xml` ne contient aucun
+`cleartextTrafficPermitted="true"`.
 
 ---
 
