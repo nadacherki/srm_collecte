@@ -1261,7 +1261,7 @@ def mobile_srm_table_view(request, endpoint):
         if 'geom' in columns:
             where_parts.append(pg_sql.SQL('geom IS NOT NULL'))
 
-            # Restriction par affectation : si X-User-Id est present, on ne
+            # Restriction par affectation : agent identifie via JWT, on ne
             # renvoie que les objets intersectant les zones actives de l'agent.
             # La reference geom doit etre QUALIFIEE pour eviter que PostgreSQL
             # la resolve sur public.zone.geom dans la sous-requete EXISTS.
@@ -2762,42 +2762,21 @@ def _parse_bool_value(raw_value, default=False):
 
 
 def _resolve_request_user_id(request):
-    """Identifie l'agent appelant.
+    """Identifie l'agent appelant a partir du JWT valide.
 
-    Source de verite : `request.user` injecte par SrmJWTAuthentication
-    apres validation cryptographique du Bearer token. Le header
-    `X-User-Id` n'est PLUS une source d'identite (trivialement spoofable) :
-    il n'est tolere qu'en transition pour les anciennes versions de l'APK
-    pas encore migrees, et UNIQUEMENT si aucun JWT n'est present, avec un
-    log WARNING. A retirer une fois le parc mobile 100% migre.
+    Unique source de verite : `request.user` injecte par
+    SrmJWTAuthentication apres verification cryptographique du Bearer
+    token. Le header `X-User-Id` (trivialement spoofable) n'est PLUS
+    accepte : tous les endpoints exigent un JWT (IsAuthenticated global),
+    le shim de transition a ete supprime.
 
-    Retourne un int > 0 ou None.
+    Retourne un int > 0, ou None si non authentifie (les vues sensibles
+    traitent None en fail-closed).
     """
-    # 1) JWT (authentifie) : source de verite
     user = getattr(request, 'user', None)
     user_id = getattr(user, 'id_user', None)
     if isinstance(user_id, int) and user_id > 0:
         return user_id
-
-    # 2) Transition uniquement : header X-User-Id non signe.
-    raw = request.META.get('HTTP_X_USER_ID')
-    if raw is None:
-        return None
-    raw = str(raw).strip()
-    if not raw:
-        return None
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        return None
-    if value > 0:
-        logger.warning(
-            "X-User-Id=%s utilise sans JWT (client mobile non migre, "
-            "path=%s). A bannir une fois le parc a jour.",
-            value,
-            getattr(request, 'path', '?'),
-        )
-        return value
     return None
 
 
@@ -3976,9 +3955,9 @@ class ZoneViewSet(viewsets.ReadOnlyModelViewSet):
         etat = self.request.query_params.get('etat')
         if etat:
             qs = qs.filter(etat=etat)
-        # Filtrage par affectation : si le header X-User-Id est present,
-        # on ne renvoie que les zones actives de cet agent. Sans header
-        # (audits, scripts admin), on renvoie toutes les zones.
+        # Filtrage par affectation : agent identifie via JWT -> on ne
+        # renvoie que ses zones actives. Non authentifie -> queryset
+        # vide en amont (IsAuthenticated global, fail-closed).
         user_id = _resolve_request_user_id(self.request)
         if user_id is not None:
             assigned_zone_ids = ZoneUtilisateur.objects.filter(
@@ -4130,7 +4109,7 @@ class ObjetIncompletViewSet(viewsets.ModelViewSet):
         if open_only:
             qs = qs.filter(statut='A_COMPLETER')
 
-        # Filtrage par zones affectees a l'agent (header X-User-Id) : on ne
+        # Filtrage par zones affectees a l'agent (JWT) : on ne
         # renvoie que les incomplets dont l'objet metier reference par
         # (nom_table, id_objet) intersecte au moins une zone active de
         # l'agent. La PK varie selon le schema (`fid` ep / `id` ass) - la
@@ -4261,7 +4240,7 @@ class InterventionAnomalieTerrainViewSet(viewsets.ModelViewSet):
                 )
             qs = qs.filter(updated_at__gt=parsed_updated_after)
 
-        # Filtrage par zones affectees a l'agent (header X-User-Id) : ne
+        # Filtrage par zones affectees a l'agent (JWT) : ne
         # renvoie que les anomalies dont l'objet metier reference par
         # (nom_table, id_objet) intersecte une zone active. Sans ce
         # filtre, le mobile recevait toutes les anomalies actives du
