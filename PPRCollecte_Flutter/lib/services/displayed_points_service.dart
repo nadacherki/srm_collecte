@@ -44,9 +44,11 @@ class DisplayedPointsService {
           mobileMetier: metier,
           refreshIfEmpty: false,
         );
+
         for (final entityType in SrmConfig.getPointEntities(metier)) {
           final tableName = SrmConfig.getTableName(metier, entityType);
           if (tableName == null || tableName.isEmpty) continue;
+
           final entityTitle = titleByTable[tableName] ?? entityType;
 
           final rows = await _fetchVisibleRows(
@@ -58,12 +60,14 @@ class DisplayedPointsService {
           for (final row in rows) {
             final latLng = _extractLatLng(row, metier, tableName: tableName);
             if (latLng == null) continue;
+
             final editableItem = Map<String, dynamic>.from(row);
             editableItem['source_table'] = tableName;
             editableItem['source_metier'] = metier;
             editableItem['source_entity'] = entityType;
             editableItem['source_title'] = entityTitle;
             editableItem['geometry_type'] = 'Point';
+
             if (editableItem['latitude_gps'] == null) {
               editableItem['latitude_gps'] = latLng.latitude;
             }
@@ -74,11 +78,13 @@ class DisplayedPointsService {
             final statusFlags = _resolveStatusFlags(row, tableName);
             final hasAnomalie = statusFlags.hasAnomalie;
             final hasIncomplet = statusFlags.hasIncomplet;
+
             final markerSize = _resolveMarkerSize(
               tableName,
               hasAnomalie: hasAnomalie,
               hasIncomplet: hasIncomplet,
             );
+
             final hitBoxSize = math.max(markerSize, _pointTapTargetSize);
 
             final markerData = <String, dynamic>{
@@ -112,6 +118,7 @@ class DisplayedPointsService {
               'prefecture_name': (row['prefecture_name'] ?? '').toString(),
               'commune_name': (row['commune_name'] ?? '').toString(),
             };
+
             onMarkerData?.call(markerData);
 
             final marker = Marker(
@@ -140,12 +147,14 @@ class DisplayedPointsService {
             );
 
             markers.add(marker);
+
             onMarkerCreated?.call(
               tableName,
               marker,
               hasAnomalie: hasAnomalie,
               hasIncomplet: hasIncomplet,
             );
+
             onAnomalieDetected?.call(tableName, hasAnomalie);
             onIncompletDetected?.call(tableName, hasIncomplet);
           }
@@ -153,8 +162,10 @@ class DisplayedPointsService {
       }
 
       debugPrint(
-        'Loaded ${markers.length} displayed SRM point markers (cache: ${CustomMarkerIcons.getCacheSize()})',
+        'Loaded ${markers.length} displayed SRM point markers '
+        '(cache: ${CustomMarkerIcons.getCacheSize()})',
       );
+
       return markers;
     } catch (e) {
       debugPrint('Error in getDisplayedPointsMarkers: $e');
@@ -169,6 +180,7 @@ class DisplayedPointsService {
   }) async {
     try {
       final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+
       final availableColumns = columns
           .map((row) => (row['name'] ?? '').toString())
           .where((name) => name.isNotEmpty)
@@ -178,6 +190,7 @@ class DisplayedPointsService {
         availableColumns: availableColumns,
         loginId: loginId,
       );
+
       return await db.query(
         tableName,
         where: filter.where,
@@ -200,11 +213,13 @@ class DisplayedPointsService {
     try {
       final db = await _dbHelper.database;
       final loginId = await _dbHelper.resolveLoginId();
+
       final rows = await _fetchVisibleRows(
         db: db,
         tableName: tableName,
         loginId: loginId,
       );
+
       final markers = <Marker>[];
 
       for (final row in rows) {
@@ -224,12 +239,15 @@ class DisplayedPointsService {
         final statusFlags = _resolveStatusFlags(row, tableName);
         final hasAnomalie = statusFlags.hasAnomalie;
         final hasIncomplet = statusFlags.hasIncomplet;
+
         final markerSize = _resolveMarkerSize(
           tableName,
           hasAnomalie: hasAnomalie,
           hasIncomplet: hasIncomplet,
         );
+
         final hitBoxSize = math.max(markerSize, 58.0);
+
         final nodeId =
             _toInt(row['fid']) ?? _toInt(row['id']) ?? _toInt(row['rowid']);
 
@@ -241,8 +259,10 @@ class DisplayedPointsService {
             behavior: HitTestBehavior.translucent,
             onTap: () {
               debugPrint(
-                '[CONDUITE] direct marker tap nodeId=$nodeId fid=${row['fid']}',
+                '[CONDUITE] direct marker tap nodeId=$nodeId '
+                'fid=${row['fid']}',
               );
+
               onTapRegard({
                 'node_id': nodeId,
                 'fid': row['fid'],
@@ -294,7 +314,6 @@ class DisplayedPointsService {
     }
   }
 
-
   _ResolvedPointStatus _resolveStatusFlags(
     Map<String, dynamic> row,
     String tableName,
@@ -312,7 +331,10 @@ class DisplayedPointsService {
         "type_anomalie=${row['type_anomalie']} "
         "ep_anomalie=${row['ep_anomalie']} "
         "objet_incomplet=${row['objet_incomplet']} "
-        "raison_incomplet=${row['raison_incomplet']}",
+        "raison_incomplet=${row['raison_incomplet']} "
+        "date_creation=${row['date_creation']} "
+        "date_modif=${row['date_modif']} "
+        "updated_at=${row['updated_at']}",
       );
     }
 
@@ -350,6 +372,7 @@ class DisplayedPointsService {
     if (isRegard && schema != null && schema.isNotEmpty) {
       final x = _toDouble(row['${schema}_coor_x']);
       final y = _toDouble(row['${schema}_coor_y']);
+
       if (x != null && y != null) {
         final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
         return LatLng(wgs84.latitude, wgs84.longitude);
@@ -358,6 +381,7 @@ class DisplayedPointsService {
 
     final latitude = _toDouble(row['latitude_gps']);
     final longitude = _toDouble(row['longitude_gps']);
+
     if (latitude != null && longitude != null) {
       return LatLng(latitude, longitude);
     }
@@ -366,6 +390,7 @@ class DisplayedPointsService {
 
     final x = _toDouble(row['${schema}_coor_x']);
     final y = _toDouble(row['${schema}_coor_y']);
+
     if (x == null || y == null) return null;
 
     final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
@@ -397,24 +422,30 @@ class DisplayedPointsService {
   DateTime? _resolveRegardDay(Map<String, dynamic> row) {
     final collecte = _parseDate(row['date_collecte']);
     if (collecte != null) return collecte;
+
     final insertion = _parseDate(row['ep_date_insertion']);
     if (insertion != null) return insertion;
+
     final creation = _parseDate(row['date_creation']);
     if (creation != null) return creation;
+
     return _parseDate(row['date_pose']);
   }
 
   DateTime? _parseDate(dynamic value) {
     if (value == null) return null;
     if (value is DateTime) return value.toLocal();
+
     final text = value.toString().trim();
     if (text.isEmpty || text.toLowerCase() == 'null') return null;
+
     final parsed = DateTime.tryParse(text);
     return parsed?.toLocal();
   }
 
   bool _matchesCalendarDay(DateTime? candidate, DateTime day) {
     if (candidate == null) return false;
+
     return candidate.year == day.year &&
         candidate.month == day.month &&
         candidate.day == day.day;
@@ -423,10 +454,12 @@ class DisplayedPointsService {
   String _resolvePointName(Map<String, dynamic> point, String fallback) {
     for (final key in ['nom', 'name', 'libelle', 'ep_num', 'uuid']) {
       final value = point[key]?.toString().trim();
+
       if (value != null && value.isNotEmpty) {
         return value;
       }
     }
+
     return fallback;
   }
 }
@@ -445,15 +478,18 @@ class _ResolvedPointStatus {
   });
 
   bool get hasAnomalie {
-    return status == SrmResolvedStatus.anomalie ||
-        status == SrmResolvedStatus.conflictUnknown;
+    return status == SrmResolvedStatus.anomalie;
   }
 
-  bool get hasIncomplet => status == SrmResolvedStatus.incomplet;
+  bool get hasIncomplet {
+    return status == SrmResolvedStatus.incomplet;
+  }
 
   bool get hasConflict => hasRawConflict;
 
-  bool get isUnresolvedConflict => status == SrmResolvedStatus.conflictUnknown;
+  bool get isUnresolvedConflict {
+    return status == SrmResolvedStatus.conflictUnknown;
+  }
 
   String get statusName => SrmStatusFlags.resolvedStatusName(status);
 
