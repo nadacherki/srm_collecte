@@ -154,6 +154,8 @@ Future<void> _enterConduiteDrawingModeImpl(
     state._conduiteRegardNodesById
       ..clear()
       ..addAll(regardNodes);
+    state._conduiteFreeNodesById.clear();
+    state._conduiteNextFreeNodeId = -1000;
     state._conduiteSelectionHistoryNodeIds.clear();
     state._conduiteRedoStackNodeIds.clear();
     state._conduiteSegmentKeys
@@ -199,6 +201,8 @@ void _exitConduiteDrawingModeImpl(_HomePageState state) {
     state._conduiteModeMarkers = <Marker>[];
     state._conduiteModePolylines = <Polyline>[];
     state._conduiteRegardNodesById.clear();
+    state._conduiteFreeNodesById.clear();
+    state._conduiteNextFreeNodeId = -1000;
     state._conduiteSelectionHistoryNodeIds.clear();
     state._conduiteRedoStackNodeIds.clear();
     state._conduiteSegmentKeys.clear();
@@ -316,36 +320,82 @@ void _handleConduiteMapTapImpl(
     return;
   }
 
+  // Rayon d'accrochage serre : on ne snappe sur un regard que si le tap
+  // est vraiment proche. Au-dela, le tap cree un sommet libre (mode
+  // hybride). Legere tolerance selon le zoom.
   final zoom = mapController.camera.zoom;
-  final maxTapSnapDistancePx = zoom >= 18
-      ? 72.0
-      : zoom >= 16
-          ? 88.0
-          : 104.0;
-  if ((nearestDistance ?? double.infinity) > maxTapSnapDistancePx) {
+  final maxTapSnapDistancePx = zoom >= 18 ? 24.0 : 28.0;
+
+  if ((nearestDistance ?? double.infinity) <= maxTapSnapDistancePx) {
+    debugPrint(
+      '[CONDUITE] map tap snapped nodeId=${nearest.nodeId} '
+      'sourceFid=${nearest.sourceFid} '
+      'distance=${nearestDistance?.toStringAsFixed(1)}px',
+    );
+    _handleConduiteRegardTapImpl(state, {
+      'node_id': nearest.nodeId,
+      'fid': nearest.sourceFid,
+      'lat': nearest.point.latitude,
+      'lng': nearest.point.longitude,
+      'existing_item': nearest.row,
+    });
+    return;
+  }
+
+  // Pas de regard assez proche -> sommet libre.
+  _handleConduiteFreePointTapImpl(state, latLng);
+}
+
+void _handleConduiteFreePointTapImpl(
+  _HomePageState state,
+  LatLng latLng,
+) {
+  if (state._conduiteIsSaving || state._conduiteIsFrozenForDay) {
+    return;
+  }
+
+  // Accrochage obligatoire au depart : un point libre n'est autorise que
+  // si la conduite en cours a deja demarre sur un regard.
+  if (!_currentPathHasRegard(state)) {
     state._setStateFromPart(() {
       state._conduiteModeError =
-          "Touchez plus près d'un regard pour l'ajouter à la conduite.";
+          'Accrochez d\'abord un regard de depart avant de tracer en zone vide.';
       state._conduiteModeStatusText =
-          'Aucun regard détecté à proximité du toucher.';
+          'Le depart de la conduite doit etre un regard.';
     });
-    debugPrint(
-      '[CONDUITE] map tap missed nearest=${nearestDistance?.toStringAsFixed(1)}px',
+    _showConduiteModeSnack(
+      state,
+      'Accrochez un regard de depart avant d\'ajouter un point libre.',
     );
     return;
   }
 
-  debugPrint(
-    '[CONDUITE] map tap snapped nodeId=${nearest.nodeId} sourceFid=${nearest.sourceFid} distance=${nearestDistance?.toStringAsFixed(1)}px',
-  );
+  final freeNodeId = state._conduiteNextFreeNodeId;
+  state._conduiteNextFreeNodeId -= 1;
 
-  _handleConduiteRegardTapImpl(state, {
-    'node_id': nearest.nodeId,
-    'fid': nearest.sourceFid,
-    'lat': nearest.point.latitude,
-    'lng': nearest.point.longitude,
-    'existing_item': nearest.row,
-  });
+  // Projection Merchich (EPSG:26191) en metres : cle pour que la longueur
+  // affichee hors-ligne corresponde a ST_Length cote serveur apres sync.
+  final projected = ProjectionService().wgs84ToMerchich(
+    longitude: latLng.longitude,
+    latitude: latLng.latitude,
+  );
+  state._conduiteFreeNodesById[freeNodeId] = _ConduiteFreeNode(
+    nodeId: freeNodeId,
+    point: latLng,
+    x: projected.x,
+    y: projected.y,
+  );
+  state._conduiteSelectionHistoryNodeIds.add(freeNodeId);
+  state._conduiteRedoStackNodeIds.clear();
+
+  debugPrint(
+    '[CONDUITE] free point created nodeId=$freeNodeId '
+    'lat=${latLng.latitude.toStringAsFixed(6)} '
+    'lng=${latLng.longitude.toStringAsFixed(6)}',
+  );
+  const statusText = 'Point libre ajoute au trace.';
+  _recomputeConduitePreviewFromHistory(state, statusText: statusText);
+  _showConduiteModeSnack(state, statusText);
 }
 
 void _focusConduiteModeBoundsImpl(_HomePageState state) {
@@ -632,17 +682,26 @@ void _handleConduiteUndoImpl(_HomePageState state) {
   final removedNode = state._conduiteRegardNodesById[removedNodeId];
   final removedLabel = _isConduitePathSeparator(removedNodeId)
       ? 'Séparation de conduite'
-      : removedNode == null
-          ? 'Dernier regard'
-          : _labelForConduiteNode(removedNode);
+      : _isConduiteFreeNodeId(removedNodeId)
+          ? 'Point libre'
+          : removedNode == null
+              ? 'Dernier regard'
+              : _labelForConduiteNode(removedNode);
 
   final activeNodeId = _currentConduiteLastNodeId(state);
   final activeNode = activeNodeId == null
       ? null
       : state._conduiteRegardNodesById[activeNodeId];
-  final statusText = activeNode == null
+  final activeLabel = activeNodeId == null
+      ? null
+      : activeNode != null
+          ? _labelForConduiteNode(activeNode)
+          : _isConduiteFreeNodeId(activeNodeId)
+              ? 'Point libre'
+              : null;
+  final statusText = activeLabel == null
       ? '$removedLabel retiré. Touchez un regard pour continuer.'
-      : '$removedLabel retiré. ${_labelForConduiteNode(activeNode)} actif.';
+      : '$removedLabel retiré. $activeLabel actif.';
 
   _recomputeConduitePreviewFromHistory(state, statusText: statusText);
   _showConduiteModeSnack(state, statusText);
@@ -663,9 +722,11 @@ void _handleConduiteRedoImpl(_HomePageState state) {
   final restoredNode = state._conduiteRegardNodesById[restoredNodeId];
   final restoredLabel = _isConduitePathSeparator(restoredNodeId)
       ? 'Séparation de conduite'
-      : restoredNode == null
-          ? 'Regard'
-          : _labelForConduiteNode(restoredNode);
+      : _isConduiteFreeNodeId(restoredNodeId)
+          ? 'Point libre'
+          : restoredNode == null
+              ? 'Regard'
+              : _labelForConduiteNode(restoredNode);
   final statusText = '$restoredLabel rétabli.';
 
   _recomputeConduitePreviewFromHistory(state, statusText: statusText);
@@ -828,7 +889,6 @@ Future<void> _saveConduiteValidationLocally(_HomePageState state) async {
     jour: state._conduiteModeDay ?? DateTime.now(),
     nodes: nodes,
   );
-
   state._setStateFromPart(() {
     state._conduiteIsSaving = false;
     state._conduiteIsFrozenForDay = true;
@@ -847,10 +907,11 @@ void _recomputeConduitePreviewFromHistory(
   _HomePageState state, {
   required String statusText,
 }) {
-  final segmentKeys = <String>{};
   final polylines = <Polyline>[];
   var totalMeters = 0.0;
 
+  // Trace visuel : on relie chaque paire consecutive (regard ou sommet
+  // libre), sans dedoublonnage, pour montrer exactement ce qui est dessine.
   for (var index = 1;
       index < state._conduiteSelectionHistoryNodeIds.length;
       index++) {
@@ -863,31 +924,35 @@ void _recomputeConduitePreviewFromHistory(
       continue;
     }
 
-    final leftNode = state._conduiteRegardNodesById[leftId];
-    final rightNode = state._conduiteRegardNodesById[rightId];
-    if (leftNode == null || rightNode == null) {
+    final leftPoint = _conduitePointForHistoryId(state, leftId);
+    final rightPoint = _conduitePointForHistoryId(state, rightId);
+    if (leftPoint == null || rightPoint == null) {
       continue;
     }
 
-    final segmentKey = _conduiteSegmentKey(leftId, rightId);
-    if (!segmentKeys.add(segmentKey)) {
-      continue;
-    }
+    totalMeters += _conduitePairLengthMeters(
+      state,
+      leftId,
+      rightId,
+      leftPoint,
+      rightPoint,
+    );
 
-    totalMeters += _conduiteSegmentLengthMeters(state, leftNode, rightNode);
     polylines.add(
       Polyline(
-        points: [leftNode.point, rightNode.point],
+        points: [leftPoint, rightPoint],
         color: const Color(0xFF00897B),
         strokeWidth: 5.0,
       ),
     );
   }
 
+  final segmentKeys = _computeConduitePersistedSegmentKeys(state);
+
   final currentNodeId = _currentConduiteLastNodeId(state);
   final currentPoint = currentNodeId == null
       ? null
-      : state._conduiteRegardNodesById[currentNodeId]?.point;
+      : _conduitePointForHistoryId(state, currentNodeId);
 
   state._setStateFromPart(() {
     state._conduiteSegmentKeys
@@ -900,6 +965,7 @@ void _recomputeConduitePreviewFromHistory(
     state._conduiteModeStatusText = statusText;
   });
 }
+
 
 void _applyConduiteServerSnapshot(
   _HomePageState state,
@@ -980,9 +1046,9 @@ _ConduiteLocalPendingPreview? _buildConduiteLocalPendingPreview(
       .map((item) => Map<String, dynamic>.from(item))
       .toList();
   final polylines = <Polyline>[];
-  final segmentKeys = <String>{};
   var lengthMeters = 0.0;
 
+  // Trace visuel : toute paire consecutive (regard ou point libre).
   for (var i = 1; i < nodes.length; i++) {
     final left = nodes[i - 1];
     final right = nodes[i];
@@ -990,14 +1056,6 @@ _ConduiteLocalPendingPreview? _buildConduiteLocalPendingPreview(
         _isConduiteSerializedSeparator(right)) {
       continue;
     }
-    final leftId = _resolveConduiteNodeId(left);
-    final rightId = _resolveConduiteNodeId(right);
-    if (leftId == null || rightId == null || leftId == rightId) {
-      continue;
-    }
-
-    final segmentKey = _conduiteSegmentKey(leftId, rightId);
-    if (!segmentKeys.add(segmentKey)) continue;
 
     final leftPoint = _latLngFromConduiteNode(left);
     final rightPoint = _latLngFromConduiteNode(right);
@@ -1024,11 +1082,61 @@ _ConduiteLocalPendingPreview? _buildConduiteLocalPendingPreview(
     );
   }
 
+  final segmentKeys = _persistedSegmentKeysFromSerializedNodes(nodes);
+
   return _ConduiteLocalPendingPreview(
     polylines: polylines,
     segmentKeys: segmentKeys,
     lengthMeters: lengthMeters,
   );
+}
+
+/// Variante de [_computeConduitePersistedSegmentKeys] travaillant sur les
+/// noeuds serialises (file d'attente locale) au lieu de l'historique d'etat.
+Set<String> _persistedSegmentKeysFromSerializedNodes(
+  List<Map<String, dynamic>> nodes,
+) {
+  final keys = <String>{};
+  final seenPairs = <String>{};
+  var openIndex = 0;
+
+  int? anchorFid;
+  var pendingFreeAfterAnchor = false;
+
+  void closePath() {
+    if (anchorFid != null && pendingFreeAfterAnchor) {
+      keys.add('open:$anchorFid:${openIndex++}');
+    }
+    anchorFid = null;
+    pendingFreeAfterAnchor = false;
+  }
+
+  for (final node in nodes) {
+    if (_isConduiteSerializedSeparator(node)) {
+      closePath();
+      continue;
+    }
+    if (node['free'] == true) {
+      if (anchorFid != null) pendingFreeAfterAnchor = true;
+      continue;
+    }
+    final fid = _asIntConduite(node['fid']);
+    if (fid == null) continue;
+    if (anchorFid == null) {
+      anchorFid = fid;
+      pendingFreeAfterAnchor = false;
+      continue;
+    }
+    if (fid == anchorFid) continue;
+    final pairKey = _conduiteSegmentKey(anchorFid!, fid);
+    if (seenPairs.add(pairKey)) {
+      keys.add(pairKey);
+    }
+    anchorFid = fid;
+    pendingFreeAfterAnchor = false;
+  }
+  closePath();
+  return keys;
 }
 
 LatLng? _latLngFromConduiteNode(Map<String, dynamic> node) {
@@ -1040,6 +1148,84 @@ LatLng? _latLngFromConduiteNode(Map<String, dynamic> node) {
 
 bool _isConduitePathSeparator(int nodeId) =>
     nodeId == _conduitePathSeparatorNodeId;
+
+bool _isConduiteFreeNodeId(int nodeId) => nodeId <= -1000;
+
+/// Reproduit la segmentation serveur (_build_unique_conduite_segments) pour
+/// le compteur "Segments" et l'activation du bouton Valider :
+/// segment ferme = regard -> regard (coudes libres agreges, dedoublonne par
+/// paire de regards sur toute la conduite) ; segment ouvert = sommets libres
+/// en extremite (fid_regard_b NULL).
+Set<String> _computeConduitePersistedSegmentKeys(_HomePageState state) {
+  final keys = <String>{};
+  final seenPairs = <String>{};
+  var openIndex = 0;
+
+  int? anchorFid;
+  var pendingFreeAfterAnchor = false;
+
+  void closePath() {
+    if (anchorFid != null && pendingFreeAfterAnchor) {
+      keys.add('open:$anchorFid:${openIndex++}');
+    }
+    anchorFid = null;
+    pendingFreeAfterAnchor = false;
+  }
+
+  for (final id in state._conduiteSelectionHistoryNodeIds) {
+    if (_isConduitePathSeparator(id)) {
+      closePath();
+      continue;
+    }
+    if (_isConduiteFreeNodeId(id)) {
+      if (anchorFid != null) pendingFreeAfterAnchor = true;
+      continue;
+    }
+    final regard = state._conduiteRegardNodesById[id];
+    final fid = regard?.sourceFid;
+    if (fid == null) continue;
+    if (anchorFid == null) {
+      anchorFid = fid;
+      pendingFreeAfterAnchor = false;
+      continue;
+    }
+    if (fid == anchorFid) continue;
+    final pairKey = _conduiteSegmentKey(anchorFid!, fid);
+    if (seenPairs.add(pairKey)) {
+      keys.add(pairKey);
+    }
+    anchorFid = fid;
+    pendingFreeAfterAnchor = false;
+  }
+  closePath();
+  return keys;
+}
+
+/// Point ecran/carte d'un id d'historique (regard ou sommet libre).
+LatLng? _conduitePointForHistoryId(_HomePageState state, int nodeId) {
+  if (_isConduitePathSeparator(nodeId)) return null;
+  if (_isConduiteFreeNodeId(nodeId)) {
+    return state._conduiteFreeNodesById[nodeId]?.point;
+  }
+  return state._conduiteRegardNodesById[nodeId]?.point;
+}
+
+/// Vrai si le chemin (conduite) en cours contient deja au moins un regard.
+/// Sert a imposer l'accrochage a un regard au depart : on n'autorise un
+/// point libre que si la conduite courante a deja demarre sur un regard.
+bool _currentPathHasRegard(_HomePageState state) {
+  for (var i = state._conduiteSelectionHistoryNodeIds.length - 1;
+      i >= 0;
+      i--) {
+    final id = state._conduiteSelectionHistoryNodeIds[i];
+    if (_isConduitePathSeparator(id)) break;
+    if (!_isConduiteFreeNodeId(id) &&
+        state._conduiteRegardNodesById.containsKey(id)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 bool _isConduiteSerializedSeparator(Map<String, dynamic> node) =>
     node['separator'] == true || node['type'] == 'separator';
@@ -1088,11 +1274,17 @@ Set<String> _segmentKeysFromServerPayload(Map<String, dynamic> payload) {
     return keys;
   }
 
+  var openIndex = 0;
   for (final rawSegment in rawSegments) {
     if (rawSegment is! Map) continue;
     final left = _asIntConduite(rawSegment['fid_regard_a']);
+    if (left == null) continue;
     final right = _asIntConduite(rawSegment['fid_regard_b']);
-    if (left == null || right == null) continue;
+    if (right == null) {
+      // Segment ouvert : extremite sur point libre (fid_regard_b NULL).
+      keys.add('open:$left:${openIndex++}');
+      continue;
+    }
     keys.add(_conduiteSegmentKey(left, right));
   }
   return keys;
@@ -1113,6 +1305,25 @@ List<Map<String, dynamic>> _buildConduiteValidationNodes(_HomePageState state) {
         });
         previousWasSeparator = true;
       }
+      continue;
+    }
+
+    if (_isConduiteFreeNodeId(nodeId)) {
+      final freeNode = state._conduiteFreeNodesById[nodeId];
+      if (freeNode == null) continue;
+      nodes.add({
+        'free': true,
+        'metier': config.code,
+        'table_name': config.tableName,
+        'lat': freeNode.point.latitude,
+        'lng': freeNode.point.longitude,
+        // Merchich (EPSG:26191) deja projete cote client : evite une
+        // re-transformation serveur et garantit que longueur locale ==
+        // longueur recalculee par ST_Length apres sync.
+        if (freeNode.x != null) 'x': freeNode.x,
+        if (freeNode.y != null) 'y': freeNode.y,
+      });
+      previousWasSeparator = false;
       continue;
     }
 
@@ -1168,24 +1379,44 @@ int? _asIntConduite(dynamic value) {
   return int.tryParse(value.toString());
 }
 
-double _conduiteSegmentLengthMeters(
+/// Coordonnees Merchich (EPSG:26191) du noeud d'historique passe.
+/// Renvoie (null, null) si le noeud est introuvable ou que ses x/y manquent
+/// (cas rare des regards anciens sans ep_coor_x/y).
+({double? x, double? y}) _conduiteMerchichForHistoryId(
   _HomePageState state,
-  _ConduiteRegardNode a,
-  _ConduiteRegardNode b,
+  int nodeId,
 ) {
+  if (_isConduiteFreeNodeId(nodeId)) {
+    final node = state._conduiteFreeNodesById[nodeId];
+    return (x: node?.x, y: node?.y);
+  }
+  final regard = state._conduiteRegardNodesById[nodeId];
+  if (regard == null) return (x: null, y: null);
   final config = _conduiteConfigFor(state._conduiteModeMetier);
-  final ax = _asDoubleConduite(a.row[config.xField]);
-  final ay = _asDoubleConduite(a.row[config.yField]);
-  final bx = _asDoubleConduite(b.row[config.xField]);
-  final by = _asDoubleConduite(b.row[config.yField]);
+  return (
+    x: _asDoubleConduite(regard.row[config.xField]),
+    y: _asDoubleConduite(regard.row[config.yField]),
+  );
+}
 
-  if (ax != null && ay != null && bx != null && by != null) {
-    final dx = bx - ax;
-    final dy = by - ay;
+/// Longueur en metres entre deux noeuds d'historique (regard ou point libre).
+/// Utilise les x/y Merchich (planaire metrique) quand disponibles -> identique
+/// a ST_Length serveur. Fallback haversine si un endpoint n'a pas x/y.
+double _conduitePairLengthMeters(
+  _HomePageState state,
+  int leftId,
+  int rightId,
+  LatLng leftPoint,
+  LatLng rightPoint,
+) {
+  final l = _conduiteMerchichForHistoryId(state, leftId);
+  final r = _conduiteMerchichForHistoryId(state, rightId);
+  if (l.x != null && l.y != null && r.x != null && r.y != null) {
+    final dx = r.x! - l.x!;
+    final dy = r.y! - l.y!;
     return math.sqrt(dx * dx + dy * dy);
   }
-
-  return _haversineMetersImpl(a.point, b.point);
+  return _haversineMetersImpl(leftPoint, rightPoint);
 }
 
 double? _asDoubleConduite(dynamic value) {

@@ -16,6 +16,7 @@ class ProfilePage extends StatefulWidget {
   static const String startConduiteDrawingAsstResult =
       'start_conduite_drawing_asst';
   static const String startConduiteDrawingResult = startConduiteDrawingEpResult;
+  static const String startRegardPieceModeResult = 'start_regard_piece_mode';
 
   final String agentName;
   final VoidCallback onLogout;
@@ -561,6 +562,27 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _startRegardPieceMode,
+              icon: const Icon(Icons.settings_input_component_outlined),
+              label: const Text(
+                'Pièces regard',
+                maxLines: 1,
+                overflow: TextOverflow.fade,
+                softWrap: false,
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF6A1B9A),
+                side: const BorderSide(color: Color(0xFF6A1B9A)),
+                minimumSize: const Size(0, 52),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                textStyle: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -572,6 +594,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ? ProfilePage.startConduiteDrawingAsstResult
           : ProfilePage.startConduiteDrawingEpResult,
     );
+  }
+
+  void _startRegardPieceMode() {
+    Navigator.of(context).pop(ProfilePage.startRegardPieceModeResult);
   }
 
   /// [2] AUJOURD'HUI : focus sur le jour courant. Cards "crees aujourd'hui"

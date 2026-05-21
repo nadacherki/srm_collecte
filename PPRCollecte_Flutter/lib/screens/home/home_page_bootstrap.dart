@@ -1,5 +1,7 @@
 part of 'home_page.dart';
 
+const Duration _nmeaBridgeFixFreshness = Duration(seconds: 5);
+
 Future<void> _checkPausedCollectionDraftImpl(_HomePageState state) async {
   final draft = await CollectionManager.loadPausedDraft();
   if (draft == null || !state.mounted) return;
@@ -85,6 +87,10 @@ void _restorePausedCollectionImpl(
           titleApp: srmMeta['srmTitleApp'] as String? ?? '',
           isLine: true,
         );
+        state._pendingRegardPieceLineUuidRegard =
+            srmMeta['regardPieceUuidRegard'] as String?;
+        state._pendingRegardPieceLineFidRegard =
+            _dynamicToIntImpl(srmMeta['regardPieceFidRegard']);
       }
       final lineCode = draft['lineCode'] as String?;
       if (lineCode != null) {
@@ -413,6 +419,10 @@ void _startNmeaBridgeWatchImpl(_HomePageState state) {
       try {
         final status = await bridge.getStatus();
         if (_isNmeaBridgeDisconnectedStatus(status.status)) {
+          state.homeController.markNmeaBridgeDisconnected(
+            deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+            bridgeStatus: status.status,
+          );
           timer.cancel();
           return;
         }
@@ -422,12 +432,21 @@ void _startNmeaBridgeWatchImpl(_HomePageState state) {
           recenter: false,
         );
         if (!applied &&
-            state.homeController.gpsSourceLabel.startsWith('GNSS externe')) {
-          state.homeController.markNmeaBridgePending(
-            deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
-            bridgeStatus: status.status,
-            lastNmea: status.lastNmea,
-          );
+            state.homeController.gpsSourceLabel.startsWith('GNSS')) {
+          final lastFixTimestamp = _nmeaBridgeFixTimestampImpl(status);
+          if (_isNmeaBridgeFixStaleImpl(status)) {
+            state.homeController.markNmeaBridgeStale(
+              deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+              bridgeStatus: status.status,
+              lastFixTimestampMs: lastFixTimestamp,
+            );
+          } else {
+            state.homeController.markNmeaBridgePending(
+              deviceLabel: status.bluetoothName ?? status.bluetoothAddress,
+              bridgeStatus: status.status,
+              lastNmea: status.lastNmea,
+            );
+          }
         }
       } catch (e) {
         debugPrint('[NMEA] Suivi pont GNSS ignore: $e');
@@ -473,6 +492,9 @@ bool _applyNmeaBridgeFixToMapImpl(
   if (source != 'nmea_bridge') {
     return false;
   }
+  if (_isNmeaBridgeFixStaleImpl(status)) {
+    return false;
+  }
 
   final nativeLat = _asDoubleOrNullImpl(nativeLocation?['latitude']);
   final nativeLon = _asDoubleOrNullImpl(nativeLocation?['longitude']);
@@ -487,6 +509,28 @@ bool _applyNmeaBridgeFixToMapImpl(
 
   final accuracy = _asDoubleOrNullImpl(nativeLocation['accuracy']);
   final altitude = _asDoubleOrNullImpl(nativeLocation['altitude']);
+  final projectedX = _firstDoubleValueImpl(nativeLocation, const [
+    'x',
+    'X',
+    'easting',
+    'E',
+    'merchich_x',
+    'coor_x',
+  ]);
+  final projectedY = _firstDoubleValueImpl(nativeLocation, const [
+    'y',
+    'Y',
+    'northing',
+    'N',
+    'merchich_y',
+    'coor_y',
+  ]);
+  final projectedZ = _firstDoubleValueImpl(nativeLocation, const [
+    'z',
+    'Z',
+    'projected_z',
+    'coor_z',
+  ]);
   final speed = _asDoubleOrNullImpl(nativeLocation['speed']);
   final bearing = _asDoubleOrNullImpl(nativeLocation['bearing']);
   final hdop = _asDoubleOrNullImpl(nativeLocation['hdop']);
@@ -505,12 +549,17 @@ bool _applyNmeaBridgeFixToMapImpl(
     normalizedPosition.latitude,
     normalizedPosition.longitude,
   );
+  final hasDirectProjectedCoordinates =
+      projectedX != null && projectedY != null;
 
   state.homeController.applyNmeaBridgeLocation(
     latitude: target.latitude,
     longitude: target.longitude,
     accuracy: accuracy,
     altitude: altitude,
+    projectedX: projectedX,
+    projectedY: projectedY,
+    projectedZ: projectedZ,
     speed: speed,
     bearing: bearing,
     fixQuality: fixQuality,
@@ -521,6 +570,7 @@ bool _applyNmeaBridgeFixToMapImpl(
     bluetoothAddress: bluetoothAddress,
     timestampMs: timestamp,
     mockInjectedAtMs: mockInjectedAt,
+    hasDirectProjectedCoordinates: hasDirectProjectedCoordinates,
   );
 
   if (recenter) {
@@ -608,6 +658,24 @@ bool _isNmeaBridgeDisconnectedStatus(String status) {
       normalized == 'erreur' ||
       normalized == 'bluetooth_disconnected' ||
       normalized.startsWith('bluetooth_error');
+}
+
+int? _nmeaBridgeFixTimestampImpl(NmeaBridgeStatus status) {
+  final nativeLocation = status.lastLocation;
+  if (nativeLocation == null) return null;
+  return _asIntOrNullImpl(
+    nativeLocation['nmeaReceivedAt'] ??
+        nativeLocation['mockInjectedAt'] ??
+        nativeLocation['time'],
+  );
+}
+
+bool _isNmeaBridgeFixStaleImpl(NmeaBridgeStatus status) {
+  if (_isNmeaBridgeDisconnectedStatus(status.status)) return true;
+  final timestamp = _nmeaBridgeFixTimestampImpl(status);
+  if (timestamp == null) return false;
+  final age = DateTime.now().millisecondsSinceEpoch - timestamp;
+  return age > _nmeaBridgeFixFreshness.inMilliseconds;
 }
 
 Future<bool> _ensureNmeaBluetoothPermissionsImpl() async {

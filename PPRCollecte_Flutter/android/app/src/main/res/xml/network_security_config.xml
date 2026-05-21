@@ -15,4 +15,18 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!--
+        EXCEPTION TEMPORAIRE - A RETIRER QUAND LE SERVEUR PROD PASSE EN HTTPS.
+        Le backend tourne actuellement sur http://81.192.142.205:6061 sans TLS,
+        en attendant le deploiement du hardening serveur. Cette exception est
+        host-by-host : la base-config reste strict pour tout le reste.
+        Aligner avec CLEARTEXT_ALLOWED_HOSTS cote Dart (api_service.dart).
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">81.192.142.205</domain>
+        <!-- IP LAN de dev (a editer selon le reseau, cf. [[project_demo_plan_b]]).
+             Rebuild de l'APK requis apres modification (XML compile dans l'APK). -->
+        <domain includeSubdomains="false">192.168.10.153</domain>
+    </domain-config>
 </network-security-config>

@@ -903,10 +903,14 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
   if (confirm != true) return;
 
   try {
-    final projected = ProjectionService().wgs84ToMerchich(
-      longitude: target.longitude,
-      latitude: target.latitude,
-    );
+    final projectedX = state.homeController.currentProjectedX;
+    final projectedY = state.homeController.currentProjectedY;
+    final projected = (projectedX != null && projectedY != null)
+        ? null
+        : ProjectionService().wgs84ToMerchich(
+            longitude: target.longitude,
+            latitude: target.latitude,
+          );
     final fields = SrmConfig.getFields(metier, entityType);
     final xField = fields.firstWhere(
       (field) => field.toLowerCase().endsWith('_coor_x'),
@@ -921,7 +925,8 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
       orElse: () => '',
     );
 
-    final altitude = state.homeController.currentAltitude;
+    final altitude = state.homeController.currentProjectedZ ??
+        state.homeController.currentAltitude;
     final data = <String, dynamic>{
       'latitude_gps': target.latitude,
       'longitude_gps': target.longitude,
@@ -933,10 +938,10 @@ Future<void> _movePointGeometryToCurrentGpsImpl(
       data['altitude_gps'] = altitude;
     }
     if (xField.isNotEmpty) {
-      data[xField] = projected.x;
+      data[xField] = projectedX ?? projected!.x;
     }
     if (yField.isNotEmpty) {
-      data[yField] = projected.y;
+      data[yField] = projectedY ?? projected!.y;
     }
     if (zField.isNotEmpty && altitude != null) {
       data[zField] = altitude;

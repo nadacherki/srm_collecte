@@ -30,12 +30,23 @@ class CaptureLocationGuard {
     String? sourceLabel,
     bool allowInternalSources = true,
   }) {
+    final normalizedSource = (sourceLabel ?? '').trim().toLowerCase();
+    if (normalizedSource.contains('déconnect') ||
+        normalizedSource.contains('deconnect')) {
+      return 'Connexion GNSS externe perdue. Reconnectez le récepteur.';
+    }
+    if (normalizedSource.contains('expir')) {
+      return 'Fix GNSS expiré. Attendez un nouveau fix du récepteur.';
+    }
+    if (normalizedSource.contains('attente fix')) {
+      return 'GNSS externe connecté, en attente de fix.';
+    }
+
     if (!gpsEnabled || altitude == null) {
       return missingGpsMessage;
     }
 
-    final normalizedSource = (sourceLabel ?? '').trim().toLowerCase();
-    if (!allowInternalSources && !normalizedSource.startsWith('gnss externe')) {
+    if (!allowInternalSources && !normalizedSource.startsWith('gnss')) {
       return externalGnssRequiredMessage;
     }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../core/config/srm_config.dart';
 import '../data/local/database_helper.dart';
 import '../data/remote/api_service.dart';
@@ -13,7 +15,8 @@ class AttributConfigMobileField {
   final int ordre;
   final String titreApp;
   final bool visible;
-  final String contraintes;
+  final String contraintesDoc;
+  final List<Map<String, dynamic>> contraintesRegles;
   final bool nullable;
   final String valeurParDefaut;
   final String valeurMin;
@@ -31,7 +34,8 @@ class AttributConfigMobileField {
     required this.ordre,
     required this.titreApp,
     required this.visible,
-    required this.contraintes,
+    required this.contraintesDoc,
+    required this.contraintesRegles,
     required this.nullable,
     required this.valeurParDefaut,
     required this.valeurMin,
@@ -51,13 +55,33 @@ class AttributConfigMobileField {
       ordre: _toInt(row['ordre']) ?? 0,
       titreApp: row['titre_app']?.toString().trim() ?? '',
       visible: _toBool(row['visible']),
-      contraintes: row['contraintes']?.toString().trim() ?? '',
+      contraintesDoc: row['contraintes_doc']?.toString().trim() ?? '',
+      contraintesRegles: _parseContraintesRegles(row['contraintes_regles']),
       nullable: _toBool(row['nullable'], defaultValue: true),
       valeurParDefaut: row['valeur_par_defaut']?.toString().trim() ?? '',
       valeurMin: row['valeur_min']?.toString().trim() ?? '',
       valeurMax: row['valeur_max']?.toString().trim() ?? '',
       referenceFk: row['reference_fk']?.toString().trim() ?? '',
     );
+  }
+
+  static List<Map<String, dynamic>> _parseContraintesRegles(dynamic raw) {
+    if (raw == null) return const [];
+    dynamic decoded = raw;
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty || trimmed == '[]') return const [];
+      try {
+        decoded = jsonDecode(trimmed);
+      } catch (_) {
+        return const [];
+      }
+    }
+    if (decoded is! List) return const [];
+    return decoded
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
   }
 
   String get label =>

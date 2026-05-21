@@ -698,6 +698,14 @@ class SyncService {
       );
     }
     if (!result.interrupted) {
+      // Apres avoir pousse les objets metiers et les regards de leur cote,
+      // on rejoue les liens "piece de regard" en attente. Le serveur est
+      // idempotent (UNIQUE(table_objet, uuid_objet)) : pas de souci si on
+      // tente le push alors que l'UUID objet/regard n'est pas encore connu
+      // cote serveur (le lien echouera et restera en queue).
+      await _syncPendingRegardPieceLinks(result);
+    }
+    if (!result.interrupted) {
       await _syncPendingTerrainInterventions(
         result,
         syncSessionUuid: syncSessionUuid,
@@ -949,6 +957,48 @@ class SyncService {
         }
         final message = 'Conduite $metier $jourText: ${_short(e)}';
         await dbHelper.markConduiteSyncItemFailed(localId, message);
+        result.failedCount++;
+        result.errors.add(message);
+      }
+    }
+  }
+
+  Future<void> _syncPendingRegardPieceLinks(SyncResult result) async {
+    final items = await dbHelper.getPendingRegardPieceLinkItems(limit: 1000);
+    for (final item in items) {
+      final localId = _asIntOrNull(item['id']);
+      if (localId == null) continue;
+      final uuidRegard = item['uuid_regard']?.toString().trim() ?? '';
+      final tableObjet = item['table_objet']?.toString().trim() ?? '';
+      final uuidObjet = item['uuid_objet']?.toString().trim() ?? '';
+      if (uuidRegard.isEmpty || tableObjet.isEmpty || uuidObjet.isEmpty) {
+        await dbHelper.markRegardPieceLinkFailed(
+          localId,
+          'Lien piece-regard invalide : UUID manquant',
+        );
+        result.failedCount++;
+        continue;
+      }
+      try {
+        await ApiService.postRegardPieceLink(
+          uuidRegard: uuidRegard,
+          tableObjet: tableObjet,
+          uuidObjet: uuidObjet,
+          fidRegard: _asIntOrNull(item['fid_regard']),
+          fidObjet: _asIntOrNull(item['fid_objet']),
+          idAgent: _asIntOrNull(item['id_agent']),
+          syncUuid: item['sync_uuid']?.toString(),
+        );
+        await dbHelper.markRegardPieceLinkSynced(localId);
+        result.successCount++;
+      } catch (e) {
+        if (_isNetworkInterruption(e)) {
+          result.failedCount++;
+          result.stopForInterruption(_syncInterruptedMessage);
+          return;
+        }
+        final message = 'Lien $tableObjet/$uuidObjet : ${_short(e)}';
+        await dbHelper.markRegardPieceLinkFailed(localId, message);
         result.failedCount++;
         result.errors.add(message);
       }

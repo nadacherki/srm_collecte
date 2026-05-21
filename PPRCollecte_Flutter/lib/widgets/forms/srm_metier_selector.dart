@@ -37,6 +37,136 @@ Future<SrmSelection?> showSrmPolygoneSelector(BuildContext context) {
   return _showSrmSelector(context, geometryFilter: 'polygon');
 }
 
+/// TableNames (cf. srm_config.dart) des 9 types pouvant etre "piece de
+/// regard" : vanne, vidange, ventouse, cone reduc, compteur reseau,
+/// reducteur pression, obturateur, pompe, conduite terrain.
+const Set<String> regardPieceTableNames = <String>{
+  'vanne',
+  'vanne_de_vidange',
+  'ventouse',
+  'cone_de_reduction',
+  'compteur_reseau',
+  'reducteur_de_pression',
+  'obturateur',
+  'pompe',
+  'conduite_terrain',
+};
+
+/// Selecteur restreint aux 9 types "piece de regard". Pas d'etape "metier"
+/// (tout est EP) : on ouvre directement la liste des entites cibles.
+Future<SrmSelection?> showSrmRegardPieceSelector(BuildContext context) async {
+  final geometry = await showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => const _RegardPieceGeometrySheet(),
+  );
+  if (geometry == null) return null;
+  if (!context.mounted) return null;
+
+  final entity = await showModalBottomSheet<FormulaireConfigMobileEntity>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => _RegardPieceEntitySheet(geometryFilter: geometry),
+  );
+  if (entity == null) return null;
+  return SrmSelection(
+    metier: 'Eau Potable',
+    entityType: entity.entityType,
+    tableName: entity.tableName,
+    schema: entity.schema,
+    titleApp: entity.titleApp,
+    isLine: entity.isLine,
+    isPolygon: entity.isPolygon,
+  );
+}
+
+class _RegardPieceGeometrySheet extends StatelessWidget {
+  const _RegardPieceGeometrySheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Color(SrmConfig.getMetierColor('Eau Potable'));
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withValues(alpha: 0.15),
+                  child: Icon(Icons.settings_input_component, color: color),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pièce du regard',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'Choisir le type de géométrie',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: color.withValues(alpha: 0.15),
+                child: Icon(Icons.place, color: color),
+              ),
+              title: const Text('Point'),
+              subtitle: const Text(
+                'Vanne, vidange, ventouse, compteur, pompe...',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pop(context, 'point'),
+            ),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFF00897B).withValues(alpha: 0.15),
+                child: const Icon(Icons.timeline, color: Color(0xFF00897B)),
+              ),
+              title: const Text('Ligne'),
+              subtitle: const Text('Conduite terrain'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pop(context, 'line'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 Future<SrmSelection?> _showSrmSelector(
   BuildContext context, {
   required String geometryFilter,
@@ -366,5 +496,204 @@ class _EntitySheetState extends State<_EntitySheet> {
       default:
         return Icons.place;
     }
+  }
+}
+
+/// Sheet d'entites filtre aux 9 types "piece de regard" (cf.
+/// [regardPieceTableNames]). Pas de fallback statique : si la config
+/// formulaire mobile n'est pas chargee, on affiche les 9 entrees minimales
+/// quand meme pour ne pas bloquer l'agent terrain.
+class _RegardPieceEntitySheet extends StatefulWidget {
+  final String geometryFilter;
+  const _RegardPieceEntitySheet({required this.geometryFilter});
+
+  @override
+  State<_RegardPieceEntitySheet> createState() =>
+      _RegardPieceEntitySheetState();
+}
+
+class _RegardPieceEntitySheetState extends State<_RegardPieceEntitySheet> {
+  late final Future<List<FormulaireConfigMobileEntity>> _entitiesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _entitiesFuture = _loadEntities();
+  }
+
+  Future<List<FormulaireConfigMobileEntity>> _loadEntities() async {
+    final service = FormulaireConfigMobileService();
+    final entities = await service.getMobileEntities(
+      mobileMetier: 'Eau Potable',
+      geometryFilter: widget.geometryFilter,
+    );
+    final filtered = entities.where(_matchesGeometry).toList();
+    if (filtered.isNotEmpty) return filtered;
+    // Fallback statique si la config mobile n'est pas encore en cache local.
+    return _staticFallbackEntities().where(_matchesGeometry).toList();
+  }
+
+  bool _matchesGeometry(FormulaireConfigMobileEntity e) {
+    if (!regardPieceTableNames.contains(e.tableName)) return false;
+    if (widget.geometryFilter == 'line') {
+      return e.tableName == 'conduite_terrain' || e.isLine;
+    }
+    return e.tableName != 'conduite_terrain' && !e.isLine;
+  }
+
+  List<FormulaireConfigMobileEntity> _staticFallbackEntities() {
+    // Construit a partir des entityType/tableName figes dans srm_config.dart
+    // pour les 9 cibles. L'ordre est celui du brief utilisateur.
+    const order = <List<String>>[
+      ['Vanne', 'vanne', 'Vanne'],
+      ['Vanne de Vidange', 'vanne_de_vidange', 'Vidange'],
+      ['Ventouse', 'ventouse', 'Ventouse'],
+      ['Cône de Réduction', 'cone_de_reduction', 'Cône réduc.'],
+      ['Compteur Réseau', 'compteur_reseau', 'Compteur'],
+      ['Réducteur de Pression', 'reducteur_de_pression', 'Réducteur'],
+      ['Obturateur', 'obturateur', 'Obturateur'],
+      ['Pompe', 'pompe', 'Pompe'],
+      ['Conduite Terrain', 'conduite_terrain', 'Conduite'],
+    ];
+    var ordre = 0;
+    return order
+        .map(
+          (e) => FormulaireConfigMobileEntity(
+            entityType: e[0],
+            tableName: e[1],
+            schema: 'ep',
+            titleApp: e[2],
+            ordre: ordre++,
+            isLine: e[1] == 'conduite_terrain',
+            isPolygon: false,
+            hasZ: false,
+            maxPhotos: 4,
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Color(SrmConfig.getMetierColor('Eau Potable'));
+    final geometryLabel =
+        widget.geometryFilter == 'line' ? 'ligne' : 'point';
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scroll) {
+        return FutureBuilder<List<FormulaireConfigMobileEntity>>(
+          future: _entitiesFuture,
+          builder: (context, snapshot) {
+            final entities =
+                snapshot.data ?? const <FormulaireConfigMobileEntity>[];
+            final isLoading =
+                snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 8),
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: color.withValues(alpha: 0.15),
+                        child: Icon(Icons.settings_input_component,
+                            color: color),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Pièce du regard',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            '$geometryLabel - ${entities.length} type${entities.length > 1 ? "s" : ""}',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                if (isLoading)
+                  const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (entities.isEmpty)
+                  const Expanded(
+                    child: Center(
+                      child: Text('Aucun type de pièce disponible'),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.separated(
+                      controller: scroll,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: entities.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (_, i) {
+                        final entity = entities[i];
+                        final markerConfig = CustomMarkerIcons.lookupConfig(
+                          entity.tableName,
+                        );
+                        final entityIcon = markerConfig?.icon ??
+                            (entity.isLine ? Icons.timeline : Icons.place);
+                        final entityColor = markerConfig?.color ?? color;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            radius: 18,
+                            backgroundColor:
+                                entityColor.withValues(alpha: 0.15),
+                            child: Icon(
+                              entityIcon,
+                              color: entityColor,
+                              size: 18,
+                            ),
+                          ),
+                          title: Text(
+                            entity.titleApp,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: entity.isLine
+                              ? const Text('À dessiner')
+                              : null,
+                          trailing:
+                              const Icon(Icons.chevron_right, size: 18),
+                          onTap: () => Navigator.pop(ctx, entity),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }

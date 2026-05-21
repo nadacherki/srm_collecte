@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../models/collection_models.dart';
 import '../../core/config/srm_config.dart';
 import '../../services/commune_sync_service.dart';
 import '../../services/projection_service.dart';
@@ -28,6 +29,7 @@ const DropdownMenuItem<String> _kEmptyChoiceMenuItem = DropdownMenuItem<String>(
 
 class PolygonFormPage extends StatefulWidget {
   final List<LatLng> polygonPoints;
+  final List<CapturedGnssPoint> gnssPoints;
   final DateTime startTime;
   final DateTime endTime;
   final String agentName;
@@ -42,6 +44,7 @@ class PolygonFormPage extends StatefulWidget {
   const PolygonFormPage({
     super.key,
     required this.polygonPoints,
+    this.gnssPoints = const [],
     required this.startTime,
     required this.endTime,
     required this.agentName,
@@ -133,6 +136,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         widget.entityType.toLowerCase();
   }
 
+  List<CapturedGnssPoint> get _effectiveGnssPoints {
+    if (widget.gnssPoints.length >= 3) return widget.gnssPoints;
+    return const <CapturedGnssPoint>[];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -198,6 +206,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     }
 
     // Pré-remplir en mode édition
+    _recomputePolygonGeometry(prefillDerivedFields: true);
+
     if (_isRegardEp) {
       await _initializeRegardEpForm();
       if (!mounted) return;
@@ -293,6 +303,19 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         .wgs84ToMerchich(longitude: centroidLon, latitude: centroidLat);
     _xMerchich = merchich.x;
     _yMerchich = merchich.y;
+
+    final projectedPoints = _effectiveGnssPoints
+        .where((p) => p.projectedX != null && p.projectedY != null)
+        .toList();
+    if (projectedPoints.isNotEmpty &&
+        projectedPoints.length == _polygonPoints.length) {
+      final xTotal =
+          projectedPoints.map((p) => p.projectedX!).reduce((a, b) => a + b);
+      final yTotal =
+          projectedPoints.map((p) => p.projectedY!).reduce((a, b) => a + b);
+      _xMerchich = xTotal / projectedPoints.length;
+      _yMerchich = yTotal / projectedPoints.length;
+    }
 
     if (prefillDerivedFields && _epLongueurController.text.trim().isEmpty) {
       _epLongueurController.text =

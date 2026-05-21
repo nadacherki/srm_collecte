@@ -255,7 +255,7 @@ BASEMAP_REGIONAL_ATTRIBUTION = (
     or "© Protomaps © OpenStreetMap contributors"
 )
 REGARD_MIROIR_SQUARE_SIZE_METERS = float(
-    os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "24.0")
+    os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "4.0")
 )
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

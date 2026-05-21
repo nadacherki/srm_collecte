@@ -80,6 +80,7 @@ class CollectionManager extends ChangeNotifier {
       lineCode: null,
       type: CollectionType.polygon,
       points: List<LatLng>.from(_polygonCollection!.points),
+      gnssPoints: List<CapturedGnssPoint>.from(_polygonCollection!.gnssPoints),
       totalDistance: _polygonCollection!.totalDistance,
       startTime: _polygonCollection!.startTime,
       endTime: DateTime.now(),
@@ -130,24 +131,48 @@ class CollectionManager extends ChangeNotifier {
 
   /// Ajoute un point à la collecte appropriée
   void _addPointToCollection(
-      CollectionType type, LatLng point, double distance) {
+    CollectionType type,
+    LatLng point,
+    double distance, {
+    CapturedGnssPoint? gnssPoint,
+  }) {
     if (type == CollectionType.ligne && _ligneCollection != null) {
       final updatedPoints = List<LatLng>.from(_ligneCollection!.points)
         ..add(point);
+      final updatedGnssPoints =
+          List<CapturedGnssPoint>.from(_ligneCollection!.gnssPoints)
+            ..add(
+              gnssPoint ??
+                  CapturedGnssPoint(
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                  ),
+            );
       final newDistance = _ligneCollection!.totalDistance + distance;
 
       _ligneCollection = _ligneCollection!.copyWith(
         points: updatedPoints,
+        gnssPoints: updatedGnssPoints,
         totalDistance: newDistance,
         lastPointTime: DateTime.now(),
       );
     } else if (type == CollectionType.polygon && _polygonCollection != null) {
       final updatedPoints = List<LatLng>.from(_polygonCollection!.points)
         ..add(point);
+      final updatedGnssPoints =
+          List<CapturedGnssPoint>.from(_polygonCollection!.gnssPoints)
+            ..add(
+              gnssPoint ??
+                  CapturedGnssPoint(
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                  ),
+            );
       final newDistance = _polygonCollection!.totalDistance + distance;
 
       _polygonCollection = _polygonCollection!.copyWith(
         points: updatedPoints,
+        gnssPoints: updatedGnssPoints,
         totalDistance: newDistance,
         lastPointTime: DateTime.now(),
       );
@@ -270,6 +295,7 @@ class CollectionManager extends ChangeNotifier {
       lineCode: _ligneCollection!.lineCode,
       type: CollectionType.ligne,
       points: List<LatLng>.from(_ligneCollection!.points),
+      gnssPoints: List<CapturedGnssPoint>.from(_ligneCollection!.gnssPoints),
       totalDistance: _ligneCollection!.totalDistance,
       startTime: _ligneCollection!.startTime,
       endTime: DateTime.now(),
@@ -301,7 +327,12 @@ class CollectionManager extends ChangeNotifier {
   /// Ajoute un point manuellement sur la position courante.
   /// Retourne false si la collecte n'est pas active ou si le point duplique
   /// exactement le dernier point déjà capturé.
-  bool addManualPoint(CollectionType type, LatLng point, {double? altitude}) {
+  bool addManualPoint(
+    CollectionType type,
+    LatLng point, {
+    double? altitude,
+    CapturedGnssPoint? gnssPoint,
+  }) {
     CollectionBase? collection;
 
     if (type == CollectionType.ligne) {
@@ -332,7 +363,12 @@ class CollectionManager extends ChangeNotifier {
     } else {
       _collectionService.recordCurrentAltitudeForManualPoint();
     }
-    _addPointToCollection(type, point, segmentDistance);
+    _addPointToCollection(
+      type,
+      point,
+      segmentDistance,
+      gnssPoint: gnssPoint,
+    );
     return true;
   }
 
@@ -351,13 +387,24 @@ class CollectionManager extends ChangeNotifier {
     final updatedPoints = List<LatLng>.from(collection.points);
     final removedPoint = updatedPoints.removeLast();
     final removedAltitude = _collectionService.removeLastRecordedAltitude();
+    final updatedGnssPoints =
+        List<CapturedGnssPoint>.from(collection.gnssPoints);
+    final removedGnssPoint =
+        updatedGnssPoints.isNotEmpty ? updatedGnssPoints.removeLast() : null;
 
-    _replaceCollectionPoints(type, updatedPoints);
+    _replaceCollectionPoints(type, updatedPoints, updatedGnssPoints);
     _savePausedDraftIfNeeded(type);
 
     return CollectionPointEdit(
       point: removedPoint,
       altitude: removedAltitude,
+      gnssPoint: removedGnssPoint ??
+          (collection.gnssPoints.isNotEmpty
+              ? collection.gnssPoints.last
+              : CapturedGnssPoint(
+                  latitude: removedPoint.latitude,
+                  longitude: removedPoint.longitude,
+                )),
     );
   }
 
@@ -380,7 +427,16 @@ class CollectionManager extends ChangeNotifier {
 
     _collectionService.recordAltitudeForManualPoint(edit.altitude);
     final updatedPoints = List<LatLng>.from(collection.points)..add(edit.point);
-    _replaceCollectionPoints(type, updatedPoints);
+    final updatedGnssPoints =
+        List<CapturedGnssPoint>.from(collection.gnssPoints)
+          ..add(
+            edit.gnssPoint ??
+                CapturedGnssPoint(
+                  latitude: edit.point.latitude,
+                  longitude: edit.point.longitude,
+                ),
+          );
+    _replaceCollectionPoints(type, updatedPoints, updatedGnssPoints);
     _savePausedDraftIfNeeded(type);
     return true;
   }
@@ -395,19 +451,25 @@ class CollectionManager extends ChangeNotifier {
     return null;
   }
 
-  void _replaceCollectionPoints(CollectionType type, List<LatLng> points) {
+  void _replaceCollectionPoints(
+    CollectionType type,
+    List<LatLng> points,
+    List<CapturedGnssPoint> gnssPoints,
+  ) {
     final totalDistance = _collectionService.calculateTotalDistance(points);
     final lastPointTime = DateTime.now();
 
     if (type == CollectionType.ligne && _ligneCollection != null) {
       _ligneCollection = _ligneCollection!.copyWith(
         points: points,
+        gnssPoints: gnssPoints,
         totalDistance: totalDistance,
         lastPointTime: lastPointTime,
       );
     } else if (type == CollectionType.polygon && _polygonCollection != null) {
       _polygonCollection = _polygonCollection!.copyWith(
         points: points,
+        gnssPoints: gnssPoints,
         totalDistance: totalDistance,
         lastPointTime: lastPointTime,
       );
@@ -441,6 +503,7 @@ class CollectionManager extends ChangeNotifier {
     required int id,
     required String lineCode,
     required List<LatLng> points,
+    List<CapturedGnssPoint> gnssPoints = const [],
     required DateTime startTime,
     DateTime? lastPointTime,
     required double totalDistance,
@@ -454,6 +517,7 @@ class CollectionManager extends ChangeNotifier {
       lineCode: lineCode,
       status: CollectionStatus.paused,
       points: List<LatLng>.from(points),
+      gnssPoints: List<CapturedGnssPoint>.from(gnssPoints),
       startTime: startTime,
       lastPointTime: lastPointTime,
       totalDistance: totalDistance,
@@ -557,6 +621,8 @@ class CollectionManager extends ChangeNotifier {
         data['points'] = _ligneCollection!.points
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList();
+        data['gnssPoints'] =
+            _ligneCollection!.gnssPoints.map((p) => p.toJson()).toList();
         data['startTime'] = _ligneCollection!.startTime.toIso8601String();
         data['lastPointTime'] =
             _ligneCollection!.lastPointTime?.toIso8601String();
@@ -572,6 +638,8 @@ class CollectionManager extends ChangeNotifier {
         data['points'] = _polygonCollection!.points
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList();
+        data['gnssPoints'] =
+            _polygonCollection!.gnssPoints.map((p) => p.toJson()).toList();
         data['startTime'] = _polygonCollection!.startTime.toIso8601String();
         data['lastPointTime'] =
             _polygonCollection!.lastPointTime?.toIso8601String();
@@ -636,12 +704,17 @@ class CollectionManager extends ChangeNotifier {
         .map((p) =>
             LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
         .toList();
+    final gnssPoints = ((data['gnssPoints'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((p) => CapturedGnssPoint.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
 
     _ligneCollection = LigneCollection(
       id: data['id'] as int,
       lineCode: (data['lineCode']) as String,
       status: CollectionStatus.paused,
       points: points,
+      gnssPoints: gnssPoints,
       startTime: DateTime.parse(data['startTime'] as String),
       lastPointTime: data['lastPointTime'] != null
           ? DateTime.parse(data['lastPointTime'] as String)
@@ -667,12 +740,17 @@ class CollectionManager extends ChangeNotifier {
         .map((p) =>
             LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
         .toList();
+    final gnssPoints = ((data['gnssPoints'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((p) => CapturedGnssPoint.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
 
     _polygonCollection = PolygonCollection(
       id: data['id'] as int,
       entityType: data['entityType'] as String? ?? 'Polygone',
       status: CollectionStatus.paused,
       points: points,
+      gnssPoints: gnssPoints,
       startTime: DateTime.parse(data['startTime'] as String),
       lastPointTime: data['lastPointTime'] != null
           ? DateTime.parse(data['lastPointTime'] as String)

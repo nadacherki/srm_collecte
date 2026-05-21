@@ -109,6 +109,7 @@ extension _HomePageCollectionActions on _HomePageState {
       MaterialPageRoute(
         builder: (_) => PolygonFormPage(
           polygonPoints: result.points,
+          gnssPoints: result.gnssPoints,
           startTime: result.startTime,
           endTime: result.endTime,
           agentName: widget.agentName,
@@ -235,7 +236,10 @@ extension _HomePageCollectionActions on _HomePageState {
           displayTitle: selection.titleApp,
           latitude: current.latitude,
           longitude: current.longitude,
-          altitude: homeController.currentAltitude,
+          altitude:
+              homeController.currentProjectedZ ?? homeController.currentAltitude,
+          projectedX: homeController.currentProjectedX,
+          projectedY: homeController.currentProjectedY,
           agentName: widget.agentName,
           onSaved: () {
             if (!mounted) return;
@@ -321,13 +325,9 @@ extension _HomePageCollectionActions on _HomePageState {
         });
       } else {
         final sel = _pendingSrmLigneSelection;
-        homeController.collectionManager.setSrmMetadata({
-          'srmMetier': sel?.metier,
-          'srmEntityType': sel?.entityType,
-          'srmTitleApp': sel?.titleApp,
-          'srmTableName': sel?.tableName,
-          'srmSchema': sel?.schema,
-        });
+        homeController.collectionManager.setSrmMetadata(
+          _pendingLigneSrmMetadata(sel),
+        );
       }
       homeController.toggleLigneCollection();
     } else if (wasPolygonActive) {
@@ -685,13 +685,9 @@ extension _HomePageCollectionActions on _HomePageState {
           });
         } else {
           final sel = _pendingSrmLigneSelection;
-          homeController.collectionManager.setSrmMetadata({
-            'srmMetier': sel?.metier,
-            'srmEntityType': sel?.entityType,
-            'srmTitleApp': sel?.titleApp,
-            'srmTableName': sel?.tableName,
-            'srmSchema': sel?.schema,
-          });
+          homeController.collectionManager.setSrmMetadata(
+            _pendingLigneSrmMetadata(sel),
+          );
         }
       }
       homeController.toggleLigneCollection();
@@ -720,6 +716,9 @@ extension _HomePageCollectionActions on _HomePageState {
     final lineId = result['id'] as int;
     final lineCode = result['lineCode'] as String;
     final points = List<LatLng>.from(result['points'] as List<LatLng>);
+    final gnssPoints = List<CapturedGnssPoint>.from(
+      result['gnssPoints'] as List<CapturedGnssPoint>? ?? const [],
+    );
     final startTime = result['startTime'] as DateTime;
     final endTime = result['endTime'] as DateTime?;
     final totalDistance = (result['totalDistance'] as num).toDouble();
@@ -731,6 +730,7 @@ extension _HomePageCollectionActions on _HomePageState {
         lineId: lineId,
         lineCode: lineCode,
         points: points,
+        gnssPoints: gnssPoints,
         startTime: startTime,
         endTime: endTime,
         totalDistance: totalDistance,
@@ -749,6 +749,7 @@ extension _HomePageCollectionActions on _HomePageState {
           id: lineId,
           lineCode: lineCode,
           points: points,
+          gnssPoints: gnssPoints,
           startTime: startTime,
           lastPointTime: endTime,
           totalDistance: totalDistance,
@@ -767,18 +768,13 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     final effectiveSel = sel;
-    final srmMetadata = {
-      'srmMetier': effectiveSel.metier,
-      'srmEntityType': effectiveSel.entityType,
-      'srmTitleApp': effectiveSel.titleApp,
-      'srmTableName': effectiveSel.tableName,
-      'srmSchema': effectiveSel.schema,
-    };
+    final srmMetadata = _pendingLigneSrmMetadata(effectiveSel);
 
     await homeController.restoreFinishedLigneAsPaused(
       id: lineId,
       lineCode: lineCode,
       points: points,
+      gnssPoints: gnssPoints,
       startTime: startTime,
       lastPointTime: endTime,
       totalDistance: totalDistance,
@@ -802,10 +798,26 @@ extension _HomePageCollectionActions on _HomePageState {
           entityType: effectiveSel.entityType,
           displayTitle: effectiveSel.titleApp,
           linePoints: points,
+          gnssPoints: gnssPoints,
           startTime: startTime,
           endTime: endTime,
           agentName: widget.agentName,
           averageAltitude: homeController.collectionManager.averageAltitude,
+          onSavedWithMeta: (uuidObjet, tableName) async {
+            final uuidRegard = _pendingRegardPieceLineUuidRegard;
+            if (uuidRegard == null || uuidRegard.trim().isEmpty) return;
+            try {
+              await DatabaseHelper().enqueueRegardPieceLink(
+                uuidRegard: uuidRegard,
+                tableObjet: tableName,
+                uuidObjet: uuidObjet,
+                fidRegard: _pendingRegardPieceLineFidRegard,
+                idAgent: ApiService.userId,
+              );
+            } catch (e) {
+              debugPrint('[REGARD_PIECE] enqueue line link failed: $e');
+            }
+          },
         ),
       ),
     );
@@ -823,6 +835,7 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     homeController.cancelLigneCollection();
+    _clearPendingRegardPieceLineLink();
     _ligneRedoPoints.clear();
     _refreshAfterNavigation();
   }
@@ -856,6 +869,7 @@ extension _HomePageCollectionActions on _HomePageState {
 
     homeController.cancelLigneCollection();
     _pendingSrmLigneSelection = null;
+    _clearPendingRegardPieceLineLink();
     _ligneRedoPoints.clear();
     _geometryEditLineItem = null;
 
@@ -878,6 +892,7 @@ extension _HomePageCollectionActions on _HomePageState {
     required int lineId,
     required String lineCode,
     required List<LatLng> points,
+    required List<CapturedGnssPoint> gnssPoints,
     required DateTime startTime,
     required DateTime? endTime,
     required double totalDistance,
@@ -896,14 +911,23 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     final projection = ProjectionService();
-    final startProjected = projection.wgs84ToMerchich(
-      longitude: points.first.longitude,
-      latitude: points.first.latitude,
-    );
-    final endProjected = projection.wgs84ToMerchich(
-      longitude: points.last.longitude,
-      latitude: points.last.latitude,
-    );
+    final startProjectedPoint =
+        gnssPoints.isNotEmpty ? gnssPoints.first : null;
+    final endProjectedPoint = gnssPoints.isNotEmpty ? gnssPoints.last : null;
+    final startProjected = (startProjectedPoint?.projectedX != null &&
+            startProjectedPoint?.projectedY != null)
+        ? null
+        : projection.wgs84ToMerchich(
+            longitude: points.first.longitude,
+            latitude: points.first.latitude,
+          );
+    final endProjected = (endProjectedPoint?.projectedX != null &&
+            endProjectedPoint?.projectedY != null)
+        ? null
+        : projection.wgs84ToMerchich(
+            longitude: points.last.longitude,
+            latitude: points.last.latitude,
+          );
 
     final data = <String, dynamic>{
       'points_json': jsonEncode(
@@ -911,10 +935,10 @@ extension _HomePageCollectionActions on _HomePageState {
       ),
       'nb_points': points.length,
       'distance_m': totalDistance,
-      'x_debut': startProjected.x,
-      'y_debut': startProjected.y,
-      'x_fin': endProjected.x,
-      'y_fin': endProjected.y,
+      'x_debut': startProjectedPoint?.projectedX ?? startProjected!.x,
+      'y_debut': startProjectedPoint?.projectedY ?? startProjected!.y,
+      'x_fin': endProjectedPoint?.projectedX ?? endProjected!.x,
+      'y_fin': endProjectedPoint?.projectedY ?? endProjected!.y,
       'lat_debut': points.first.latitude,
       'lon_debut': points.first.longitude,
       'lat_fin': points.last.latitude,
@@ -949,6 +973,7 @@ extension _HomePageCollectionActions on _HomePageState {
         id: id,
         lineCode: lineCode,
         points: points,
+        gnssPoints: gnssPoints,
         startTime: startTime,
         lastPointTime: endTime,
         totalDistance: totalDistance,
@@ -1001,11 +1026,16 @@ extension _HomePageCollectionActions on _HomePageState {
         points.map((p) => p.latitude).reduce((a, b) => a + b) / points.length;
     final centroidLng =
         points.map((p) => p.longitude).reduce((a, b) => a + b) / points.length;
+    final projectedPoints = result.gnssPoints
+        .where((p) => p.projectedX != null && p.projectedY != null)
+        .toList();
     final projection = ProjectionService();
-    final centroidProjected = projection.wgs84ToMerchich(
-      longitude: centroidLng,
-      latitude: centroidLat,
-    );
+    final centroidProjected = projectedPoints.isNotEmpty
+        ? null
+        : projection.wgs84ToMerchich(
+            longitude: centroidLng,
+            latitude: centroidLat,
+          );
 
     final metier = geometryEditItem['source_metier']?.toString();
     final entityType = geometryEditItem['source_entity']?.toString();
@@ -1032,10 +1062,20 @@ extension _HomePageCollectionActions on _HomePageState {
       'mode_localisation': 'gnss',
     };
     if (xField.isNotEmpty) {
-      data[xField] = centroidProjected.x;
+      data[xField] = projectedPoints.isNotEmpty
+          ? projectedPoints
+                  .map((p) => p.projectedX!)
+                  .reduce((a, b) => a + b) /
+              projectedPoints.length
+          : centroidProjected!.x;
     }
     if (yField.isNotEmpty) {
-      data[yField] = centroidProjected.y;
+      data[yField] = projectedPoints.isNotEmpty
+          ? projectedPoints
+                  .map((p) => p.projectedY!)
+                  .reduce((a, b) => a + b) /
+              projectedPoints.length
+          : centroidProjected!.y;
     }
 
     try {
@@ -1074,6 +1114,7 @@ extension _HomePageCollectionActions on _HomePageState {
         'entityType': sourceEntity,
         'points':
             points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+        'gnssPoints': result.gnssPoints.map((p) => p.toJson()).toList(),
         'startTime': result.startTime.toIso8601String(),
         'lastPointTime': result.endTime.toIso8601String(),
         'totalDistance': result.totalDistance,

@@ -1,5 +1,6 @@
 // lib/screens/forms/srm_ligne_form_page.dart
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -13,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/config/srm_config.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
+import '../../models/collection_models.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
 import '../../services/line_form_payload_service.dart';
@@ -41,11 +43,14 @@ class SrmLigneFormPage extends StatefulWidget {
   final String entityType;
   final String? displayTitle;
   final List<LatLng> linePoints;
+  final List<CapturedGnssPoint> gnssPoints;
   final DateTime? startTime;
   final DateTime? endTime;
   final String? agentName;
   final Map<String, dynamic>? existingData;
   final double? averageAltitude;
+  final FutureOr<void> Function(String uuidObjet, String tableName)?
+      onSavedWithMeta;
 
   const SrmLigneFormPage({
     super.key,
@@ -53,11 +58,13 @@ class SrmLigneFormPage extends StatefulWidget {
     required this.entityType,
     this.displayTitle,
     required this.linePoints,
+    this.gnssPoints = const [],
     this.startTime,
     this.endTime,
     this.agentName,
     this.existingData,
     this.averageAltitude,
+    this.onSavedWithMeta,
   });
 
   @override
@@ -77,26 +84,13 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     3: null,
     4: null,
   };
-  final Map<int, String?> _retourTerrainPhotoPaths = {
-    1: null,
-    2: null,
-    3: null,
-    4: null,
-  };
   final Map<int, String?> _incompletPhotoPaths = {
     1: null,
     2: null,
     3: null,
     4: null,
   };
-  final Map<int, String?> _incompletComplementPhotoPaths = {
-    1: null,
-    2: null,
-    3: null,
-    4: null,
-  };
   final Map<String, Map<int, String?>> _initialWorkflowPhotoPaths = {};
-  bool _wasObjetIncompletAtOpen = false;
   int _workflowInterventionId = 0;
 
   bool _hasAnomalie = false;
@@ -111,8 +105,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       (label: 'photos standards', paths: _photoPaths),
       (label: 'photos anomalie', paths: _anomaliePhotoPaths),
       (label: 'photos incomplet', paths: _incompletPhotoPaths),
-      (label: 'photos complément', paths: _incompletComplementPhotoPaths),
-      (label: 'photos retour terrain', paths: _retourTerrainPhotoPaths),
     ];
   }
 
@@ -167,9 +159,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           : 'SRM';
 
   static const String _photoContextAnomalieAvant = 'anomalie_avant';
-  static const String _photoContextRetourTerrain = 'retour_terrain_apres';
   static const String _photoContextIncompletInitial = 'incomplet_initial';
-  static const String _photoContextIncompletComplement = 'incomplet_complement';
   static const int _requiredGeneralPhotoCount = 4;
   static const int _requiredWorkflowPhotoCount = 2;
 
@@ -319,6 +309,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     return _decodeExistingLinePoints(widget.existingData?['points_json']);
   }
 
+  List<CapturedGnssPoint> get _effectiveGnssPoints {
+    if (widget.gnssPoints.length >= 2) return widget.gnssPoints;
+    return const <CapturedGnssPoint>[];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -334,22 +329,39 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     final initialLinePoints = _effectiveLinePoints;
     _distanceTotaleM = _calcDistance(initialLinePoints);
 
-    final proj = ProjectionService();
     if (initialLinePoints.isNotEmpty) {
-      final debut = initialLinePoints.first;
-      final fin = initialLinePoints.last;
-      final md = proj.wgs84ToMerchich(
-        longitude: debut.longitude,
-        latitude: debut.latitude,
-      );
-      final mf = proj.wgs84ToMerchich(
-        longitude: fin.longitude,
-        latitude: fin.latitude,
-      );
-      _xDebut = md.x;
-      _yDebut = md.y;
-      _xFin = mf.x;
-      _yFin = mf.y;
+      final initialGnssPoints = _effectiveGnssPoints;
+      final projectedStart = initialGnssPoints.isNotEmpty
+          ? initialGnssPoints.first
+          : null;
+      final projectedEnd = initialGnssPoints.isNotEmpty
+          ? initialGnssPoints.last
+          : null;
+      if (projectedStart?.projectedX != null &&
+          projectedStart?.projectedY != null &&
+          projectedEnd?.projectedX != null &&
+          projectedEnd?.projectedY != null) {
+        _xDebut = projectedStart!.projectedX!;
+        _yDebut = projectedStart.projectedY!;
+        _xFin = projectedEnd!.projectedX!;
+        _yFin = projectedEnd.projectedY!;
+      } else {
+        final proj = ProjectionService();
+        final debut = initialLinePoints.first;
+        final fin = initialLinePoints.last;
+        final md = proj.wgs84ToMerchich(
+          longitude: debut.longitude,
+          latitude: debut.latitude,
+        );
+        final mf = proj.wgs84ToMerchich(
+          longitude: fin.longitude,
+          latitude: fin.latitude,
+        );
+        _xDebut = md.x;
+        _yDebut = md.y;
+        _xFin = mf.x;
+        _yFin = mf.y;
+      }
     } else {
       _xDebut = 0.0;
       _yDebut = 0.0;
@@ -373,7 +385,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
-      _wasObjetIncompletAtOpen = _isObjetIncomplet;
       for (int i = 1; i <= _photoSlotCount; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
@@ -421,7 +432,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       ]);
       final configFields = results[0] as List<AttributConfigMobileField>;
       final rawChoicesByField = results[1] as Map<String, List<SrmFieldChoice>>;
-      if (!mounted || configFields.isEmpty) return;
+      if (!mounted) return;
+      if (configFields.isEmpty) {
+        await _showConfigUnavailableDialog();
+        return;
+      }
 
       final formFields = <String>[];
       final requiredFields = <String>[];
@@ -889,15 +904,16 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     switch (photoContext) {
       case _photoContextAnomalieAvant:
         return _anomaliePhotoPaths;
-      case _photoContextRetourTerrain:
-        return _retourTerrainPhotoPaths;
       case _photoContextIncompletInitial:
         return _incompletPhotoPaths;
-      case _photoContextIncompletComplement:
-        return _incompletComplementPhotoPaths;
       default:
         return _anomaliePhotoPaths;
     }
+  }
+
+  bool _isActiveWorkflowPhotoContext(String photoContext) {
+    return photoContext == _photoContextAnomalieAvant ||
+        photoContext == _photoContextIncompletInitial;
   }
 
   int _workflowPhotoSlotCount(String photoContext) {
@@ -922,7 +938,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _hasAnomalie;
 
   bool get _requiresWorkflowIncompletPhotos =>
-      _isObjetIncomplet || (_wasObjetIncompletAtOpen && !_isObjetIncomplet);
+      _isObjetIncomplet;
 
   String? _validatePhotoRequirements() {
     if (_isLocked) return null;
@@ -940,12 +956,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
 
     if (_requiresWorkflowIncompletPhotos) {
-      final context = _isObjetIncomplet
-          ? _photoContextIncompletInitial
-          : _photoContextIncompletComplement;
-      final label = _isObjetIncomplet
-          ? 'photos objet incomplet'
-          : 'photos de complement';
+      const context = _photoContextIncompletInitial;
+      const label = 'photos objet incomplet';
       final count = _countFilledPhotos(
         _workflowPhotoMapForContext(context),
         _workflowPhotoSlotCount(context),
@@ -963,6 +975,30 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     }
 
     return null;
+  }
+
+  Future<void> _showConfigUnavailableDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Configuration indisponible'),
+        content: const Text(
+          "La configuration de ce formulaire n'a pas pu etre recuperee.\n\n"
+          "Si c'est votre premier lancement, connectez-vous au reseau du "
+          "serveur puis reconnectez-vous a l'application pour synchroniser "
+          "la configuration.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _loadWorkflowPhotoQueues() async {
@@ -1014,6 +1050,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
           final photoContext =
               row['photo_context']?.toString().trim() ?? 'collecte_initiale';
           if (photoContext == 'collecte_initiale') continue;
+          if (!_isActiveWorkflowPhotoContext(photoContext)) continue;
           final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
           if (slot == null || slot < 1 || slot > 4) continue;
           final remote = row['remote_path']?.toString().trim() ?? '';
@@ -1024,9 +1061,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         }
         for (final context in const [
           _photoContextAnomalieAvant,
-          _photoContextRetourTerrain,
           _photoContextIncompletInitial,
-          _photoContextIncompletComplement,
         ]) {
           final paths = _workflowPhotoMapForContext(context);
           paths.addAll(PhotoSlotService.compact(
@@ -1052,6 +1087,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     for (final row in rows) {
       final photoContext = row['photo_context']?.toString().trim() ?? '';
       if (photoContext.isEmpty || photoContext == 'collecte_initiale') continue;
+      if (!_isActiveWorkflowPhotoContext(photoContext)) continue;
       final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
       if (slot == null || slot < 1 || slot > 4) continue;
       final key = '$photoContext|$slot';
@@ -1134,15 +1170,11 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
     final allWorkflowPhotos = <String, Map<int, String?>>{
       _photoContextAnomalieAvant: _anomaliePhotoPaths,
-      _photoContextRetourTerrain: _retourTerrainPhotoPaths,
       _photoContextIncompletInitial: _incompletPhotoPaths,
-      _photoContextIncompletComplement: _incompletComplementPhotoPaths,
     };
     final activeContexts = <String>{
       if (_hasAnomalie && !_isObjetIncomplet) _photoContextAnomalieAvant,
       if (_isObjetIncomplet) _photoContextIncompletInitial,
-      if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
-        _photoContextIncompletComplement,
     };
 
     for (final entry in allWorkflowPhotos.entries) {
@@ -1459,6 +1491,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
         dbHelper: dbHelper,
         uuid: uuidObjet,
       );
+      await widget.onSavedWithMeta?.call(uuidObjet, tableName);
 
       if (mounted) {
         await clearDraftAfterSave();
@@ -2150,10 +2183,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   Widget _buildPhotoSection() {
     if (_photoSlotCount == 0) return const SizedBox.shrink();
-    final disabled = _isObjetIncomplet ||
-        _hasAnomalie ||
-        _wasObjetIncompletAtOpen ||
-        _isLocked;
+    final disabled = _isObjetIncomplet || _hasAnomalie || _isLocked;
     final visibleSlotCount = PhotoSlotService.visibleSlotCount(
       _photoPaths,
       _photoSlotCount,
@@ -2755,16 +2785,6 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                         photoContext: _photoContextIncompletInitial,
                         photoPaths: _incompletPhotoPaths,
                         color: Colors.orange,
-                      ),
-                    if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
-                      _buildWorkflowPhotoSection(
-                        title:
-                            'Photos complement ($_requiredWorkflowPhotoCount requises)',
-                        subtitle:
-                            'Preuves ajoutees lors du completement de l\'objet.',
-                        photoContext: _photoContextIncompletComplement,
-                        photoPaths: _incompletComplementPhotoPaths,
-                        color: Colors.blueGrey,
                       ),
                     const SizedBox(height: 24),
                     Row(

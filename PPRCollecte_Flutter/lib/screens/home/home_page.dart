@@ -89,6 +89,7 @@ part 'home_page_collection_actions.dart';
 part 'home_page_bootstrap.dart';
 part 'home_page_app_actions.dart';
 part 'home_page_conduite_mode.dart';
+part 'home_page_regard_piece_mode.dart';
 
 class MapFocusTarget {
   final String kind; // 'point' | 'polyline'
@@ -126,6 +127,27 @@ class _ConduiteRegardNode {
     required this.sourceFid,
     required this.point,
     required this.row,
+  });
+}
+
+/// Sommet libre du trace de conduite (cree sur un tap en zone vide).
+/// Ce n'est pas un regard : il n'a ni fid ni ligne en base, il ne sert
+/// qu'a faire suivre le trace reel du tuyau entre deux regards (ou en
+/// extremite ouverte). nodeId est toujours <= -1000.
+class _ConduiteFreeNode {
+  final int nodeId;
+  final LatLng point;
+  // Coordonnees Merchich (EPSG:26191) projetees a la creation du point libre.
+  // On les stocke pour que l'apercu de longueur hors-ligne soit calcule en
+  // metres planaires (cohérent avec ST_Length serveur apres sync).
+  final double? x;
+  final double? y;
+
+  const _ConduiteFreeNode({
+    required this.nodeId,
+    required this.point,
+    this.x,
+    this.y,
   });
 }
 
@@ -214,6 +236,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isSatellite = false;
 
   SrmSelection? _pendingSrmLigneSelection;
+  String? _pendingRegardPieceLineUuidRegard;
+  int? _pendingRegardPieceLineFidRegard;
 
   final DownloadedLinesService _downloadedLinesService =
       DownloadedLinesService();
@@ -246,6 +270,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Marker> _conduiteModeMarkers = [];
   List<Polyline> _conduiteModePolylines = [];
   final Map<int, _ConduiteRegardNode> _conduiteRegardNodesById = {};
+  final Map<int, _ConduiteFreeNode> _conduiteFreeNodesById = {};
+  int _conduiteNextFreeNodeId = -1000;
   final List<int> _conduiteSelectionHistoryNodeIds = <int>[];
   final List<int> _conduiteRedoStackNodeIds = <int>[];
   final Set<String> _conduiteSegmentKeys = <String>{};
@@ -255,6 +281,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _conduiteIsSaving = false;
   String? _conduiteModeError;
   String _conduiteModeStatusText = 'Touchez un regard pour commencer.';
+
+  // Mode "Pieces regard" : l'agent choisit un regard du jour puis place
+  // une piece (vanne, pompe, ventouse, ... conduite_terrain) avec un tap
+  // libre sur la carte. Un lien (uuid_regard, table_objet, uuid_objet) est
+  // enqueue localement et synchronise au prochain push.
+  bool _isRegardPieceMode = false;
+  List<Marker> _regardPieceModeMarkers = <Marker>[];
+  final Map<int, _ConduiteRegardNode> _regardPieceRegardNodesById = {};
+  int? _selectedRegardPieceNodeId;
+  String _regardPieceStatusText = 'Touchez un regard pour commencer.';
+  String? _regardPieceModeError;
 // Dans _HomePageState
   Map<String, bool> _legendVisibility = {
     'points': true,
@@ -932,6 +969,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _handleConduiteMapTap(TapPosition tapPosition, LatLng latLng) =>
       _handleConduiteMapTapImpl(this, tapPosition, latLng);
 
+  Map<String, dynamic> _pendingLigneSrmMetadata(SrmSelection? sel) {
+    return {
+      'srmMetier': sel?.metier,
+      'srmEntityType': sel?.entityType,
+      'srmTitleApp': sel?.titleApp,
+      'srmTableName': sel?.tableName,
+      'srmSchema': sel?.schema,
+      if (_pendingRegardPieceLineUuidRegard != null)
+        'regardPieceUuidRegard': _pendingRegardPieceLineUuidRegard,
+      if (_pendingRegardPieceLineFidRegard != null)
+        'regardPieceFidRegard': _pendingRegardPieceLineFidRegard,
+    };
+  }
+
+  void _clearPendingRegardPieceLineLink() {
+    _pendingRegardPieceLineUuidRegard = null;
+    _pendingRegardPieceLineFidRegard = null;
+  }
+
+  Future<void> _enterRegardPieceMode() => _enterRegardPieceModeImpl(this);
+
+  Widget _buildRegardPieceModeHeader() => _buildRegardPieceModeHeaderImpl(this);
+
+  void _handleRegardPieceRegardTap(Map<String, dynamic> data) =>
+      _handleRegardPieceRegardTapImpl(this, data);
+
+  void _handleRegardPieceMapTap(TapPosition tapPosition, LatLng latLng) =>
+      _handleRegardPieceMapTapImpl(this, tapPosition, latLng);
+
   void _focusConduiteModeBounds() => _focusConduiteModeBoundsImpl(this);
 
   void _onMapCreated(MapController controller) =>
@@ -1057,13 +1123,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           });
         } else {
           final sel = _pendingSrmLigneSelection;
-          homeController.collectionManager.setSrmMetadata({
-            'srmMetier': sel?.metier,
-            'srmEntityType': sel?.entityType,
-            'srmTitleApp': sel?.titleApp,
-            'srmTableName': sel?.tableName,
-            'srmSchema': sel?.schema,
-          });
+          homeController.collectionManager.setSrmMetadata(
+            _pendingLigneSrmMetadata(sel),
+          );
         }
       } else if (homeController.polygonCollection?.isActive ?? false) {
         final edit = _geometryEditPolygonItem;
@@ -1103,7 +1165,42 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     BuildContext context,
   ) {
     final bool isConduiteMode = _isConduiteDrawingMode;
-    final List<Marker> filteredMarkers = isConduiteMode
+    final bool isRegardPieceMode = _isRegardPieceMode;
+    final _ConduiteRegardNode? activePieceRegardNode =
+        isRegardPieceMode && _selectedRegardPieceNodeId != null
+            ? _regardPieceRegardNodesById[_selectedRegardPieceNodeId!]
+            : null;
+    final List<Marker> filteredMarkers = isRegardPieceMode
+        ? [
+            ..._regardPieceModeMarkers,
+            if (activePieceRegardNode != null)
+              Marker(
+                point: activePieceRegardNode.point,
+                width: 44,
+                height: 44,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEB3B).withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFF57F17),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              const Color(0xFFFFEB3B).withValues(alpha: 0.45),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ]
+        : isConduiteMode
         ? [
             ..._conduiteModeMarkers,
             if (_conduiteCurrentRegardPoint != null)
@@ -1114,16 +1211,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 child: IgnorePointer(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00ACC1).withValues(alpha: 0.16),
+                      // Jaune vif : regard "actif" (dernier sélectionné dans
+                      // le tracé). Identification immédiate sur le terrain.
+                      color: const Color(0xFFFFEB3B).withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: const Color(0xFF00ACC1),
+                        color: const Color(0xFFF57F17),
                         width: 3,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color:
-                              const Color(0xFF00ACC1).withValues(alpha: 0.25),
+                              const Color(0xFFFFEB3B).withValues(alpha: 0.45),
                           blurRadius: 10,
                           spreadRadius: 2,
                         ),
@@ -1135,11 +1234,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ]
         : (_getFilteredMarkers()..addAll(_focusOverlayMarkers));
 
-    final List<Polyline> filteredPolylines = isConduiteMode
-        ? List<Polyline>.from(_conduiteModePolylines)
-        : (_getFilteredPolylines()..addAll(_focusOverlayPolylines));
+    final List<Polyline> filteredPolylines = isRegardPieceMode
+        ? <Polyline>[]
+        : isConduiteMode
+            ? List<Polyline>.from(_conduiteModePolylines)
+            : (_getFilteredPolylines()..addAll(_focusOverlayPolylines));
     final List<Polygon> filteredPolygons =
-        isConduiteMode ? <Polygon>[] : _getFilteredPolygons();
+        (isConduiteMode || isRegardPieceMode)
+            ? <Polygon>[]
+            : _getFilteredPolygons();
     if (isConduiteMode) {
       return Scaffold(
         backgroundColor: const Color(0xFFF0F8FF),
@@ -1190,6 +1293,72 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ),
                             child: Text(
                               _conduiteModeError!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (isRegardPieceMode) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F8FF),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildRegardPieceModeHeader(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    MapWidget(
+                      userPosition: userPosition ?? homeController.userPosition,
+                      gpsEnabled: false,
+                      useOnlineBasemap: _canUseOnlineBasemap,
+                      markers: filteredMarkers,
+                      polylines: filteredPolylines,
+                      polygons: filteredPolygons,
+                      onPolygonTap: null,
+                      onMapCreated: _onMapCreated,
+                      formMarkers: const [],
+                      isSatellite: _isSatellite,
+                      onPolylineTap: null,
+                      onMapTap: _handleRegardPieceMapTap,
+                      onCameraIdle: null,
+                      offlineBasemapPath: _offlineBasemapPath,
+                      offlineBasemapFormat: _offlineBasemapFormat,
+                      basemapUnavailableMessage: _basemapUnavailableMessage,
+                      basemapCenter: _offlineBasemapCenter,
+                      basemapBounds: _offlineBasemapBounds,
+                      basemapDefaultZoom: _offlineBasemapDefaultZoom,
+                      basemapMinZoom: _offlineBasemapMinZoom,
+                      basemapMaxZoom: _offlineBasemapMaxZoom,
+                      showMapButtons: false,
+                    ),
+                    if (_regardPieceModeError != null)
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        right: 12,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD32F2F)
+                                  .withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _regardPieceModeError!,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
@@ -1283,6 +1452,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onLogout: _showLogoutConfirmation,
                 onStartConduiteDrawing: (metier) =>
                     _enterConduiteDrawingMode(metier),
+                onStartRegardPieceMode: _enterRegardPieceMode,
               ),
               Expanded(
                 child: Stack(

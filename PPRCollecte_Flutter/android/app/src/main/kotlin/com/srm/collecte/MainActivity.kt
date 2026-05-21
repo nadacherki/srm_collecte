@@ -38,6 +38,11 @@ class MainActivity: FlutterActivity() {
     private var lastGstAccuracy: Float? = null
     private var lastGstAccuracyAtMs: Long = 0L
     private val gstFreshnessWindowMs: Long = 5_000L
+    private var lastGeographicFix: ParsedNmeaLocation? = null
+    private var lastGeographicFixAtMs: Long = 0L
+    private var lastProjectedFix: ParsedNmeaLocation? = null
+    private var lastProjectedFixAtMs: Long = 0L
+    private val fixMergeFreshnessWindowMs: Long = 5_000L
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -89,8 +94,8 @@ class MainActivity: FlutterActivity() {
                     val parsed = parseNmea(sentence)
                         ?: error("Trame NMEA non supportee ou invalide")
                     injectMockLocation(
-                        latitude = parsed.latitude,
-                        longitude = parsed.longitude,
+                        latitude = parsed.latitude ?: error("latitude GNSS manquante"),
+                        longitude = parsed.longitude ?: error("longitude GNSS manquante"),
                         altitude = parsed.altitude,
                         accuracy = parsed.accuracy,
                         speed = parsed.speed,
@@ -99,6 +104,10 @@ class MainActivity: FlutterActivity() {
                         fixQuality = parsed.fixQuality,
                         satellites = parsed.satellites,
                         hdop = parsed.hdop,
+                        projectedX = parsed.projectedX,
+                        projectedY = parsed.projectedY,
+                        projectedZ = parsed.projectedZ,
+                        coordinateSource = parsed.coordinateSource,
                     )
                 }.fold(
                     onSuccess = { result.success(it) },
@@ -272,7 +281,7 @@ class MainActivity: FlutterActivity() {
         )
     }
 
-    private fun stopMockProviders() {
+    private fun removeMockProviders() {
         mockProviders.forEach { provider ->
             try {
                 locationManager.removeTestProvider(provider)
@@ -280,6 +289,10 @@ class MainActivity: FlutterActivity() {
                 // Ignore cleanup errors; the provider may not be active.
             }
         }
+    }
+
+    private fun stopMockProviders() {
+        removeMockProviders()
         bridgeStatus = "idle"
     }
 
@@ -294,6 +307,10 @@ class MainActivity: FlutterActivity() {
         fixQuality: Int? = null,
         satellites: Int? = null,
         hdop: Float? = null,
+        projectedX: Double? = null,
+        projectedY: Double? = null,
+        projectedZ: Double? = null,
+        coordinateSource: String? = null,
     ): Map<String, Any?> {
         ensureMockProviders()
 
@@ -332,6 +349,9 @@ class MainActivity: FlutterActivity() {
             "latitude" to latitude,
             "longitude" to longitude,
             "altitude" to altitude,
+            "x" to projectedX,
+            "y" to projectedY,
+            "z" to projectedZ,
             "accuracy" to safeAccuracy.toDouble(),
             "speed" to speed?.toDouble(),
             "bearing" to bearing?.toDouble(),
@@ -342,6 +362,7 @@ class MainActivity: FlutterActivity() {
             "fixQuality" to fixQuality,
             "satellites" to satellites,
             "hdop" to hdop?.toDouble(),
+            "coordinateSource" to coordinateSource,
             "bluetoothName" to currentBluetoothName,
             "bluetoothAddress" to currentBluetoothAddress,
         )
@@ -349,7 +370,8 @@ class MainActivity: FlutterActivity() {
         Log.i(
             "SRM-NMEA",
             "fix source=$source device=$deviceLabel " +
-                "lat=$latitude lon=$longitude altitude=$altitude accuracy=$safeAccuracy " +
+                "lat=$latitude lon=$longitude x=$projectedX y=$projectedY z=$projectedZ " +
+                "altitude=$altitude accuracy=$safeAccuracy " +
                 "fixQuality=$fixQuality satellites=$satellites hdop=$hdop nmeaTimestamp=$now"
         )
         return lastLocationPayload!!
@@ -416,9 +438,11 @@ class MainActivity: FlutterActivity() {
                     if (trimmed.startsWith("$")) {
                         lastNmea = trimmed
                         parseNmea(trimmed)?.let { parsed ->
+                            val latitude = parsed.latitude ?: return@let
+                            val longitude = parsed.longitude ?: return@let
                             injectMockLocation(
-                                latitude = parsed.latitude,
-                                longitude = parsed.longitude,
+                                latitude = latitude,
+                                longitude = longitude,
                                 altitude = parsed.altitude,
                                 accuracy = parsed.accuracy,
                                 speed = parsed.speed,
@@ -427,6 +451,10 @@ class MainActivity: FlutterActivity() {
                                 fixQuality = parsed.fixQuality,
                                 satellites = parsed.satellites,
                                 hdop = parsed.hdop,
+                                projectedX = parsed.projectedX,
+                                projectedY = parsed.projectedY,
+                                projectedZ = parsed.projectedZ,
+                                coordinateSource = parsed.coordinateSource,
                             )
                             bridgeStatus = "nmea_streaming"
                         }
@@ -435,8 +463,13 @@ class MainActivity: FlutterActivity() {
             } catch (e: Exception) {
                 bridgeStatus = "bluetooth_error: ${e.message}"
             } finally {
-                bluetoothSocket?.close()
+                try {
+                    bluetoothSocket?.close()
+                } catch (_: Exception) {
+                    // Ignore close errors after a Bluetooth drop.
+                }
                 bluetoothSocket = null
+                removeMockProviders()
                 if (!bridgeStatus.startsWith("bluetooth_error")) {
                     bridgeStatus = "bluetooth_disconnected"
                 }
@@ -449,6 +482,7 @@ class MainActivity: FlutterActivity() {
         bluetoothThread = null
         bluetoothSocket?.close()
         bluetoothSocket = null
+        removeMockProviders()
         if (bridgeStatus.startsWith("bluetooth") || bridgeStatus == "nmea_streaming") {
             bridgeStatus = "bluetooth_disconnected"
         }
@@ -466,8 +500,8 @@ class MainActivity: FlutterActivity() {
     }
 
     private data class ParsedNmeaLocation(
-        val latitude: Double,
-        val longitude: Double,
+        val latitude: Double?,
+        val longitude: Double?,
         val altitude: Double?,
         val accuracy: Float,
         val speed: Float?,
@@ -475,6 +509,10 @@ class MainActivity: FlutterActivity() {
         val fixQuality: Int?,
         val satellites: Int?,
         val hdop: Float?,
+        val projectedX: Double? = null,
+        val projectedY: Double? = null,
+        val projectedZ: Double? = null,
+        val coordinateSource: String? = null,
     )
 
     private fun parseNmea(sentence: String): ParsedNmeaLocation? {
@@ -484,15 +522,63 @@ class MainActivity: FlutterActivity() {
         val parts = body.split(",")
         if (parts.isEmpty()) return null
         val type = parts[0].uppercase(Locale.US)
-        if (type.endsWith("GST")) {
+        val subtype = parts.getOrNull(1)?.uppercase(Locale.US)
+        if (type.endsWith("GST") || subtype == "GST") {
             cacheGstAccuracy(parts)
             return null
         }
-        return when {
+        val parsed = when {
             type.endsWith("GGA") -> parseGga(parts)
             type.endsWith("RMC") -> parseRmc(parts)
+            type.endsWith("PJK") || subtype == "PJK" -> parsePjk(parts)
             else -> null
         }
+        return mergeParsedFix(parsed)
+    }
+
+    private fun mergeParsedFix(parsed: ParsedNmeaLocation?): ParsedNmeaLocation? {
+        if (parsed == null) return null
+        val now = System.currentTimeMillis()
+        if (parsed.latitude != null && parsed.longitude != null) {
+            lastGeographicFix = parsed
+            lastGeographicFixAtMs = now
+        }
+        if (parsed.projectedX != null || parsed.projectedY != null || parsed.projectedZ != null) {
+            lastProjectedFix = parsed
+            lastProjectedFixAtMs = now
+        }
+
+        val geographic = if (now - lastGeographicFixAtMs <= fixMergeFreshnessWindowMs) {
+            lastGeographicFix
+        } else null
+        val projected = if (now - lastProjectedFixAtMs <= fixMergeFreshnessWindowMs) {
+            lastProjectedFix
+        } else null
+
+        val mergedLatitude = parsed.latitude ?: geographic?.latitude
+        val mergedLongitude = parsed.longitude ?: geographic?.longitude
+        if (mergedLatitude == null || mergedLongitude == null) {
+            return null
+        }
+
+        return ParsedNmeaLocation(
+            latitude = mergedLatitude,
+            longitude = mergedLongitude,
+            altitude = parsed.projectedZ ?: parsed.altitude ?: projected?.projectedZ ?: geographic?.altitude,
+            accuracy = parsed.accuracy.takeIf { it > 0f }
+                ?: projected?.accuracy
+                ?: geographic?.accuracy
+                ?: 2.0f,
+            speed = parsed.speed ?: geographic?.speed,
+            bearing = parsed.bearing ?: geographic?.bearing,
+            fixQuality = parsed.fixQuality ?: projected?.fixQuality ?: geographic?.fixQuality,
+            satellites = parsed.satellites ?: projected?.satellites ?: geographic?.satellites,
+            hdop = parsed.hdop ?: projected?.hdop ?: geographic?.hdop,
+            projectedX = parsed.projectedX ?: projected?.projectedX,
+            projectedY = parsed.projectedY ?: projected?.projectedY,
+            projectedZ = parsed.projectedZ ?: projected?.projectedZ ?: parsed.altitude,
+            coordinateSource = parsed.coordinateSource ?: projected?.coordinateSource ?: geographic?.coordinateSource,
+        )
     }
 
     private fun cacheGstAccuracy(parts: List<String>) {
@@ -537,6 +623,7 @@ class MainActivity: FlutterActivity() {
             fixQuality = fixQuality,
             satellites = satellites,
             hdop = hdop,
+            coordinateSource = "gga",
         )
     }
 
@@ -559,7 +646,104 @@ class MainActivity: FlutterActivity() {
             fixQuality = null,
             satellites = null,
             hdop = null,
+            coordinateSource = "rmc",
         )
+    }
+
+    private fun parsePjk(parts: List<String>): ParsedNmeaLocation? {
+        if (parts.size < 4) return null
+
+        val northing = extractProjectedCoordinate(parts, positiveMarker = "N", negativeMarker = "S")
+        val easting = extractProjectedCoordinate(parts, positiveMarker = "E", negativeMarker = "W")
+        val fallbackCoords = extractFallbackProjectedCoordinates(parts)
+        val projectedY = northing ?: fallbackCoords?.first
+        val projectedX = easting ?: fallbackCoords?.second
+        if (projectedX == null || projectedY == null) return null
+
+        val altitude = extractAltitudeMeters(parts)
+        val fixQuality = extractLikelyFixQuality(parts)
+        val satellites = extractLikelySatellites(parts)
+        val hdop = extractLikelyHdop(parts)
+
+        return ParsedNmeaLocation(
+            latitude = null,
+            longitude = null,
+            altitude = altitude,
+            accuracy = resolveAccuracy(hdop),
+            speed = null,
+            bearing = null,
+            fixQuality = fixQuality,
+            satellites = satellites,
+            hdop = hdop,
+            projectedX = projectedX,
+            projectedY = projectedY,
+            projectedZ = altitude,
+            coordinateSource = "pjk",
+        )
+    }
+
+    private fun extractProjectedCoordinate(
+        parts: List<String>,
+        positiveMarker: String,
+        negativeMarker: String,
+    ): Double? {
+        for (index in 0 until parts.size - 1) {
+            val value = parts[index].toDoubleOrNull() ?: continue
+            if (kotlin.math.abs(value) <= 180.0 || kotlin.math.abs(value) >= 2_000_000.0) continue
+            when (parts[index + 1].trim().uppercase(Locale.US)) {
+                positiveMarker -> return value
+                negativeMarker -> return -value
+            }
+        }
+        return null
+    }
+
+    private fun extractFallbackProjectedCoordinates(parts: List<String>): Pair<Double, Double>? {
+        val candidates = mutableListOf<Double>()
+        for (part in parts) {
+            val value = part.toDoubleOrNull() ?: continue
+            if (kotlin.math.abs(value) <= 180.0 || kotlin.math.abs(value) >= 2_000_000.0) continue
+            candidates.add(value)
+        }
+        if (candidates.size < 2) return null
+        return candidates[0] to candidates[1]
+    }
+
+    private fun extractAltitudeMeters(parts: List<String>): Double? {
+        var fallback: Double? = null
+        for (index in 0 until parts.size - 1) {
+            val value = parts[index].toDoubleOrNull() ?: continue
+            val marker = parts[index + 1].trim().uppercase(Locale.US)
+            if (marker != "M") continue
+            if (kotlin.math.abs(value) > 100_000.0) continue
+            fallback = value
+        }
+        return fallback
+    }
+
+    private fun extractLikelyFixQuality(parts: List<String>): Int? {
+        val fixQualityValues = setOf(1, 2, 4, 5, 6)
+        for (part in parts) {
+            val value = part.toIntOrNull() ?: continue
+            if (value in fixQualityValues) return value
+        }
+        return null
+    }
+
+    private fun extractLikelySatellites(parts: List<String>): Int? {
+        for (part in parts) {
+            val value = part.toIntOrNull() ?: continue
+            if (value in 3..60) return value
+        }
+        return null
+    }
+
+    private fun extractLikelyHdop(parts: List<String>): Float? {
+        for (part in parts) {
+            val value = part.toFloatOrNull() ?: continue
+            if (value in 0.1f..50.0f) return value
+        }
+        return null
     }
 
     private fun parseNmeaCoordinate(

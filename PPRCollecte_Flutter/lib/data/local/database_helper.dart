@@ -141,19 +141,29 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 23,
+      version: 24,
       onCreate: (db, version) async {
         debugPrint('🆕 Création tables v$version');
         await _createAllTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         debugPrint('🔄 Migration $oldVersion → $newVersion');
+        // v23 → v24 : split contraintes en contraintes_doc + contraintes_regles
+        // sur attribut_config_mobile_local. La table est un cache plein-volume
+        // re-peuple a chaque login depuis l'API : on la drop et CREATE IF NOT
+        // EXISTS la recree avec le nouveau schema, sans perte de donnees user.
+        if (oldVersion < 24) {
+          await db.execute(
+            'DROP TABLE IF EXISTS attribut_config_mobile_local',
+          );
+        }
         await _createAllTables(db, includeSrmEntityTables: false);
       },
       onOpen: (db) async {
         debugPrint('🔌 DB ouverte');
         await _migrateExistingSrmTables(db);
         await _createConduiteSyncQueueTable(db);
+        await _createRegardPieceLinkSyncQueueTable(db);
         await _cleanupOldPendingPhotosIfNeeded(db);
       },
     );
@@ -211,6 +221,7 @@ class DatabaseHelper {
 
     await _createPhotoSyncQueueTable(db);
     await _createConduiteSyncQueueTable(db);
+    await _createRegardPieceLinkSyncQueueTable(db);
     await _createLocalHistoryTable(db);
     await _createLocalEventHistoryTable(db);
     await _createRegionalBasemapStateTable(db);
@@ -255,6 +266,7 @@ class DatabaseHelper {
     // ── Migration spécifique : table objet_incomplet ──
     await _ensureObjetIncompletTable(db);
     await _migratePhotoSyncQueueTable(db);
+    await _migrateLegacyWorkflowPhotoContexts(db);
     await _createAllSrmEntityTables(db);
     await _assertAllSrmEntityTablesPresentAndAligned(db);
     await _markLocalHistoryForAlreadySyncedObjects(db);
@@ -520,6 +532,43 @@ class DatabaseHelper {
     await db.execute('''
       CREATE INDEX IF NOT EXISTS conduite_sync_queue_synced_idx
       ON conduite_sync_queue (synced, updated_at)
+    ''');
+  }
+
+  /// File d'attente locale des liens "piece de regard" : associe l'UUID
+  /// d'un regard a l'UUID d'un objet metier (vanne, pompe, ventouse, ...
+  /// conduite_terrain). Idempotent sur (table_objet, uuid_objet) cote
+  /// serveur ; ici on garde une unicite locale equivalente.
+  Future<void> _createRegardPieceLinkSyncQueueTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS regard_piece_link_sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sync_uuid TEXT NOT NULL UNIQUE,
+        uuid_regard TEXT NOT NULL,
+        fid_regard INTEGER,
+        table_objet TEXT NOT NULL,
+        uuid_objet TEXT NOT NULL,
+        fid_objet INTEGER,
+        id_agent INTEGER,
+        synced INTEGER DEFAULT 0,
+        retry_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        date_sync TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS regard_piece_link_sync_queue_obj_idx
+      ON regard_piece_link_sync_queue (table_objet, uuid_objet)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS regard_piece_link_sync_queue_synced_idx
+      ON regard_piece_link_sync_queue (synced, updated_at)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS regard_piece_link_sync_queue_regard_idx
+      ON regard_piece_link_sync_queue (uuid_regard)
     ''');
   }
 
@@ -789,7 +838,8 @@ class DatabaseHelper {
         ordre INTEGER DEFAULT 0,
         titre_app TEXT,
         visible INTEGER DEFAULT 0,
-        contraintes TEXT,
+        contraintes_doc TEXT,
+        contraintes_regles TEXT DEFAULT '[]',
         nullable INTEGER DEFAULT 1,
         valeur_par_defaut TEXT,
         valeur_min TEXT,
@@ -1260,6 +1310,143 @@ class DatabaseHelper {
           'Réinitialisez les données locales puis relancez le téléchargement.',
         );
       }
+    }
+  }
+
+  Future<void> _migrateLegacyWorkflowPhotoContexts(Database db) async {
+    final rows = await db.query(
+      'photo_sync_queue',
+      where: 'photo_context IN (?, ?)',
+      whereArgs: const ['retour_terrain_apres', 'incomplet_complement'],
+      orderBy: 'id ASC',
+    );
+    if (rows.isEmpty) return;
+
+    for (final row in rows) {
+      final id = _toInt(row['id']);
+      final schemaName = row['schema_name']?.toString().trim() ?? '';
+      final tableName = row['table_name']?.toString().trim() ?? '';
+      final uuidObjet = row['uuid_objet']?.toString().trim() ?? '';
+      if (id <= 0 ||
+          schemaName.isEmpty ||
+          tableName.isEmpty ||
+          uuidObjet.isEmpty) {
+        continue;
+      }
+
+      final usedRows = await db.query(
+        'photo_sync_queue',
+        columns: const ['photo_slot'],
+        where: 'schema_name = ? AND table_name = ? AND uuid_objet = ? '
+            'AND photo_context = ? AND COALESCE(id_intervention_anomalie, 0) = 0 '
+            'AND id <> ?',
+        whereArgs: [
+          schemaName,
+          tableName,
+          uuidObjet,
+          'collecte_initiale',
+          id,
+        ],
+      );
+      final usedSlots = usedRows
+          .map((r) => _toInt(r['photo_slot']))
+          .whereType<int>()
+          .toSet();
+      final originalSlot = _toInt(row['photo_slot']);
+      int? targetSlot;
+      if (originalSlot >= 1 &&
+          originalSlot <= 4 &&
+          !usedSlots.contains(originalSlot)) {
+        targetSlot = originalSlot;
+      } else {
+        for (var slot = 1; slot <= 4; slot++) {
+          if (!usedSlots.contains(slot)) {
+            targetSlot = slot;
+            break;
+          }
+        }
+      }
+      final nowIso = DateTime.now().toIso8601String();
+
+      if (targetSlot != null) {
+        await db.update(
+          'photo_sync_queue',
+          {
+            'photo_context': 'collecte_initiale',
+            'id_intervention_anomalie': 0,
+            'photo_slot': targetSlot,
+            'last_error': null,
+            'updated_at': nowIso,
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        await _recordLegacyPhotoMigrationEvent(
+          db,
+          row: row,
+          status: 'MIGRATED_TO_STANDARD',
+          targetSlot: targetSlot,
+          nowIso: nowIso,
+        );
+      } else {
+        await db.update(
+          'photo_sync_queue',
+          {
+            'synced': -1,
+            'retry_count': 5,
+            'last_error':
+                'Photo legacy preservee localement: slots standard pleins',
+            'updated_at': nowIso,
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        await _recordLegacyPhotoMigrationEvent(
+          db,
+          row: row,
+          status: 'ARCHIVED_STANDARD_SLOTS_FULL',
+          targetSlot: null,
+          nowIso: nowIso,
+        );
+      }
+    }
+  }
+
+  Future<void> _recordLegacyPhotoMigrationEvent(
+    Database db, {
+    required Map<String, dynamic> row,
+    required String status,
+    required int? targetSlot,
+    required String nowIso,
+  }) async {
+    try {
+      await db.insert(
+        'historique_local_evenement',
+        {
+          'sync_uuid': _newHistorySyncUuid(),
+          'type_evenement': 'MIGRATE_LEGACY_PHOTO_CONTEXT',
+          'nom_schema': row['schema_name']?.toString(),
+          'nom_table': row['table_name']?.toString(),
+          'cle_ligne':
+              '${row['table_name']}|${row['uuid_objet']}|${row['photo_context']}|${row['photo_slot']}',
+          'uuid_objet': row['uuid_objet']?.toString(),
+          'id_agent': ApiService.userId,
+          'payload_json': jsonEncode({
+            'status': status,
+            'legacy_context': row['photo_context']?.toString(),
+            'legacy_slot': _toInt(row['photo_slot']),
+            'target_context': targetSlot == null ? null : 'collecte_initiale',
+            'target_slot': targetSlot,
+            'local_path': row['local_path']?.toString(),
+            'remote_path': row['remote_path']?.toString(),
+          }),
+          'date_action': nowIso,
+          'synced': 0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+    } catch (_) {
+      // Best-effort audit only; photo migration must never block DB opening.
     }
   }
 
@@ -2521,6 +2708,51 @@ class DatabaseHelper {
     }
   }
 
+  Future<Map<String, Map<String, dynamic>>> getOpenObjetIncompletIndexForTable({
+    required String tableName,
+    String? metierCode,
+  }) async {
+    final index = <String, Map<String, dynamic>>{};
+    try {
+      _assertAllowedSrmTable(tableName);
+      final db = await database;
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        ['objet_incomplet'],
+      );
+      if (tables.isEmpty) return index;
+
+      final nomTable = _objetIncompletNomTable(
+        tableName,
+        metierCode: metierCode,
+      );
+      final rows = await db.query(
+        'objet_incomplet',
+        where:
+            '(nom_table = ? OR nom_table = ?) AND (statut IS NULL OR statut = ?)',
+        whereArgs: [nomTable, tableName, 'A_COMPLETER'],
+        orderBy: 'date_signalement DESC, id DESC',
+      );
+
+      for (final raw in rows) {
+        final row = Map<String, dynamic>.from(raw);
+        final idObjet = _asInt(row['id_objet']);
+        final uuid = row['uuid_objet']?.toString().trim() ??
+            row['uuid']?.toString().trim() ??
+            '';
+        if (idObjet != null) {
+          index.putIfAbsent('id:$idObjet', () => row);
+        }
+        if (uuid.isNotEmpty) {
+          index.putIfAbsent('uuid:${uuid.toLowerCase()}', () => row);
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ getOpenObjetIncompletIndexForTable $tableName: $e');
+    }
+    return index;
+  }
+
   Future<void> upsertObjetIncompletForEntity({
     required String tableName,
     required int idObjet,
@@ -3223,6 +3455,100 @@ class DatabaseHelper {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  //  Pieces de regard : file d'attente locale des associations
+  //  (uuid_regard -> table_objet/uuid_objet). Pousse vers
+  //  /api/regard-piece-link/ apres synchro des objets et regards.
+  // ---------------------------------------------------------------------------
+
+  Future<int> enqueueRegardPieceLink({
+    required String uuidRegard,
+    required String tableObjet,
+    required String uuidObjet,
+    int? fidRegard,
+    int? fidObjet,
+    int? idAgent,
+  }) async {
+    final db = await database;
+    await _createRegardPieceLinkSyncQueueTable(db);
+    final nowIso = DateTime.now().toIso8601String();
+    final existing = await db.query(
+      'regard_piece_link_sync_queue',
+      where: 'table_objet = ? AND uuid_objet = ?',
+      whereArgs: [tableObjet, uuidObjet],
+      limit: 1,
+    );
+    final payload = <String, dynamic>{
+      'uuid_regard': uuidRegard,
+      'fid_regard': fidRegard,
+      'table_objet': tableObjet,
+      'uuid_objet': uuidObjet,
+      'fid_objet': fidObjet,
+      'id_agent': idAgent,
+      'synced': 0,
+      'last_error': null,
+      'updated_at': nowIso,
+      'date_sync': null,
+    };
+    if (existing.isEmpty) {
+      payload['sync_uuid'] = const Uuid().v4();
+      payload['retry_count'] = 0;
+      payload['created_at'] = nowIso;
+      return db.insert('regard_piece_link_sync_queue', payload);
+    }
+    final existingId = _toInt(existing.first['id']);
+    await db.update(
+      'regard_piece_link_sync_queue',
+      payload,
+      where: 'id = ?',
+      whereArgs: [existingId],
+    );
+    return existingId;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingRegardPieceLinkItems({
+    int limit = 100,
+  }) async {
+    final db = await database;
+    await _createRegardPieceLinkSyncQueueTable(db);
+    return db.query(
+      'regard_piece_link_sync_queue',
+      where: 'synced IS NULL OR synced = 0',
+      orderBy: 'id ASC',
+      limit: limit,
+    );
+  }
+
+  Future<void> markRegardPieceLinkSynced(int id) async {
+    final db = await database;
+    await db.update(
+      'regard_piece_link_sync_queue',
+      {
+        'synced': 1,
+        'last_error': null,
+        'date_sync': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markRegardPieceLinkFailed(int id, String errorMessage) async {
+    final db = await database;
+    await db.rawUpdate(
+      '''
+      UPDATE regard_piece_link_sync_queue
+      SET synced = 0,
+          retry_count = COALESCE(retry_count, 0) + 1,
+          last_error = ?,
+          updated_at = ?
+      WHERE id = ?
+      ''',
+      [errorMessage, DateTime.now().toIso8601String(), id],
+    );
+  }
+
   Future<int> enqueuePhotoSyncItem({
     required String schemaName,
     required String tableName,
@@ -3316,11 +3642,12 @@ class DatabaseHelper {
     final normalized = value.trim().toLowerCase();
     switch (normalized) {
       case 'anomalie_avant':
-      case 'retour_terrain_apres':
       case 'incomplet_initial':
-      case 'incomplet_complement':
       case 'collecte_initiale':
         return normalized;
+      case 'retour_terrain_apres':
+      case 'incomplet_complement':
+        return 'collecte_initiale';
       default:
         return 'collecte_initiale';
     }
@@ -4047,7 +4374,9 @@ class DatabaseHelper {
             'ordre': _asInt(row['ordre']) ?? 0,
             'titre_app': row['titre_app']?.toString(),
             'visible': _toSqlBool(row['visible']),
-            'contraintes': row['contraintes']?.toString(),
+            'contraintes_doc': row['contraintes_doc']?.toString(),
+            'contraintes_regles':
+                _encodeContraintesRegles(row['contraintes_regles']),
             'nullable': _toSqlBool(row['nullable'], defaultValue: true),
             'valeur_par_defaut': row['valeur_par_defaut']?.toString(),
             'valeur_min': row['valeur_min']?.toString(),
@@ -4500,6 +4829,25 @@ class DatabaseHelper {
     final text = value.toString().trim().toLowerCase();
     if (text.isEmpty) return defaultValue ? 1 : 0;
     return ['1', 'true', 't', 'yes', 'oui'].contains(text) ? 1 : 0;
+  }
+
+  /// Serialise la valeur de `contraintes_regles` (JSONB cote serveur) en
+  /// TEXT pour le stockage SQLite local. Accepte plusieurs formes que
+  /// l'API peut retourner (List directe, String JSON deja serialisee).
+  String _encodeContraintesRegles(dynamic raw) {
+    if (raw == null) return '[]';
+    if (raw is String) {
+      final trimmed = raw.trim();
+      return trimmed.isEmpty ? '[]' : trimmed;
+    }
+    if (raw is List || raw is Map) {
+      try {
+        return jsonEncode(raw);
+      } catch (_) {
+        return '[]';
+      }
+    }
+    return '[]';
   }
 
   Future<void> replaceCommunes({

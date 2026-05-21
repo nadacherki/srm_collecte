@@ -24,6 +24,9 @@ class HomeController extends ChangeNotifier {
   bool isOnline = true;
   LatLng userPosition = const LatLng(34.683100, -1.909800); // Oujda
   double? _currentAltitude;
+  double? _currentProjectedX;
+  double? _currentProjectedY;
+  double? _currentProjectedZ;
   List<Marker> formMarkers = []; // Marqueurs des formulaires enregistrés
   final List<Polyline> collectedPolylines = <Polyline>[];
 
@@ -58,6 +61,9 @@ class HomeController extends ChangeNotifier {
   bool get isMockLocationEnabled => _locationService.isMockLocationEnabled;
   double? get currentAltitude =>
       _currentAltitude ?? _collectionManager.currentAltitude;
+  double? get currentProjectedX => _currentProjectedX;
+  double? get currentProjectedY => _currentProjectedY;
+  double? get currentProjectedZ => _currentProjectedZ ?? _currentAltitude;
 
   LatLng? get mockPosition {
     final mock = _locationService.lastMockLocation;
@@ -96,6 +102,9 @@ class HomeController extends ChangeNotifier {
 
     userPosition = LatLng(latitude, longitude);
     _currentAltitude = altitude;
+    _currentProjectedX = null;
+    _currentProjectedY = null;
+    _currentProjectedZ = altitude;
     gpsEnabled = true;
     gpsAccuracy = accuracy.round();
     gpsSourceLabel = 'mock interne';
@@ -113,6 +122,9 @@ class HomeController extends ChangeNotifier {
   Future<void> clearMockPosition() async {
     await _locationService.clearMockLocation();
     _currentAltitude = null;
+    _currentProjectedX = null;
+    _currentProjectedY = null;
+    _currentProjectedZ = null;
 
     if (!_canUseInternalGpsSources) {
       // Non-admin : ne jamais retomber sur le GPS du telephone.
@@ -126,8 +138,15 @@ class HomeController extends ChangeNotifier {
       final loc = await _locationService.getCurrent();
       if (loc.latitude != null && loc.longitude != null) {
         userPosition = LatLng(loc.latitude!, loc.longitude!);
+        final projected = _locationService.projection.wgs84ToMerchich(
+          longitude: loc.longitude!,
+          latitude: loc.latitude!,
+        );
+        _currentProjectedX = projected.x;
+        _currentProjectedY = projected.y;
       }
       _currentAltitude = loc.altitude;
+      _currentProjectedZ = loc.altitude;
       gpsAccuracy = loc.accuracy?.round() ?? gpsAccuracy;
       gpsSourceLabel = 'téléphone';
       if (loc.latitude != null && loc.longitude != null) {
@@ -165,6 +184,9 @@ class HomeController extends ChangeNotifier {
     if (!ok) {
       gpsEnabled = false;
       _currentAltitude = null;
+      _currentProjectedX = null;
+      _currentProjectedY = null;
+      _currentProjectedZ = null;
       notifyListeners();
       return null;
     }
@@ -175,12 +197,18 @@ class HomeController extends ChangeNotifier {
     if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
       gpsEnabled = false;
       _currentAltitude = null;
+      _currentProjectedX = null;
+      _currentProjectedY = null;
+      _currentProjectedZ = null;
       notifyListeners();
       return null;
     }
 
     userPosition = LatLng(lat, lon);
     _currentAltitude = enriched.raw.altitude;
+    _currentProjectedX = enriched.merchichX;
+    _currentProjectedY = enriched.merchichY;
+    _currentProjectedZ = enriched.raw.altitude;
     gpsEnabled = true;
     gpsAccuracy = enriched.raw.accuracy?.round() ?? gpsAccuracy;
     gpsSourceLabel = 'téléphone';
@@ -203,6 +231,9 @@ class HomeController extends ChangeNotifier {
     required double longitude,
     double? accuracy,
     double? altitude,
+    double? projectedX,
+    double? projectedY,
+    double? projectedZ,
     double? speed,
     double? bearing,
     int? fixQuality,
@@ -213,27 +244,35 @@ class HomeController extends ChangeNotifier {
     String? bluetoothAddress,
     int? timestampMs,
     int? mockInjectedAtMs,
+    bool hasDirectProjectedCoordinates = false,
   }) {
     if (latitude.abs() > 90 || longitude.abs() > 180) {
       throw Exception('Coordonnées GNSS externe invalides');
     }
 
     userPosition = LatLng(latitude, longitude);
-    _currentAltitude = altitude;
+    _currentAltitude = projectedZ ?? altitude;
+    _currentProjectedX = projectedX;
+    _currentProjectedY = projectedY;
+    _currentProjectedZ = projectedZ ?? altitude;
     gpsEnabled = true;
     gpsAccuracy = accuracy?.round() ?? gpsAccuracy;
-    gpsSourceLabel = 'GNSS externe';
+    gpsSourceLabel = hasDirectProjectedCoordinates
+        ? 'GNSS XYZ'
+        : 'GNSS lat/lon converti';
     gpsDetailsLine = _buildPositionDetailsLine(
       latitude: latitude,
       longitude: longitude,
-      altitude: altitude,
+      altitude: projectedZ ?? altitude,
+      projectedX: projectedX,
+      projectedY: projectedY,
       accuracy: accuracy,
       speed: speed,
       bearing: bearing,
       fixQuality: fixQuality,
       satellites: satellites,
       hdop: hdop,
-      source: 'nmea_bridge',
+      source: gpsSourceLabel,
       nmea: nmea,
       bluetoothName: bluetoothName,
       bluetoothAddress: bluetoothAddress,
@@ -249,8 +288,10 @@ class HomeController extends ChangeNotifier {
             : 'inconnu');
     final timestampLabel = timestampMs?.toString() ?? 'unknown';
     debugPrint(
-      '[NMEA] fix source=nmea_bridge device=$device '
-      'lat=$latitude lon=$longitude accuracy=$accuracy altitude=$altitude '
+      '[NMEA] fix source=${hasDirectProjectedCoordinates ? 'GNSS XYZ' : 'GNSS lat/lon converti'} '
+      'device=$device '
+      'lat=$latitude lon=$longitude x=$projectedX y=$projectedY z=${projectedZ ?? altitude} '
+      'accuracy=$accuracy '
       'satellites=$satellites hdop=$hdop timestamp=$timestampLabel',
     );
     notifyListeners();
@@ -261,7 +302,7 @@ class HomeController extends ChangeNotifier {
     String? bridgeStatus,
     String? lastNmea,
   }) {
-    gpsEnabled = true;
+    gpsEnabled = false;
     gpsSourceLabel = 'GNSS externe: attente fix';
     lastSync = _formatTimeNow();
     final device = deviceLabel?.trim().isNotEmpty == true
@@ -282,10 +323,68 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void markNmeaBridgeDisconnected({
+    String? deviceLabel,
+    String? bridgeStatus,
+  }) {
+    _pauseActiveCollectionForGnssLoss();
+    gpsEnabled = false;
+    gpsSourceLabel = 'GNSS déconnecté';
+    lastSync = _formatTimeNow();
+    final device = deviceLabel?.trim().isNotEmpty == true
+        ? deviceLabel!.trim()
+        : 'unknown';
+    final parts = <String>[
+      'Pont GNSS déconnecté',
+      if (bridgeStatus?.trim().isNotEmpty == true)
+        'État=${bridgeStatus!.trim()}',
+      'BT=$device',
+    ];
+    gpsDetailsLine = parts.join(' | ');
+    notifyListeners();
+  }
+
+  void markNmeaBridgeStale({
+    String? deviceLabel,
+    String? bridgeStatus,
+    int? lastFixTimestampMs,
+  }) {
+    _pauseActiveCollectionForGnssLoss();
+    gpsEnabled = false;
+    gpsSourceLabel = 'GNSS expiré';
+    lastSync = _formatTimeNow();
+    final device = deviceLabel?.trim().isNotEmpty == true
+        ? deviceLabel!.trim()
+        : 'unknown';
+    final parts = <String>[
+      'Aucun nouveau fix GNSS reçu',
+      if (lastFixTimestampMs != null)
+        'Dernier fix=${_formatTimestamp(lastFixTimestampMs)}',
+      if (bridgeStatus?.trim().isNotEmpty == true)
+        'État=${bridgeStatus!.trim()}',
+      'BT=$device',
+    ];
+    gpsDetailsLine = parts.join(' | ');
+    notifyListeners();
+  }
+
+  void _pauseActiveCollectionForGnssLoss() {
+    final ligne = _collectionManager.ligneCollection;
+    if (ligne?.isActive ?? false) {
+      _collectionManager.pauseLigneCollection();
+    }
+    final polygon = _collectionManager.polygonCollection;
+    if (polygon?.isActive ?? false) {
+      _collectionManager.pausePolygonCollection();
+    }
+  }
+
   String _buildPositionDetailsLine({
     required double latitude,
     required double longitude,
     double? altitude,
+    double? projectedX,
+    double? projectedY,
     double? accuracy,
     double? speed,
     double? bearing,
@@ -299,10 +398,12 @@ class HomeController extends ChangeNotifier {
     int? timestampMs,
     int? mockInjectedAtMs,
   }) {
-    final projected = _locationService.projection.wgs84ToMerchich(
-      longitude: longitude,
-      latitude: latitude,
-    );
+    final projected = (projectedX != null && projectedY != null)
+        ? null
+        : _locationService.projection.wgs84ToMerchich(
+            longitude: longitude,
+            latitude: latitude,
+          );
     final device = (bluetoothName?.trim().isNotEmpty == true)
         ? bluetoothName!.trim()
         : (bluetoothAddress?.trim().isNotEmpty == true
@@ -310,8 +411,8 @@ class HomeController extends ChangeNotifier {
             : null);
     final nmeaType = _extractNmeaType(nmea);
     final parts = <String>[
-      'X=${projected.x.toStringAsFixed(2)}',
-      'Y=${projected.y.toStringAsFixed(2)}',
+      'X=${_formatOptionalDouble(projectedX ?? projected?.x, decimals: 2)}',
+      'Y=${_formatOptionalDouble(projectedY ?? projected?.y, decimals: 2)}',
       'Z=${_formatOptionalDouble(altitude, decimals: 2)} m',
       'Précision=${_formatOptionalDouble(accuracy, decimals: 3)} m',
       if (satellites != null) 'Sat=$satellites',
@@ -347,8 +448,14 @@ class HomeController extends ChangeNotifier {
     if (trimmed == null || trimmed.isEmpty) return null;
     final withoutPrefix =
         trimmed.startsWith(r'$') ? trimmed.substring(1) : trimmed;
-    final type = withoutPrefix.split(',').first.trim();
-    return type.isEmpty ? null : type;
+    final parts = withoutPrefix.split(',');
+    final type = parts.first.trim();
+    if (type.isEmpty) return null;
+    final subtype = parts.length > 1 ? parts[1].trim() : '';
+    if (type.toUpperCase() == 'PTNL' && subtype.isNotEmpty) {
+      return '$type,$subtype';
+    }
+    return type;
   }
 
   Future<void> startPolygonCollection(String entityType) async {
@@ -510,7 +617,7 @@ class HomeController extends ChangeNotifier {
         final lon = loc.longitude!;
         if (lat.abs() > 90 || lon.abs() > 180) return;
 
-        final isGnssExterneFix = gpsSourceLabel.startsWith('GNSS externe');
+        final isGnssExterneFix = gpsSourceLabel.startsWith('GNSS');
         // Non-admin : seules les positions issues du pipeline GNSS externe
         // (label "GNSS externe...", deja pose par le polling du pont NMEA)
         // sont acceptees. Le GPS natif du telephone est ignore.
@@ -520,6 +627,13 @@ class HomeController extends ChangeNotifier {
 
         userPosition = LatLng(lat, lon);
         _currentAltitude = loc.altitude;
+        final projected = _locationService.projection.wgs84ToMerchich(
+          longitude: lon,
+          latitude: lat,
+        );
+        _currentProjectedX = projected.x;
+        _currentProjectedY = projected.y;
+        _currentProjectedZ = loc.altitude;
         gpsAccuracy =
             loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
         if (!isGnssExterneFix) {
@@ -539,6 +653,9 @@ class HomeController extends ChangeNotifier {
       },
       onError: (_) {
         gpsEnabled = false;
+        _currentProjectedX = null;
+        _currentProjectedY = null;
+        _currentProjectedZ = null;
         notifyListeners();
       },
     );
@@ -599,11 +716,20 @@ class HomeController extends ChangeNotifier {
   }
 
   String? addCurrentPointToActiveCollection() {
+    final gnssPoint = CapturedGnssPoint(
+      latitude: userPosition.latitude,
+      longitude: userPosition.longitude,
+      projectedX: currentProjectedX,
+      projectedY: currentProjectedY,
+      projectedZ: currentProjectedZ,
+    );
+
     if (_collectionManager.ligneCollection?.isActive ?? false) {
       final added = _collectionManager.addManualPoint(
         CollectionType.ligne,
         userPosition,
         altitude: currentAltitude,
+        gnssPoint: gnssPoint,
       );
       if (!added) {
         return 'Le point courant existe déjà dans ce tracé.';
@@ -616,6 +742,7 @@ class HomeController extends ChangeNotifier {
         CollectionType.polygon,
         userPosition,
         altitude: currentAltitude,
+        gnssPoint: gnssPoint,
       );
       if (!added) {
         return 'Le point courant existe déjà dans ce tracé.';
@@ -658,6 +785,7 @@ class HomeController extends ChangeNotifier {
     }
     return {
       'points': result.points,
+      'gnssPoints': result.gnssPoints,
       'id': result.id,
       'lineCode': result.lineCode ?? finishedCode,
       'totalDistance': result.totalDistance,
@@ -670,6 +798,7 @@ class HomeController extends ChangeNotifier {
     required int id,
     required String lineCode,
     required List<LatLng> points,
+    List<CapturedGnssPoint> gnssPoints = const [],
     required DateTime startTime,
     DateTime? lastPointTime,
     required double totalDistance,
@@ -679,6 +808,7 @@ class HomeController extends ChangeNotifier {
       id: id,
       lineCode: lineCode,
       points: points,
+      gnssPoints: gnssPoints,
       startTime: startTime,
       lastPointTime: lastPointTime,
       totalDistance: totalDistance,

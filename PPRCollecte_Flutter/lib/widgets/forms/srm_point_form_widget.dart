@@ -28,7 +28,9 @@ import '../../services/projection_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/form_lock_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
+import '../../services/constraint_engine.dart';
 import '../../services/srm_field_option_service.dart';
+import 'constraint_widgets.dart';
 
 /// Option vide pour les listes déroulantes — permet à l'agent de désélectionner
 /// son choix s'il a sélectionné par erreur. La validation Champ obligatoire
@@ -51,10 +53,16 @@ class SrmPointFormWidget extends StatefulWidget {
   final double latitude;
   final double longitude;
   final double? altitude;
+  final double? projectedX;
+  final double? projectedY;
   final String? agentName;
   final Map<String, dynamic>? existingData; // non-null = mode édition
   final VoidCallback onSaved;
   final VoidCallback onCancel;
+  // Optionnel : callback notifie APRES enregistrement local reussi avec
+  // l'UUID et le tableName de l'objet sauvegarde. Utilise par le mode
+  // "Pieces regard" pour enregistrer le lien parent.
+  final void Function(String uuidObjet, String tableName)? onSavedWithMeta;
 
   const SrmPointFormWidget({
     super.key,
@@ -64,10 +72,13 @@ class SrmPointFormWidget extends StatefulWidget {
     required this.latitude,
     required this.longitude,
     this.altitude,
+    this.projectedX,
+    this.projectedY,
     this.agentName,
     this.existingData,
     required this.onSaved,
     required this.onCancel,
+    this.onSavedWithMeta,
   });
 
   @override
@@ -98,26 +109,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     3: null,
     4: null,
   };
-  final Map<int, String?> _retourTerrainPhotoPaths = {
-    1: null,
-    2: null,
-    3: null,
-    4: null,
-  };
   final Map<int, String?> _incompletPhotoPaths = {
     1: null,
     2: null,
     3: null,
     4: null,
   };
-  final Map<int, String?> _incompletComplementPhotoPaths = {
-    1: null,
-    2: null,
-    3: null,
-    4: null,
-  };
   final Map<String, Map<int, String?>> _initialWorkflowPhotoPaths = {};
-  bool _wasObjetIncompletAtOpen = false;
   int _workflowInterventionId = 0;
 
   late final Map<String, dynamic>? _entityConfig;
@@ -135,6 +133,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   // alors que l'agent n'a rien touché.
   bool _suppressDraftSave = false;
   Map<String, List<SrmFieldChoice>> _choicesByField = {};
+  // ── BLOC 5 : moteur de contraintes metier (contraintes_regles JSONB) ──
+  // _constraintRulesByPivot agrege toutes les regles des attrs de ce
+  // formulaire, indexees par leur champ pivot. Recalcule a chaque changement
+  // de valeur. Le resultat (_constraintEvaluation) pilote le rendu :
+  // bandeau header, hints inline, grisage des champs, side_effects au submit.
+  Map<String, List<ConstraintRule>> _constraintRulesByPivot = const {};
+  ConstraintEvaluation? _constraintEvaluation;
   late final List<String> _typeOptions;
   late final String? _typeField;
   late final int _maxPhotos;
@@ -173,9 +178,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       : widget.entityType;
 
   static const String _photoContextAnomalieAvant = 'anomalie_avant';
-  static const String _photoContextRetourTerrain = 'retour_terrain_apres';
   static const String _photoContextIncompletInitial = 'incomplet_initial';
-  static const String _photoContextIncompletComplement = 'incomplet_complement';
   static const int _requiredGeneralPhotoCount = 4;
   static const int _requiredWorkflowPhotoCount = 2;
 
@@ -221,12 +224,17 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     _typeField = _entityConfig?['typeField'] as String?;
     _maxPhotos = _requiredGeneralPhotoCount;
 
-    final m = ProjectionService().wgs84ToMerchich(
-      longitude: widget.longitude,
-      latitude: widget.latitude,
-    );
-    _merchichX = m.x;
-    _merchichY = m.y;
+    if (widget.projectedX != null && widget.projectedY != null) {
+      _merchichX = widget.projectedX!;
+      _merchichY = widget.projectedY!;
+    } else {
+      final m = ProjectionService().wgs84ToMerchich(
+        longitude: widget.longitude,
+        latitude: widget.latitude,
+      );
+      _merchichX = m.x;
+      _merchichY = m.y;
+    }
 
     for (final field in _fields) {
       final initial = widget.existingData?[field]?.toString() ?? '';
@@ -250,8 +258,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
       _detailRaisonController.text =
           widget.existingData!['detail_raison_incomplet']?.toString() ?? '';
-      _wasObjetIncompletAtOpen = _isObjetIncomplet;
-
       for (int i = 1; i <= 4; i++) {
         _photoPaths[i] = widget.existingData!['photo_$i']?.toString();
       }
@@ -303,7 +309,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final configFields = results[0] as List<AttributConfigMobileField>;
       final rawChoicesByField = results[1] as Map<String, List<SrmFieldChoice>>;
       if (!mounted) return;
-      if (configFields.isEmpty) return;
+      if (configFields.isEmpty) {
+        await _showConfigUnavailableDialog();
+        return;
+      }
 
       final formFields = <String>[];
       final requiredFields = <String>[];
@@ -335,11 +344,26 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             )),
       );
 
+      // BLOC 5 : agreger les contraintes_regles de tous les attrs du
+      // formulaire dans une map indexee par le champ pivot.
+      final rulesByPivot = <String, List<ConstraintRule>>{};
+      for (final config in byField.values) {
+        if (config.contraintesRegles.isEmpty) continue;
+        final rules = config.contraintesRegles
+            .map((m) => ConstraintRule.fromMap(m))
+            .where((r) => r.action != ConstraintAction.unknown)
+            .toList(growable: false);
+        if (rules.isNotEmpty) {
+          rulesByPivot[config.nomChamp] = rules;
+        }
+      }
+
       setState(() {
         _attributConfigByField = byField;
         _choicesByField = choicesByField;
         _fields = formFields;
         _requiredFields = requiredFields;
+        _constraintRulesByPivot = rulesByPivot;
         for (final field in _fields) {
           if (!_controllers.containsKey(field)) {
             final controller = TextEditingController(
@@ -375,6 +399,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         _applyEntitySpecificDefaults();
         _ensureCustomerLinkListeners();
       });
+      // Evaluation initiale apres setState : si l'existingData (mode edition)
+      // contient deja des valeurs qui declenchent des regles, on veut le
+      // bandeau / les disable des l'ouverture.
+      _evaluateConstraints(rebuildUi: true);
     } catch (e) {
       debugPrint('[ATTRIBUT-CONFIG-MOBILE] Form fallback $_tableName: $e');
     } finally {
@@ -409,6 +437,67 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   void onFieldChanged() {
     if (_suppressDraftSave) return;
     super.onFieldChanged();
+    // BLOC 5 : re-evaluation des contraintes metier a chaque saisie.
+    // No-op si _constraintRulesByPivot est vide (formulaire sans regles).
+    _evaluateConstraints(rebuildUi: true);
+  }
+
+  /// Collecte les valeurs courantes pour evaluation par ConstraintEngine.
+  /// Inclut les valeurs des controllers texte ET les bools de workflow
+  /// (anomalie, retour_terrain) qui sont gerees en dehors des controllers.
+  Map<String, dynamic> _currentValuesForConstraints() {
+    final values = <String, dynamic>{};
+    for (final entry in _controllers.entries) {
+      final txt = entry.value.text.trim();
+      values[entry.key] = txt.isEmpty ? null : txt;
+    }
+    // _hasAnomalie : pivot du workflow anomalie, n'a pas de controller texte.
+    values['anomalie'] = _hasAnomalie;
+    if (_typeAnomalie != null && _typeAnomalie!.isNotEmpty) {
+      // anomalie_regard / anomalie_tamp partagent _typeAnomalie pour le rendu :
+      // on l'expose dans les deux cles pour que les regles puissent matcher
+      // sans dependre du controller texte qui n'est peut-etre pas instancie.
+      values['type_anomalie'] = _typeAnomalie;
+      values.putIfAbsent('anomalie_regard', () => _typeAnomalie);
+      values.putIfAbsent('anomalie_tamp', () => _typeAnomalie);
+    }
+    return values;
+  }
+
+  /// Re-evalue les contraintes metier, applique les disable_and_clear
+  /// (vide les controllers cibles), et met a jour _constraintEvaluation.
+  void _evaluateConstraints({bool rebuildUi = false}) {
+    if (_constraintRulesByPivot.isEmpty) {
+      if (_constraintEvaluation != null) {
+        _constraintEvaluation = null;
+        if (rebuildUi && mounted) setState(() {});
+      }
+      return;
+    }
+    final values = _currentValuesForConstraints();
+    final result = ConstraintEngine.evaluate(
+      rulesByPivotField: _constraintRulesByPivot,
+      values: values,
+      allFields: _fields,
+    );
+    // disable_and_clear : on vide les controllers cibles (sans declencher
+    // onFieldChanged recursivement : on suspend draft save).
+    var clearedAny = false;
+    final wasSuppressed = _suppressDraftSave;
+    _suppressDraftSave = true;
+    try {
+      for (final field in result.clearedFields) {
+        final controller = _controllers[field];
+        if (controller != null && controller.text.isNotEmpty) {
+          controller.text = '';
+          clearedAny = true;
+        }
+      }
+    } finally {
+      _suppressDraftSave = wasSuppressed;
+    }
+    _constraintEvaluation = result;
+    if ((rebuildUi || clearedAny) && mounted) setState(() {});
   }
 
   String _configuredDefaultValueForField(String field) {
@@ -421,6 +510,30 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       return '';
     }
     return defaultValue;
+  }
+
+  Future<void> _showConfigUnavailableDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Configuration indisponible'),
+        content: const Text(
+          "La configuration de ce formulaire n'a pas pu etre recuperee.\n\n"
+          "Si c'est votre premier lancement, connectez-vous au reseau du "
+          "serveur puis reconnectez-vous a l'application pour synchroniser "
+          "la configuration.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _prefillCoordinates() {
@@ -870,8 +983,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       (label: 'photos standards', paths: _photoPaths),
       (label: 'photos anomalie', paths: _anomaliePhotoPaths),
       (label: 'photos incomplet', paths: _incompletPhotoPaths),
-      (label: 'photos complément', paths: _incompletComplementPhotoPaths),
-      (label: 'photos retour terrain', paths: _retourTerrainPhotoPaths),
     ];
   }
 
@@ -1076,15 +1187,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     switch (photoContext) {
       case _photoContextAnomalieAvant:
         return _anomaliePhotoPaths;
-      case _photoContextRetourTerrain:
-        return _retourTerrainPhotoPaths;
       case _photoContextIncompletInitial:
         return _incompletPhotoPaths;
-      case _photoContextIncompletComplement:
-        return _incompletComplementPhotoPaths;
       default:
         return _anomaliePhotoPaths;
     }
+  }
+
+  bool _isActiveWorkflowPhotoContext(String photoContext) {
+    return photoContext == _photoContextAnomalieAvant ||
+        photoContext == _photoContextIncompletInitial;
   }
 
   int _workflowPhotoSlotCount(String photoContext) {
@@ -1111,8 +1223,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _hasActiveAnomalie;
 
   bool get _requiresWorkflowIncompletPhotos =>
-      !_isEpMinimalLocationForm &&
-      (_isObjetIncomplet || (_wasObjetIncompletAtOpen && !_isObjetIncomplet));
+      !_isEpMinimalLocationForm && _isObjetIncomplet;
 
   String? _validatePhotoRequirements() {
     if (_isLocked) return null;
@@ -1130,12 +1241,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
 
     if (_requiresWorkflowIncompletPhotos) {
-      final context = _isObjetIncomplet
-          ? _photoContextIncompletInitial
-          : _photoContextIncompletComplement;
-      final label = _isObjetIncomplet
-          ? 'photos objet incomplet'
-          : 'photos de complement';
+      const context = _photoContextIncompletInitial;
+      const label = 'photos objet incomplet';
       final count = _countFilledPhotos(
         _workflowPhotoMapForContext(context),
         _workflowPhotoSlotCount(context),
@@ -1204,6 +1311,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           final photoContext =
               row['photo_context']?.toString().trim() ?? 'collecte_initiale';
           if (photoContext == 'collecte_initiale') continue;
+          if (!_isActiveWorkflowPhotoContext(photoContext)) continue;
           final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
           if (slot == null || slot < 1 || slot > 4) continue;
           final remote = row['remote_path']?.toString().trim() ?? '';
@@ -1214,9 +1322,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         }
         for (final context in const [
           _photoContextAnomalieAvant,
-          _photoContextRetourTerrain,
           _photoContextIncompletInitial,
-          _photoContextIncompletComplement,
         ]) {
           final paths = _workflowPhotoMapForContext(context);
           paths.addAll(PhotoSlotService.compact(
@@ -1242,6 +1348,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     for (final row in rows) {
       final photoContext = row['photo_context']?.toString().trim() ?? '';
       if (photoContext.isEmpty || photoContext == 'collecte_initiale') continue;
+      if (!_isActiveWorkflowPhotoContext(photoContext)) continue;
       final slot = int.tryParse(row['photo_slot']?.toString() ?? '');
       if (slot == null || slot < 1 || slot > 4) continue;
       final key = '$photoContext|$slot';
@@ -1324,16 +1431,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
     final allWorkflowPhotos = <String, Map<int, String?>>{
       _photoContextAnomalieAvant: _anomaliePhotoPaths,
-      _photoContextRetourTerrain: _retourTerrainPhotoPaths,
       _photoContextIncompletInitial: _incompletPhotoPaths,
-      _photoContextIncompletComplement: _incompletComplementPhotoPaths,
     };
     final activeContexts = <String>{
       if (!_isEpCompteurAbonne && _hasActiveAnomalie && !_isObjetIncomplet)
         _photoContextAnomalieAvant,
       if (_isObjetIncomplet) _photoContextIncompletInitial,
-      if (_wasObjetIncompletAtOpen && !_isObjetIncomplet)
-        _photoContextIncompletComplement,
     };
 
     for (final entry in allWorkflowPhotos.entries) {
@@ -1481,6 +1584,22 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   // Sauvegarde
   Future<void> _save() async {
     if (_isLocked || _isSaving) return;
+    // BLOC 5 : blocage submit si l'evaluation des contraintes metier
+    // retourne des erreurs (action=error). Re-evalue avant de poursuivre
+    // pour eviter un decalage entre l'etat affiche et l'etat reel.
+    _evaluateConstraints(rebuildUi: false);
+    final ev = _constraintEvaluation;
+    if (ev != null && ev.hasErrors) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          ev.allErrorMessages.length == 1
+              ? ev.allErrorMessages.first
+              : '${ev.allErrorMessages.length} contraintes métier bloquantes — voir le bandeau en haut du formulaire.',
+        ),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
     // Si objet incomplet : on ne valide PAS les champs métier (ils sont grisés)
     // mais on valide quand même la raison
     if (!_isObjetIncomplet && !_validateBeforeSave()) return;
@@ -1600,24 +1719,113 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
 
       // Resoudre id_commune via la position Merchich pour eviter d'envoyer
       // un id local invalide au serveur (FK commune_oriental.fid).
-      if (data['id_commune'] == null &&
-          _merchichX != 0.0 &&
-          _merchichY != 0.0) {
+      // On capture aussi nom_commune et nom_province pour les utiliser
+      // dans les auto-fills metier ci-dessous (ep_regard_point Bloc 5bis).
+      String? resolvedNomCommune;
+      String? resolvedNomProvince;
+      if (_merchichX != 0.0 && _merchichY != 0.0) {
         try {
           final commune = await db.findCommuneLocalByPoint(
             x: _merchichX,
             y: _merchichY,
           );
-          final idCommune = commune?['id_commune'];
-          if (idCommune != null) {
-            data['id_commune'] = idCommune;
-            final idProvince = commune?['id_province'];
+          if (commune != null) {
+            final idCommune = commune['id_commune'];
+            if (idCommune != null && data['id_commune'] == null) {
+              data['id_commune'] = idCommune;
+            }
+            final idProvince = commune['id_province'];
             if (idProvince != null && data['id_province'] == null) {
               data['id_province'] = idProvince;
+            }
+            resolvedNomCommune =
+                commune['nom_commune']?.toString().trim();
+            resolvedNomProvince =
+                commune['nom_province']?.toString().trim();
+            if (resolvedNomCommune?.isEmpty ?? true) resolvedNomCommune = null;
+            if (resolvedNomProvince?.isEmpty ?? true) {
+              resolvedNomProvince = null;
             }
           }
         } catch (e) {
           debugPrint('id_commune via geom ignore: $e');
+        }
+      }
+
+      // BLOC 5bis : auto-resolutions ep_regard_point (et autres formulaires
+      // si applicable). Ces champs ont valeur_par_defaut=NULL apres la
+      // migration 2026-05-21_ep_regard_point_annotations_to_doc.sql ;
+      // leur semantique reelle est calculee ici a partir du contexte du
+      // formulaire (nom commune resolu, coordonnees GPS, dimensions).
+      // Pas de garde "if ep_regard_point" : le mapping est par nom_champ,
+      // donc les autres formulaires sans ces champs ne sont pas affectes.
+      void setIfFieldExistsAndEmpty(String field, dynamic value) {
+        if (value == null) return;
+        if (!_attributConfigByField.containsKey(field)) return;
+        final existing = data[field];
+        if (existing != null && existing.toString().trim().isNotEmpty) return;
+        data[field] = value;
+      }
+
+      // 1. Noms commune dans les 5 champs varchar metier (semantique client).
+      if (resolvedNomCommune != null) {
+        for (final field in const [
+          'commune',
+          'sec_com',
+          'ep_sect_com',
+          'sect_hydr',
+          'zone',
+        ]) {
+          setIfFieldExistsAndEmpty(field, resolvedNomCommune);
+        }
+      }
+      // 2. Nom province.
+      if (resolvedNomProvince != null) {
+        setIfFieldExistsAndEmpty('province', resolvedNomProvince);
+      }
+      // 3. Copie ep_ref_rue --> ep_adresse.
+      final refRue = (_controllers['ep_ref_rue']?.text ?? '').trim();
+      if (refRue.isNotEmpty) {
+        setIfFieldExistsAndEmpty('ep_adresse', refRue);
+      }
+      // 4. Calculs numeriques sur dimensions + profondeur.
+      double? asDouble(String field) {
+        final raw =
+            data[field]?.toString() ?? _controllers[field]?.text.trim() ?? '';
+        if (raw.isEmpty) return null;
+        return double.tryParse(raw.replaceAll(',', '.'));
+      }
+
+      final largeur = asDouble('largeur');
+      final longueur = asDouble('longueur');
+      if (largeur != null && longueur != null) {
+        setIfFieldExistsAndEmpty('ep_section', largeur * longueur);
+      }
+
+      final epCoorZ = asDouble('ep_coor_z');
+      final profondeur = asDouble('ep_profondeur');
+      if (epCoorZ != null) {
+        setIfFieldExistsAndEmpty('z_surf', epCoorZ);
+        if (profondeur != null) {
+          setIfFieldExistsAndEmpty('z_radier', epCoorZ - profondeur);
+        }
+      }
+
+      // BLOC 5 : side_effects des regles de contraintes metier.
+      // Appliques AVANT l'injection automatique des invisibles, pour que
+      // les set_field des regles deviennent les valeurs effectives meme si
+      // une valeur_par_defaut existe (ex: retour_terrain=true quand
+      // anomalie_tamp = "Tampons Scellés", cf. Bloc 5 contraintes regard).
+      final constraintEv = _constraintEvaluation;
+      if (constraintEv != null) {
+        for (final entry in constraintEv.sideEffects.entries) {
+          data[entry.key] = entry.value;
+        }
+        // disable_and_clear : on force NULL pour les champs verrouilles-vides,
+        // au cas ou un controller aurait conserve une vieille valeur ou
+        // qu'un autre bloc l'aurait re-remplie.
+        for (final field in constraintEv.clearedFields) {
+          data[field] = null;
         }
       }
 
@@ -1718,6 +1926,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           content: Text(label),
           backgroundColor: _isObjetIncomplet ? Colors.orange : Colors.green,
         ));
+        widget.onSavedWithMeta?.call(uuidObjet, tableName);
         widget.onSaved();
       }
     } catch (e) {
@@ -1851,10 +2060,58 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _isCoordSuffix(field, '_coor_z');
 
   List<Widget> _buildDynamicFields() {
-    if (!_isEpCompteurAbonne) {
-      return _fields.map(_buildField).toList();
+    final widgets = <Widget>[];
+    // BLOC 5 : bandeau recapitulatif des contraintes metier au sommet du
+    // formulaire. Affiche uniquement si au moins une regle est declenchee.
+    final ev = _constraintEvaluation;
+    if (ev != null && (ev.hasWarnings || ev.hasErrors)) {
+      widgets.add(ConstraintHeaderBanner(
+        warnings: ev.allWarningMessages,
+        errors: ev.allErrorMessages,
+      ));
     }
-    return _buildCompteurAbonneFields();
+    if (!_isEpCompteurAbonne) {
+      widgets.addAll(_fields.map(_buildDecoratedField));
+      return widgets;
+    }
+    widgets.addAll(_buildCompteurAbonneFields());
+    return widgets;
+  }
+
+  /// Wrap un champ avec ses hints (warn/error/lock) + grisage si verrouille
+  /// par une regle. Le `child` reste le widget de saisie normal — on
+  /// applique juste la decoration et le verrouillage par dessus (sans
+  /// modifier le code de _buildField, qui reste source de verite UI).
+  Widget _buildDecoratedField(String field) {
+    final child = _buildField(field);
+    final ev = _constraintEvaluation;
+    if (ev == null) return child;
+    final warnings = ev.warningsByField[field] ?? const <String>[];
+    final errors = ev.errorsByField[field] ?? const <String>[];
+    final disabled = ev.disabledFields.contains(field);
+    if (warnings.isEmpty && errors.isEmpty && !disabled) return child;
+    final reason = disabled ? (ev.disableReasonsByField[field] ?? '') : '';
+    Widget content = child;
+    if (disabled) {
+      // AbsorbPointer bloque l'interaction utilisateur sans modifier la
+      // structure DOM. Opacity 0.45 donne le signal visuel "grise".
+      content = Opacity(
+        opacity: 0.45,
+        child: AbsorbPointer(child: child),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ConstraintFieldHint(
+          warnings: warnings,
+          errors: errors,
+          locked: disabled,
+          lockReason: reason,
+        ),
+        content,
+      ],
+    );
   }
 
   List<Widget> _buildCompteurAbonneFields() {
@@ -2492,7 +2749,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'etage_aqua': 'Étage aqua', 'secteur_aqua': 'Secteur aqua',
       'ep_statut': 'Statut', 'observation': 'Observation',
       'date_leve': 'Date leve',
-      'ep_coor_x': 'X Merchich (m)', 'ep_coor_y': 'Y Merchich (m)',
+      'ep_coor_x': 'X projeté (m)', 'ep_coor_y': 'Y projeté (m)',
       'ep_coor_z': 'Z Altitude (m)', 'ep_pression': 'Pression (bar)',
       'ep_calibre': 'Calibre',
       'ep_capacite': 'Capacité (m³)', 'ep_cote_radier': 'Cote radier (m)',
@@ -2514,7 +2771,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       'nature_corps': 'Nature corps', 'presence_cunette': 'Présence cunette',
       'cote_tampon': 'Cote tampon (m)', 'cote_radier': 'Cote radier (m)',
       'chute': 'Chute (m)', 'profondeur_radier': 'Profondeur radier (m)',
-      'ass_coor_x': 'X Merchich (m)', 'ass_coor_y': 'Y Merchich (m)',
+      'ass_coor_x': 'X projeté (m)', 'ass_coor_y': 'Y projeté (m)',
       'ass_coor_z': 'Z Altitude (m)', 'centre': 'Centre',
       'commentaire': 'Commentaire',
     };
@@ -2527,7 +2784,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final hasWorkflowAnomalie = _hasActiveAnomalie && !_isEpCompteurAbonne;
     final disabled = _isObjetIncomplet ||
         hasWorkflowAnomalie ||
-        _wasObjetIncompletAtOpen ||
         _isLocked;
     final visibleSlotCount = PhotoSlotService.visibleSlotCount(
       _photoPaths,
@@ -2818,10 +3074,13 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           items: _choiceDropdownItemsForField(field),
           onChanged: _isLocked
               ? null
-              : (value) => setState(() {
+              : (value) {
+                  setState(() {
                     _typeAnomalie = value;
                     controller.text = value ?? '';
-                  }),
+                  });
+                  _evaluateConstraints(rebuildUi: true);
+                },
         ),
       );
     }
@@ -2840,6 +3099,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         onChanged: (value) {
           final normalized = value.trim();
           _typeAnomalie = normalized.isEmpty ? null : normalized;
+          _evaluateConstraints(rebuildUi: true);
         },
         validator: _isLocked ? null : (value) => _validateField(field, value),
       ),
@@ -2910,7 +3170,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             activeThumbColor: Colors.red,
             onChanged: disabled
                 ? null
-                : (v) => setState(() {
+                : (v) {
+                    setState(() {
                       _hasAnomalie = v;
                       if (!v) {
                         _typeAnomalie = null;
@@ -2918,7 +3179,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                           _controllers[field]?.clear();
                         }
                       }
-                    }),
+                    });
+                    _evaluateConstraints(rebuildUi: true);
+                  },
             contentPadding: EdgeInsets.zero,
           ),
           if (_hasAnomalie && !_isObjetIncomplet && _hasTypeAnomalieField)
@@ -2973,18 +3236,21 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
           ),
           value: _isObjetIncomplet,
           activeThumbColor: Colors.orange,
-          onChanged: (v) => setState(() {
-            _isObjetIncomplet = v;
-            // Si on désactive l'incomplet, on remet les anomalies à zéro
-            if (!v) {
-              _raisonIncomplet = null;
-              _detailRaisonController.clear();
-            }
-            // Si on active l'incomplet, on force l'anomalie à false
-            if (v) {
-              _hasAnomalie = false;
-            }
-          }),
+          onChanged: (v) {
+            setState(() {
+              _isObjetIncomplet = v;
+              // Si on désactive l'incomplet, on remet les anomalies à zéro
+              if (!v) {
+                _raisonIncomplet = null;
+                _detailRaisonController.clear();
+              }
+              // Si on active l'incomplet, on force l'anomalie à false
+              if (v) {
+                _hasAnomalie = false;
+              }
+            });
+            _evaluateConstraints(rebuildUi: true);
+          },
           contentPadding: EdgeInsets.zero,
         ),
 
@@ -3264,19 +3530,6 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                         photoPaths: _incompletPhotoPaths,
                         color: Colors.orange,
                       ),
-                    if (!_isEpMinimalLocationForm &&
-                        _wasObjetIncompletAtOpen &&
-                        !_isObjetIncomplet)
-                      _buildWorkflowPhotoSection(
-                        title:
-                            'Photos complement ($_requiredWorkflowPhotoCount requises)',
-                        subtitle:
-                            'Preuves ajoutees lors du completement de l\'objet.',
-                        photoContext: _photoContextIncompletComplement,
-                        photoPaths: _incompletComplementPhotoPaths,
-                        color: Colors.blueGrey,
-                      ),
-
                     const SizedBox(height: 24),
 
                     Row(

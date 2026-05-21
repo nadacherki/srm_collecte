@@ -23,6 +23,7 @@ from .models import (
     HistoriqueAction, ObjetIncomplet, ObjetPhoto,
     InterventionAnomalie,
     EpStatistiqueConduite, EpStatistiqueConduiteSegment,
+    RegardPieceLink, REGARD_PIECE_TABLE_OBJET_CHOICES,
     SrmFieldOption,
     MetricAgentJour, MetricAgentSemaine, MetricAgentMois,
     MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
@@ -432,6 +433,7 @@ class PhotoUploadSerializer(serializers.Serializer):
 
 class StatistiqueConduiteNodeSerializer(serializers.Serializer):
     separator = serializers.BooleanField(required=False, default=False)
+    free = serializers.BooleanField(required=False, default=False)
     fid = serializers.IntegerField(required=False, allow_null=True)
     uuid = serializers.CharField(
         required=False,
@@ -464,6 +466,8 @@ class StatistiqueConduiteNodeSerializer(serializers.Serializer):
     x = serializers.FloatField(required=False, allow_null=True)
     y = serializers.FloatField(required=False, allow_null=True)
     z = serializers.FloatField(required=False, allow_null=True)
+    lat = serializers.FloatField(required=False, allow_null=True)
+    lng = serializers.FloatField(required=False, allow_null=True)
     ep_num = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -474,6 +478,15 @@ class StatistiqueConduiteNodeSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs.get('separator'):
+            return attrs
+
+        if attrs.get('free'):
+            has_proj = attrs.get('x') is not None and attrs.get('y') is not None
+            has_wgs = attrs.get('lat') is not None and attrs.get('lng') is not None
+            if not has_proj and not has_wgs:
+                raise serializers.ValidationError(
+                    'Un point libre doit fournir x/y (Merchich) ou lat/lng.'
+                )
             return attrs
 
         fid = attrs.get('fid')
@@ -950,3 +963,29 @@ class MetricAgentPublicResumeSerializer(StrictModelSerializer):
     class Meta:
         model = MetricAgentPublicResume
         fields = '__all__'
+
+
+class RegardPieceLinkCreateSerializer(serializers.Serializer):
+    """Payload de creation d'un lien piece-regard.
+
+    UUIDs obligatoires (offline-first). fid_regard / fid_objet optionnels :
+    si fournis et resolus cote serveur, ils permettent un rattachement
+    immediat ; sinon le lien est conserve avec uniquement les UUIDs et
+    pourra etre reconcillie par un job de cleanup ulterieur.
+    """
+
+    uuid_regard = serializers.UUIDField()
+    uuid_objet = serializers.UUIDField()
+    table_objet = serializers.ChoiceField(
+        choices=[(v, v) for v in REGARD_PIECE_TABLE_OBJET_CHOICES]
+    )
+    fid_regard = serializers.IntegerField(required=False, allow_null=True)
+    fid_objet = serializers.IntegerField(required=False, allow_null=True)
+    id_agent = serializers.IntegerField(required=False, allow_null=True)
+    sync_uuid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=128,
+        trim_whitespace=True,
+    )

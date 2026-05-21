@@ -103,6 +103,7 @@ urlpatterns = [
     path('api/reference-overlays/fond-plan/', views.reference_fond_plan_overlay_view, name='reference-overlays-fond-plan'),
     path('api/statistiques-conduite/jour/', views.statistique_conduite_jour_view, name='statistique-conduite-jour'),
     path('api/statistiques-conduite/valider/', views.statistique_conduite_validate_view, name='statistique-conduite-valider'),
+    path('api/regard-piece-link/', views.regard_piece_link_create_view, name='regard-piece-link-create'),
     path('api/attribut-config-mobile/schema-preview/', views.attribut_config_mobile_schema_preview_view, name='attribut-config-mobile-schema-preview'),
     path('api/attribut-config-mobile/', views.attribut_config_mobile_view, name='attribut-config-mobile'),
     path('api/formulaire-config-mobile/', views.formulaire_config_mobile_view, name='formulaire-config-mobile'),

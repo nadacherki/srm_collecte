@@ -39,6 +39,8 @@ class DisplayedPointsService {
       final formulaireConfigService = FormulaireConfigMobileService();
 
       for (final metier in SrmConfig.getMetiers()) {
+        final metierCode =
+            SrmConfig.getMetierConfig(metier)?['schema']?.toString();
         final titleByTable =
             await formulaireConfigService.getTitleByMobileTable(
           mobileMetier: metier,
@@ -55,6 +57,7 @@ class DisplayedPointsService {
             db: db,
             tableName: tableName,
             loginId: loginId,
+            metierCode: metierCode,
           );
 
           for (final row in rows) {
@@ -177,6 +180,7 @@ class DisplayedPointsService {
     required Database db,
     required String tableName,
     required int? loginId,
+    String? metierCode,
   }) async {
     try {
       final columns = await db.rawQuery('PRAGMA table_info($tableName)');
@@ -191,15 +195,59 @@ class DisplayedPointsService {
         loginId: loginId,
       );
 
-      return await db.query(
+      final rows = await db.query(
         tableName,
         where: filter.where,
         whereArgs: filter.whereArgs,
       );
+      final incompletIndex = await _dbHelper.getOpenObjetIncompletIndexForTable(
+        tableName: tableName,
+        metierCode: metierCode,
+      );
+      return rows
+          .map((row) => _mergeOpenIncompletStatus(
+                row,
+                incompletIndex: incompletIndex,
+              ))
+          .toList();
     } catch (e) {
       debugPrint('Error reading table $tableName: $e');
       return [];
     }
+  }
+
+  Map<String, dynamic> _mergeOpenIncompletStatus(
+    Map<String, dynamic> rawRow, {
+    required Map<String, Map<String, dynamic>> incompletIndex,
+  }) {
+    final row = Map<String, dynamic>.from(rawRow);
+    final id = _toInt(row['id']) ?? _toInt(row['fid']) ?? _toInt(row['id_objet']);
+    final uuid = row['uuid']?.toString().trim() ??
+        row['uuid_objet']?.toString().trim() ??
+        '';
+
+    Map<String, dynamic>? support;
+    if (uuid.isNotEmpty) {
+      support = incompletIndex['uuid:${uuid.toLowerCase()}'];
+    }
+    support ??= id == null ? null : incompletIndex['id:$id'];
+    if (support == null) {
+      return row;
+    }
+
+    row['objet_incomplet'] = 1;
+    final detail = support['detail_raison']?.toString().trim() ?? '';
+    if (detail.isNotEmpty &&
+        (row['raison_incomplet']?.toString().trim().isEmpty ?? true)) {
+      row['raison_incomplet'] = detail;
+    }
+    final dateSignalement =
+        support['date_signalement']?.toString().trim() ?? '';
+    if (dateSignalement.isNotEmpty &&
+        (row['date_incomplet']?.toString().trim().isEmpty ?? true)) {
+      row['date_incomplet'] = dateSignalement;
+    }
+    return row;
   }
 
   Future<List<Marker>> getDisplayedRegardMarkersForDay({
@@ -218,6 +266,7 @@ class DisplayedPointsService {
         db: db,
         tableName: tableName,
         loginId: loginId,
+        metierCode: SrmConfig.getMetierConfig(metier)?['schema']?.toString(),
       );
 
       final markers = <Marker>[];

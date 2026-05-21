@@ -379,9 +379,10 @@ class EpStatistiqueConduiteSegment(models.Model):
     id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
     id_statistique_conduite = models.BigIntegerField()
     fid_regard_a = models.IntegerField()
-    fid_regard_b = models.IntegerField()
+    fid_regard_b = models.IntegerField(null=True, blank=True)
     fid_regard_min = models.IntegerField()
     fid_regard_max = models.IntegerField()
+    ordre = models.IntegerField(default=0)
     geom = models.LineStringField(srid=26191, dim=3)
     longueur_segment_m = models.FloatField(default=0.0)
     created_at = models.DateTimeField(null=True, blank=True)
@@ -418,9 +419,10 @@ class AssStatistiqueConduiteSegment(models.Model):
     id_statistique_conduite_segment = models.BigAutoField(primary_key=True)
     id_statistique_conduite = models.BigIntegerField()
     fid_regard_a = models.IntegerField()
-    fid_regard_b = models.IntegerField()
+    fid_regard_b = models.IntegerField(null=True, blank=True)
     fid_regard_min = models.IntegerField()
     fid_regard_max = models.IntegerField()
+    ordre = models.IntegerField(default=0)
     geom = models.LineStringField(srid=26191, dim=3)
     longueur_segment_m = models.FloatField(default=0.0)
     created_at = models.DateTimeField(null=True, blank=True)
@@ -468,7 +470,10 @@ class ListeChoix(models.Model):
     liste_choix_valeur = models.CharField(max_length=255, null=True, blank=True)
     liste_choix_ordre = models.IntegerField(null=True, blank=True)
     liste_choix_actif = models.BooleanField(null=True, blank=True)
-    contraintes = models.TextField(null=True, blank=True)
+    # Colonne `contraintes` supprimee le 2026-05-21
+    # (cf. sql/2026-05-21_attribut_config_contraintes_corrections.sql).
+    # Les regles metier sont centralisees dans
+    # attribut_config_mobile.contraintes_regles (JSONB).
 
     class Meta:
         managed = False
@@ -578,3 +583,45 @@ class AssRegard(SrmTrackedModel):
 
     def __str__(self):
         return f"Regard ASS {self.fid}"
+
+
+REGARD_PIECE_TABLE_OBJET_CHOICES = (
+    'vanne',
+    'vanne_de_vidange',
+    'ventouse',
+    'cone_de_reduction',
+    'compteur_reseau',
+    'reducteur_de_pression',
+    'obturateur',
+    'pompe',
+    'conduite_terrain',
+)
+
+
+class RegardPieceLink(models.Model):
+    """Association "piece de regard" : objet metier rattache a un regard.
+
+    Cle d'association : UUIDs (offline-first). FIDs facultatifs si dispos
+    au moment de la creation du lien.
+    """
+
+    id_regard_piece_link = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True)
+    uuid_regard = models.UUIDField()
+    fid_regard = models.IntegerField(null=True, blank=True)
+    table_objet = models.CharField(max_length=64)
+    uuid_objet = models.UUIDField()
+    fid_objet = models.IntegerField(null=True, blank=True)
+    id_agent = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = '"ep"."regard_piece_link"'
+
+    def __str__(self):
+        return (
+            f"Piece {self.table_objet}/{self.uuid_objet} <- regard "
+            f"{self.uuid_regard}"
+        )

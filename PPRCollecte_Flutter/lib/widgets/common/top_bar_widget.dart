@@ -9,12 +9,14 @@ class TopBarWidget extends StatelessWidget {
   final String agentName;
   final VoidCallback onLogout;
   final FutureOr<void> Function(String metier)? onStartConduiteDrawing;
+  final FutureOr<void> Function()? onStartRegardPieceMode;
 
   const TopBarWidget({
     super.key,
     required this.agentName,
     required this.onLogout,
     this.onStartConduiteDrawing,
+    this.onStartRegardPieceMode,
   });
 
   String _getInitials(String name) {
@@ -49,6 +51,8 @@ class TopBarWidget extends StatelessWidget {
                 await onStartConduiteDrawing?.call('ep');
               } else if (result == ProfilePage.startConduiteDrawingAsstResult) {
                 await onStartConduiteDrawing?.call('asst');
+              } else if (result == ProfilePage.startRegardPieceModeResult) {
+                await onStartRegardPieceMode?.call();
               }
             },
             child: Row(

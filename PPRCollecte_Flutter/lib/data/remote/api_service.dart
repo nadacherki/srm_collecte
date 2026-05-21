@@ -34,6 +34,16 @@ class ApiService {
     defaultValue: 'http://10.0.2.2:8000',
   );
 
+  // Exception temporaire : le serveur prod tourne en HTTP nu (port 6061)
+  // tant que le hardening TLS cote serveur n'a pas ete deploye. On passe
+  // ici la liste des hosts pour lesquels on accepte du cleartext en release,
+  // host-by-host. A vider des que le serveur passe en HTTPS.
+  // Aligner avec res/xml/network_security_config.xml (domain-config).
+  static const String _cleartextAllowedHostsRaw = String.fromEnvironment(
+    'CLEARTEXT_ALLOWED_HOSTS',
+    defaultValue: '',
+  );
+
   static const Set<String> _devOnlyHosts = {
     '10.0.2.2',
     'localhost',
@@ -49,10 +59,17 @@ class ApiService {
     final host = uri?.host ?? '';
     final isHttps = uri?.scheme == 'https';
     final isDevHost = _devOnlyHosts.contains(host) || host.isEmpty;
-    if (!isHttps || isDevHost) {
+    final allowedCleartext = _cleartextAllowedHostsRaw
+        .split(',')
+        .map((h) => h.trim())
+        .where((h) => h.isNotEmpty)
+        .contains(host);
+    if (isDevHost || (!isHttps && !allowedCleartext)) {
       throw StateError(
         'API_BASE_URL invalide pour un build release: "$baseUrl". '
-        'Rebuilder avec --dart-define=API_BASE_URL=https://<domaine-prod>.',
+        'Rebuilder avec --dart-define=API_BASE_URL=https://<domaine-prod>, '
+        'ou pour un host HTTP explicitement autorise, ajouter '
+        '--dart-define=CLEARTEXT_ALLOWED_HOSTS=<host> (exception temporaire).',
       );
     }
   }
@@ -1292,6 +1309,56 @@ class ApiService {
       throw Exception('Erreur réseau validation conduite');
     } on FormatException {
       throw Exception('Réponse validation conduite invalide');
+    }
+  }
+
+  /// Cree (ou recupere) l'association piece-regard cote serveur.
+  /// Idempotent : si le lien (table_objet, uuid_objet) existe deja, le
+  /// serveur renvoie 200 + la ligne existante, sinon 201.
+  static Future<Map<String, dynamic>> postRegardPieceLink({
+    required String uuidRegard,
+    required String tableObjet,
+    required String uuidObjet,
+    int? fidRegard,
+    int? fidObjet,
+    int? idAgent,
+    String? syncUuid,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/regard-piece-link/');
+    final payload = <String, dynamic>{
+      'uuid_regard': uuidRegard,
+      'table_objet': tableObjet,
+      'uuid_objet': uuidObjet,
+    };
+    if (fidRegard != null) payload['fid_regard'] = fidRegard;
+    if (fidObjet != null) payload['fid_objet'] = fidObjet;
+    if (idAgent != null) payload['id_agent'] = idAgent;
+    final cleanSyncUuid = syncUuid?.trim() ?? '';
+    if (cleanSyncUuid.isNotEmpty) payload['sync_uuid'] = cleanSyncUuid;
+
+    try {
+      final response = await _authedPost(uri, body: jsonEncode(payload));
+      final body = utf8.decode(response.bodyBytes);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        throw Exception('Réponse lien piece-regard invalide');
+      }
+      if (_isUnauthorized(response)) {
+        throw Exception(sessionExpiredMessage);
+      }
+      throw Exception(
+        _extractApiErrorMessage(
+          body,
+          'Erreur lien piece-regard ${response.statusCode}',
+        ),
+      );
+    } on TimeoutException {
+      throw Exception('Timeout lien piece-regard');
+    } on SocketException {
+      throw Exception('Erreur réseau lien piece-regard');
+    } on FormatException {
+      throw Exception('Réponse lien piece-regard invalide');
     }
   }
 

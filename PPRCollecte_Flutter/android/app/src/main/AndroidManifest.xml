@@ -5,10 +5,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
-    <!-- ACCESS_MOCK_LOCATION : declaree UNIQUEMENT dans le manifest debug
-         (src/debug + src/profile). Absente du build release pour empecher
-         la falsification de position GPS sur les donnees terrain de prod
-         (integrite geospatiale). -->
+    <!-- ACCESS_MOCK_LOCATION : declaree par variante (debug/profile/release)
+         pour que l'app puisse etre choisie comme application de position
+         fictive quand le pont GNSS/NMEA doit injecter les X/Y/Z recus du
+         recepteur. -->
 
 
     <!-- Bluetooth GNSS bridge: paired Oscar devices only in this first step. -->

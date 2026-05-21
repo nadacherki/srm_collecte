@@ -5,12 +5,57 @@ enum CollectionType { ligne, polygon }
 
 enum CollectionStatus { inactive, active, paused }
 
+class CapturedGnssPoint {
+  final double latitude;
+  final double longitude;
+  final double? projectedX;
+  final double? projectedY;
+  final double? projectedZ;
+
+  const CapturedGnssPoint({
+    required this.latitude,
+    required this.longitude,
+    this.projectedX,
+    this.projectedY,
+    this.projectedZ,
+  });
+
+  LatLng get latLng => LatLng(latitude, longitude);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'lat': latitude,
+      'lng': longitude,
+      'x': projectedX,
+      'y': projectedY,
+      'z': projectedZ,
+    };
+  }
+
+  factory CapturedGnssPoint.fromJson(Map<String, dynamic> json) {
+    double? asDouble(dynamic value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
+    return CapturedGnssPoint(
+      latitude: asDouble(json['lat'] ?? json['latitude']) ?? 0.0,
+      longitude: asDouble(json['lng'] ?? json['lon'] ?? json['longitude']) ??
+          0.0,
+      projectedX: asDouble(json['x'] ?? json['projected_x']),
+      projectedY: asDouble(json['y'] ?? json['projected_y']),
+      projectedZ: asDouble(json['z'] ?? json['projected_z']),
+    );
+  }
+}
+
 class CollectionBase {
   final int id;
   final String? lineCode;
   final CollectionType type;
   final CollectionStatus status;
   final List<LatLng> points;
+  final List<CapturedGnssPoint> gnssPoints;
   final DateTime startTime;
   final DateTime? lastPointTime;
   final double totalDistance;
@@ -21,6 +66,7 @@ class CollectionBase {
     required this.type,
     required this.status,
     required this.points,
+    this.gnssPoints = const [],
     required this.startTime,
     this.lastPointTime,
     this.totalDistance = 0.0,
@@ -32,6 +78,7 @@ class CollectionBase {
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
+    List<CapturedGnssPoint>? gnssPoints,
     DateTime? startTime,
     DateTime? lastPointTime,
     double? totalDistance,
@@ -42,6 +89,7 @@ class CollectionBase {
       type: type ?? this.type,
       status: status ?? this.status,
       points: points ?? this.points,
+      gnssPoints: gnssPoints ?? this.gnssPoints,
       startTime: startTime ?? this.startTime,
       lastPointTime: lastPointTime ?? this.lastPointTime,
       totalDistance: totalDistance ?? this.totalDistance,
@@ -59,6 +107,7 @@ class LigneCollection extends CollectionBase {
     required String super.lineCode,
     required super.status,
     required super.points,
+    super.gnssPoints = const [],
     required super.startTime,
     super.lastPointTime,
     super.totalDistance,
@@ -73,6 +122,7 @@ class LigneCollection extends CollectionBase {
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
+    List<CapturedGnssPoint>? gnssPoints,
     DateTime? startTime,
     DateTime? lastPointTime,
     double? totalDistance,
@@ -82,6 +132,7 @@ class LigneCollection extends CollectionBase {
       lineCode: lineCode ?? this.lineCode!,
       status: status ?? this.status,
       points: points ?? this.points,
+      gnssPoints: gnssPoints ?? this.gnssPoints,
       startTime: startTime ?? this.startTime,
       lastPointTime: lastPointTime ?? this.lastPointTime,
       totalDistance: totalDistance ?? this.totalDistance,
@@ -96,6 +147,7 @@ class LigneCollection extends CollectionBase {
       'status': status.toString(),
       'points':
           points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+      'gnssPoints': gnssPoints.map((p) => p.toJson()).toList(),
       'startTime': startTime.toIso8601String(),
       'lastPointTime': lastPointTime?.toIso8601String(),
       'totalDistance': totalDistance,
@@ -111,6 +163,10 @@ class LigneCollection extends CollectionBase {
       ),
       points: (json['points'] as List)
           .map((p) => LatLng(p['lat'], p['lng']))
+          .toList(),
+      gnssPoints: ((json['gnssPoints'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((p) => CapturedGnssPoint.fromJson(Map<String, dynamic>.from(p)))
           .toList(),
       startTime: DateTime.parse(json['startTime']),
       lastPointTime: json['lastPointTime'] != null
@@ -129,6 +185,7 @@ class PolygonCollection extends CollectionBase {
     required this.entityType,
     required super.status,
     required super.points,
+    super.gnssPoints = const [],
     required super.startTime,
     super.lastPointTime,
     super.totalDistance,
@@ -145,6 +202,7 @@ class PolygonCollection extends CollectionBase {
     CollectionType? type,
     CollectionStatus? status,
     List<LatLng>? points,
+    List<CapturedGnssPoint>? gnssPoints,
     DateTime? startTime,
     DateTime? lastPointTime,
     double? totalDistance,
@@ -154,6 +212,7 @@ class PolygonCollection extends CollectionBase {
       entityType: entityType ?? this.entityType,
       status: status ?? this.status,
       points: points ?? this.points,
+      gnssPoints: gnssPoints ?? this.gnssPoints,
       startTime: startTime ?? this.startTime,
       lastPointTime: lastPointTime ?? this.lastPointTime,
       totalDistance: totalDistance ?? this.totalDistance,
@@ -166,6 +225,7 @@ class CollectionResult {
   final String? lineCode;
   final CollectionType type;
   final List<LatLng> points;
+  final List<CapturedGnssPoint> gnssPoints;
   final double totalDistance;
   final DateTime startTime;
   final DateTime endTime;
@@ -175,6 +235,7 @@ class CollectionResult {
     this.lineCode,
     required this.type,
     required this.points,
+    this.gnssPoints = const [],
     required this.totalDistance,
     required this.startTime,
     required this.endTime,
@@ -186,6 +247,7 @@ class CollectionResult {
       'lineCode': lineCode,
       'type': type.toString(),
       'points': points,
+      'gnssPoints': gnssPoints.map((p) => p.toJson()).toList(),
       'totalDistance': totalDistance,
       'startTime': startTime,
       'endTime': endTime,
@@ -196,9 +258,11 @@ class CollectionResult {
 class CollectionPointEdit {
   final LatLng point;
   final double? altitude;
+  final CapturedGnssPoint? gnssPoint;
 
   const CollectionPointEdit({
     required this.point,
     this.altitude,
+    this.gnssPoint,
   });
 }

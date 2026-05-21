@@ -836,7 +836,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         }
 
         final expectingExternal =
-            state.homeController.gpsSourceLabel.startsWith('GNSS externe') ||
+            state.homeController.gpsSourceLabel.startsWith('GNSS') ||
                 bridgeStatus.status.toLowerCase().contains('bluetooth') ||
                 bridgeStatus.status.toLowerCase().contains('nmea');
         if (expectingExternal) {

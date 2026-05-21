@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-05-20T21:54:25",
+  "schemas": [
+    "ep",
+    "asst"
+  ],
+  "summary": {
+    "form_tables": 61,
+    "physical_tables_checked": 61,
+    "attributes_checked": 2864,
+    "choices_checked": 928,
+    "missing_physical_tables": 0,
+    "type_mismatches": 0,
+    "nullable_mismatches": 4,
+    "attributes_without_physical_column": 0,
+    "physical_columns_without_attribute": 0,
+    "choices_without_attribute": 0,
+    "choices_without_physical_column": 0,
+    "choice_attribute_link_mismatches": 0,
+    "choice_default_mismatches": 0
+  },
+  "issues": {
+    "missing_physical_tables": [],
+    "type_mismatches": [],
+    "nullable_mismatches": [
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "ep_agent",
+        "physical_not_null": false,
+        "configured_nullable": false,
+        "attribute_id": 1473
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "generatrice_supp",
+        "physical_not_null": false,
+        "configured_nullable": false,
+        "attribute_id": 3093
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "retour_terrain",
+        "physical_not_null": false,
+        "configured_nullable": false,
+        "attribute_id": 3098
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_modele",
+        "physical_not_null": true,
+        "configured_nullable": true,
+        "attribute_id": 242
+      }
+    ],
+    "attributes_without_physical_column": [],
+    "physical_columns_without_attribute": [],
+    "choices_without_attribute": [],
+    "choices_without_physical_column": [],
+    "choice_attribute_link_mismatches": [],
+    "choice_default_mismatches": []
+  }
+}

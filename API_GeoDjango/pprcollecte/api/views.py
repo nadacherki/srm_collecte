@@ -35,6 +35,7 @@ from rest_framework import status
 from rest_framework import exceptions
 
 from .jwt_auth import generate_token_pair, refresh_access_token
+from .constraint_engine import evaluate_error_rules
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 import json
@@ -60,6 +61,7 @@ from .models import (
     MetricAgentTablePeriod, MetricAgentPeriod, MetricAgentResume,
     MetricAgentPublicJour, MetricAgentPublicSemaine, MetricAgentPublicMois, MetricAgentPublicResume,
     EpRegard, AssRegard,
+    RegardPieceLink,
 )
 from .serializers import (
     CommuneSerializer,
@@ -74,6 +76,7 @@ from .serializers import (
     MetricAgentPublicMoisSerializer, MetricAgentPublicResumeSerializer,
     LoginRequestSerializer, PhotoUploadSerializer,
     StatistiqueConduiteValidateSerializer,
+    RegardPieceLinkCreateSerializer,
 )
 
 
@@ -1492,6 +1495,28 @@ def mobile_srm_table_view(request, endpoint):
                 status=status.HTTP_200_OK,
             )
 
+    # ── Re-validation serveur des contraintes metier action=error ─────
+    # Les regles warn / disable_others / disable_and_clear sont evaluees
+    # uniquement cote mobile pour l'UX. Les regles action=error sont
+    # re-evaluees ici pour blinder l'API contre un client compromis ou
+    # bugue : le serveur reste la source de verite sur la coherence
+    # metier. Cf. api/constraint_engine.py.
+    effective_payload_for_constraints = dict(existing_row_values or {})
+    effective_payload_for_constraints.update(writable)
+    constraint_errors = evaluate_error_rules(
+        schema=schema_name,
+        table=table_name,
+        payload=effective_payload_for_constraints,
+    )
+    if constraint_errors:
+        return Response(
+            {
+                'detail': 'Contraintes metier violees.',
+                'errors': constraint_errors,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     try:
         with transaction.atomic():
             _set_local_audit_context(
@@ -1873,41 +1898,92 @@ def _resolve_conduite_regard_node(node_payload):
     )
 
 
-def _build_unique_conduite_segments(regard_nodes):
+def _split_conduite_paths(resolved_nodes):
+    """Decoupe la liste resolue en chemins (separateur None = nouvelle conduite)."""
+    paths = []
+    current = []
+    for node in resolved_nodes:
+        if node is None:
+            if current:
+                paths.append(current)
+                current = []
+            continue
+        current.append(node)
+    if current:
+        paths.append(current)
+    return paths
+
+
+def _build_unique_conduite_segments(resolved_nodes):
+    """Construit les segments persistables d'une conduite hybride.
+
+    Un segment est ancre sur un regard de depart (fid_regard_a NON NULL).
+    Il agrege les sommets libres intermediaires dans sa geometrie.
+    - Segment ferme : se termine sur un regard (fid_regard_b NON NULL).
+    - Segment ouvert : se termine sur des points libres (fid_regard_b NULL).
+
+    Regle metier : le premier noeud de chaque chemin doit etre un regard
+    (accrochage obligatoire au depart). Defense en profondeur : le client
+    l'empeche deja, on rejette ici si ce n'est pas le cas.
+    """
     unique_segments = []
     seen_pairs = set()
-    previous = None
+    ordre = 0
 
-    for current in regard_nodes:
-        if current is None:
-            previous = None
+    for path in _split_conduite_paths(resolved_nodes):
+        if not path:
             continue
+        if path[0].fid is None:
+            raise ValidationError(
+                {
+                    'nodes': [
+                        "Le depart d'une conduite doit etre accroche a un "
+                        "regard (au moins un regard requis au depart)."
+                    ]
+                }
+            )
 
-        if previous is None:
-            previous = current
-            continue
+        anchor = path[0]
+        pending = [_conduite_node_coords(anchor)]
 
-        left = previous
-        right = current
-        if left.fid == right.fid:
-            previous = current
-            continue
+        for node in path[1:]:
+            if node.fid is None:
+                # Sommet libre : on l'agrege au segment courant.
+                pending.append(_conduite_node_coords(node))
+                continue
 
-        pair_key = tuple(sorted((left.fid, right.fid)))
-        if pair_key in seen_pairs:
-            previous = current
-            continue
+            # Noeud regard.
+            if node.fid == anchor.fid:
+                # Retour sur le meme regard : ignore (anti-boucle).
+                continue
 
-        line = LineString(left.geom.coords, right.geom.coords, srid=26191)
-        unique_segments.append(
-            {
-                'fid_regard_a': left.fid,
-                'fid_regard_b': right.fid,
-                'geom': line,
-            }
-        )
-        seen_pairs.add(pair_key)
-        previous = current
+            coords = pending + [_conduite_node_coords(node)]
+            pair_key = tuple(sorted((anchor.fid, node.fid)))
+            if pair_key not in seen_pairs and len(coords) >= 2:
+                unique_segments.append(
+                    {
+                        'fid_regard_a': anchor.fid,
+                        'fid_regard_b': node.fid,
+                        'geom': LineString(coords, srid=26191),
+                        'ordre': ordre,
+                    }
+                )
+                seen_pairs.add(pair_key)
+                ordre += 1
+            anchor = node
+            pending = [_conduite_node_coords(node)]
+
+        # Fin de chemin : sommets libres restants -> segment ouvert.
+        if len(pending) >= 2:
+            unique_segments.append(
+                {
+                    'fid_regard_a': anchor.fid,
+                    'fid_regard_b': None,
+                    'geom': LineString(pending, srid=26191),
+                    'ordre': ordre,
+                }
+            )
+            ordre += 1
 
     return unique_segments
 
@@ -1973,10 +2049,14 @@ def _conduite_config(raw_metier=None, *, default='ep'):
     return key, config
 
 
+_CONDUITE_SCHEMA_HEALED = set()
+
+
 def _ensure_conduite_stat_tables(config):
     schema = config['schema']
     stat_table = config['stat_table']
     segment_table = config['segment_table']
+    already_healed = (schema, segment_table) in _CONDUITE_SCHEMA_HEALED
     with connection.cursor() as cursor:
         cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
         cursor.execute(
@@ -2003,25 +2083,61 @@ def _ensure_conduite_stat_tables(config):
                     REFERENCES {schema}.{stat_table}(id_statistique_conduite)
                     ON DELETE CASCADE,
                 fid_regard_a INTEGER NOT NULL,
-                fid_regard_b INTEGER NOT NULL,
+                fid_regard_b INTEGER,
                 fid_regard_min INTEGER GENERATED ALWAYS AS (
                     LEAST(fid_regard_a, fid_regard_b)
                 ) STORED,
                 fid_regard_max INTEGER GENERATED ALWAYS AS (
                     GREATEST(fid_regard_a, fid_regard_b)
                 ) STORED,
+                ordre INTEGER NOT NULL DEFAULT 0,
                 geom geometry(LineStringZ,26191) NOT NULL,
                 longueur_segment_m DOUBLE PRECISION NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                CONSTRAINT {segment_table}_no_loop_chk CHECK (fid_regard_a <> fid_regard_b),
+                CONSTRAINT {segment_table}_no_loop_chk
+                    CHECK (fid_regard_b IS NULL OR fid_regard_a <> fid_regard_b),
                 CONSTRAINT {segment_table}_longueur_chk CHECK (longueur_segment_m >= 0),
-                CONSTRAINT {segment_table}_unique_pair_key UNIQUE (
+                CONSTRAINT {segment_table}_unique_ordre_key UNIQUE (
                     id_statistique_conduite,
-                    fid_regard_min,
-                    fid_regard_max
+                    ordre
                 )
             )
             """
+        )
+        # Self-heal idempotent : aligne une table {segment_table} preexistante
+        # (ancien schema regard-regard strict) sur le schema hybride courant.
+        # Execute une seule fois par processus pour eviter un DDL par requete.
+        if already_healed:
+            return
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"ALTER COLUMN fid_regard_b DROP NOT NULL"
+        )
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"ADD COLUMN IF NOT EXISTS ordre INTEGER NOT NULL DEFAULT 0"
+        )
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"DROP CONSTRAINT IF EXISTS {segment_table}_no_loop_chk"
+        )
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"ADD CONSTRAINT {segment_table}_no_loop_chk "
+            f"CHECK (fid_regard_b IS NULL OR fid_regard_a <> fid_regard_b)"
+        )
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"DROP CONSTRAINT IF EXISTS {segment_table}_unique_pair_key"
+        )
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"DROP CONSTRAINT IF EXISTS {segment_table}_unique_ordre_key"
+        )
+        cursor.execute(
+            f"ALTER TABLE {schema}.{segment_table} "
+            f"ADD CONSTRAINT {segment_table}_unique_ordre_key "
+            f"UNIQUE (id_statistique_conduite, ordre)"
         )
         cursor.execute(
             f"""
@@ -2065,6 +2181,7 @@ def _ensure_conduite_stat_tables(config):
                 ON {schema}.{segment_table} USING GIST (geom)
             """
         )
+    _CONDUITE_SCHEMA_HEALED.add((schema, segment_table))
 
 
 def _coerce_conduite_node_point(node_payload, config, label):
@@ -2085,6 +2202,51 @@ def _coerce_conduite_node_point(node_payload, config, label):
         )
 
     return Point(float(x), float(y), float(z if z is not None else 0.0), srid=26191)
+
+
+class _ConduiteFreePoint:
+    """Sommet libre du trace (pas un regard). fid reste None."""
+
+    def __init__(self, geom):
+        self.fid = None
+        self.geom = geom
+        self.is_free = True
+
+
+def _resolve_conduite_free_point(node_payload):
+    """Construit un Point Merchich (26191, 3D) pour un sommet libre.
+
+    Priorite aux coordonnees projetees x/y si fournies, sinon transforme
+    lat/lng (WGS84) vers 26191. La validation serializer garantit qu'au
+    moins une des deux paires est presente.
+    """
+    x = node_payload.get('x')
+    y = node_payload.get('y')
+    z = node_payload.get('z')
+    if x is not None and y is not None:
+        return Point(
+            float(x),
+            float(y),
+            float(z if z is not None else 0.0),
+            srid=26191,
+        )
+
+    lat = node_payload.get('lat')
+    lng = node_payload.get('lng')
+    if lat is None or lng is None:
+        raise ValidationError(
+            {'nodes': ['Point libre sans geometrie exploitable (x/y ou lat/lng).']}
+        )
+    pt = Point(float(lng), float(lat), float(z if z is not None else 0.0), srid=4326)
+    pt.transform(26191)
+    return pt
+
+
+def _conduite_node_coords(node):
+    """Retourne le tuple (x, y, z) Merchich d'un noeud resolu."""
+    geom = node.geom
+    z = geom.z if geom.hasz else 0.0
+    return (float(geom.x), float(geom.y), float(z if z is not None else 0.0))
 
 
 class _ConduiteRegardLite:
@@ -2223,11 +2385,12 @@ def _insert_statistique_conduite_segments(
             id_statistique_conduite,
             segment['fid_regard_a'],
             segment['fid_regard_b'],
+            segment.get('ordre', index),
             segment['geom'].ewkt,
             0.0,
             now,
         )
-        for segment in unique_segments
+        for index, segment in enumerate(unique_segments)
     ]
 
     schema = config['schema']
@@ -2245,11 +2408,13 @@ def _insert_statistique_conduite_segments(
                 id_statistique_conduite,
                 fid_regard_a,
                 fid_regard_b,
+                ordre,
                 geom,
                 longueur_segment_m,
                 created_at
             )
             VALUES (
+                %s,
                 %s,
                 %s,
                 %s,
@@ -2290,7 +2455,7 @@ def _statistique_conduite_snapshot(stat_row, config=None, metier_key='ep'):
     config = config or _CONDUITE_METIER_CONFIG['ep']
     segment_qs = config['segment_model'].objects.filter(
         id_statistique_conduite=stat_row.id_statistique_conduite
-    ).order_by('fid_regard_min', 'fid_regard_max')
+    ).order_by('ordre', 'id_statistique_conduite_segment')
 
     segments_wgs84 = [
         {
@@ -3891,12 +4056,14 @@ def statistique_conduite_validate_view(request):
         )
         return Response(payload, status=status.HTTP_409_CONFLICT)
 
-    resolved_nodes = [
-        None
-        if node.get('separator')
-        else _resolve_conduite_regard_node(node, conduite_config)
-        for node in raw_nodes
-    ]
+    def _resolve_node(node):
+        if node.get('separator'):
+            return None
+        if node.get('free'):
+            return _ConduiteFreePoint(_resolve_conduite_free_point(node))
+        return _resolve_conduite_regard_node(node, conduite_config)
+
+    resolved_nodes = [_resolve_node(node) for node in raw_nodes]
     unique_segments = _build_unique_conduite_segments(resolved_nodes)
     if not unique_segments:
         raise ValidationError(
@@ -3934,6 +4101,146 @@ def statistique_conduite_validate_view(request):
 
     return Response(
         _statistique_conduite_snapshot(conduite, conduite_config, metier_key),
+        status=status.HTTP_201_CREATED,
+    )
+
+
+# =====================================================================
+#  PIECES DE REGARD
+# =====================================================================
+
+_REGARD_PIECE_LINK_HEALED = False
+
+
+def _ensure_regard_piece_link_table():
+    """Self-heal idempotent : cree ep.regard_piece_link si absente.
+
+    Necessaire pour les deploiements ou la migration SQL dediee
+    (2026-05-20_regard_piece_link.sql) n'a pas encore ete appliquee a la
+    main. Execute une seule fois par processus.
+    """
+    global _REGARD_PIECE_LINK_HEALED
+    if _REGARD_PIECE_LINK_HEALED:
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS ep")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ep.regard_piece_link (
+                id_regard_piece_link BIGSERIAL PRIMARY KEY,
+                uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+                uuid_regard UUID NOT NULL,
+                fid_regard INTEGER,
+                table_objet VARCHAR(64) NOT NULL,
+                uuid_objet UUID NOT NULL,
+                fid_objet INTEGER,
+                id_agent INTEGER
+                    REFERENCES public.utilisateur(id_user)
+                    ON DELETE RESTRICT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT regard_piece_link_table_objet_chk
+                    CHECK (table_objet IN (
+                        'vanne','vanne_de_vidange','ventouse',
+                        'cone_de_reduction','compteur_reseau',
+                        'reducteur_de_pression','obturateur','pompe',
+                        'conduite_terrain'
+                    )),
+                CONSTRAINT regard_piece_link_unique_object_key
+                    UNIQUE (table_objet, uuid_objet)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS regard_piece_link_uuid_regard_idx "
+            "ON ep.regard_piece_link (uuid_regard)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS regard_piece_link_table_objet_idx "
+            "ON ep.regard_piece_link (table_objet)"
+        )
+    _REGARD_PIECE_LINK_HEALED = True
+
+
+@api_view(['POST'])
+def regard_piece_link_create_view(request):
+    """Cree (ou recupere) une association piece-regard pour les 9 metiers
+    cibles (vanne, vidange, ventouse, ... conduite_terrain).
+
+    Idempotent sur (table_objet, uuid_objet) : si le lien existe deja, on
+    renvoie 200 + la ligne existante au lieu de 201, pour permettre au
+    client de rejouer son enqueue offline sans erreur.
+    """
+    _ensure_regard_piece_link_table()
+
+    serializer = RegardPieceLinkCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    validated = serializer.validated_data
+
+    uuid_regard = str(validated['uuid_regard'])
+    uuid_objet = str(validated['uuid_objet'])
+    table_objet = validated['table_objet']
+    fid_regard = validated.get('fid_regard')
+    fid_objet = validated.get('fid_objet')
+    id_agent = validated.get('id_agent')
+
+    # Idempotence : si un lien existe deja pour (table_objet, uuid_objet),
+    # on le renvoie sans creer de doublon.
+    existing = RegardPieceLink.objects.filter(
+        table_objet=table_objet,
+        uuid_objet=uuid_objet,
+    ).first()
+    if existing is not None:
+        return Response(
+            {
+                'id_regard_piece_link': existing.id_regard_piece_link,
+                'uuid': str(existing.uuid),
+                'uuid_regard': str(existing.uuid_regard),
+                'fid_regard': existing.fid_regard,
+                'table_objet': existing.table_objet,
+                'uuid_objet': str(existing.uuid_objet),
+                'fid_objet': existing.fid_objet,
+                'id_agent': existing.id_agent,
+                'created_at': existing.created_at.isoformat()
+                if existing.created_at else None,
+                'already_existed': True,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    now = timezone.now()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO ep.regard_piece_link (
+                uuid_regard, fid_regard,
+                table_objet, uuid_objet, fid_objet,
+                id_agent, created_at, updated_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_regard_piece_link, uuid
+            """,
+            [
+                uuid_regard, fid_regard,
+                table_objet, uuid_objet, fid_objet,
+                id_agent, now, now,
+            ],
+        )
+        row = cursor.fetchone()
+
+    return Response(
+        {
+            'id_regard_piece_link': row[0],
+            'uuid': str(row[1]),
+            'uuid_regard': uuid_regard,
+            'fid_regard': fid_regard,
+            'table_objet': table_objet,
+            'uuid_objet': uuid_objet,
+            'fid_objet': fid_objet,
+            'id_agent': id_agent,
+            'created_at': now.isoformat(),
+            'already_existed': False,
+        },
         status=status.HTTP_201_CREATED,
     )
 
@@ -4430,7 +4737,8 @@ def attribut_config_mobile_view(request):
             ordre,
             titre_app,
             COALESCE(visible, false) AS visible,
-            contraintes,
+            contraintes_doc,
+            contraintes_regles,
             COALESCE(nullable, true) AS nullable,
             valeur_par_defaut,
             valeur_min,
@@ -4451,7 +4759,8 @@ def attribut_config_mobile_view(request):
         'ordre',
         'titre_app',
         'visible',
-        'contraintes',
+        'contraintes_doc',
+        'contraintes_regles',
         'nullable',
         'valeur_par_defaut',
         'valeur_min',
@@ -4476,7 +4785,8 @@ def _fetch_attribut_config_mobile_row(attr_id):
         'ordre',
         'titre_app',
         'visible',
-        'contraintes',
+        'contraintes_doc',
+        'contraintes_regles',
         'nullable',
         'valeur_par_defaut',
         'valeur_min',
@@ -4497,7 +4807,8 @@ def _fetch_attribut_config_mobile_row(attr_id):
                 ordre,
                 titre_app,
                 COALESCE(visible, false) AS visible,
-                contraintes,
+                contraintes_doc,
+                contraintes_regles,
                 COALESCE(nullable, true) AS nullable,
                 valeur_par_defaut,
                 valeur_min,
@@ -4564,7 +4875,8 @@ def attribut_config_mobile_schema_preview_view(request):
             'ordre',
             'titre_app',
             'visible',
-            'contraintes',
+            'contraintes_doc',
+            'contraintes_regles',
             'nullable',
             'valeur_par_defaut',
             'valeur_min',

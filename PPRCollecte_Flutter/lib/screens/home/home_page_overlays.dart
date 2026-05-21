@@ -1,7 +1,10 @@
 part of 'home_page.dart';
 
 const String _epRegardMiroirOverlayTable = 'ep_regard';
-const double _regardMiroirLocalSquareSizeMeters = 24.0;
+// Cote fixe du carre miroir affiche autour de chaque regard EP : 4 m x 4 m,
+// quels que soient ep_longueur / ep_largeur en base. La donnee terrain reste
+// stockee dans le regard ; ce constant ne pilote que la representation carte.
+const double _regardMiroirLocalSquareSizeMeters = 4.0;
 const Color _zoneOverlayColor = Color(0xFF1565C0);
 const Color _plancheOverlayColor = Color(0xFF455A64);
 
@@ -477,6 +480,8 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     final formulaireConfigService = FormulaireConfigMobileService();
 
     for (final metier in SrmConfig.getMetiers()) {
+      final metierCode =
+          SrmConfig.getMetierConfig(metier)?['schema']?.toString();
       final titleByTable = await formulaireConfigService.getTitleByMobileTable(
         mobileMetier: metier,
         refreshIfEmpty: false,
@@ -503,8 +508,17 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             where: filter.where,
             whereArgs: filter.whereArgs,
           );
+          final incompletIndex =
+              await DatabaseHelper().getOpenObjetIncompletIndexForTable(
+            tableName: tableName,
+            metierCode: metierCode,
+          );
 
-          for (final poly in rows) {
+          for (final rawPoly in rows) {
+            final poly = _mergeOpenIncompletStatusImpl(
+              rawPoly,
+              incompletIndex: incompletIndex,
+            );
             final points = _extractPolygonPointsImpl(poly['points_json']);
             if (points.length < 3) continue;
             final hasAnomalie = hasRowAnomalie(poly);
@@ -569,32 +583,49 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
 
     final dbHelper = DatabaseHelper();
     final cachedRegardMiroirRows = await dbHelper.getRegardMiroirCache();
-    final regardMiroirRows = <Map<String, dynamic>>[
-      ...cachedRegardMiroirRows,
-    ];
-    final cachedUuids = cachedRegardMiroirRows
-        .map((row) => row['uuid']?.toString().trim())
-        .whereType<String>()
-        .where((uuid) => uuid.isNotEmpty)
-        .toSet();
+    final regardMiroirByUuid = <String, Map<String, dynamic>>{};
+    final regardMiroirWithoutUuid = <Map<String, dynamic>>[];
+    for (final rawRow in cachedRegardMiroirRows) {
+      final row = Map<String, dynamic>.from(rawRow);
+      final uuid = row['uuid']?.toString().trim() ?? '';
+      if (uuid.isEmpty) {
+        regardMiroirWithoutUuid.add(row);
+      } else {
+        regardMiroirByUuid[uuid.toLowerCase()] = row;
+      }
+    }
 
     var localGeneratedCount = 0;
     try {
       final localRegards = await dbHelper.getEntitiesSrm('ep_regard_point');
-      for (final regard in localRegards) {
-        final uuid = regard['uuid']?.toString().trim();
-        if (uuid != null && uuid.isNotEmpty && cachedUuids.contains(uuid)) {
-          continue;
-        }
+      final incompletIndex = await dbHelper.getOpenObjetIncompletIndexForTable(
+        tableName: 'ep_regard_point',
+        metierCode: 'ep',
+      );
+      for (final rawRegard in localRegards) {
+        final regard = _mergeOpenIncompletStatusImpl(
+          rawRegard,
+          incompletIndex: incompletIndex,
+        );
+        final uuid = regard['uuid']?.toString().trim() ?? '';
 
         final miroir = _buildLocalRegardMiroirRowImpl(regard);
         if (miroir == null) continue;
-        regardMiroirRows.add(miroir);
+        if (uuid.isEmpty) {
+          regardMiroirWithoutUuid.add(miroir);
+        } else {
+          regardMiroirByUuid[uuid.toLowerCase()] = miroir;
+        }
         localGeneratedCount++;
       }
     } catch (e) {
       debugPrint('[REGARD-MIROIR] generation locale impossible: $e');
     }
+
+    final regardMiroirRows = <Map<String, dynamic>>[
+      ...regardMiroirByUuid.values,
+      ...regardMiroirWithoutUuid,
+    ];
 
     debugPrint(
       '[REGARD-MIROIR] ${cachedRegardMiroirRows.length} miroir(s) serveur en cache'
@@ -603,8 +634,15 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
     if (regardMiroirRows.isNotEmpty) {
       var renderedRegardMiroirs = 0;
       for (final poly in regardMiroirRows) {
-        final points = _extractPolygonPointsImpl(poly['points_json']);
-        if (points.length < 3) continue;
+        final rawPoints = _extractPolygonPointsImpl(poly['points_json']);
+        if (rawPoints.length < 3) continue;
+        // Surcharge taille : on rebatit toujours un carre fixe 4 m x 4 m
+        // centre sur le centroide du polygone d'origine, quelle que soit
+        // la longueur/largeur enregistree cote regard ou cote miroir
+        // serveur. Cf. _regardMiroirLocalSquareSizeMeters.
+        final points =
+            _buildRectangleAroundPointImpl(_polygonCentroidImpl(rawPoints));
+        if (points.length < 4) continue;
 
         final hasAnomalie = hasRowAnomalie(poly);
         final hasIncomplet = hasRowIncomplet(poly);
@@ -699,11 +737,9 @@ Map<String, dynamic>? _buildLocalRegardMiroirRowImpl(
   final center = _extractRegardLatLngImpl(regard);
   if (center == null) return null;
 
-  final points = _buildRectangleAroundPointImpl(
-    center,
-    longueurMeters: _positiveDoubleImpl(regard['longueur']),
-    largeurMeters: _positiveDoubleImpl(regard['largeur']),
-  );
+  // Taille fixe 4 m x 4 m : on ignore volontairement longueur/largeur du
+  // regard ; cf. _regardMiroirLocalSquareSizeMeters.
+  final points = _buildRectangleAroundPointImpl(center);
   if (points.length < 4) return null;
 
   return {
@@ -715,6 +751,41 @@ Map<String, dynamic>? _buildLocalRegardMiroirRowImpl(
     'downloaded': regard['downloaded'] ?? 0,
     'synced': regard['synced'] ?? 0,
   };
+}
+
+Map<String, dynamic> _mergeOpenIncompletStatusImpl(
+  Map<String, dynamic> rawRow, {
+  required Map<String, Map<String, dynamic>> incompletIndex,
+}) {
+  final row = Map<String, dynamic>.from(rawRow);
+  final id = _toIntImpl(row['id']) ??
+      _toIntImpl(row['fid']) ??
+      _toIntImpl(row['id_objet']);
+  final uuid = row['uuid']?.toString().trim() ??
+      row['uuid_objet']?.toString().trim() ??
+      '';
+
+  Map<String, dynamic>? support;
+  if (uuid.isNotEmpty) {
+    support = incompletIndex['uuid:${uuid.toLowerCase()}'];
+  }
+  support ??= id == null ? null : incompletIndex['id:$id'];
+  if (support == null) {
+    return row;
+  }
+
+  row['objet_incomplet'] = 1;
+  final detail = support['detail_raison']?.toString().trim() ?? '';
+  if (detail.isNotEmpty &&
+      (row['raison_incomplet']?.toString().trim().isEmpty ?? true)) {
+    row['raison_incomplet'] = detail;
+  }
+  final dateSignalement = support['date_signalement']?.toString().trim() ?? '';
+  if (dateSignalement.isNotEmpty &&
+      (row['date_incomplet']?.toString().trim().isEmpty ?? true)) {
+    row['date_incomplet'] = dateSignalement;
+  }
+  return row;
 }
 
 LatLng? _extractRegardLatLngImpl(Map<String, dynamic> row) {
@@ -732,6 +803,12 @@ LatLng? _extractRegardLatLngImpl(Map<String, dynamic> row) {
   }
 
   return null;
+}
+
+int? _toIntImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString().trim());
 }
 
 double? _toDoubleImpl(dynamic value) {
@@ -756,27 +833,30 @@ Map<String, String> _compactDetailsImpl(Map<String, dynamic> rawDetails) {
   return details;
 }
 
-double? _positiveDoubleImpl(dynamic value) {
-  final parsed = _toDoubleImpl(value);
-  if (parsed == null || parsed <= 0) return null;
-  return parsed;
+LatLng _polygonCentroidImpl(List<LatLng> points) {
+  // Moyenne arithmetique des sommets : suffisant pour un petit polygone
+  // ferme issu d'un rectangle (les coordonnees servent ensuite a recentrer
+  // un carre 4 m x 4 m, donc une approximation au degre pres est inutile).
+  var sumLat = 0.0;
+  var sumLng = 0.0;
+  for (final pt in points) {
+    sumLat += pt.latitude;
+    sumLng += pt.longitude;
+  }
+  final n = points.length.toDouble();
+  return LatLng(sumLat / n, sumLng / n);
 }
 
-List<LatLng> _buildRectangleAroundPointImpl(
-  LatLng center, {
-  double? longueurMeters,
-  double? largeurMeters,
-}) {
-  final lengthMeters =
-      longueurMeters ?? largeurMeters ?? _regardMiroirLocalSquareSizeMeters;
-  final widthMeters = largeurMeters ?? lengthMeters;
-  final halfLength = lengthMeters / 2.0;
-  final halfWidth = widthMeters / 2.0;
+List<LatLng> _buildRectangleAroundPointImpl(LatLng center) {
+  // Carre fixe 4 m x 4 m centre sur le regard.
+  const sizeMeters = _regardMiroirLocalSquareSizeMeters;
+  const halfLength = sizeMeters / 2.0;
+  const halfWidth = sizeMeters / 2.0;
   const metersPerLatDegree = 111320.0;
   final cosLat = math.cos(center.latitude * math.pi / 180.0).abs();
   if (cosLat < 0.000001) return const [];
 
-  final deltaLat = halfWidth / metersPerLatDegree;
+  const deltaLat = halfWidth / metersPerLatDegree;
   final deltaLng = halfLength / (metersPerLatDegree * cosLat);
 
   return [
