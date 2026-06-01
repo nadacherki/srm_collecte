@@ -23,6 +23,7 @@ class MapControlsWidget extends StatelessWidget {
   final bool canRedoPolygon;
   final bool isPolygonCollection;
   final bool showRefresh;
+  final bool showBottomControls;
   // Quand l'app est en train de telecharger ou synchroniser : les actions
   // sont deja bloquees logiquement, mais ce flag rend l'etat visible :
   //  - bouton refresh masque (deplacement vers la zone de progress dialog)
@@ -51,6 +52,7 @@ class MapControlsWidget extends StatelessWidget {
     required this.canRedoPolygon,
     required this.isPolygonCollection,
     this.showRefresh = true,
+    this.showBottomControls = true,
     this.isBlocked = false,
   });
 
@@ -75,21 +77,20 @@ class MapControlsWidget extends StatelessWidget {
         if (showRefresh && !isBlocked)
           Positioned(
             top: 8,
-            right: 70,
-            child: FloatingActionButton(
-              heroTag: 'refreshBtn',
-              mini: true,
-              backgroundColor: Colors.green,
+            right: 10,
+            child: _buildSideButton(
+              icon: Icons.refresh,
+              backgroundColor: const Color(0xFF16A34A),
               foregroundColor: Colors.white,
               onPressed: onRefresh,
-              elevation: 6,
-              child: const Icon(Icons.refresh, size: 20),
+              tooltip: 'Actualiser',
             ),
           ),
-        Positioned(
+        if (showBottomControls)
+          Positioned(
           bottom: 10,
           left: 10,
-          right: hasTraceContext ? 10 : 80,
+          right: 10,
           child: SafeArea(
             child: IgnorePointer(
               ignoring: isBlocked,
@@ -99,10 +100,6 @@ class MapControlsWidget extends StatelessWidget {
               builder: (context, constraints) {
                 final gap =
                     hasTraceContext || constraints.maxWidth < 330 ? 8.0 : 12.0;
-                final rawButtonWidth = (constraints.maxWidth - (gap * 2)) / 3;
-                final buttonWidth =
-                    rawButtonWidth > 110 ? 110.0 : rawButtonWidth;
-
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: hasLigneContext
@@ -128,19 +125,9 @@ class MapControlsWidget extends StatelessWidget {
                               _buildPolygonControls(),
                             ]
                           : [
-                              _buildDefaultControlButton(
-                                width: buttonWidth,
-                                child: _buildPointControls(),
-                              ),
-                              SizedBox(width: gap),
-                              _buildDefaultControlButton(
-                                width: buttonWidth,
-                                child: _buildLigneControls(),
-                              ),
-                              SizedBox(width: gap),
-                              _buildDefaultControlButton(
-                                width: buttonWidth,
-                                child: _buildPolygonControls(),
+                              _buildDefaultSegmentedControls(
+                                maxWidth: constraints.maxWidth,
+                                gap: gap,
                               ),
                             ],
                 );
@@ -164,6 +151,106 @@ class MapControlsWidget extends StatelessWidget {
         fit: BoxFit.scaleDown,
         child: SizedBox(width: 110, child: child),
       ),
+    );
+  }
+
+  Widget _buildSideButton({
+    required IconData icon,
+    required Color backgroundColor,
+    required Color foregroundColor,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onPressed,
+            child: Icon(icon, color: foregroundColor, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultSegmentedControls({
+    required double maxWidth,
+    required double gap,
+  }) {
+    final rawButtonWidth = (maxWidth - (gap * 2)) / 3;
+    final buttonWidth = rawButtonWidth > 110 ? 110.0 : rawButtonWidth;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildDefaultControlButton(
+          width: buttonWidth,
+          child: _buildModernExtendedButton(
+            heroTag: 'pointBtn',
+            backgroundColor: const Color(0xFF14B8A6),
+            icon: Icons.place,
+            label: 'Point',
+            onPressed: onAddPoint,
+          ),
+        ),
+        SizedBox(width: gap),
+        _buildDefaultControlButton(
+          width: buttonWidth,
+          child: _buildModernExtendedButton(
+            heroTag: 'ligneBtn',
+            backgroundColor: const Color(0xFF38BDF8),
+            icon: Icons.timeline,
+            label: 'Ligne',
+            onPressed: onStartLigne,
+          ),
+        ),
+        SizedBox(width: gap),
+        _buildDefaultControlButton(
+          width: buttonWidth,
+          child: _buildModernExtendedButton(
+            heroTag: 'polygonBtn',
+            backgroundColor: const Color(0xFF0F766E),
+            icon: Icons.pentagon,
+            label: 'Polygone',
+            onPressed: onStartPolygon,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernExtendedButton({
+    required String heroTag,
+    required IconData icon,
+    required String label,
+    required Color backgroundColor,
+    required VoidCallback onPressed,
+  }) {
+    return FloatingActionButton.extended(
+      heroTag: heroTag,
+      backgroundColor: backgroundColor,
+      foregroundColor: Colors.white,
+      icon: Icon(icon),
+      label: Text(label),
+      onPressed: onPressed,
+      elevation: 6,
+      highlightElevation: 12,
     );
   }
 

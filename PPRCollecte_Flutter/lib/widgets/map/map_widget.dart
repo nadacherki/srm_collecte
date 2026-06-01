@@ -2015,25 +2015,13 @@ class _MapWidgetState extends State<MapWidget> {
           ),
         if (widget.showMapButtons && widget.showLocationButton)
           Positioned(
-            top: 8,
+            top: 60,
             right: 10,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.my_location, color: Colors.blue),
-                onPressed: _goToUserLocation,
-                tooltip: 'Ma position',
-              ),
+            child: _buildSideButton(
+              icon: Icons.my_location,
+              iconColor: const Color(0xFF38BDF8),
+              onPressed: _goToUserLocation,
+              tooltip: 'Ma position',
             ),
           ),
         if (widget.showMapButtons &&
@@ -2046,14 +2034,16 @@ class _MapWidgetState extends State<MapWidget> {
           ),
         if (widget.showMapButtons && widget.showZoomButtons)
           Positioned(
+            top: 112,
             right: 10,
-            bottom: 10,
             child: Column(
               children: [
                 Container(
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: const [
                       BoxShadow(
                         color: Colors.black26,
@@ -2063,6 +2053,11 @@ class _MapWidgetState extends State<MapWidget> {
                     ],
                   ),
                   child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 44,
+                      height: 44,
+                    ),
                     icon: const Icon(Icons.add, color: Colors.black87),
                     onPressed: _zoomIn,
                     tooltip: 'Zoom avant',
@@ -2070,9 +2065,11 @@ class _MapWidgetState extends State<MapWidget> {
                 ),
                 const SizedBox(height: 8),
                 Container(
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: const [
                       BoxShadow(
                         color: Colors.black26,
@@ -2082,6 +2079,11 @@ class _MapWidgetState extends State<MapWidget> {
                     ],
                   ),
                   child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 44,
+                      height: 44,
+                    ),
                     icon: const Icon(Icons.remove, color: Colors.black87),
                     onPressed: _zoomOut,
                     tooltip: 'Zoom arrière',
@@ -2091,6 +2093,40 @@ class _MapWidgetState extends State<MapWidget> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildSideButton({
+    required IconData icon,
+    required Color iconColor,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onPressed,
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2181,27 +2217,23 @@ class BasemapOrthoToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final tooltip = isOrthoVisible ? 'Afficher le basemap' : "Afficher l'ortho";
     final icon = isOrthoVisible ? Icons.map : Icons.layers;
-    final color = !isAvailable && !isOrthoVisible
-        ? Colors.grey
-        : isOrthoVisible
-            ? Colors.blue
-            : Colors.green;
+    const color = Color(0xFFEAB308);
 
     return Positioned(
-      top: 70,
+      top: 268,
       right: 10,
       child: Tooltip(
         message: tooltip,
         child: Container(
-          width: 48,
-          height: 48,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: const [
               BoxShadow(
                 color: Colors.black26,
-                blurRadius: 4,
+                blurRadius: 5,
                 offset: Offset(0, 2),
               ),
             ],
@@ -2209,7 +2241,7 @@ class BasemapOrthoToggle extends StatelessWidget {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               onTap: () {
                 if (isOrthoVisible) {
                   onChanged?.call(false);
@@ -2223,7 +2255,7 @@ class BasemapOrthoToggle extends StatelessWidget {
               },
               child: Icon(
                 icon,
-                size: 25,
+                size: 22,
                 color: color,
               ),
             ),

@@ -245,7 +245,7 @@ class _LegendWidgetState extends State<LegendWidget> {
     return Positioned.fill(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          const top = 135.0;
+          const top = 8.0;
           const bottomMargin = 12.0;
           const headerHeight = 44.0;
           final availableHeight = constraints.maxHeight.isFinite
@@ -260,7 +260,7 @@ class _LegendWidgetState extends State<LegendWidget> {
             children: [
               Positioned(
                 top: top,
-                right: 10,
+                left: 10,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: maxWidgetHeight.toDouble(),

@@ -13,104 +13,110 @@ class DataCategoriesPage extends StatelessWidget {
     required this.agentName,
   });
 
-  String _getDataFilterType(String categoryTitle) {
-    switch (categoryTitle) {
-      case 'Données Enregistrées':
-        return 'unsynced';
-      case 'Données Synchronisées':
-        return 'synced';
-      case 'Données Téléchargées':
-        return 'saved';
-      default:
-        return 'all';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F8FF),
+      backgroundColor: const Color(0xFFF1F7FB),
       appBar: AppBar(
+        toolbarHeight: 58,
         title: const Text(
           'Données',
           style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
             color: Colors.white,
           ),
         ),
         backgroundColor: const Color(0xFF1976D2),
-        elevation: 4,
+        elevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color(0xFF1976D2),
+                Color(0xFF42A5F5),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Choisissez un statut de données',
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xFF666666),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 1,
-                mainAxisSpacing: 16,
-                childAspectRatio: 3,
-                children: [
-                  _buildCategoryCard(
-                    context,
-                    title: 'Données Enregistrées',
-                    description:
-                        'Données créées localement, non encore synchronisées',
-                    icon: Icons.save,
-                    color: const Color.fromARGB(255, 167, 94, 196),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+              children: [
+                const Text(
+                  'Choisissez un statut de données',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
                   ),
-                  _buildCategoryCard(
-                    context,
-                    title: 'Données Synchronisées',
-                    description: 'Données locales déjà envoyées au serveur',
-                    icon: Icons.cloud_upload,
-                    color: const Color(0xFF2196F3),
-                  ),
-                  _buildCategoryCard(
-                    context,
-                    title: 'Données Téléchargées',
-                    description: 'Données récupérées depuis le serveur',
-                    icon: Icons.cloud_download,
-                    color: const Color(0xFF4CAF50),
-                  ),
-                  _buildCategoryCard(
-                    context,
-                    title: 'Traitement des anomalies',
-                    description:
-                        'Suivi exploitant et retours terrain à compléter',
-                    icon: Icons.construction,
-                    color: const Color(0xFFFF9800),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AnomalyTreatmentPage(
-                            isOnline: isOnline,
-                            agentName: agentName,
-                          ),
+                ),
+                const SizedBox(height: 18),
+                _buildCategoryCard(
+                  context,
+                  title: 'Données Enregistrées',
+                  description:
+                      'Données créées localement, pas encore synchronisées',
+                  icon: Icons.save_alt,
+                  color: const Color(0xFF7C3AED),
+                  accentColor: const Color(0xFFEDE9FE),
+                  dataFilter: 'unsynced',
+                ),
+                const SizedBox(height: 16),
+                _buildCategoryCard(
+                  context,
+                  title: 'Données Synchronisées',
+                  description: 'Données locales déjà envoyées au serveur',
+                  icon: Icons.cloud_done,
+                  color: const Color(0xFF0284C7),
+                  accentColor: const Color(0xFFE0F2FE),
+                  dataFilter: 'synced',
+                ),
+                const SizedBox(height: 16),
+                _buildCategoryCard(
+                  context,
+                  title: 'Données Téléchargées',
+                  description: 'Données récupérées depuis le serveur',
+                  icon: Icons.cloud_download,
+                  color: const Color(0xFF059669),
+                  accentColor: const Color(0xFFD1FAE5),
+                  dataFilter: 'saved',
+                ),
+                const SizedBox(height: 16),
+                _buildCategoryCard(
+                  context,
+                  title: 'Traitement des anomalies',
+                  description: 'Suivi exploitant et retours terrain à compléter',
+                  icon: Icons.build,
+                  color: const Color(0xFFD97706),
+                  accentColor: const Color(0xFFFEF3C7),
+                  dataFilter: 'all',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AnomalyTreatmentPage(
+                          isOnline: isOnline,
+                          agentName: agentName,
                         ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -121,48 +127,70 @@ class DataCategoriesPage extends StatelessWidget {
     required String description,
     required IconData icon,
     required Color color,
+    required Color accentColor,
+    required String dataFilter,
     VoidCallback? onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap ??
-          () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SrmDataStatusPage(
-                  title: title,
-                  dataFilter: _getDataFilterType(title),
-                  isOnline: isOnline,
-                  agentName: agentName,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap ??
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SrmDataStatusPage(
+                    title: title,
+                    dataFilter: dataFilter,
+                    isOnline: isOnline,
+                    agentName: agentName,
+                  ),
                 ),
-              ),
-            );
-          },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
+              );
+            },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 118),
           padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: color.withValues(alpha: 0.14)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 62,
+                height: 62,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(24),
+                  color: accentColor,
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, size: 28, color: color),
+                child: Center(
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.22),
+                          blurRadius: 12,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, size: 23, color: Colors.white),
+                  ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -172,27 +200,43 @@ class DataCategoriesPage extends StatelessWidget {
                   children: [
                     Text(
                       title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF333333),
+                        height: 1.15,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF172033),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF666666),
+                        fontSize: 13,
+                        height: 1.28,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                size: 24,
-                color: Color(0xFF999999),
+              const SizedBox(width: 12),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.arrow_forward_ios,
+                  size: 15,
+                  color: color,
+                ),
               ),
             ],
           ),

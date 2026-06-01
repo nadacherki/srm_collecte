@@ -356,23 +356,49 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F8FF),
       appBar: AppBar(
+        toolbarHeight: 58,
         title: const Text(
           'Profil & Dashboard',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
           ),
         ),
-        backgroundColor: const Color(0xFF1B4F72),
+        backgroundColor: const Color(0xFF1976D2),
+        elevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color(0xFF1976D2),
+                Color(0xFF42A5F5),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => _loadData(waitForMetricsRefresh: true),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.30),
+                  ),
+                ),
+              ),
+              onPressed: () => _loadData(waitForMetricsRefresh: true),
+            ),
           ),
         ],
       ),
@@ -438,7 +464,7 @@ class _ProfilePageState extends State<ProfilePage> {
         : '?';
 
     final roleColor = _role == 'admin'
-        ? const Color(0xFF1B4F72)
+        ? const Color(0xFF1976D2)
         : _role == 'editeur_terrain'
             ? const Color(0xFF27AE60)
             : const Color(0xFF8E44AD);
@@ -465,13 +491,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1B4F72),
+                  color: Colors.white.withValues(alpha: 0.96),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFBBDEFB),
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF1B4F72).withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
+                      color: const Color(0xFF0D47A1).withValues(alpha: 0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
@@ -479,9 +509,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Text(
                     initials,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Color(0xFF1976D2),
                       fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -496,8 +526,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       style: const TextStyle(
                         fontSize: 18,
                         height: 1.18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1B4F72),
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1976D2),
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -534,41 +564,59 @@ class _ProfilePageState extends State<ProfilePage> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: () => _startConduiteDrawingMode('ep'),
-                  icon: const Icon(Icons.water_drop_outlined),
+                  icon: const Icon(Icons.water_drop_outlined, size: 19),
                   label: const Text(
                     'Conduite EP',
                     maxLines: 1,
                     overflow: TextOverflow.fade,
                     softWrap: false,
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1B4F72),
-                    side: const BorderSide(color: Color(0xFF1B4F72)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF38BDF8),
+                    foregroundColor: Colors.white,
+                    elevation: 6,
+                    shadowColor:
+                        const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                     minimumSize: const Size(0, 52),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: () => _startConduiteDrawingMode('asst'),
-                  icon: const Icon(Icons.plumbing_outlined),
+                  icon: const Icon(Icons.plumbing_outlined, size: 19),
                   label: const Text(
                     'Conduite ASS',
                     maxLines: 1,
                     overflow: TextOverflow.fade,
                     softWrap: false,
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2E7D32),
-                    side: const BorderSide(color: Color(0xFF2E7D32)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    elevation: 6,
+                    shadowColor:
+                        const Color(0xFF10B981).withValues(alpha: 0.35),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                     minimumSize: const Size(0, 52),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -1163,11 +1211,12 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -1177,12 +1226,12 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
+              color: color.withValues(alpha: 0.07),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
               border: Border(
-                bottom: BorderSide(color: color.withValues(alpha: 0.2)),
+                bottom: BorderSide(color: color.withValues(alpha: 0.16)),
               ),
             ),
             child: Row(
@@ -1191,8 +1240,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
                       color: color,
                     ),
                   ),
@@ -1247,22 +1296,37 @@ class _ProfilePageState extends State<ProfilePage> {
     String? helper,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: color),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 19, color: color),
+          ),
           const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontSize: 23,
+              fontWeight: FontWeight.w900,
               color: color,
             ),
           ),
@@ -1272,8 +1336,8 @@ class _ProfilePageState extends State<ProfilePage> {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF333333),
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF172033),
             ),
           ),
           const SizedBox(height: 4),
@@ -1284,7 +1348,8 @@ class _ProfilePageState extends State<ProfilePage> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 11,
-                color: Color(0xFF666666),
+                height: 1.2,
+                color: Color(0xFF64748B),
               ),
             ),
         ],
@@ -1420,19 +1485,27 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 22, color: color),
-          const SizedBox(height: 4),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 20, color: color),
+          ),
+          const SizedBox(height: 6),
           Text(
             '$count',
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontSize: 21,
+              fontWeight: FontWeight.w900,
               color: color,
             ),
           ),
@@ -1440,7 +1513,8 @@ class _ProfilePageState extends State<ProfilePage> {
             label,
             style: const TextStyle(
               fontSize: 11,
-              color: Color(0xFF666666),
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF64748B),
             ),
           ),
         ],
@@ -1457,33 +1531,46 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF666666),
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

@@ -27,7 +27,16 @@ class TopBarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF1B4F72),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Color(0xFF1976D2),
+            Color(0xFF42A5F5),
+          ],
+        ),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -58,13 +67,17 @@ class TopBarWidget extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.white.withValues(alpha: 0.96),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      width: 2,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
+                        color: const Color(0xFF0D47A1).withValues(alpha: 0.18),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -72,9 +85,9 @@ class TopBarWidget extends StatelessWidget {
                     child: Text(
                       _getInitials(agentName),
                       style: const TextStyle(
-                        color: Color(0xFF1B4F72),
+                        color: Color(0xFF1976D2),
                         fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
@@ -88,7 +101,7 @@ class TopBarWidget extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     // Sous-titre cliquable
@@ -97,7 +110,7 @@ class TopBarWidget extends StatelessWidget {
                         const Text(
                           'Voir profil & dashboard',
                           style: TextStyle(
-                            color: Colors.white70,
+                            color: Color(0xE6FFFFFF),
                             fontSize: 11,
                           ),
                         ),
@@ -118,19 +131,36 @@ class TopBarWidget extends StatelessWidget {
           // ── Bouton déconnexion ──
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF64B5F6),
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.35),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
               elevation: 0,
+              shadowColor: Colors.transparent,
             ),
             onPressed: onLogout,
-            child: const Text(
-              'Se déconnecter',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.logout,
+                  color: Colors.white,
+                  size: 15,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Se déconnecter',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white),
+                ),
+              ],
             ),
           ),
         ],

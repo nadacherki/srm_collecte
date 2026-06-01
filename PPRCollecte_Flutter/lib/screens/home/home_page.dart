@@ -1789,53 +1789,85 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
 
                     Positioned(
-                      bottom: 336,
-                      right: 16,
+                      top: 320,
+                      right: 10,
                       child: Visibility(
-                        visible: !_isLegendExpanded && !hasTraceCollection,
+                        visible: !hasTraceCollection,
                         child: Tooltip(
                           message: 'Pieces regard',
-                          child: FloatingActionButton(
-                            onPressed: (isDownloading || isSyncing)
-                                ? null
-                                : _enterRegardPieceMode,
-                            backgroundColor: (isDownloading || isSyncing)
-                                ? Colors.grey.shade400
-                                : _regardPieceModeColor,
-                            foregroundColor: Colors.white,
-                            mini: true,
-                            heroTag: 'regard_piece_button',
-                            child: const Icon(
-                              Icons.extension,
-                              size: 22,
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: (isDownloading || isSyncing)
+                                  ? Colors.grey.shade400
+                                  : _regardPieceModeColor,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 5,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: (isDownloading || isSyncing)
+                                    ? null
+                                    : _enterRegardPieceMode,
+                                child: const Icon(
+                                  Icons.extension,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                     Positioned(
-                      bottom: 280,
-                      right: 16,
+                      top: 216,
+                      right: 10,
                       child: Visibility(
-                        visible: !_isLegendExpanded && !_isConduiteDrawingMode,
-                        child: FloatingActionButton(
-                          onPressed: _showMockLocationDialogSafe,
-                          backgroundColor: homeController.isMockLocationEnabled
-                              ? Colors.teal
-                              : Colors.blueGrey,
-                          mini: true,
-                          heroTag: 'mock_gps_button',
-                          child: Icon(
-                            homeController.isMockLocationEnabled
-                                ? Icons.gps_fixed
-                                : Icons.edit_location_alt,
-                            color: Colors.white,
+                        visible: !_isConduiteDrawingMode,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: homeController.isMockLocationEnabled
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: _showMockLocationDialogSafe,
+                              child: Icon(
+                                homeController.isMockLocationEnabled
+                                    ? Icons.gps_fixed
+                                    : Icons.edit_location_alt,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    if (!_isLegendExpanded)
-                      MapControlsWidget(
+                    MapControlsWidget(
                         controller: homeController,
                         onAddPoint: addPointOfInterest,
                         onAddStandalonePoint: addStandalonePointDuringTrace,
@@ -1856,6 +1888,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         onRefresh: _loadDisplayedPoints,
                         isPolygonCollection: _isPolygonCollection,
                         showRefresh: !hasTraceCollection,
+                        showBottomControls: !_isLegendExpanded,
                         isBlocked: isDownloading || isSyncing,
                       ),
                     // === WIDGETS DE STATUT (NOUVEAU SYSTEME UNIQUEMENT) ===

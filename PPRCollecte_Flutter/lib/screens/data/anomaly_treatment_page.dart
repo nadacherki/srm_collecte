@@ -89,16 +89,41 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
           ),
         ),
         backgroundColor: const Color(0xFF1976D2),
-        elevation: 4,
+        elevation: 0,
+        toolbarHeight: 58,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF1976D2),
+                Color(0xFF42A5F5),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Rafraîchir',
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _load,
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: IconButton(
+              tooltip: 'Rafraîchir',
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.28),
+                  ),
+                ),
+              ),
+              onPressed: _load,
+            ),
           ),
         ],
       ),
@@ -126,7 +151,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
 
   Widget _buildSummaryCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -158,46 +183,50 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: _buildStatusTile(
                   filter: 'en_attente_exploitant',
-                  label: 'En attente\nexploitant',
+                  label: 'En attente exploitant',
                   value: _summary['en_attente_exploitant'] ?? 0,
                   icon: Icons.hourglass_bottom,
-                  color: const Color(0xFFFF9800),
+                  color: const Color(0xFFF59E0B),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 10),
               Expanded(
                 child: _buildStatusTile(
                   filter: 'terrain_premier_passage',
-                  label: 'A traiter\n(1er passage)',
+                  label: 'A traiter (1er passage)',
                   value: _summary['terrain_premier_passage'] ?? 0,
                   icon: Icons.assignment_late,
-                  color: const Color(0xFF1976D2),
+                  color: const Color(0xFF38BDF8),
                 ),
               ),
-              const SizedBox(width: 6),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
               Expanded(
                 child: _buildStatusTile(
                   filter: 'retour_terrain_a_faire',
-                  label: 'Retour\nterrain',
+                  label: 'Retour terrain',
                   value: _summary['retour_terrain_a_faire'] ?? 0,
                   icon: Icons.assignment_return,
-                  color: const Color(0xFF7B1FA2),
+                  color: const Color(0xFF8B5CF6),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 10),
               Expanded(
                 child: _buildStatusTile(
                   filter: 'retour_terrain_effectue',
                   label: 'Effectué',
                   value: _summary['retour_terrain_effectue'] ?? 0,
                   icon: Icons.task_alt,
-                  color: const Color(0xFF2E7D32),
+                  color: const Color(0xFF10B981),
                 ),
               ),
             ],
@@ -216,43 +245,64 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
   }) {
     final selected = _filter == filter;
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(13),
       onTap: () => _selectFilter(filter),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        constraints: const BoxConstraints(minHeight: 66),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
         decoration: BoxDecoration(
-          color: selected
-              ? color.withValues(alpha: 0.12)
-              : color.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
+          color: selected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(13),
           border: Border.all(
-            color: selected ? color : color.withValues(alpha: 0.22),
-            width: selected ? 2 : 1,
+            color: selected ? color : color.withValues(alpha: 0.28),
+            width: selected ? 0 : 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: selected ? 0.26 : 0.10),
+              blurRadius: selected ? 10 : 7,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 8),
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.20)
+                    : color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: selected ? Colors.white : color,
+                size: 16,
+              ),
+            ),
+            const SizedBox(height: 3),
             Text(
               '$value',
               style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: selected ? Colors.white : color,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 1),
             Text(
               label,
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF333333),
+              style: TextStyle(
+                fontSize: 10.8,
+                height: 1.08,
+                fontWeight: FontWeight.w800,
+                color: selected ? Colors.white : const Color(0xFF102033),
               ),
             ),
           ],
