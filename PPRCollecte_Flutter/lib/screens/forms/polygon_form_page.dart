@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -66,6 +67,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
   bool _isLocked = false;
   bool _hasAnomalie = false;
   String? _typeAnomalie;
+  // Gate workflow anomalie (cf. doc bureau §2). 'oui' / 'non' / null.
+  String? _retourTerrain;
+  // Gap F : verrou si une intervention serveur existe deja.
+  bool _anomalieLockedByServerIntervention = false;
   bool _isObjetIncomplet = false;
   String? _raisonIncomplet;
   final _detailRaisonController = TextEditingController();
@@ -235,6 +240,10 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
           (_isRegardEp && _isTruthyFlag(widget.existingData!['ep_anomalie']));
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
+      final retourRaw =
+          widget.existingData!['retour_terrain']?.toString().trim() ?? '';
+      _retourTerrain = _normalizeRetourTerrain(retourRaw);
+      unawaited(_checkAnomalieServerLock());
       _isObjetIncomplet =
           _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
@@ -418,7 +427,7 @@ class _PolygonFormPageState extends State<PolygonFormPage>
       final choices = await SrmFieldOptionService().getOptionsByField(
         tableSchema: nomMetier,
         tableName: nomTable,
-        fieldNames: const ['type_anomalie'],
+        fieldNames: const ['type_anomalie', 'retour_terrain'],
       );
       _polygonStatusChoicesByField
         ..clear()
@@ -1101,6 +1110,8 @@ class _PolygonFormPageState extends State<PolygonFormPage>
         'nb_points': _polygonPoints.length,
         'anomalie': _hasAnomalie ? 1 : 0,
         'type_anomalie': _hasAnomalie ? _typeAnomalie : null,
+        // Gate workflow (cf. doc bureau §2).
+        'retour_terrain': _hasAnomalie ? _retourTerrain : null,
         'objet_incomplet': _isObjetIncomplet ? 1 : 0,
         'id_agent_crea': ApiService.userId,
         'mode_localisation': 'gnss',
@@ -2446,6 +2457,87 @@ class _PolygonFormPageState extends State<PolygonFormPage>
     );
   }
 
+  /// Gap F : verrouille la dé-bascule anomalie quand intervention serveur
+  /// active. Fail-open en cas d'erreur.
+  Future<void> _checkAnomalieServerLock() async {
+    final data = widget.existingData;
+    if (data == null) return;
+    final tableName = (data['source_table'] ?? '').toString().trim();
+    final schemaName = (data['source_metier'] ?? '').toString().trim();
+    if (tableName.isEmpty || schemaName.isEmpty) return;
+    final idObjet = int.tryParse(
+          (data['fid'] ?? data['id'] ?? '').toString(),
+        ) ??
+        0;
+    final uuidObjet = (data['uuid'] ?? '').toString().trim();
+    try {
+      final locked = await DatabaseHelper().hasServerInterventionForObject(
+        schemaName: schemaName.toLowerCase(),
+        tableName: tableName,
+        idObjet: idObjet,
+        uuidObjet: uuidObjet,
+      );
+      if (mounted && locked != _anomalieLockedByServerIntervention) {
+        setState(() {
+          _anomalieLockedByServerIntervention = locked;
+        });
+      }
+    } catch (_) {
+      // Fail-open : l'agent garde la main.
+    }
+  }
+
+  /// Normalise une valeur brute de retour_terrain vers 'oui' / 'non' / null.
+  String? _normalizeRetourTerrain(String? raw) {
+    final value = (raw ?? '').trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (const {'oui', 'true', 't', '1', 'yes', 'o'}.contains(value)) {
+      return 'oui';
+    }
+    return 'non';
+  }
+
+  /// Selecteur oui/non du retour_terrain (gate workflow anomalie cf. doc
+  /// bureau §2).
+  List<DropdownMenuItem<String>> _retourTerrainDropdownItems() {
+    final labels = <String, String>{'oui': 'Oui', 'non': 'Non'};
+    final choices = _polygonStatusChoicesByField['retour_terrain'] ??
+        const <SrmFieldChoice>[];
+    for (final choice in choices) {
+      final normalized = _normalizeRetourTerrain(choice.code);
+      if (normalized == null) continue;
+      final label = choice.label.trim();
+      labels[normalized] = label.isEmpty ? labels[normalized]! : label;
+    }
+    return [
+      DropdownMenuItem(value: 'oui', child: Text(labels['oui']!)),
+      DropdownMenuItem(value: 'non', child: Text(labels['non']!)),
+    ];
+  }
+
+  Widget _buildRetourTerrainField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: _retourTerrain,
+        decoration: _statusDecoration('Retour terrain requis ?').copyWith(
+          helperText: 'Oui declenche l\'intervention bureau. Non = anomalie '
+              'informative seulement.',
+          helperMaxLines: 2,
+        ),
+        hint: const Text('Selectionner'),
+        isExpanded: true,
+        items: _retourTerrainDropdownItems(),
+        onChanged: _isLocked
+            ? null
+            : (value) {
+                setState(() => _retourTerrain = value);
+                if (widget.existingData == null) onFieldChanged();
+              },
+      ),
+    );
+  }
+
   Widget _buildPolygonTypeAnomalieField() {
     final choices = _polygonStatusChoicesByField['type_anomalie'] ??
         const <SrmFieldChoice>[];
@@ -2519,7 +2611,9 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 Expanded(
                   child: Text(
                     'Les champs obligatoires sont neutralises.\n'
-                    'Les valeurs deja saisies sont conservees.',
+                    'Les valeurs deja saisies et les photos standards sont '
+                    'conservees. Les photos d\'anomalie eventuellement deja '
+                    'prises seront effacees a l\'enregistrement.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -2534,18 +2628,33 @@ class _PolygonFormPageState extends State<PolygonFormPage>
           value: _hasAnomalie,
           activeThumbColor: Colors.red,
           contentPadding: EdgeInsets.zero,
-          onChanged: (_isLocked || _isObjetIncomplet)
+          onChanged: (_isLocked ||
+                  _isObjetIncomplet ||
+                  (_anomalieLockedByServerIntervention && _hasAnomalie))
               ? null
               : (value) => setState(() {
                     _hasAnomalie = value;
-                    if (!value) _typeAnomalie = null;
+                    if (!value) {
+                      _typeAnomalie = null;
+                      _retourTerrain = null;
+                    }
                   }),
         ),
+        if (_anomalieLockedByServerIntervention && _hasAnomalie)
+          const Padding(
+            padding: EdgeInsets.only(left: 8, right: 8, bottom: 4),
+            child: Text(
+              'Anomalie deja signalee au bureau. Contactez le bureau '
+              'pour annuler.',
+              style: TextStyle(fontSize: 11, color: Color(0xFFF57C00)),
+            ),
+          ),
         if (_hasAnomalie && !_isObjetIncomplet)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _buildPolygonTypeAnomalieField(),
           ),
+        if (_hasAnomalie && !_isObjetIncomplet) _buildRetourTerrainField(),
         if (!_isLocked) ...[
           SwitchListTile(
             title: const Text(
@@ -2566,7 +2675,11 @@ class _PolygonFormPageState extends State<PolygonFormPage>
                 _detailRaisonController.clear();
               }
               if (value) {
+                // Gap I : nettoyer aussi les states anomalie (sinon ils
+                // restent en memoire alors que la section est cachee).
                 _hasAnomalie = false;
+                _typeAnomalie = null;
+                _retourTerrain = null;
                 _regardEpControllers['ep_anomalie']?.text = '0';
               }
             }),

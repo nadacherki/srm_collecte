@@ -181,6 +181,14 @@ Future<void> _enterConduiteDrawingModeImpl(
   });
 
   if (!state.mounted) return;
+  // C-4 : si une conduite locale est en attente (non encore synchronisee
+  // serveur), proposer a l'agent un raccourci pour la reinitialiser. Cas
+  // typique : saisie invalide qui bloque le jour sans permettre de re-saisir.
+  // Une conduite deja synchronisee ou validee serveur ne peut PAS etre
+  // reinitialisee depuis l'app (annulation = action bureau).
+  final canResetLocal = localPending != null &&
+      !isLocalAlreadySynced &&
+      !isServerFrozen;
   ScaffoldMessenger.of(state.context).showSnackBar(
     SnackBar(
       content: Text(
@@ -188,8 +196,75 @@ Future<void> _enterConduiteDrawingModeImpl(
             ? 'Conduite du jour déjà validée : consultation seule.'
             : 'Mode conduite activé : ${markers.length} regard(s) du jour disponibles.',
       ),
+      duration: canResetLocal
+          ? const Duration(seconds: 12)
+          : const Duration(seconds: 4),
+      action: canResetLocal
+          ? SnackBarAction(
+              label: 'RÉINITIALISER',
+              onPressed: () => _confirmResetLocalConduiteForDay(state),
+            )
+          : null,
     ),
   );
+}
+
+/// C-4 : confirme + supprime la conduite locale en attente du jour, puis
+/// recharge le mode pour redemarrer la saisie a vide.
+Future<void> _confirmResetLocalConduiteForDay(_HomePageState state) async {
+  if (!state.mounted) return;
+  final confirmed = await showDialog<bool>(
+    context: state.context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Réinitialiser la conduite ?'),
+      content: const Text(
+        'Cette action supprime la conduite locale en attente de '
+        'synchronisation pour aujourd\'hui. Aucune donnée déjà '
+        'synchronisée avec le serveur n\'est touchée.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          style:
+              FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Réinitialiser'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !state.mounted) return;
+
+  final agentId = ApiService.userId;
+  final day = state._conduiteModeDay ?? DateTime.now();
+  final metier = state._conduiteModeMetier;
+  if (agentId == null) return;
+
+  final removed = await DatabaseHelper().deletePendingConduiteSyncItem(
+    metier: metier,
+    idAgent: agentId,
+    jour: day,
+  );
+
+  if (!state.mounted) return;
+  if (!removed) {
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      const SnackBar(
+        content: Text('Aucune conduite locale en attente à réinitialiser.'),
+      ),
+    );
+    return;
+  }
+
+  // Sortie + re-entree pour rebatir l'etat propre (markers, polylines vides,
+  // statusText 'Touchez un regard pour commencer.'). On preserve le metier
+  // d'origine (l'exit reset _conduiteModeMetier a 'ep').
+  _exitConduiteDrawingModeImpl(state);
+  if (!state.mounted) return;
+  await _enterConduiteDrawingModeImpl(state, metier: metier);
 }
 
 void _exitConduiteDrawingModeImpl(_HomePageState state) {
@@ -407,13 +482,15 @@ void _focusConduiteModeBoundsImpl(_HomePageState state) {
   try {
     if (state._conduiteModeMarkers.length == 1) {
       final point = state._conduiteModeMarkers.first.point;
-      mapController.move(point, 18);
+      mapController.move(state._mapPointForActiveMap(point), 18);
       state._lastCameraPosition = point;
       return;
     }
 
     final bounds = LatLngBounds.fromPoints(
-      state._conduiteModeMarkers.map((marker) => marker.point).toList(),
+      state._conduiteModeMarkers
+          .map((marker) => state._mapPointForActiveMap(marker.point))
+          .toList(),
     );
     mapController.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(56)),
@@ -966,7 +1043,6 @@ void _recomputeConduitePreviewFromHistory(
   });
 }
 
-
 void _applyConduiteServerSnapshot(
   _HomePageState state,
   Map<String, dynamic> payload, {
@@ -1214,9 +1290,7 @@ LatLng? _conduitePointForHistoryId(_HomePageState state, int nodeId) {
 /// Sert a imposer l'accrochage a un regard au depart : on n'autorise un
 /// point libre que si la conduite courante a deja demarre sur un regard.
 bool _currentPathHasRegard(_HomePageState state) {
-  for (var i = state._conduiteSelectionHistoryNodeIds.length - 1;
-      i >= 0;
-      i--) {
+  for (var i = state._conduiteSelectionHistoryNodeIds.length - 1; i >= 0; i--) {
     final id = state._conduiteSelectionHistoryNodeIds[i];
     if (_isConduitePathSeparator(id)) break;
     if (!_isConduiteFreeNodeId(id) &&

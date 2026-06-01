@@ -1,5 +1,127 @@
 part of 'home_page.dart';
 
+Future<void> _loadAffleurantsImpl(_HomePageState state) async {
+  try {
+    final features = await state._affleurantService.visibleFeatures();
+    if (!state.mounted) return;
+    state._setStateFromPart(() {
+      state._affleurantsAvailable = features.isNotEmpty;
+      state._affleurantMarkers = AffleurantService.markersFor(features);
+      state._affleurantPolylines = AffleurantService.polylinesFor(features);
+    });
+  } catch (e) {
+    debugPrint('[AFFLEURANTS] Chargement ignore: $e');
+  }
+}
+
+Future<void> _handleAffleurantMapTapImpl(
+  _HomePageState state,
+  LatLng latLng,
+) async {
+  final rawPoint = MerchichPoint.fromFlutterLatLng(latLng);
+  var snapResult = AffleurantSnapResult.raw(rawPoint);
+  if (state._showAffleurants && state._affleurantsAvailable) {
+    snapResult = await state._affleurantService.snap(rawPoint);
+  }
+
+  final isOfflineOrthoTap = !state._shouldUseOnlineBasemap &&
+      state._showOfflineOrtho &&
+      state._hasOfflineBasemap;
+  final sourceLabel = snapResult.snapped
+      ? 'accrochage affleurant'
+      : isOfflineOrthoTap
+          ? 'point ortho'
+          : 'point carte';
+  state.homeController.setCurrentMerchichPointFromMap(
+    snapResult.point,
+    sourceLabel: sourceLabel,
+  );
+
+  if (!state.mounted) return;
+  state._setStateFromPart(() {
+    state._lastAffleurantSnap = snapResult;
+  });
+
+  if (state.homeController.ligneCollection?.isActive ?? false) {
+    state._addCurrentPointToActiveCollection(requireGps: false);
+    state._showTraceEditSnack(
+      snapResult.snapped
+          ? 'Point ajoute sur ${snapResult.label}'
+          : 'Point carte ajoute',
+      snapResult.snapped ? const Color(0xFF0F766E) : const Color(0xFF455A64),
+    );
+    return;
+  }
+
+  if (state.homeController.polygonCollection?.isActive ?? false) {
+    state._addCurrentPointToActiveCollection(requireGps: false);
+    state._showTraceEditSnack(
+      snapResult.snapped
+          ? 'Sommet ajoute sur ${snapResult.label}'
+          : 'Sommet carte ajoute',
+      snapResult.snapped ? const Color(0xFF0F766E) : const Color(0xFF455A64),
+    );
+    return;
+  }
+
+  if (snapResult.snapped) {
+    await state._addPointOfInterestAtMerchichPoint(
+      snapResult.point,
+      snapResult: snapResult,
+    );
+    return;
+  }
+
+  if (isOfflineOrthoTap) {
+    await state._addPointOfInterestAtMerchichPoint(snapResult.point);
+    return;
+  }
+
+  if (state._mapTapFormPromptActive) {
+    return;
+  }
+  state._mapTapFormPromptActive = true;
+
+  final messenger = ScaffoldMessenger.of(state.context)..hideCurrentSnackBar();
+  final controller = messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        snapResult.snapped
+            ? 'Accroche ${snapResult.label}'
+            : 'Point carte pret: X=${rawPoint.x.toStringAsFixed(3)} / Y=${rawPoint.y.toStringAsFixed(3)}',
+      ),
+      backgroundColor:
+          snapResult.snapped ? const Color(0xFF0F766E) : Colors.blueGrey,
+      action: SnackBarAction(
+        label: 'Formulaire',
+        textColor: Colors.white,
+        onPressed: () {
+          state._mapTapFormPromptActive = false;
+          ScaffoldMessenger.of(state.context).hideCurrentSnackBar();
+          unawaited(
+            state._addPointOfInterestAtMerchichPoint(
+              snapResult.point,
+              snapResult: snapResult,
+            ),
+          );
+        },
+      ),
+      duration: const Duration(seconds: 8),
+    ),
+  );
+  unawaited(
+    controller.closed.then((_) {
+      if (!state.mounted) return;
+      state._mapTapFormPromptActive = false;
+      if (state._lastAffleurantSnap == snapResult) {
+        state._setStateFromPart(() {
+          state._lastAffleurantSnap = null;
+        });
+      }
+    }),
+  );
+}
+
 void _showSrmLineDetailsSheetImpl(
   _HomePageState state, {
   required BuildContext context,
@@ -84,7 +206,7 @@ void _showSrmLineDetailsSheetImpl(
                 spacing: 6,
                 children: [
                   if (editableItem != null &&
-                      FormLockService.isEditable(editableItem))
+                      FormLockService.isDraftEditable(editableItem))
                     TextButton(
                       onPressed: () async {
                         Navigator.pop(ctx);
@@ -227,7 +349,7 @@ void _showLineDetailsSheetImpl(
                   spacing: 6,
                   children: [
                     if (editableItem != null &&
-                        FormLockService.isEditable(editableItem))
+                        FormLockService.isDraftEditable(editableItem))
                       TextButton(
                         onPressed: () async {
                           Navigator.pop(ctx);
@@ -302,7 +424,7 @@ void _showPointDetailsSheetImpl(
             ),
             const SizedBox(height: 12),
             Text(
-              '$type - ${safe(name)}',
+              MapPreviewService.titleWithOptionalName(type: type, name: name),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
@@ -320,7 +442,11 @@ void _showPointDetailsSheetImpl(
                 statut: statut,
               ),
             ),
-            state._detailRow('Code ligne', safe(lineCode)),
+            if (MapPreviewService.cleanText(lineCode, fallback: '').isNotEmpty)
+              state._detailRow(
+                'Code ligne',
+                MapPreviewService.cleanText(lineCode, fallback: ''),
+              ),
             state._detailRow(
               'Coordonnées',
               'X=${lng.toStringAsFixed(6)} / Y=${lat.toStringAsFixed(6)}',
@@ -333,7 +459,7 @@ void _showPointDetailsSheetImpl(
                 spacing: 6,
                 children: [
                   if (editableItem != null &&
-                      FormLockService.isEditable(editableItem))
+                      FormLockService.isDraftEditable(editableItem))
                     TextButton(
                       onPressed: () async {
                         Navigator.pop(ctx);
@@ -492,7 +618,10 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             ),
             const SizedBox(height: 12),
             Text(
-              '$titlePrefix - ${data.nom}',
+              MapPreviewService.titleWithOptionalName(
+                type: titlePrefix,
+                name: data.nom,
+              ),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
@@ -500,7 +629,10 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
             state._detailRow('Statut', data.statut),
             if (data.metier.trim().isNotEmpty)
               state._detailRow('Métier', data.metier),
-            state._detailRow('Code', data.code),
+            if (MapPreviewService.cleanText(data.code, fallback: '')
+                    .isNotEmpty &&
+                !MapPreviewService.looksLikeTechnicalId(data.code))
+              state._detailRow('Code', data.code),
             for (final entry in data.extraDetails.entries)
               state._detailRow(entry.key, entry.value),
             if ((data.downloaded || data.synced) &&
@@ -548,7 +680,7 @@ void _handlePolygonTapImpl(_HomePageState state, Object? hitValue) {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (data.editableItem != null &&
-                      FormLockService.isEditable(data.editableItem!))
+                      FormLockService.isDraftEditable(data.editableItem!))
                     TextButton(
                       onPressed: () async {
                         Navigator.pop(ctx);
@@ -659,7 +791,7 @@ Map<String, dynamic>? _editableItemFromDynamicImpl(dynamic raw) {
 }
 
 bool _supportsGeometryEditImpl(Map<String, dynamic>? item) {
-  if (item == null || !FormLockService.isEditable(item)) {
+  if (item == null || !FormLockService.isDraftEditable(item)) {
     return false;
   }
   final geoType = item['geometry_type']?.toString() ?? 'Point';
@@ -722,11 +854,11 @@ Future<void> _editMapItemImpl(
   _HomePageState state,
   Map<String, dynamic> item,
 ) async {
-  if (!FormLockService.isEditable(item)) {
+  if (!FormLockService.isDraftEditable(item)) {
     if (!state.mounted) return;
     ScaffoldMessenger.of(state.context).showSnackBar(
       SnackBar(
-        content: Text(FormLockService.lockReason(item)),
+        content: Text(FormLockService.draftEditBlockReason(item)),
         backgroundColor: Colors.orange,
       ),
     );
@@ -830,11 +962,11 @@ Future<void> _editMapGeometryImpl(
   _HomePageState state,
   Map<String, dynamic> item,
 ) async {
-  if (!FormLockService.isEditable(item)) {
+  if (!FormLockService.isDraftEditable(item)) {
     if (!state.mounted) return;
     ScaffoldMessenger.of(state.context).showSnackBar(
       SnackBar(
-        content: Text(FormLockService.lockReason(item)),
+        content: Text(FormLockService.draftEditBlockReason(item)),
         backgroundColor: Colors.orange,
       ),
     );
@@ -1151,7 +1283,11 @@ LatLng? _resolveEditablePointLatLngImpl({
   final latitude = (item['latitude_gps'] as num?)?.toDouble();
   final longitude = (item['longitude_gps'] as num?)?.toDouble();
   if (latitude != null && longitude != null) {
-    return LatLng(latitude, longitude);
+    final m = ProjectionService().wgs84ToMerchich(
+      latitude: latitude,
+      longitude: longitude,
+    );
+    return LatLng(m.y, m.x);
   }
 
   final schema = SrmConfig.getSchema(metier, entityType);
@@ -1165,8 +1301,7 @@ LatLng? _resolveEditablePointLatLngImpl({
     return null;
   }
 
-  final projected = ProjectionService().merchichToWgs84(x: x, y: y);
-  return LatLng(projected.latitude, projected.longitude);
+  return LatLng(y, x);
 }
 
 int? _dynamicToIntImpl(dynamic value) {

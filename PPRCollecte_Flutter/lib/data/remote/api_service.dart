@@ -210,7 +210,9 @@ class ApiService {
   /// Retour: { success, name, attribution, format, version, sha256,
   ///           size_bytes, generated_at, download_url }
   static Future<Map<String, dynamic>> fetchRegionalBasemapManifest() async {
-    final url = Uri.parse('$baseUrl/api/basemaps/region/manifest/');
+    final url = Uri.parse('$baseUrl/api/basemaps/region/manifest/').replace(
+      queryParameters: userId == null ? null : {'id_user': '$userId'},
+    );
     final response = await http
         .get(url, headers: _headers())
         .timeout(const Duration(seconds: 30));
@@ -224,6 +226,46 @@ class ApiService {
     final data = jsonDecode(utf8.decode(response.bodyBytes));
     if (data is! Map<String, dynamic>) {
       throw Exception('Reponse manifest basemap invalide');
+    }
+    return data;
+  }
+
+  static Future<Map<String, dynamic>> fetchAffleurantsPackage() async {
+    final url = Uri.parse('$baseUrl/api/affleurants/package/');
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erreur GET affleurants package: ${response.statusCode}',
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Reponse affleurants invalide');
+    }
+    return data;
+  }
+
+  static Future<Map<String, dynamic>> fetchAffleurantsPackageManifest() async {
+    final url = Uri.parse('$baseUrl/api/affleurants/package/').replace(
+      queryParameters: const {'manifest': '1'},
+    );
+    final response = await http
+        .get(url, headers: _headers())
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erreur GET affleurants manifest: ${response.statusCode}',
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Reponse manifest affleurants invalide');
     }
     return data;
   }
@@ -581,14 +623,6 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> fetchPlancheOverlay() async {
     final items = await fetchData('reference-overlays/planches');
-    return items
-        .whereType<Map>()
-        .map((item) => _flattenReferenceOverlayItem(item))
-        .toList();
-  }
-
-  static Future<List<Map<String, dynamic>>> fetchFondPlanOverlay() async {
-    final items = await fetchData('reference-overlays/fond-plan');
     return items
         .whereType<Map>()
         .map((item) => _flattenReferenceOverlayItem(item))
@@ -1456,13 +1490,11 @@ class ApiService {
     Uri uri, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    var response =
-        await http.get(uri, headers: _headers()).timeout(timeout);
+    var response = await http.get(uri, headers: _headers()).timeout(timeout);
     if (response.statusCode == 401 && (refreshToken != null)) {
       final refreshed = await refreshAccessToken();
       if (refreshed) {
-        response =
-            await http.get(uri, headers: _headers()).timeout(timeout);
+        response = await http.get(uri, headers: _headers()).timeout(timeout);
       }
     }
     return response;
@@ -1491,9 +1523,8 @@ class ApiService {
     Object? body,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    var response = await http
-        .patch(uri, headers: _headers(), body: body)
-        .timeout(timeout);
+    var response =
+        await http.patch(uri, headers: _headers(), body: body).timeout(timeout);
     if (_isUnauthorized(response) && (refreshToken != null)) {
       final refreshed = await refreshAccessToken();
       if (refreshed) {

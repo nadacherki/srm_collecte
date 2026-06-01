@@ -30,8 +30,23 @@ class ZoneAffectationCheckService {
   }
 
   Future<bool> isLatLngInsideAssignedZones(double lat, double lng) async {
+    if (lat.abs() > 90 || lng.abs() > 180) {
+      return isMerchichPointInsideAssignedZones(x: lng, y: lat);
+    }
+
+    final merchich =
+        ProjectionService().wgs84ToMerchich(longitude: lng, latitude: lat);
+    return isMerchichPointInsideAssignedZones(x: merchich.x, y: merchich.y);
+  }
+
+  Future<bool> isMerchichPointInsideAssignedZones({
+    required double x,
+    required double y,
+  }) async {
     final userId = ApiService.userId;
-    if (userId == null) return true; // pas d'agent identifie -> on laisse passer
+    if (userId == null) {
+      return true; // pas d'agent identifie -> on laisse passer
+    }
 
     if (_cachedUserId != userId) {
       _cachedPolygons = null;
@@ -47,12 +62,11 @@ class ZoneAffectationCheckService {
       return true;
     }
 
-    final merchich = ProjectionService()
-        .wgs84ToMerchich(longitude: lng, latitude: lat);
-    return _isPointInAnyPolygon(merchich.x, merchich.y, polygons);
+    return _isPointInAnyPolygon(x, y, polygons);
   }
 
-  Future<List<List<List<List<double>>>>> _loadPolygonsForUser(int userId) async {
+  Future<List<List<List<List<double>>>>> _loadPolygonsForUser(
+      int userId) async {
     final zones = await _db.getZonesLocal(idUser: userId, activeOnly: true);
     final polygons = <List<List<List<double>>>>[];
     for (final z in zones) {
@@ -142,7 +156,8 @@ class ZoneAffectationCheckService {
       final xj = ring[j][0];
       final yj = ring[j][1];
       final intersects = ((yi > y) != (yj > y)) &&
-          (x < (xj - xi) * (y - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) + xi);
+          (x <
+              (xj - xi) * (y - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) + xi);
       if (intersects) inside = !inside;
       j = i;
     }

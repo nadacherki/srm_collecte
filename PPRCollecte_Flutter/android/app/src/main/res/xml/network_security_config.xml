@@ -28,5 +28,6 @@
         <!-- IP LAN de dev (a editer selon le reseau, cf. [[project_demo_plan_b]]).
              Rebuild de l'APK requis apres modification (XML compile dans l'APK). -->
         <domain includeSubdomains="false">192.168.10.153</domain>
+        <domain includeSubdomains="false">192.168.10.148</domain>
     </domain-config>
 </network-security-config>

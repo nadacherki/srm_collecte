@@ -21,6 +21,7 @@ class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   static Database? _database;
   static bool _isInitializing = false;
+  static bool? _affleurantRtreeAvailable;
   static const Duration srmSessionDuration = Duration(days: 7);
 
   factory DatabaseHelper() => _instance;
@@ -33,7 +34,7 @@ class DatabaseHelper {
     await resetForTest();
     final db = await openDatabase(
       inMemoryDatabasePath,
-      version: 23,
+      version: 24,
       onCreate: (db, version) async {
         await _instance._createAllTables(
           db,
@@ -46,10 +47,17 @@ class DatabaseHelper {
   }
 
   @visibleForTesting
+  Future<void> ensureSrmTruthyNormalizedForTest() async {
+    final db = await database;
+    await _normalizeSrmTruthyColumns(db);
+  }
+
+  @visibleForTesting
   static Future<void> resetForTest() async {
     final db = _database;
     _database = null;
     _isInitializing = false;
+    _affleurantRtreeAvailable = null;
     if (db != null && db.isOpen) {
       await db.close();
     }
@@ -233,6 +241,7 @@ class DatabaseHelper {
     await _createCommuneLocalTable(db);
     await _createZoneLocalTables(db);
     await _createReferenceOverlayLocalTables(db);
+    await _createAffleurantLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
     if (includeSrmEntityTables) {
       await _createAllSrmEntityTables(db);
@@ -254,6 +263,7 @@ class DatabaseHelper {
     await _ensureCommuneLocalTable(db);
     await _migrateZoneLocalTables(db);
     await _migrateReferenceOverlayLocalTables(db);
+    await _createAffleurantLocalTables(db);
     await _ensureInterventionAnomalieTerrainTable(db);
     await _createPhotoSyncQueueTable(db);
     await _createLocalHistoryTable(db);
@@ -269,7 +279,72 @@ class DatabaseHelper {
     await _migrateLegacyWorkflowPhotoContexts(db);
     await _createAllSrmEntityTables(db);
     await _assertAllSrmEntityTablesPresentAndAligned(db);
+    await _normalizeSrmTruthyColumns(db);
     await _markLocalHistoryForAlreadySyncedObjects(db);
+  }
+
+  /// Phase B indexation : normalise les colonnes `synced` et `downloaded` des
+  /// tables SRM dynamiques en INTEGER 0/1 strict.
+  ///
+  /// Le code applicatif n'ecrit deja que 0/1, mais d'eventuelles valeurs
+  /// legacy ('true', 't', '1' en texte, NULL) restent possibles sur de
+  /// vieilles installations. SrmRowVisibilityFilter utilise desormais une
+  /// comparaison directe `= 1` (au lieu du LOWER(CAST(...)) qui empechait
+  /// l'usage de `idx_<table>_synced` et `idx_<table>_downloaded`) ; la
+  /// presente migration garantit que la comparaison directe trouve toutes
+  /// les lignes pertinentes.
+  ///
+  /// Idempotente, mais on saute une fois marquee dans app_metadata pour ne
+  /// pas re-scanner toutes les tables a chaque boot.
+  Future<void> _normalizeSrmTruthyColumns(Database db) async {
+    const flagKey = 'srm_truthy_normalized_v1';
+    final flagRows = await db.query(
+      'app_metadata',
+      where: 'key = ?',
+      whereArgs: [flagKey],
+      limit: 1,
+    );
+    if (flagRows.isNotEmpty) {
+      return;
+    }
+
+    for (final tableName in _allowedSrmTables()) {
+      if (_supportTablesWithCustomSchema.contains(tableName)) {
+        continue;
+      }
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName],
+      );
+      if (tables.isEmpty) continue;
+
+      final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+      final available = columns
+          .map((row) => (row['name'] ?? '').toString().toLowerCase())
+          .where((c) => c.isNotEmpty)
+          .toSet();
+
+      for (final col in const ['synced', 'downloaded']) {
+        if (!available.contains(col)) continue;
+        // Valeurs legacy considerees comme "vrai".
+        await db.execute(
+          "UPDATE $tableName SET $col = 1 WHERE "
+          "LOWER(CAST(COALESCE($col, '') AS TEXT)) IN ('1', 'true', 't')",
+        );
+        // Tout le reste (NULL, '0', 'false', 'f', vide) -> 0.
+        await db.execute(
+          "UPDATE $tableName SET $col = 0 WHERE $col IS NULL OR "
+          "LOWER(CAST($col AS TEXT)) NOT IN ('1', 'true', 't')",
+        );
+      }
+    }
+
+    await db.insert(
+      'app_metadata',
+      {'key': flagKey, 'value': DateTime.now().toUtc().toIso8601String()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    debugPrint('🔧 Phase B : colonnes synced/downloaded normalisees (1/0)');
   }
 
   /// Crée ou migre la table objet_incomplet avec les colonnes PostgreSQL exactes
@@ -668,8 +743,17 @@ class DatabaseHelper {
       CREATE TABLE IF NOT EXISTS regional_basemap_state (
         id TEXT PRIMARY KEY,
         sha256 TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'tile',
         version TEXT,
+        package_type TEXT,
         format TEXT NOT NULL DEFAULT 'pmtiles',
+        srid INTEGER NOT NULL DEFAULT 3857,
+        tile_size INTEGER,
+        origin_x REAL,
+        origin_y REAL,
+        resolutions_json TEXT,
+        bounds_merchich_json TEXT,
+        tile_count INTEGER,
         size_bytes INTEGER,
         local_path TEXT,
         download_url TEXT,
@@ -680,11 +764,103 @@ class DatabaseHelper {
         updated_at TEXT
       )
     ''');
+    await _ensureColumns(
+      db,
+      tableName: 'regional_basemap_state',
+      columns: const {
+        'srid': 'INTEGER NOT NULL DEFAULT 3857',
+        'package_type': 'TEXT',
+        'tile_size': 'INTEGER',
+        'origin_x': 'REAL',
+        'origin_y': 'REAL',
+        'resolutions_json': 'TEXT',
+        'bounds_merchich_json': 'TEXT',
+        'tile_count': 'INTEGER',
+      },
+    );
   }
 
   Future<void> _dropLegacyOfflineBasemapTables(Database db) async {
     await db.execute('DROP TABLE IF EXISTS offline_basemap_package');
     await db.execute('DROP TABLE IF EXISTS offline_basemap_zone');
+  }
+
+  Future<void> _createAffleurantLocalTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS affleurant_package_local (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        zone_id INTEGER,
+        srid INTEGER NOT NULL DEFAULT 26191,
+        version TEXT,
+        sha256 TEXT,
+        downloaded_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS affleurant_layer_local (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_id INTEGER,
+        code TEXT NOT NULL,
+        label TEXT NOT NULL,
+        geometry_type TEXT NOT NULL,
+        visible INTEGER NOT NULL DEFAULT 1,
+        snap_enabled INTEGER NOT NULL DEFAULT 1,
+        priority INTEGER NOT NULL DEFAULT 0,
+        style_json TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS affleurant_feature_local (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        layer_id INTEGER NOT NULL,
+        server_id TEXT,
+        geometry_json_merchich TEXT NOT NULL,
+        properties_json TEXT,
+        min_x REAL NOT NULL,
+        min_y REAL NOT NULL,
+        max_x REAL NOT NULL,
+        max_y REAL NOT NULL
+      )
+    ''');
+    try {
+      await db.execute('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS affleurant_feature_rtree
+        USING rtree(id, min_x, max_x, min_y, max_y)
+      ''');
+      _affleurantRtreeAvailable = true;
+    } on DatabaseException catch (e) {
+      if (!_isMissingRtreeModule(e)) rethrow;
+      _affleurantRtreeAvailable = false;
+      debugPrint(
+        '[AFFLEURANT] RTree indisponible, fallback bbox SQLite: $e',
+      );
+    }
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS affleurant_layer_package_idx
+      ON affleurant_layer_local(package_id, visible, snap_enabled)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS affleurant_feature_layer_idx
+      ON affleurant_feature_local(layer_id)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS affleurant_feature_bbox_idx
+      ON affleurant_feature_local(min_x, max_x, min_y, max_y)
+    ''');
+  }
+
+  static bool _isMissingRtreeModule(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('no such module') && message.contains('rtree');
+  }
+
+  Future<bool> _canUseAffleurantRtree(DatabaseExecutor db) async {
+    if (_affleurantRtreeAvailable == false) return false;
+    final rows = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE name = ?",
+      ['affleurant_feature_rtree'],
+    );
+    return rows.isNotEmpty && _affleurantRtreeAvailable != false;
   }
 
   Future<void> _ensureColumns(
@@ -1075,20 +1251,7 @@ class DatabaseHelper {
       ON planche_overlay_local (numero)
     ''');
 
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS fond_plan_overlay_local (
-        fid INTEGER PRIMARY KEY,
-        layer TEXT,
-        color TEXT,
-        linewidth REAL,
-        geometry_geojson TEXT
-      )
-    ''');
-
-    await db.execute('''
-      CREATE INDEX IF NOT EXISTS fond_plan_overlay_local_layer_idx
-      ON fond_plan_overlay_local (layer)
-    ''');
+    await db.execute('DROP TABLE IF EXISTS fond_plan_overlay_local');
   }
 
   Future<void> _migrateReferenceOverlayLocalTables(Database db) async {
@@ -1102,17 +1265,7 @@ class DatabaseHelper {
         'geometry_geojson': 'TEXT',
       },
     );
-    await _ensureColumns(
-      db,
-      tableName: 'fond_plan_overlay_local',
-      columns: const {
-        'fid': 'INTEGER',
-        'layer': 'TEXT',
-        'color': 'TEXT',
-        'linewidth': 'REAL',
-        'geometry_geojson': 'TEXT',
-      },
-    );
+    await db.execute('DROP TABLE IF EXISTS fond_plan_overlay_local');
   }
 
   Future<void> _ensureSrmFieldOptionLocalTable(Database db) async {
@@ -1348,10 +1501,8 @@ class DatabaseHelper {
           id,
         ],
       );
-      final usedSlots = usedRows
-          .map((r) => _toInt(r['photo_slot']))
-          .whereType<int>()
-          .toSet();
+      final usedSlots =
+          usedRows.map((r) => _toInt(r['photo_slot'])).whereType<int>().toSet();
       final originalSlot = _toInt(row['photo_slot']);
       int? targetSlot;
       if (originalSlot >= 1 &&
@@ -1463,7 +1614,67 @@ class DatabaseHelper {
         );
         await db.execute(sql);
         await _assertSrmTableStructure(db, tableName);
+        await _createSrmTableIndexes(db, tableName);
       }
+    }
+  }
+
+  /// Phase A indexation : pose les indexes recurrents (sync, uuid, visibilite
+  /// agent, identifiants metier, bbox spatial) sur chaque table SRM dynamique.
+  /// PRAGMA table_info filtre les colonnes effectivement presentes, donc une
+  /// table sans `id_planche` ne recoit pas l'index correspondant.
+  /// Idempotent (`IF NOT EXISTS`) : appelable a chaque boot sans cout sur les
+  /// installations qui ont deja l'index.
+  Future<void> _createSrmTableIndexes(
+    Database db,
+    String tableName,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    final available = columns
+        .map((row) => (row['name'] ?? '').toString().toLowerCase())
+        .where((c) => c.isNotEmpty)
+        .toSet();
+
+    Future<void> single(String column) async {
+      if (!available.contains(column)) return;
+      final name = 'idx_${tableName}_$column';
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS $name ON $tableName($column)',
+      );
+    }
+
+    // Sync / pipeline (les plus chauds : countPendingSync, upsert par uuid).
+    // Note : `uuid TEXT UNIQUE` dans le CREATE TABLE pose deja un auto-index
+    // (sqlite_autoindex_<table>_1) que SQLite utilise pour les lookups uuid.
+    // On ne duplique pas.
+    await single('synced');
+    await single('downloaded');
+
+    // Identifiants serveur / metier.
+    await single('fid');
+    await single('id_planche');
+    await single('id_commune');
+
+    // Visibilite agent (une seule de ces colonnes par table en general).
+    for (final col in const [
+      'id_agent_crea',
+      'id_user_creat',
+      'saved_by_user_id',
+      'login_id',
+    ]) {
+      await single(col);
+    }
+
+    // Calendrier.
+    await single('date_collecte');
+
+    // Spatial : index composite pour les bbox scans (overlay carte).
+    if (available.contains('latitude_gps') &&
+        available.contains('longitude_gps')) {
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_${tableName}_lat_lng '
+        'ON $tableName(latitude_gps, longitude_gps)',
+      );
     }
   }
 
@@ -1917,9 +2128,13 @@ class DatabaseHelper {
     }
   }
 
-  Future<({int id, bool wasInserted})> upsertDownloadedEntitySrm(
-      String tableName, Map<String, dynamic> data,
-      {bool recordHistory = false}) async {
+  Future<({int id, bool wasInserted, bool skippedLocalUnsynced})>
+      upsertDownloadedEntitySrm(
+    String tableName,
+    Map<String, dynamic> data, {
+    bool recordHistory = false,
+    bool skipIfLocalUnsynced = false,
+  }) async {
     _assertAllowedSrmTable(tableName);
     final db = await database;
     await _assertSrmTableExists(db, tableName);
@@ -1941,6 +2156,17 @@ class DatabaseHelper {
       if (existingRows.isNotEmpty) {
         final existing = Map<String, dynamic>.from(existingRows.first);
         final localId = existing['id'];
+        if (skipIfLocalUnsynced && _toInt(existing['synced']) != 1) {
+          debugPrint(
+            'SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid '
+            '(SKIP local non synchronise)',
+          );
+          return (
+            id: localId is int ? localId : 0,
+            wasInserted: false,
+            skippedLocalUnsynced: true,
+          );
+        }
         final merged = Map<String, dynamic>.from(existing);
         cleaned.forEach((key, value) {
           merged[key] = value;
@@ -1970,7 +2196,11 @@ class DatabaseHelper {
         }
         debugPrint(
             'SRM upsertDownloadedEntitySrm -> $tableName uuid=$uuid (UPDATE)');
-        return (id: localId is int ? localId : 0, wasInserted: false);
+        return (
+          id: localId is int ? localId : 0,
+          wasInserted: false,
+          skippedLocalUnsynced: false,
+        );
       }
     }
 
@@ -1988,7 +2218,7 @@ class DatabaseHelper {
       );
     }
     debugPrint('SRM upsertDownloadedEntitySrm -> $tableName (INSERT id=$id)');
-    return (id: id, wasInserted: true);
+    return (id: id, wasInserted: true, skippedLocalUnsynced: false);
   }
 
   Future<List<Map<String, dynamic>>> getEntities(String tableName) async {
@@ -1999,6 +2229,71 @@ class DatabaseHelper {
   // ══════════════════════════════════════════════════════
   // ██ ENTITÉS SRM (EP / ASS) — SPRINT 5
   // ══════════════════════════════════════════════════════
+
+  Future<int> countDownloadedRowsMissingMapPosition({
+    required String tableName,
+    String? metierCode,
+  }) async {
+    _assertAllowedSrmTable(tableName);
+    final db = await database;
+    await _assertSrmTableExists(db, tableName);
+
+    final columns = await db.rawQuery(
+      'PRAGMA table_info(${_quoteSqlIdentifier(tableName)})',
+    );
+    final available = <String, String>{};
+    for (final row in columns) {
+      final name = row['name']?.toString().trim() ?? '';
+      if (name.isNotEmpty) {
+        available[name.toLowerCase()] = name;
+      }
+    }
+
+    String? col(String name) => available[name.toLowerCase()];
+    String missingValue(String column) {
+      final quoted = _quoteSqlIdentifier(column);
+      return '($quoted IS NULL OR TRIM(CAST($quoted AS TEXT)) = \'\')';
+    }
+
+    final missingPositionClauses = <String>[];
+    final geometryCol = col('geometry_geojson');
+    if (geometryCol != null) {
+      missingPositionClauses.add(missingValue(geometryCol));
+    }
+
+    final latCol = col('latitude_gps');
+    final lonCol = col('longitude_gps');
+    if (latCol != null && lonCol != null) {
+      missingPositionClauses.add(
+        '(${missingValue(latCol)} OR ${missingValue(lonCol)})',
+      );
+    }
+
+    final schema = metierCode?.trim().toLowerCase() ?? '';
+    if (schema.isNotEmpty) {
+      final xCol = col('${schema}_coor_x');
+      final yCol = col('${schema}_coor_y');
+      if (xCol != null && yCol != null) {
+        missingPositionClauses.add(
+          '(${missingValue(xCol)} OR ${missingValue(yCol)})',
+        );
+      }
+    }
+
+    if (missingPositionClauses.isEmpty) return 0;
+
+    final downloadedCol = col('downloaded');
+    final downloadedWhere = downloadedCol == null
+        ? '1 = 1'
+        : '${_quoteSqlIdentifier(downloadedCol)} = 1';
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS c '
+      'FROM ${_quoteSqlIdentifier(tableName)} '
+      'WHERE $downloadedWhere AND ${missingPositionClauses.join(' AND ')}',
+    );
+    final value = rows.first['c'];
+    return value is int ? value : int.tryParse(value.toString()) ?? 0;
+  }
 
   String _buildSrmCreateTableSql(String tableName, List<String> fields) {
     _assertAllowedSrmTable(tableName);
@@ -2026,6 +2321,7 @@ class DatabaseHelper {
       nb_points INTEGER DEFAULT 0,
       distance_m REAL DEFAULT 0,
       points_json TEXT,
+      geometry_geojson TEXT,
       anomalie INTEGER DEFAULT 0,
       type_anomalie TEXT,
       photo_1 TEXT,
@@ -2037,7 +2333,8 @@ class DatabaseHelper {
       synced INTEGER DEFAULT 0,
       date_collecte TEXT,
       date_sync TEXT,
-      objet_incomplet INTEGER DEFAULT 0
+      objet_incomplet INTEGER DEFAULT 0,
+      retour_terrain TEXT
     ''';
 
     final dynamicColLines = _srmDynamicColumnsForTable(tableName, fields)
@@ -2077,6 +2374,7 @@ class DatabaseHelper {
       'nb_points',
       'distance_m',
       'points_json',
+      'geometry_geojson',
       'anomalie',
       'type_anomalie',
       'photo_1',
@@ -2089,6 +2387,7 @@ class DatabaseHelper {
       'date_collecte',
       'date_sync',
       'objet_incomplet',
+      'retour_terrain',
     };
     return fixed.contains(col);
   }
@@ -2957,6 +3256,50 @@ class DatabaseHelper {
     });
   }
 
+  /// Gap F : retourne true s'il existe une intervention serveur active
+  /// (id_intervention > 0 ET statut hors {cloture, annule}) pour l'objet
+  /// metier donne. Sert a verrouiller le toggle anomalie cote formulaire :
+  /// l'agent ne peut pas debrancher anomalie=oui si le bureau gere deja
+  /// l'intervention (cf. doc bureau §2 : annulation reservee au bureau via
+  /// endpoint web).
+  Future<bool> hasServerInterventionForObject({
+    required String schemaName,
+    required String tableName,
+    int? idObjet,
+    String? uuidObjet,
+  }) async {
+    final cleanUuid = uuidObjet?.trim() ?? '';
+    if ((idObjet == null || idObjet <= 0) && cleanUuid.isEmpty) {
+      return false;
+    }
+    final db = await database;
+    await _ensureInterventionAnomalieTerrainTable(db);
+    final qualifiedTable =
+        _qualifiedInterventionNomTable(schemaName, tableName);
+    final rows = await db.query(
+      'intervention_anomalie',
+      columns: ['id_intervention'],
+      where: '''
+        id_intervention > 0
+        AND (statut IS NULL OR lower(statut) NOT IN ('cloture', 'annule'))
+        AND lower(COALESCE(nom_table, '')) = lower(?)
+        AND (
+          (? <> '' AND lower(COALESCE(uuid_objet, '')) = lower(?))
+          OR (? > 0 AND id_objet = ?)
+        )
+      ''',
+      whereArgs: [
+        qualifiedTable,
+        cleanUuid,
+        cleanUuid,
+        idObjet ?? 0,
+        idObjet ?? 0,
+      ],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
   Future<void> upsertLocalInterventionAnomalieSignalement({
     required String schemaName,
     required String tableName,
@@ -2967,9 +3310,34 @@ class DatabaseHelper {
     final cleanUuid = uuidObjet.trim();
     if (idObjet <= 0 || cleanUuid.isEmpty) return;
 
+    // Gate Gap C : le doc bureau exige "anomalie=oui ET retour_terrain=oui"
+    // sur la ligne metier pour declencher le workflow intervention. Si la
+    // ligne porte explicitement retour_terrain != oui, on ne cree PAS le
+    // shadow local et on nettoie un eventuel placeholder existant (cas ou
+    // l'agent revient sur sa decision avant la 1ere sync).
+    //
+    // Backward compat : si la colonne `retour_terrain` n'existe pas du tout
+    // sur la ligne (table metier pas encore migree), on retombe sur
+    // l'ancien comportement (workflow declenche des qu'anomalie=oui).
+    if (rowData != null && rowData.containsKey('retour_terrain')) {
+      final raw =
+          rowData['retour_terrain']?.toString().trim().toLowerCase() ?? '';
+      const truthy = {'oui', 'true', 't', '1', 'yes'};
+      if (!truthy.contains(raw)) {
+        await resolveLocalInterventionAnomalieSignalement(
+          schemaName: schemaName,
+          tableName: tableName,
+          idObjet: idObjet,
+          uuidObjet: uuidObjet,
+        );
+        return;
+      }
+    }
+
     final db = await database;
     await _ensureInterventionAnomalieTerrainTable(db);
-    final qualifiedTable = _qualifiedInterventionNomTable(schemaName, tableName);
+    final qualifiedTable =
+        _qualifiedInterventionNomTable(schemaName, tableName);
     final nowIso = DateTime.now().toIso8601String();
     final commentaire = _localAnomalyComment(rowData ?? const {});
 
@@ -3051,7 +3419,8 @@ class DatabaseHelper {
 
     final db = await database;
     await _ensureInterventionAnomalieTerrainTable(db);
-    final qualifiedTable = _qualifiedInterventionNomTable(schemaName, tableName);
+    final qualifiedTable =
+        _qualifiedInterventionNomTable(schemaName, tableName);
     await db.delete(
       'intervention_anomalie',
       where: '''
@@ -3197,14 +3566,32 @@ class DatabaseHelper {
       "lower(COALESCE(responsable_actuel, '')) = 'exploitant' "
       "AND lower(COALESCE(etat_exploitant, 'en_attente')) NOT IN "
       "('traite', 'traité', 'resolu', 'résolu', 'cloture', 'clôture')";
-  static const String _interventionTerrainReturnWhere =
-      "(COALESCE(retour_terrain, 0) = 1 "
-      "OR lower(COALESCE(responsable_actuel, '')) = 'terrain' "
-      "OR lower(COALESCE(etat_exploitant, '')) IN ('traite', 'traité')) "
+  // Gap D : distinction 1ere assignation terrain vs vrai retour terrain.
+  //
+  // 🔵 1ʳᵉ assignation terrain : l'exploitant a qualifie (statut=
+  // 'exploitant_traite'), responsable_actuel='terrain', mais aucun
+  // rejet bureau (retour_terrain=0 ET statut != 'retour_terrain').
+  static const String _interventionTerrainFirstAssignWhere =
+      "lower(COALESCE(statut, '')) = 'exploitant_traite' "
+      "AND COALESCE(retour_terrain, 0) = 0 "
       "AND lower(COALESCE(etat_terrain, 'en_attente')) "
       "NOT IN ('traite', 'traité')";
+  // 🟣 Vrai retour terrain : le bureau a rejete (statut='retour_terrain'
+  // ou flag retour_terrain=1 pose par le trigger backend).
+  static const String _interventionTerrainReturnWhere =
+      "(COALESCE(retour_terrain, 0) = 1 "
+      "OR lower(COALESCE(statut, '')) = 'retour_terrain') "
+      "AND lower(COALESCE(etat_terrain, 'en_attente')) "
+      "NOT IN ('traite', 'traité')";
+  // 🟡 Terrain a traite, dossier maintenant cote bureau (validation,
+  // traitement bureau alt, ou clos). Inclut explicitement les statuts
+  // `terrain_traite` et `bureau_traite` (Gap E) pour ne dependre pas
+  // uniquement du flag `etat_terrain` (qui pourrait, en cas de
+  // synchronisation partielle, ne pas refleter le statut serveur).
   static const String _interventionTerrainDoneWhere =
-      "lower(COALESCE(etat_terrain, '')) IN ('traite', 'traité')";
+      "(lower(COALESCE(etat_terrain, '')) IN ('traite', 'traité') "
+      "OR lower(COALESCE(statut, '')) IN "
+      "('terrain_traite', 'bureau_traite'))";
 
   Future<Map<String, int>> getInterventionAnomalieTreatmentSummary() async {
     final db = await database;
@@ -3214,6 +3601,8 @@ class DatabaseHelper {
         COUNT(*) AS total_active,
         SUM(CASE WHEN $_interventionExploitantPendingWhere
             THEN 1 ELSE 0 END) AS en_attente_exploitant,
+        SUM(CASE WHEN $_interventionTerrainFirstAssignWhere
+            THEN 1 ELSE 0 END) AS terrain_premier_passage,
         SUM(CASE WHEN $_interventionTerrainReturnWhere
             THEN 1 ELSE 0 END) AS retour_terrain_a_faire,
         SUM(CASE WHEN $_interventionTerrainDoneWhere
@@ -3225,6 +3614,7 @@ class DatabaseHelper {
     return {
       'total_active': _asInt(row['total_active']) ?? 0,
       'en_attente_exploitant': _asInt(row['en_attente_exploitant']) ?? 0,
+      'terrain_premier_passage': _asInt(row['terrain_premier_passage']) ?? 0,
       'retour_terrain_a_faire': _asInt(row['retour_terrain_a_faire']) ?? 0,
       'retour_terrain_effectue': _asInt(row['retour_terrain_effectue']) ?? 0,
     };
@@ -3240,6 +3630,8 @@ class DatabaseHelper {
     final where = switch (filter) {
       'en_attente_exploitant' =>
         '$_interventionActiveWhere AND ($_interventionExploitantPendingWhere)',
+      'terrain_premier_passage' =>
+        '$_interventionActiveWhere AND ($_interventionTerrainFirstAssignWhere)',
       'retour_terrain_effectue' =>
         '$_interventionActiveWhere AND ($_interventionTerrainDoneWhere)',
       'all' => _interventionActiveWhere,
@@ -3326,10 +3718,15 @@ class DatabaseHelper {
           "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
           [tableName]);
       if (tables.isEmpty) return [];
+      // SU-5 : on inclut les lignes telechargees du serveur puis modifiees
+      // sur le terrain (downloaded = 1 AND synced = 0). Le backend supporte
+      // l'upsert by UUID (mobile_srm_table_view : INSERT si uuid inconnu,
+      // UPDATE sinon, avec optimistic lock par horodatage). Sans cela, les
+      // edits sur des objets serveur ne remontaient jamais alors que le
+      // dashboard les comptait dans pendingUpdatedObjects.
       return await db.query(
         tableName,
-        where:
-            '(synced IS NULL OR synced = 0) AND (downloaded IS NULL OR downloaded = 0)',
+        where: 'synced IS NULL OR synced = 0',
         orderBy: 'id ASC',
       );
     } catch (e) {
@@ -3369,6 +3766,11 @@ class DatabaseHelper {
       'jour': jourKey,
       'nodes_json': jsonEncode(nodes),
       'synced': 0,
+      // C-1 : un re-enqueue (que ce soit un insert ou un update) repart
+      // d'un compteur de retry vierge. Sans ca, une conduite deja rejetee
+      // (retry_count = 5, synced = -1) ne serait jamais re-tentee meme
+      // apres correction par l'agent.
+      'retry_count': 0,
       'last_error': null,
       'updated_at': nowIso,
       'date_sync': null,
@@ -3376,7 +3778,6 @@ class DatabaseHelper {
 
     if (existing.isEmpty) {
       payload['sync_uuid'] = const Uuid().v4();
-      payload['retry_count'] = 0;
       payload['created_at'] = nowIso;
       return db.insert('conduite_sync_queue', payload);
     }
@@ -3419,9 +3820,23 @@ class DatabaseHelper {
     await _createConduiteSyncQueueTable(db);
     return db.query(
       'conduite_sync_queue',
-      where: 'synced IS NULL OR synced = 0',
+      // C-1 : on aligne sur photo_sync_queue. Une conduite ayant atteint
+      // 5 tentatives reste rejetee (synced = -1) et n'est plus tentee
+      // automatiquement. Le bureau ou un re-enqueue manuel peut la
+      // ressusciter (voir [enqueueConduiteSyncItem] qui remet retry_count
+      // a 0).
+      where: '(synced IS NULL OR synced = 0) AND COALESCE(retry_count, 0) < 5',
       orderBy: 'id ASC',
       limit: limit,
+    );
+  }
+
+  Future<int> countFailedConduiteSyncItems() async {
+    final db = await database;
+    return _countRowsIfTableExists(
+      db,
+      'conduite_sync_queue',
+      where: "COALESCE(last_error, '') <> '' OR COALESCE(synced, 0) = -1",
     );
   }
 
@@ -3440,18 +3855,83 @@ class DatabaseHelper {
     );
   }
 
+  /// C-4 : supprime une conduite locale en attente (synced=0) pour permettre
+  /// a l'agent de repartir de zero apres une saisie invalide ou erronee.
+  /// Refuse de supprimer une conduite deja synchronisee (synced=1) :
+  /// l'annulation doit se faire cote bureau dans ce cas.
+  /// Retourne true si une ligne a ete effectivement supprimee.
+  Future<bool> deletePendingConduiteSyncItem({
+    required String metier,
+    required int idAgent,
+    required DateTime jour,
+  }) async {
+    final db = await database;
+    await _createConduiteSyncQueueTable(db);
+    final jourKey = jour.toIso8601String().substring(0, 10);
+    final deleted = await db.delete(
+      'conduite_sync_queue',
+      where:
+          'metier = ? AND id_agent = ? AND jour = ? AND (synced IS NULL OR synced = 0)',
+      whereArgs: [metier, idAgent, jourKey],
+    );
+    return deleted > 0;
+  }
+
   Future<void> markConduiteSyncItemFailed(int id, String errorMessage) async {
     final db = await database;
+    // C-1 : on aligne sur photo_sync_queue. Au 5e echec consecutif, la
+    // ligne est marquee synced = -1 et sortira du flux de retry standard.
+    // L'agent peut toujours la relancer en re-enregistrant la conduite
+    // (enqueueConduiteSyncItem remet retry_count a 0).
     await db.rawUpdate(
       '''
       UPDATE conduite_sync_queue
-      SET synced = 0,
-          retry_count = COALESCE(retry_count, 0) + 1,
+      SET retry_count = COALESCE(retry_count, 0) + 1,
+          synced = CASE
+            WHEN COALESCE(retry_count, 0) + 1 >= 5 THEN -1
+            ELSE 0
+          END,
           last_error = ?,
           updated_at = ?
       WHERE id = ?
       ''',
       [errorMessage, DateTime.now().toIso8601String(), id],
+    );
+    final rows = await db.query(
+      'conduite_sync_queue',
+      columns: ['retry_count', 'synced'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final synced = rows.isEmpty ? 0 : _toInt(rows.first['synced']);
+    await recordLocalEvent(
+      eventType:
+          synced == -1 ? 'CONDUITE_SYNC_REJECTED' : 'CONDUITE_SYNC_FAILED',
+      tableName: 'conduite_sync_queue',
+      idObjet: id,
+      payload: {'error': errorMessage},
+    );
+  }
+
+  Future<void> rejectConduiteSyncItem(int id, String errorMessage) async {
+    final db = await database;
+    await db.update(
+      'conduite_sync_queue',
+      {
+        'synced': -1,
+        'retry_count': 5,
+        'last_error': errorMessage,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await recordLocalEvent(
+      eventType: 'CONDUITE_SYNC_REJECTED',
+      tableName: 'conduite_sync_queue',
+      idObjet: id,
+      payload: {'error': errorMessage},
     );
   }
 
@@ -3486,13 +3966,16 @@ class DatabaseHelper {
       'fid_objet': fidObjet,
       'id_agent': idAgent,
       'synced': 0,
+      // RP-2 : un re-enqueue d'un lien (cas RP-1 : agent revient sur la
+      // piece pour reessayer) reset le compteur de retry, sinon un lien
+      // rejete (retry_count = 5) resterait gele meme apres correction.
+      'retry_count': 0,
       'last_error': null,
       'updated_at': nowIso,
       'date_sync': null,
     };
     if (existing.isEmpty) {
       payload['sync_uuid'] = const Uuid().v4();
-      payload['retry_count'] = 0;
       payload['created_at'] = nowIso;
       return db.insert('regard_piece_link_sync_queue', payload);
     }
@@ -3513,9 +3996,21 @@ class DatabaseHelper {
     await _createRegardPieceLinkSyncQueueTable(db);
     return db.query(
       'regard_piece_link_sync_queue',
-      where: 'synced IS NULL OR synced = 0',
+      // RP-2 : aligne sur photo_sync_queue / conduite_sync_queue. Apres
+      // 5 echecs consecutifs, le lien est mis de cote (synced = -1) et
+      // attendra un re-enqueue manuel par l'agent.
+      where: '(synced IS NULL OR synced = 0) AND COALESCE(retry_count, 0) < 5',
       orderBy: 'id ASC',
       limit: limit,
+    );
+  }
+
+  Future<int> countFailedRegardPieceLinkSyncItems() async {
+    final db = await database;
+    return _countRowsIfTableExists(
+      db,
+      'regard_piece_link_sync_queue',
+      where: "COALESCE(last_error, '') <> '' OR COALESCE(synced, 0) = -1",
     );
   }
 
@@ -3536,16 +4031,59 @@ class DatabaseHelper {
 
   Future<void> markRegardPieceLinkFailed(int id, String errorMessage) async {
     final db = await database;
+    // RP-2 : alignement photo_sync_queue. Au 5e echec, le lien est
+    // rejete (synced = -1) ; l'agent peut le ressusciter via le mode
+    // "Pieces regard" qui re-enqueue avec retry_count = 0.
     await db.rawUpdate(
       '''
       UPDATE regard_piece_link_sync_queue
-      SET synced = 0,
-          retry_count = COALESCE(retry_count, 0) + 1,
+      SET retry_count = COALESCE(retry_count, 0) + 1,
+          synced = CASE
+            WHEN COALESCE(retry_count, 0) + 1 >= 5 THEN -1
+            ELSE 0
+          END,
           last_error = ?,
           updated_at = ?
       WHERE id = ?
       ''',
       [errorMessage, DateTime.now().toIso8601String(), id],
+    );
+    final rows = await db.query(
+      'regard_piece_link_sync_queue',
+      columns: ['synced'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final synced = rows.isEmpty ? 0 : _toInt(rows.first['synced']);
+    await recordLocalEvent(
+      eventType: synced == -1
+          ? 'REGARD_PIECE_LINK_REJECTED'
+          : 'REGARD_PIECE_LINK_FAILED',
+      tableName: 'regard_piece_link_sync_queue',
+      idObjet: id,
+      payload: {'error': errorMessage},
+    );
+  }
+
+  Future<void> rejectRegardPieceLinkSync(int id, String errorMessage) async {
+    final db = await database;
+    await db.update(
+      'regard_piece_link_sync_queue',
+      {
+        'synced': -1,
+        'retry_count': 5,
+        'last_error': errorMessage,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await recordLocalEvent(
+      eventType: 'REGARD_PIECE_LINK_REJECTED',
+      tableName: 'regard_piece_link_sync_queue',
+      idObjet: id,
+      payload: {'error': errorMessage},
     );
   }
 
@@ -4051,12 +4589,16 @@ class DatabaseHelper {
     'id_planche', 'id_commune', 'id_province', 'latitude_gps', 'longitude_gps',
     'altitude_gps', 'x_debut', 'y_debut', 'x_fin', 'y_fin',
     'lat_debut', 'lon_debut', 'lat_fin', 'lon_fin',
-    'nb_points', 'distance_m', 'points_json', 'altitude_z_moy',
+    'nb_points', 'distance_m', 'points_json', 'geometry_geojson',
+    'altitude_z_moy',
     'anomalie', 'type_anomalie',
     'photo_1', 'photo_2', 'photo_3', 'photo_4',
     'mode_localisation', 'downloaded', 'synced', 'date_collecte', 'date_sync',
     // Flag objet incomplet dans les tables métier
     'objet_incomplet',
+    // Gate workflow anomalie (cf. doc bureau §2 : anomalie=oui AND
+    // retour_terrain=oui pour declencher l'intervention).
+    'retour_terrain',
     // Colonnes de la table objet_incomplet (correspond à PostgreSQL)
     'id_incomplet', 'nom_table', 'id_objet', 'detail_raison',
     'date_signalement', 'id_agent_incomplet', 'statut',
@@ -4085,6 +4627,7 @@ class DatabaseHelper {
     'nb_points': 'INTEGER DEFAULT 0',
     'distance_m': 'REAL DEFAULT 0',
     'points_json': 'TEXT',
+    'geometry_geojson': 'TEXT',
     'anomalie': 'INTEGER DEFAULT 0',
     'type_anomalie': 'TEXT',
     'photo_1': 'TEXT',
@@ -4098,6 +4641,8 @@ class DatabaseHelper {
     'date_sync': 'TEXT',
     // Flag dans les tables métier
     'objet_incomplet': 'INTEGER DEFAULT 0',
+    // Gate workflow anomalie (NULL si non saisi). Cf. doc bureau §2.
+    'retour_terrain': 'TEXT',
   };
 
   void _assertAllowedSrmTable(String tableName) {
@@ -5026,44 +5571,11 @@ class DatabaseHelper {
     });
   }
 
-  Future<void> replaceFondPlanOverlay({
-    required List<Map<String, dynamic>> features,
-  }) async {
-    final db = await database;
-
-    await db.transaction((txn) async {
-      await txn.delete('fond_plan_overlay_local');
-      for (final feature in features) {
-        final fid = _asInt(feature['fid']);
-        if (fid == null) continue;
-        await txn.insert(
-          'fond_plan_overlay_local',
-          {
-            'fid': fid,
-            'layer': feature['layer']?.toString(),
-            'color': feature['color']?.toString(),
-            'linewidth': _asDouble(feature['linewidth']),
-            'geometry_geojson': _encodeGeoJson(feature['geometry_geojson']),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-    });
-  }
-
   Future<List<Map<String, dynamic>>> getPlancheOverlayLocal() async {
     final db = await database;
     return db.query(
       'planche_overlay_local',
       orderBy: 'numero, id',
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getFondPlanOverlayLocal() async {
-    final db = await database;
-    return db.query(
-      'fond_plan_overlay_local',
-      orderBy: 'layer, fid',
     );
   }
 
@@ -5217,6 +5729,14 @@ class DatabaseHelper {
     required String sha256,
     required String version,
     required String format,
+    String? packageType,
+    int srid = 26191,
+    int? tileSize,
+    int? tileCount,
+    double? originX,
+    double? originY,
+    String? resolutionsJson,
+    String? boundsMerchichJson,
     int? sizeBytes,
     String? localPath,
     String? downloadUrl,
@@ -5232,7 +5752,15 @@ class DatabaseHelper {
         'id': 'region',
         'sha256': sha256,
         'version': version,
+        'package_type': packageType,
         'format': format,
+        'srid': srid,
+        'tile_size': tileSize,
+        'origin_x': originX,
+        'origin_y': originY,
+        'resolutions_json': resolutionsJson,
+        'bounds_merchich_json': boundsMerchichJson,
+        'tile_count': tileCount,
         'size_bytes': sizeBytes,
         'local_path': localPath,
         'download_url': downloadUrl,
@@ -5317,14 +5845,15 @@ class DatabaseHelper {
     }
   }
 
-  /// Compte les rows locales en attente de synchronisation (synced=0 ET
-  /// downloaded=0) sur toutes les tables SRM. Utilise par le court-circuit
-  /// du bouton Synchroniser : si 0 -> message direct "Aucune donnee a
-  /// synchroniser" sans interroger le serveur.
+  /// Compte les elements locaux en attente de synchronisation. Utilise par le
+  /// court-circuit du bouton Synchroniser : si 0 -> message direct
+  /// "Aucune donnee a synchroniser" sans interroger le serveur.
   ///
   /// Les rows qui ont echoue lors d'un sync precedent restent `synced=0`
   /// et sont donc toujours comptees ici, garantissant qu'elles seront
   /// re-tentees au prochain clic sans etre faussement marquees "fait".
+  /// Les objets telecharges puis modifies localement (`downloaded=1`,
+  /// `synced=0`) sont aussi comptes.
   Future<int> countPendingSync() async {
     final db = await database;
     int total = 0;
@@ -5337,8 +5866,7 @@ class DatabaseHelper {
         if (exists.isEmpty) continue;
         final res = await db.rawQuery(
           'SELECT COUNT(*) AS n FROM "$tableName" '
-          'WHERE (synced IS NULL OR synced = 0) '
-          'AND (downloaded IS NULL OR downloaded = 0)',
+          'WHERE synced IS NULL OR synced = 0',
         );
         if (res.isNotEmpty) {
           total += _toInt(res.first['n']);
@@ -5347,18 +5875,26 @@ class DatabaseHelper {
         debugPrint('countPendingSync $tableName: $e');
       }
     }
-    // Photos en attente d'envoi
-    try {
-      final res = await db.rawQuery(
-        "SELECT COUNT(*) AS n FROM photo_sync_queue "
-        "WHERE status IS NULL OR status IN ('pending','failed')",
-      );
-      if (res.isNotEmpty) {
-        total += _toInt(res.first['n']);
-      }
-    } catch (_) {
-      // Table absente sur builds anciens : ignore.
-    }
+    total += await _countRowsIfTableExists(
+      db,
+      'photo_sync_queue',
+      where: '(synced IS NULL OR synced = 0) AND COALESCE(retry_count, 0) < 5',
+    );
+    total += await _countRowsIfTableExists(
+      db,
+      'conduite_sync_queue',
+      where: '(synced IS NULL OR synced = 0) AND COALESCE(retry_count, 0) < 5',
+    );
+    total += await _countRowsIfTableExists(
+      db,
+      'regard_piece_link_sync_queue',
+      where: '(synced IS NULL OR synced = 0) AND COALESCE(retry_count, 0) < 5',
+    );
+    total += await _countRowsIfTableExists(
+      db,
+      'intervention_anomalie',
+      where: 'synced IS NULL OR synced = 0',
+    );
     return total;
   }
 
@@ -5643,6 +6179,294 @@ class DatabaseHelper {
     }
 
     return total;
+  }
+
+  Future<void> replaceAffleurantPackage({
+    required int? zoneId,
+    required String version,
+    String? sha256,
+    required List<Map<String, dynamic>> layers,
+    required List<Map<String, dynamic>> features,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final useRtree = await _canUseAffleurantRtree(txn);
+      final existing = await txn.query(
+        'affleurant_package_local',
+        columns: ['id'],
+        where: zoneId == null ? 'zone_id IS NULL' : 'zone_id = ?',
+        whereArgs: zoneId == null ? null : [zoneId],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        final packageId = existing.first['id'] as int;
+        final layerRows = await txn.query(
+          'affleurant_layer_local',
+          columns: ['id'],
+          where: 'package_id = ?',
+          whereArgs: [packageId],
+        );
+        final layerIds = layerRows.map((r) => r['id'] as int).toList();
+        if (useRtree) {
+          for (final layerId in layerIds) {
+            final featureRows = await txn.query(
+              'affleurant_feature_local',
+              columns: ['id'],
+              where: 'layer_id = ?',
+              whereArgs: [layerId],
+            );
+            for (final row in featureRows) {
+              await txn.delete(
+                'affleurant_feature_rtree',
+                where: 'id = ?',
+                whereArgs: [row['id']],
+              );
+            }
+          }
+        }
+        await txn.delete(
+          'affleurant_feature_local',
+          where:
+              'layer_id IN (SELECT id FROM affleurant_layer_local WHERE package_id = ?)',
+          whereArgs: [packageId],
+        );
+        await txn.delete(
+          'affleurant_layer_local',
+          where: 'package_id = ?',
+          whereArgs: [packageId],
+        );
+        await txn.delete(
+          'affleurant_package_local',
+          where: 'id = ?',
+          whereArgs: [packageId],
+        );
+      }
+
+      final packageId = await txn.insert('affleurant_package_local', {
+        'zone_id': zoneId,
+        'srid': 26191,
+        'version': version,
+        'sha256': sha256,
+        'downloaded_at': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      final layerIdsByCode = <String, int>{};
+      for (final layer in layers) {
+        final code = layer['code']?.toString() ?? '';
+        if (code.isEmpty) continue;
+        final layerId = await txn.insert('affleurant_layer_local', {
+          'package_id': packageId,
+          'code': code,
+          'label': layer['label']?.toString() ?? code,
+          'geometry_type': layer['geometry_type']?.toString() ?? 'Point',
+          'visible': _boolInt(layer['visible'] ?? layer['visible_by_default'],
+              defaultValue: true),
+          'snap_enabled': _boolInt(layer['snap_enabled'], defaultValue: true),
+          'priority': _intValue(layer['priority']) ?? 0,
+          'style_json': jsonEncode(layer['style'] ?? const {}),
+        });
+        layerIdsByCode[code] = layerId;
+      }
+
+      for (final feature in features) {
+        final layerCode = feature['layer_code']?.toString() ??
+            feature['layerCode']?.toString() ??
+            feature['layer']?.toString() ??
+            '';
+        final layerId = layerIdsByCode[layerCode];
+        if (layerId == null) continue;
+        final geometry = feature['geometry'];
+        final bbox = _bboxFromFeature(feature, geometry);
+        if (bbox == null) continue;
+        final featureId = await txn.insert('affleurant_feature_local', {
+          'layer_id': layerId,
+          'server_id': feature['server_id']?.toString() ??
+              feature['id']?.toString() ??
+              feature['fid']?.toString(),
+          'geometry_json_merchich': jsonEncode(geometry),
+          'properties_json': jsonEncode(feature['properties'] ?? const {}),
+          'min_x': bbox.minX,
+          'min_y': bbox.minY,
+          'max_x': bbox.maxX,
+          'max_y': bbox.maxY,
+        });
+        if (useRtree) {
+          await txn.insert('affleurant_feature_rtree', {
+            'id': featureId,
+            'min_x': bbox.minX,
+            'max_x': bbox.maxX,
+            'min_y': bbox.minY,
+            'max_y': bbox.maxY,
+          });
+        }
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> queryAffleurantFeatures({
+    double? minX,
+    double? minY,
+    double? maxX,
+    double? maxY,
+    bool visibleOnly = true,
+    bool snapOnly = false,
+    int limit = 2000,
+  }) async {
+    final db = await database;
+    final useRtree = await _canUseAffleurantRtree(db);
+    final bboxTableAlias = useRtree ? 'r' : 'f';
+    final where = <String>[];
+    final args = <Object?>[];
+    if (visibleOnly) {
+      where.add('l.visible = 1');
+    }
+    if (snapOnly) {
+      where.add('l.snap_enabled = 1');
+    }
+    if (minX != null && minY != null && maxX != null && maxY != null) {
+      where.add('$bboxTableAlias.max_x >= ? AND '
+          '$bboxTableAlias.min_x <= ? AND '
+          '$bboxTableAlias.max_y >= ? AND '
+          '$bboxTableAlias.min_y <= ?');
+      args.addAll([minX, maxX, minY, maxY]);
+    }
+    final whereSql = where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}';
+    final rtreeJoin =
+        useRtree ? 'JOIN affleurant_feature_rtree r ON r.id = f.id' : '';
+    return db.rawQuery(
+      '''
+      SELECT
+        f.id,
+        f.layer_id,
+        f.server_id,
+        f.geometry_json_merchich,
+        f.properties_json,
+        f.min_x,
+        f.min_y,
+        f.max_x,
+        f.max_y,
+        l.code AS layer_code,
+        l.label AS layer_label,
+        l.geometry_type,
+        l.snap_enabled,
+        l.priority
+      FROM affleurant_feature_local f
+      $rtreeJoin
+      JOIN affleurant_layer_local l ON l.id = f.layer_id
+      $whereSql
+      ORDER BY l.priority DESC, f.id ASC
+      LIMIT ?
+      ''',
+      [...args, limit],
+    );
+  }
+
+  Future<int> countAffleurantFeatures() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM affleurant_feature_local',
+    );
+    final value = rows.first['c'];
+    return value is int ? value : int.tryParse(value.toString()) ?? 0;
+  }
+
+  Future<Map<String, dynamic>?> getAffleurantPackageSummary({
+    int? zoneId,
+  }) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        p.id,
+        p.zone_id,
+        p.srid,
+        p.version,
+        p.sha256,
+        p.downloaded_at,
+        COUNT(f.id) AS feature_count
+      FROM affleurant_package_local p
+      LEFT JOIN affleurant_layer_local l ON l.package_id = p.id
+      LEFT JOIN affleurant_feature_local f ON f.layer_id = l.id
+      WHERE ${zoneId == null ? 'p.zone_id IS NULL' : 'p.zone_id = ?'}
+      GROUP BY p.id
+      ORDER BY p.downloaded_at DESC, p.id DESC
+      LIMIT 1
+      ''',
+      zoneId == null ? const [] : [zoneId],
+    );
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<void> setAffleurantLayersVisible(bool visible) async {
+    final db = await database;
+    await db.update(
+      'affleurant_layer_local',
+      {'visible': visible ? 1 : 0},
+    );
+  }
+
+  static int _boolInt(dynamic value, {required bool defaultValue}) {
+    if (value == null) return defaultValue ? 1 : 0;
+    if (value is bool) return value ? 1 : 0;
+    if (value is num) return value == 0 ? 0 : 1;
+    final text = value.toString().trim().toLowerCase();
+    if (text.isEmpty) return defaultValue ? 1 : 0;
+    return {'0', 'false', 'no', 'off'}.contains(text) ? 0 : 1;
+  }
+
+  static int? _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  static ({double minX, double minY, double maxX, double maxY})?
+      _bboxFromFeature(Map<String, dynamic> feature, dynamic geometry) {
+    final bbox = feature['bbox'];
+    if (bbox is List && bbox.length >= 4) {
+      final minX = _doubleValue(bbox[0]);
+      final minY = _doubleValue(bbox[1]);
+      final maxX = _doubleValue(bbox[2]);
+      final maxY = _doubleValue(bbox[3]);
+      if (minX != null && minY != null && maxX != null && maxY != null) {
+        return (minX: minX, minY: minY, maxX: maxX, maxY: maxY);
+      }
+    }
+    if (geometry is! Map) return null;
+    final values = <double>[];
+    void collect(dynamic node) {
+      if (node is List &&
+          node.length >= 2 &&
+          node[0] is num &&
+          node[1] is num) {
+        values.add((node[0] as num).toDouble());
+        values.add((node[1] as num).toDouble());
+        return;
+      }
+      if (node is List) {
+        for (final child in node) {
+          collect(child);
+        }
+      }
+    }
+
+    collect(geometry['coordinates']);
+    if (values.length < 2) return null;
+    final xs = <double>[];
+    final ys = <double>[];
+    for (var i = 0; i < values.length - 1; i += 2) {
+      xs.add(values[i]);
+      ys.add(values[i + 1]);
+    }
+    xs.sort();
+    ys.sort();
+    return (minX: xs.first, minY: ys.first, maxX: xs.last, maxY: ys.last);
+  }
+
+  static double? _doubleValue(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
   }
 
   Future<void> resetDatabase() async {

@@ -219,7 +219,6 @@ Future<void> _loadReferenceOverlaysImpl(_HomePageState state) async {
     final db = DatabaseHelper();
     final zones = await db.getZonesLocal(activeOnly: true);
     final planches = await db.getPlancheOverlayLocal();
-    final fondPlan = await db.getFondPlanOverlayLocal();
 
     final zonePolygons = <Polygon>[];
     for (final zone in zones) {
@@ -290,33 +289,13 @@ Future<void> _loadReferenceOverlaysImpl(_HomePageState state) async {
       }
     }
 
-    final fondPlanPolylines = <Polyline>[];
-    for (final feature in fondPlan) {
-      final color = _fondPlanPolylineColorImpl(feature['color']);
-      final strokeWidth = _fondPlanStrokeWidthImpl(feature['linewidth']);
-      for (final points in _lineStringsFromGeoJsonImpl(
-        feature['geometry_geojson'],
-      )) {
-        if (points.length < 2) continue;
-        fondPlanPolylines.add(
-          Polyline(
-            points: points,
-            color: color,
-            strokeWidth: strokeWidth,
-          ),
-        );
-      }
-    }
-
     if (!state.mounted) return;
     state._setStateFromPart(() {
       state._referenceZonePolygons = zonePolygons;
       state._referencePlanchePolygons = planchePolygons;
-      state._referenceFondPlanPolylines = fondPlanPolylines;
       state._referenceOverlayCounts = {
         'overlay_zones': zonePolygons.length,
         'overlay_planche': planchePolygons.length,
-        'overlay_fond_plan': fondPlanPolylines.length,
       };
     });
   } catch (e) {
@@ -662,7 +641,6 @@ Future<void> _loadDisplayedPolygonsImpl(_HomePageState state) async {
             code: poly['code']?.toString() ??
                 poly['code_gps']?.toString() ??
                 poly['ep_num']?.toString() ??
-                poly['uuid']?.toString() ??
                 '----',
             entityType: 'Regard miroir',
             metier: 'Eau Potable',
@@ -792,14 +770,17 @@ LatLng? _extractRegardLatLngImpl(Map<String, dynamic> row) {
   final x = _toDoubleImpl(row['ep_coor_x']);
   final y = _toDoubleImpl(row['ep_coor_y']);
   if (x != null && y != null) {
-    final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
-    return LatLng(wgs84.latitude, wgs84.longitude);
+    return LatLng(y, x);
   }
 
   final latitude = _toDoubleImpl(row['latitude_gps']);
   final longitude = _toDoubleImpl(row['longitude_gps']);
   if (latitude != null && longitude != null) {
-    return LatLng(latitude, longitude);
+    final m = ProjectionService().wgs84ToMerchich(
+      latitude: latitude,
+      longitude: longitude,
+    );
+    return LatLng(m.y, m.x);
   }
 
   return null;
@@ -849,22 +830,21 @@ LatLng _polygonCentroidImpl(List<LatLng> points) {
 
 List<LatLng> _buildRectangleAroundPointImpl(LatLng center) {
   // Carre fixe 4 m x 4 m centre sur le regard.
-  const sizeMeters = _regardMiroirLocalSquareSizeMeters;
-  const halfLength = sizeMeters / 2.0;
-  const halfWidth = sizeMeters / 2.0;
-  const metersPerLatDegree = 111320.0;
-  final cosLat = math.cos(center.latitude * math.pi / 180.0).abs();
-  if (cosLat < 0.000001) return const [];
-
-  const deltaLat = halfWidth / metersPerLatDegree;
-  final deltaLng = halfLength / (metersPerLatDegree * cosLat);
+  //
+  // Note CRS : on tourne en MerchichCrs ou LatLng.latitude = Y_Merchich (m)
+  // et LatLng.longitude = X_Merchich (m) directement, identite pure (cf.
+  // [MerchichCrs.projection]). Donc 1 unite = 1 metre et il suffit
+  // d'appliquer +/- demi-cote. L'ancienne version utilisait des formules
+  // WGS84 (metersPerLatDegree, cos(lat)) qui rendaient le polygone
+  // sub-micrometre, invisible a la carte.
+  const halfMeters = _regardMiroirLocalSquareSizeMeters / 2.0;
 
   return [
-    LatLng(center.latitude - deltaLat, center.longitude - deltaLng),
-    LatLng(center.latitude - deltaLat, center.longitude + deltaLng),
-    LatLng(center.latitude + deltaLat, center.longitude + deltaLng),
-    LatLng(center.latitude + deltaLat, center.longitude - deltaLng),
-    LatLng(center.latitude - deltaLat, center.longitude - deltaLng),
+    LatLng(center.latitude - halfMeters, center.longitude - halfMeters),
+    LatLng(center.latitude - halfMeters, center.longitude + halfMeters),
+    LatLng(center.latitude + halfMeters, center.longitude + halfMeters),
+    LatLng(center.latitude + halfMeters, center.longitude - halfMeters),
+    LatLng(center.latitude - halfMeters, center.longitude - halfMeters),
   ];
 }
 
@@ -930,33 +910,6 @@ List<List<LatLng>> _polygonRingsFromGeoJsonImpl(dynamic rawGeometry) {
   return const [];
 }
 
-List<List<LatLng>> _lineStringsFromGeoJsonImpl(dynamic rawGeometry) {
-  final geometry = _decodeGeoJsonGeometryImpl(rawGeometry);
-  if (geometry is! Map) return const [];
-
-  final type = geometry['type']?.toString();
-  final coordinates = geometry['coordinates'];
-  if (type == 'LineString' && coordinates is List) {
-    final points = _positionsToLatLngImpl(coordinates);
-    return points.length >= 2 ? [points] : const [];
-  }
-  if ((type == 'MultiLineString' || type == 'MultiCurve') &&
-      coordinates is List) {
-    final lines = <List<LatLng>>[];
-    for (final line in coordinates) {
-      final points = _positionsToLatLngImpl(line);
-      if (points.length >= 2) lines.add(points);
-    }
-    return lines;
-  }
-  if (type == 'GeometryCollection' && geometry['geometries'] is List) {
-    return (geometry['geometries'] as List)
-        .expand(_lineStringsFromGeoJsonImpl)
-        .toList();
-  }
-  return const [];
-}
-
 dynamic _decodeGeoJsonGeometryImpl(dynamic rawGeometry) {
   if (rawGeometry == null) return null;
   if (rawGeometry is Map) return rawGeometry;
@@ -992,35 +945,11 @@ LatLng? _latLngFromGeoJsonPositionImpl(dynamic rawPosition) {
   if (x == null || y == null) return null;
 
   if (x.abs() <= 180 && y.abs() <= 90) {
-    return LatLng(y, x);
+    final m = ProjectionService().wgs84ToMerchich(latitude: y, longitude: x);
+    return LatLng(m.y, m.x);
   }
 
-  final projected = ProjectionService().merchichToWgs84(x: x, y: y);
-  return LatLng(projected.latitude, projected.longitude);
-}
-
-Color _fondPlanPolylineColorImpl(dynamic rawColor) {
-  final text = rawColor?.toString().trim() ?? '';
-  final parts = text
-      .split(',')
-      .map((part) => int.tryParse(part.trim()))
-      .whereType<int>()
-      .toList();
-  if (parts.length >= 3) {
-    final r = parts[0].clamp(0, 255).toInt();
-    final g = parts[1].clamp(0, 255).toInt();
-    final b = parts[2].clamp(0, 255).toInt();
-    final a = parts.length >= 4 ? parts[3].clamp(0, 255).toInt() : 255;
-    final displayAlpha = (a * 0.70).round().clamp(60, 210).toInt();
-    return Color.fromARGB(displayAlpha, r, g, b);
-  }
-  return const Color(0xFF555555).withValues(alpha: 0.58);
-}
-
-double _fondPlanStrokeWidthImpl(dynamic rawWidth) {
-  final width = _toDoubleImpl(rawWidth);
-  if (width == null || width <= 0) return 0.8;
-  return width.clamp(0.6, 2.4).toDouble();
+  return LatLng(y, x);
 }
 
 bool _samePointImpl(LatLng a, LatLng b, {double tolerance = 0.0000001}) {

@@ -9,9 +9,12 @@ import datetime
 import hashlib
 import os
 import re
+import threading
 from pathlib import Path
 
 from django.conf import settings
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.gis.geos import GEOSGeometry, LineString, Point
 from django.db import DatabaseError, connection, transaction
@@ -1102,6 +1105,19 @@ def _mobile_row_has_anomaly(row):
     )
 
 
+def _mobile_row_requires_terrain_return(row):
+    """Gate Gap C : le doc bureau impose `retour_terrain='oui'` sur la ligne
+    metier pour declencher la creation d'une intervention. Si la colonne
+    n'existe pas (table pas encore migree), on retombe sur l'ancien
+    comportement (workflow declenche des qu'anomalie=oui)."""
+    if not hasattr(row, 'get'):
+        return False
+    if 'retour_terrain' not in row:
+        return True
+    value = str(row.get('retour_terrain') or '').strip().lower()
+    return value in ('oui', '1', 'true', 't', 'yes')
+
+
 def _upsert_intervention_anomalie_for_mobile_row(
     *,
     schema_name,
@@ -1114,6 +1130,11 @@ def _upsert_intervention_anomalie_for_mobile_row(
     if table_ref in MOBILE_INTERVENTION_ANOMALIE_EXCLUDED_TABLES:
         return
     if pk_value in (None, '') or not _mobile_row_has_anomaly(row):
+        return
+    # Gate Gap C : workflow uniquement si retour_terrain='oui' sur la ligne
+    # metier (cf. INTERVENTION_TRIGGER_NOTES_MOBILE.md sec. 2). Tables sans
+    # la colonne : backward compat (creation declenchee comme avant).
+    if not _mobile_row_requires_terrain_return(row):
         return
 
     nom_table = f'{schema_name}.{table_name}'
@@ -3018,21 +3039,49 @@ def _request_param(request, name):
 
 # =====================================================================
 #  BASEMAP REGIONAL OFFLINE
-#  Un unique fichier .pmtiles vectoriel OSM-like par region.
-#  Le mobile telecharge ce fichier en un seul GET au login.
+#  Un unique fichier .pmtiles EPSG:26191 par region/zone.
+#  Le mobile telecharge ce fichier en un seul GET puis le rejoue offline.
 # =====================================================================
 
-def _resolve_regional_basemap_path():
+def _resolve_regional_basemap_path(agent_id=None):
+    if agent_id is not None:
+        agent_candidate = (
+            Path(settings.MEDIA_ROOT)
+            / 'basemaps'
+            / 'agents'
+            / f'user_{agent_id}'
+            / 'region.pmtiles'
+        )
+        if _is_merchich_basemap_candidate(agent_candidate):
+            return agent_candidate
+
     configured = (settings.BASEMAP_REGIONAL_PMTILES_PATH or '').strip()
     if configured:
         candidate = Path(configured).expanduser()
         if not candidate.is_absolute():
             candidate = (Path(settings.BASE_DIR) / candidate).resolve()
-        return candidate
+        if _is_merchich_basemap_candidate(candidate):
+            return candidate
 
-    media_default = Path(settings.MEDIA_ROOT) / 'basemaps' / 'region.pmtiles'
+    basemap_dir = Path(settings.MEDIA_ROOT) / 'basemaps'
+    media_default = basemap_dir / 'region.pmtiles'
+    candidates = []
     if media_default.exists():
-        return media_default
+        candidates.append(media_default)
+    if basemap_dir.exists():
+        candidates.extend(
+            sorted(
+                (
+                    candidate
+                    for candidate in basemap_dir.glob('*.pmtiles')
+                    if candidate != media_default
+                ),
+                key=lambda candidate: candidate.name,
+            )
+        )
+    for candidate in candidates:
+        if _is_merchich_basemap_candidate(candidate):
+            return candidate
 
     demo_fallback = (
         Path(settings.BASE_DIR).parent
@@ -3040,12 +3089,58 @@ def _resolve_regional_basemap_path():
         / 'build'
         / 'oujda_centre_demo_vector.pmtiles'
     )
-    return demo_fallback
+    if _is_merchich_basemap_candidate(demo_fallback):
+        return demo_fallback
+    return None
 
 
-def _regional_basemap_manifest():
-    pmtiles_path = _resolve_regional_basemap_path()
+def _regional_basemap_sidecar_manifest(pmtiles_path):
+    candidates = [
+        pmtiles_path.with_suffix('.json'),
+        pmtiles_path.parent / 'manifest.json',
+    ]
+    for candidate in candidates:
+        if not candidate.exists() or not candidate.is_file():
+            continue
+        try:
+            with candidate.open('r', encoding='utf-8') as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def _is_merchich_basemap_candidate(pmtiles_path):
     if not pmtiles_path.exists() or not pmtiles_path.is_file():
+        return False
+    sidecar = _regional_basemap_sidecar_manifest(pmtiles_path)
+    package_type = str(sidecar.get('type') or '').strip().lower()
+    if package_type in {'ortho', 'orthophoto', 'satellite', 'sat'}:
+        return False
+    try:
+        srid = int(
+            sidecar.get('srid')
+            or str(sidecar.get('crs') or '').replace('EPSG:', '')
+            or 0
+        )
+    except (TypeError, ValueError):
+        return False
+    return (
+        srid == 26191
+        and bool(sidecar.get('resolutions'))
+        and bool(sidecar.get('boundsMerchich') or sidecar.get('bounds_merchich'))
+    )
+
+
+def _regional_basemap_manifest(agent_id=None):
+    pmtiles_path = _resolve_regional_basemap_path(agent_id=agent_id)
+    if (
+        pmtiles_path is None
+        or not pmtiles_path.exists()
+        or not pmtiles_path.is_file()
+    ):
         return None
 
     stat = pmtiles_path.stat()
@@ -3054,16 +3149,89 @@ def _regional_basemap_manifest():
         for chunk in iter(lambda: handle.read(1024 * 1024), b''):
             sha256.update(chunk)
 
-    return {
+    sidecar = _regional_basemap_sidecar_manifest(pmtiles_path)
+    manifest = {
         'path': pmtiles_path,
         'size_bytes': stat.st_size,
         'sha256': sha256.hexdigest(),
         'version': datetime.datetime.utcfromtimestamp(stat.st_mtime).strftime('%Y%m%d%H%M%S'),
         'mtime_iso': datetime.datetime.utcfromtimestamp(stat.st_mtime).isoformat() + 'Z',
-        'name': settings.BASEMAP_REGIONAL_NAME,
-        'attribution': settings.BASEMAP_REGIONAL_ATTRIBUTION,
-        'format': 'pmtiles',
+        'name': sidecar.get('name') or settings.BASEMAP_REGIONAL_NAME,
+        'attribution': sidecar.get('attribution') or settings.BASEMAP_REGIONAL_ATTRIBUTION,
+        'type': sidecar.get('type') or 'basemap',
+        'format': sidecar.get('format') or 'pmtiles',
     }
+    for key in (
+        'srid',
+        'crs',
+        'tileSize',
+        'tile_size',
+        'nativeResolution',
+        'origin',
+        'origin_x',
+        'origin_y',
+        'boundsMerchich',
+        'bounds_merchich',
+        'resolutions',
+        'minZoom',
+        'maxZoom',
+        'rasterSize',
+        'tileFormat',
+    ):
+        if key in sidecar:
+            manifest[key] = sidecar[key]
+    return manifest
+
+
+_REGIONAL_BASEMAP_PREPARE_LOCK = threading.Lock()
+
+
+def _prepare_regional_basemap_if_possible(agent_id=None):
+    if not getattr(settings, 'BASEMAP_AUTO_PREPARE', True):
+        return "Preparation automatique de la carte offline desactivee."
+
+    with _REGIONAL_BASEMAP_PREPARE_LOCK:
+        if _regional_basemap_manifest(agent_id=agent_id) is not None:
+            return None
+        try:
+            command_kwargs = {}
+            if agent_id is not None:
+                command_kwargs['user_id'] = agent_id
+            call_command('prepare_merchich_regional_basemap', **command_kwargs)
+        except CommandError as exc:
+            logger.warning('Preparation basemap regional impossible: %s', exc)
+            return str(exc)
+        except Exception as exc:
+            logger.exception('Erreur inattendue pendant la preparation basemap.')
+            return str(exc)
+        return None
+
+
+def _regional_basemap_manifest_with_prepare(agent_id=None):
+    manifest = _regional_basemap_manifest(agent_id=agent_id)
+    if manifest is not None:
+        return manifest, None
+    prepare_error = _prepare_regional_basemap_if_possible(agent_id=agent_id)
+    return _regional_basemap_manifest(agent_id=agent_id), prepare_error
+
+
+def _resolve_affleurants_package_path():
+    configured = str(
+        getattr(settings, 'AFFLEURANTS_PACKAGE_PATH', '') or ''
+    ).strip()
+    if configured:
+        candidate = Path(configured).expanduser()
+        if candidate.exists() and candidate.is_file():
+            return candidate
+
+    candidate = (
+        Path(settings.MEDIA_ROOT)
+        / 'affleurants'
+        / 'loudaya2_test_affleurants.json'
+    )
+    if candidate.exists() and candidate.is_file():
+        return candidate
+    return None
 
 
 class MetricFilterMixin:
@@ -3245,52 +3413,190 @@ def token_refresh_view(request):
 @api_view(['GET'])
 def regional_basemap_manifest_view(request):
     """Manifest du fichier .pmtiles regional unique a telecharger par le mobile."""
-    manifest = _regional_basemap_manifest()
+    agent_id = _resolve_request_user_id(request) or _parse_positive_int_value(
+        request.query_params.get('id_user')
+    )
+    manifest, prepare_error = _regional_basemap_manifest_with_prepare(
+        agent_id=agent_id,
+    )
     if manifest is None:
+        message = (
+            "Aucune carte offline Merchich n'est disponible pour votre zone "
+            "pour le moment."
+        )
+        if prepare_error:
+            message = f"{message} Preparation serveur impossible: {prepare_error}"
         return Response(
             {
                 'success': False,
-                'message': (
-                    "Aucun fichier basemap regional n'est disponible cote serveur. "
-                    "Configurer BASEMAP_REGIONAL_PMTILES_PATH ou deposer "
-                    "media/basemaps/region.pmtiles."
-                ),
+                'message': message,
             },
             status=status.HTTP_404_NOT_FOUND,
         )
 
-    download_url = request.build_absolute_uri(
-        reverse('basemap-regional-download')
-    )
+    download_path = reverse('basemap-regional-download')
+    if agent_id is not None:
+        download_path = f'{download_path}?id_user={agent_id}'
+    download_url = request.build_absolute_uri(download_path)
+    payload = {
+        'success': True,
+        'name': manifest['name'],
+        'attribution': manifest['attribution'],
+        'type': manifest.get('type') or 'basemap',
+        'format': manifest['format'],
+        'version': manifest['version'],
+        'sha256': manifest['sha256'],
+        'size_bytes': manifest['size_bytes'],
+        'generated_at': manifest['mtime_iso'],
+        'download_url': download_url,
+    }
+    for key in (
+        'srid',
+        'crs',
+        'tileSize',
+        'tile_size',
+        'nativeResolution',
+        'origin',
+        'origin_x',
+        'origin_y',
+        'boundsMerchich',
+        'bounds_merchich',
+        'resolutions',
+        'minZoom',
+        'maxZoom',
+        'rasterSize',
+        'tileFormat',
+    ):
+        if key in manifest:
+            payload[key] = manifest[key]
+
     return Response(
-        {
-            'success': True,
-            'name': manifest['name'],
-            'attribution': manifest['attribution'],
-            'format': manifest['format'],
-            'version': manifest['version'],
-            'sha256': manifest['sha256'],
-            'size_bytes': manifest['size_bytes'],
-            'generated_at': manifest['mtime_iso'],
-            'download_url': download_url,
-        },
+        payload,
         status=status.HTTP_200_OK,
     )
 
 
 @api_view(['GET'])
-def regional_basemap_download_view(request):
-    """Stream du fichier .pmtiles regional, avec support Range pour reprise."""
-    manifest = _regional_basemap_manifest()
-    if manifest is None:
+def affleurants_package_view(request):
+    """Package vectoriel d'affleurants restitués, strictement EPSG:26191."""
+    user_id = _resolve_request_user_id(request)
+    if user_id is None:
+        return Response(
+            {'success': False, 'message': 'Utilisateur non authentifie.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    package_path = _resolve_affleurants_package_path()
+    if package_path is None:
         return Response(
             {
                 'success': False,
-                'message': "Aucun fichier basemap regional configure.",
+                'message': "Aucun package affleurants n'est disponible.",
             },
             status=status.HTTP_404_NOT_FOUND,
         )
 
+    try:
+        with package_path.open('r', encoding='utf-8') as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return Response(
+            {'success': False, 'message': 'Package affleurants invalide.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    try:
+        srid = int(payload.get('srid') or 0)
+    except (TypeError, ValueError):
+        srid = 0
+    if srid != 26191:
+        return Response(
+            {
+                'success': False,
+                'message': 'Package affleurants refuse: EPSG:26191 requis.',
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    zone_id = payload.get('zone_id')
+    if zone_id and not _request_is_admin(request):
+        allowed = ZoneUtilisateur.objects.filter(
+            id_user=user_id,
+            id_zone=zone_id,
+            actif=True,
+        ).exists()
+        if not allowed:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Package hors zone affectee a cet agent.',
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    sha256 = hashlib.sha256()
+    with package_path.open('rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            sha256.update(chunk)
+
+    stat = package_path.stat()
+    payload['success'] = True
+    payload['sha256'] = sha256.hexdigest()
+    payload['generated_at'] = (
+        datetime.datetime.utcfromtimestamp(stat.st_mtime).isoformat() + 'Z'
+    )
+    manifest_only = str(
+        request.query_params.get('manifest')
+        or request.query_params.get('manifest_only')
+        or ''
+    ).strip().lower() in {'1', 'true', 'yes', 'manifest'}
+    if manifest_only:
+        layers = payload.get('layers')
+        features = payload.get('features')
+        return Response(
+            {
+                'success': True,
+                'srid': srid,
+                'crs': payload.get('crs') or 'EPSG:26191',
+                'zone_id': zone_id,
+                'version': payload.get('version'),
+                'sha256': payload['sha256'],
+                'generated_at': payload['generated_at'],
+                'layers_count': len(layers) if isinstance(layers, list) else 0,
+                'features_count': (
+                    len(features) if isinstance(features, list) else 0
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def regional_basemap_download_view(request):
+    """Stream du fichier .pmtiles regional, avec support Range pour reprise."""
+    agent_id = _resolve_request_user_id(request) or _parse_positive_int_value(
+        request.query_params.get('id_user')
+    )
+    manifest, prepare_error = _regional_basemap_manifest_with_prepare(
+        agent_id=agent_id,
+    )
+    if manifest is None:
+        message = "Aucune carte offline Merchich n'est disponible pour le moment."
+        if prepare_error:
+            message = f"{message} Preparation serveur impossible: {prepare_error}"
+        return Response(
+            {
+                'success': False,
+                'message': message,
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    return _stream_package_file_response(request, manifest)
+
+
+def _stream_package_file_response(request, manifest):
     pmtiles_path = manifest['path']
     file_size = manifest['size_bytes']
     range_header = request.META.get('HTTP_RANGE', '').strip()
@@ -3427,39 +3733,6 @@ def reference_planches_overlay_view(request):
             FROM public.planche
             WHERE public.planche.geom IS NOT NULL{extra_where}
             ORDER BY public.planche.numero NULLS LAST, public.planche.id NULLS LAST
-            LIMIT %s OFFSET %s
-        """,
-        params=zone_filter_params,
-    )
-
-
-@api_view(['GET'])
-def reference_fond_plan_overlay_view(request):
-    user_id = _resolve_request_user_id(request)
-    zone_filter_sql, zone_filter_params = _user_zone_geom_filter_sql(
-        'ST_CurveToLine(public.fond_plan.geom)', user_id,
-    )
-    extra_where = f"\n              AND {zone_filter_sql}" if zone_filter_sql else ""
-    return _paged_reference_overlay_response(
-        request,
-        count_sql=f"""
-            SELECT COUNT(*)
-            FROM public.fond_plan
-            WHERE public.fond_plan.geom IS NOT NULL
-              AND coalesce(public.fond_plan.visible, 1) = 1{extra_where}
-        """,
-        data_sql=f"""
-            SELECT
-                public.fond_plan.fid,
-                public.fond_plan.layer,
-                public.fond_plan.color,
-                public.fond_plan.linewidth,
-                ST_AsGeoJSON(ST_Force2D(ST_CurveToLine(public.fond_plan.geom)), 6)
-                    AS geometry_geojson
-            FROM public.fond_plan
-            WHERE public.fond_plan.geom IS NOT NULL
-              AND coalesce(public.fond_plan.visible, 1) = 1{extra_where}
-            ORDER BY public.fond_plan.layer NULLS LAST, public.fond_plan.fid
             LIMIT %s OFFSET %s
         """,
         params=zone_filter_params,

@@ -7,9 +7,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 
 import '../data/remote/api_service.dart';
+import '../core/constants/basemap_constants.dart';
 import '../services/location_service.dart';
 import '../services/collection_manager.dart';
+import '../services/gnss_config_service.dart';
 import '../models/collection_models.dart';
+import '../models/merchich_point.dart';
 
 class HomeController extends ChangeNotifier {
   final LocationService _locationService;
@@ -22,11 +25,14 @@ class HomeController extends ChangeNotifier {
   String? gpsDetailsLine;
   String? lastSync;
   bool isOnline = true;
-  LatLng userPosition = const LatLng(34.683100, -1.909800); // Oujda
+  LatLng userPosition = BasemapConstants.fallbackCenter; // Merchich Y/X.
   double? _currentAltitude;
   double? _currentProjectedX;
   double? _currentProjectedY;
   double? _currentProjectedZ;
+  int? _currentFixQuality;
+  int? _currentSatellites;
+  double? _currentHdop;
   List<Marker> formMarkers = []; // Marqueurs des formulaires enregistrés
   final List<Polyline> collectedPolylines = <Polyline>[];
 
@@ -38,10 +44,28 @@ class HomeController extends ChangeNotifier {
   String? _activeLineCode;
   StreamSubscription<LocationData>? _locationSub;
 
+  // Config GNSS rover (modele antenne + hauteur + methode de mesure).
+  // Chargee depuis app_metadata au demarrage, rafraichie via reloadGnssConfig
+  // apres une edition cote ecran de setup. Phase 1 : seul Vertical applique.
+  final GnssConfigService _gnssConfigService = GnssConfigService();
+  GnssRoverConfig _currentRoverConfig = GnssRoverConfig.fallback;
+
   HomeController({LocationService? locationService})
       : _locationService = locationService ?? LocationService() {
     _collectionManager.addListener(_onCollectionChanged);
+    unawaited(reloadGnssConfig());
   }
+
+  /// Recharge la config GNSS rover (a appeler apres edition dans l'UI).
+  Future<void> reloadGnssConfig() async {
+    try {
+      _currentRoverConfig = await _gnssConfigService.loadRoverConfig();
+    } catch (e) {
+      debugPrint('[GNSS] reload config error: $e');
+    }
+  }
+
+  GnssRoverConfig get currentRoverConfig => _currentRoverConfig;
 
   /// Seul l'admin peut utiliser le GPS du téléphone et le mock interne.
   /// Les autres rôles (editeur_terrain, etc.) doivent obligatoirement
@@ -64,13 +88,28 @@ class HomeController extends ChangeNotifier {
   double? get currentProjectedX => _currentProjectedX;
   double? get currentProjectedY => _currentProjectedY;
   double? get currentProjectedZ => _currentProjectedZ ?? _currentAltitude;
+  int? get currentFixQuality => _currentFixQuality;
+  int? get currentSatellites => _currentSatellites;
+  double? get currentHdop => _currentHdop;
+  MerchichPoint? get currentMerchichPoint {
+    final x = currentProjectedX;
+    final y = currentProjectedY;
+    if (x == null || y == null) return null;
+    return MerchichPoint(x: x, y: y, z: currentProjectedZ);
+  }
 
   LatLng? get mockPosition {
     final mock = _locationService.lastMockLocation;
     if (mock?.latitude == null || mock?.longitude == null) {
       return null;
     }
-    return LatLng(mock!.latitude!, mock.longitude!);
+    final p = _locationService.projection.wgs84ToMerchich(
+      latitude: mock!.latitude!,
+      longitude: mock.longitude!,
+    );
+    return _locationService.projection.flutterLatLngFromMerchich(
+      MerchichPoint(x: p.x, y: p.y, z: mock.altitude),
+    );
   }
 
   double? get mockAltitude => _locationService.lastMockLocation?.altitude;
@@ -100,18 +139,68 @@ class HomeController extends ChangeNotifier {
       altitude: altitude,
     );
 
-    userPosition = LatLng(latitude, longitude);
-    _currentAltitude = altitude;
-    _currentProjectedX = null;
-    _currentProjectedY = null;
-    _currentProjectedZ = altitude;
+    final point = _locationService.projection.merchichPointFromGnss(
+      latitude: latitude,
+      longitude: longitude,
+      ellipsoidalHeight: altitude,
+    );
+    _setCurrentMerchichPosition(point);
     gpsEnabled = true;
     gpsAccuracy = accuracy.round();
     gpsSourceLabel = 'mock interne';
+    _clearCurrentGnssQuality();
     gpsDetailsLine = _buildPositionDetailsLine(
       latitude: latitude,
       longitude: longitude,
+      altitude: point.z,
+      projectedX: point.x,
+      projectedY: point.y,
+      accuracy: accuracy,
+      source: 'mock interne',
+    );
+    lastSync = _formatTimeNow();
+    notifyListeners();
+  }
+
+  void setMockMerchichPosition({
+    required double x,
+    required double y,
+    double accuracy = 1.0,
+    double altitude = 0.0,
+  }) {
+    if (!_canUseInternalGpsSources) {
+      throw StateError(
+        'Mock interne reserve aux administrateurs. Utilisez le recepteur GNSS externe.',
+      );
+    }
+    if (!x.isFinite || !y.isFinite || !altitude.isFinite) {
+      throw Exception('Coordonnees mock Merchich invalides');
+    }
+
+    final wgs84 = _locationService.projection.merchichToWgs84(x: x, y: y);
+    if (wgs84.latitude.abs() > 90 || wgs84.longitude.abs() > 180) {
+      throw Exception('Coordonnees mock Merchich hors zone valide');
+    }
+
+    _locationService.setMockLocation(
+      latitude: wgs84.latitude,
+      longitude: wgs84.longitude,
+      accuracy: accuracy,
       altitude: altitude,
+    );
+
+    final point = MerchichPoint(x: x, y: y, z: altitude);
+    _setCurrentMerchichPosition(point);
+    gpsEnabled = true;
+    gpsAccuracy = accuracy.round();
+    gpsSourceLabel = 'mock interne';
+    _clearCurrentGnssQuality();
+    gpsDetailsLine = _buildPositionDetailsLine(
+      latitude: wgs84.latitude,
+      longitude: wgs84.longitude,
+      altitude: altitude,
+      projectedX: x,
+      projectedY: y,
       accuracy: accuracy,
       source: 'mock interne',
     );
@@ -125,6 +214,7 @@ class HomeController extends ChangeNotifier {
     _currentProjectedX = null;
     _currentProjectedY = null;
     _currentProjectedZ = null;
+    _clearCurrentGnssQuality();
 
     if (!_canUseInternalGpsSources) {
       // Non-admin : ne jamais retomber sur le GPS du telephone.
@@ -137,13 +227,13 @@ class HomeController extends ChangeNotifier {
     try {
       final loc = await _locationService.getCurrent();
       if (loc.latitude != null && loc.longitude != null) {
-        userPosition = LatLng(loc.latitude!, loc.longitude!);
         final projected = _locationService.projection.wgs84ToMerchich(
           longitude: loc.longitude!,
           latitude: loc.latitude!,
         );
-        _currentProjectedX = projected.x;
-        _currentProjectedY = projected.y;
+        _setCurrentMerchichPosition(
+          MerchichPoint(x: projected.x, y: projected.y, z: loc.altitude),
+        );
       }
       _currentAltitude = loc.altitude;
       _currentProjectedZ = loc.altitude;
@@ -187,6 +277,7 @@ class HomeController extends ChangeNotifier {
       _currentProjectedX = null;
       _currentProjectedY = null;
       _currentProjectedZ = null;
+      _clearCurrentGnssQuality();
       notifyListeners();
       return null;
     }
@@ -200,17 +291,21 @@ class HomeController extends ChangeNotifier {
       _currentProjectedX = null;
       _currentProjectedY = null;
       _currentProjectedZ = null;
+      _clearCurrentGnssQuality();
       notifyListeners();
       return null;
     }
 
-    userPosition = LatLng(lat, lon);
-    _currentAltitude = enriched.raw.altitude;
-    _currentProjectedX = enriched.merchichX;
-    _currentProjectedY = enriched.merchichY;
-    _currentProjectedZ = enriched.raw.altitude;
+    _setCurrentMerchichPosition(
+      MerchichPoint(
+        x: enriched.merchichX,
+        y: enriched.merchichY,
+        z: enriched.raw.altitude,
+      ),
+    );
     gpsEnabled = true;
     gpsAccuracy = enriched.raw.accuracy?.round() ?? gpsAccuracy;
+    _clearCurrentGnssQuality();
     gpsSourceLabel = 'téléphone';
     gpsDetailsLine = _buildPositionDetailsLine(
       latitude: lat,
@@ -250,22 +345,45 @@ class HomeController extends ChangeNotifier {
       throw Exception('Coordonnées GNSS externe invalides');
     }
 
-    userPosition = LatLng(latitude, longitude);
-    _currentAltitude = projectedZ ?? altitude;
-    _currentProjectedX = projectedX;
-    _currentProjectedY = projectedY;
-    _currentProjectedZ = projectedZ ?? altitude;
+    MerchichPoint point;
+    if (projectedX != null && projectedY != null) {
+      point = MerchichPoint(x: projectedX, y: projectedY, z: projectedZ);
+    } else {
+      point = _locationService.projection.merchichPointFromGnss(
+        longitude: longitude,
+        latitude: latitude,
+        ellipsoidalHeight: altitude,
+        roverGroundOffset: _currentRoverConfig.apcToGroundVerticalOffset,
+      );
+      // Phase 2-3 : ajustement vertical (None / Constante / Plan incline).
+      // Pour le plan incline, on passe X/Y Merchich pour calculer l'ajout
+      // a*X + b*Y + c local au point.
+      if (point.z != null) {
+        point = MerchichPoint(
+          x: point.x,
+          y: point.y,
+          z: _currentRoverConfig.verticalAdjustment.apply(
+            point.z!,
+            x: point.x,
+            y: point.y,
+          ),
+        );
+      }
+    }
+    _setCurrentMerchichPosition(point);
     gpsEnabled = true;
     gpsAccuracy = accuracy?.round() ?? gpsAccuracy;
-    gpsSourceLabel = hasDirectProjectedCoordinates
-        ? 'GNSS XYZ'
-        : 'GNSS lat/lon converti';
+    _currentFixQuality = fixQuality;
+    _currentSatellites = satellites;
+    _currentHdop = hdop;
+    gpsSourceLabel =
+        hasDirectProjectedCoordinates ? 'GNSS XYZ' : 'GNSS lat/lon converti';
     gpsDetailsLine = _buildPositionDetailsLine(
       latitude: latitude,
       longitude: longitude,
-      altitude: projectedZ ?? altitude,
-      projectedX: projectedX,
-      projectedY: projectedY,
+      altitude: point.z,
+      projectedX: point.x,
+      projectedY: point.y,
       accuracy: accuracy,
       speed: speed,
       bearing: bearing,
@@ -290,7 +408,8 @@ class HomeController extends ChangeNotifier {
     debugPrint(
       '[NMEA] fix source=${hasDirectProjectedCoordinates ? 'GNSS XYZ' : 'GNSS lat/lon converti'} '
       'device=$device '
-      'lat=$latitude lon=$longitude x=$projectedX y=$projectedY z=${projectedZ ?? altitude} '
+      'lat=$latitude lon=$longitude x=${point.x} y=${point.y} '
+      'z=${point.z} ellipsoidalH=$altitude '
       'accuracy=$accuracy '
       'satellites=$satellites hdop=$hdop timestamp=$timestampLabel',
     );
@@ -303,6 +422,7 @@ class HomeController extends ChangeNotifier {
     String? lastNmea,
   }) {
     gpsEnabled = false;
+    _clearCurrentGnssQuality();
     gpsSourceLabel = 'GNSS externe: attente fix';
     lastSync = _formatTimeNow();
     final device = deviceLabel?.trim().isNotEmpty == true
@@ -329,6 +449,7 @@ class HomeController extends ChangeNotifier {
   }) {
     _pauseActiveCollectionForGnssLoss();
     gpsEnabled = false;
+    _clearCurrentGnssQuality();
     gpsSourceLabel = 'GNSS déconnecté';
     lastSync = _formatTimeNow();
     final device = deviceLabel?.trim().isNotEmpty == true
@@ -351,6 +472,7 @@ class HomeController extends ChangeNotifier {
   }) {
     _pauseActiveCollectionForGnssLoss();
     gpsEnabled = false;
+    _clearCurrentGnssQuality();
     gpsSourceLabel = 'GNSS expiré';
     lastSync = _formatTimeNow();
     final device = deviceLabel?.trim().isNotEmpty == true
@@ -377,6 +499,34 @@ class HomeController extends ChangeNotifier {
     if (polygon?.isActive ?? false) {
       _collectionManager.pausePolygonCollection();
     }
+  }
+
+  void _clearCurrentGnssQuality() {
+    _currentFixQuality = null;
+    _currentSatellites = null;
+    _currentHdop = null;
+  }
+
+  void _setCurrentMerchichPosition(MerchichPoint point) {
+    userPosition = _locationService.projection.flutterLatLngFromMerchich(point);
+    _currentAltitude = point.z;
+    _currentProjectedX = point.x;
+    _currentProjectedY = point.y;
+    _currentProjectedZ = point.z;
+  }
+
+  void setCurrentMerchichPointFromMap(
+    MerchichPoint point, {
+    String sourceLabel = 'point carte',
+  }) {
+    _setCurrentMerchichPosition(point);
+    gpsEnabled = true;
+    _clearCurrentGnssQuality();
+    gpsSourceLabel = sourceLabel;
+    gpsDetailsLine =
+        'X=${point.x.toStringAsFixed(3)} / Y=${point.y.toStringAsFixed(3)}';
+    lastSync = _formatTimeNow();
+    notifyListeners();
   }
 
   String _buildPositionDetailsLine({
@@ -509,6 +659,7 @@ class HomeController extends ChangeNotifier {
       if (!ok) {
         gpsEnabled = false;
         _currentAltitude = null;
+        _clearCurrentGnssQuality();
         notifyListeners();
         return;
       }
@@ -516,11 +667,18 @@ class HomeController extends ChangeNotifier {
       gpsEnabled = true;
       final loc = await _locationService.getCurrent();
       if (loc.latitude != null && loc.longitude != null) {
-        userPosition = LatLng(loc.latitude!, loc.longitude!);
+        final projected = _locationService.projection.wgs84ToMerchich(
+          longitude: loc.longitude!,
+          latitude: loc.latitude!,
+        );
+        _setCurrentMerchichPosition(
+          MerchichPoint(x: projected.x, y: projected.y, z: loc.altitude),
+        );
       }
       _currentAltitude = loc.altitude;
 
       gpsAccuracy = loc.accuracy?.round();
+      _clearCurrentGnssQuality();
       lastSync = _formatTimeNow();
       notifyListeners();
     } catch (_) {
@@ -540,8 +698,8 @@ class HomeController extends ChangeNotifier {
     final numberOfPoints =
         15 + random.nextInt(10); // 15-25 points (plus court pour tester vite)
 
-    double currentLat = userPosition.latitude;
-    double currentLng = userPosition.longitude;
+    double currentY = userPosition.latitude;
+    double currentX = userPosition.longitude;
 
     // DIRECTION COMPLÈTEMENT ALÉATOIRE à chaque appel
     double angle = random.nextDouble() * 2 * pi; // 0 à 360°
@@ -550,14 +708,14 @@ class HomeController extends ChangeNotifier {
     List<LatLng> simulatedLinePoints = [];
 
     for (int i = 0; i < numberOfPoints; i++) {
-      final distance = 0.00015 + (random.nextDouble() * 0.00005);
+      final distance = 0.15 + (random.nextDouble() * 0.05);
       final curveVariation = (random.nextDouble() - 0.5) * curveIntensity;
       angle += curveVariation;
 
-      currentLat += distance * cos(angle);
-      currentLng += distance * sin(angle);
+      currentY += distance * cos(angle);
+      currentX += distance * sin(angle);
 
-      final point = LatLng(currentLat, currentLng);
+      final point = LatLng(currentY, currentX);
       simulatedLinePoints.add(point);
 
       _collectionManager.addManualPoint(
@@ -618,6 +776,11 @@ class HomeController extends ChangeNotifier {
         if (lat.abs() > 90 || lon.abs() > 180) return;
 
         final isGnssExterneFix = gpsSourceLabel.startsWith('GNSS');
+        if (isGnssExterneFix) {
+          // Le pont NMEA porte son propre etat metier et ses metriques RTK.
+          // Le listener Android ne doit pas recalculer/effacer ces valeurs.
+          return;
+        }
         // Non-admin : seules les positions issues du pipeline GNSS externe
         // (label "GNSS externe...", deja pose par le polling du pont NMEA)
         // sont acceptees. Le GPS natif du telephone est ignore.
@@ -625,18 +788,17 @@ class HomeController extends ChangeNotifier {
           return;
         }
 
-        userPosition = LatLng(lat, lon);
-        _currentAltitude = loc.altitude;
         final projected = _locationService.projection.wgs84ToMerchich(
           longitude: lon,
           latitude: lat,
         );
-        _currentProjectedX = projected.x;
-        _currentProjectedY = projected.y;
-        _currentProjectedZ = loc.altitude;
+        _setCurrentMerchichPosition(
+          MerchichPoint(x: projected.x, y: projected.y, z: loc.altitude),
+        );
         gpsAccuracy =
             loc.accuracy != null ? loc.accuracy!.round() : gpsAccuracy;
         if (!isGnssExterneFix) {
+          _clearCurrentGnssQuality();
           gpsSourceLabel = 'téléphone';
           gpsDetailsLine = _buildPositionDetailsLine(
             latitude: lat,
@@ -656,6 +818,7 @@ class HomeController extends ChangeNotifier {
         _currentProjectedX = null;
         _currentProjectedY = null;
         _currentProjectedZ = null;
+        _clearCurrentGnssQuality();
         notifyListeners();
       },
     );
@@ -890,7 +1053,7 @@ class HomeController extends ChangeNotifier {
   void simulateAddPointToLine() {
     if (lineActive && !linePaused) {
       final last = linePoints.isNotEmpty ? linePoints.last : userPosition;
-      final newPt = LatLng(last.latitude + 0.0005, last.longitude + 0.0005);
+      final newPt = LatLng(last.latitude + 0.5, last.longitude + 0.5);
       linePoints.add(newPt);
       lineTotalDistance += _haversineDistance(
         last.latitude,

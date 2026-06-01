@@ -164,23 +164,33 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
               Expanded(
                 child: _buildStatusTile(
                   filter: 'en_attente_exploitant',
-                  label: 'En attente exploitant',
+                  label: 'En attente\nexploitant',
                   value: _summary['en_attente_exploitant'] ?? 0,
                   icon: Icons.hourglass_bottom,
                   color: const Color(0xFFFF9800),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: _buildStatusTile(
-                  filter: 'retour_terrain_a_faire',
-                  label: 'Retour terrain',
-                  value: _summary['retour_terrain_a_faire'] ?? 0,
-                  icon: Icons.assignment_return,
+                  filter: 'terrain_premier_passage',
+                  label: 'A traiter\n(1er passage)',
+                  value: _summary['terrain_premier_passage'] ?? 0,
+                  icon: Icons.assignment_late,
                   color: const Color(0xFF1976D2),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _buildStatusTile(
+                  filter: 'retour_terrain_a_faire',
+                  label: 'Retour\nterrain',
+                  value: _summary['retour_terrain_a_faire'] ?? 0,
+                  icon: Icons.assignment_return,
+                  color: const Color(0xFF7B1FA2),
+                ),
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 child: _buildStatusTile(
                   filter: 'retour_terrain_effectue',
@@ -666,7 +676,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
     if (schema != null && schema.isNotEmpty) {
       final x = _toDouble(item['${schema}_coor_x']);
       final y = _toDouble(item['${schema}_coor_y']);
-      if (x != null && y != null) return _toWgs84LatLng(x: x, y: y);
+      if (x != null && y != null) return _toMerchichLatLng(x: x, y: y);
     }
 
     for (final key in ['points_json', 'geometry_geojson', 'geometry', 'geom']) {
@@ -740,8 +750,8 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
       final y2 = _toDouble(item[group[3]]);
       if (x1 != null && y1 != null && x2 != null && y2 != null) {
         return [
-          _toWgs84LatLng(x: x1, y: y1),
-          _toWgs84LatLng(x: x2, y: y2),
+          _toMerchichLatLng(x: x1, y: y1),
+          _toMerchichLatLng(x: x2, y: y2),
         ];
       }
     }
@@ -771,7 +781,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
           final x = double.tryParse(match.group(1) ?? '');
           final y = double.tryParse(match.group(2) ?? '');
           if (x == null || y == null) return null;
-          return _toWgs84LatLng(x: x, y: y);
+          return _toMerchichLatLng(x: x, y: y);
         })
         .whereType<LatLng>()
         .toList();
@@ -806,23 +816,31 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
     if (coord is Map) {
       final lat = _toDouble(coord['lat'] ?? coord['latitude']);
       final lon = _toDouble(coord['lon'] ?? coord['lng'] ?? coord['longitude']);
-      if (lat != null && lon != null) return LatLng(lat, lon);
+      if (lat != null && lon != null) {
+        final m = ProjectionService().wgs84ToMerchich(
+          latitude: lat,
+          longitude: lon,
+        );
+        return LatLng(m.y, m.x);
+      }
       final x = _toDouble(coord['x']);
       final y = _toDouble(coord['y']);
-      if (x != null && y != null) return _toWgs84LatLng(x: x, y: y);
+      if (x != null && y != null) return _toMerchichLatLng(x: x, y: y);
     }
     if (coord is List && coord.length >= 2) {
       final x = _toDouble(coord[0]);
       final y = _toDouble(coord[1]);
-      if (x != null && y != null) return _toWgs84LatLng(x: x, y: y);
+      if (x != null && y != null) return _toMerchichLatLng(x: x, y: y);
     }
     return null;
   }
 
-  LatLng _toWgs84LatLng({required double x, required double y}) {
-    if (x.abs() <= 180 && y.abs() <= 90) return LatLng(y, x);
-    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
-    return LatLng(projected.latitude, projected.longitude);
+  LatLng _toMerchichLatLng({required double x, required double y}) {
+    if (x.abs() <= 180 && y.abs() <= 90) {
+      final m = ProjectionService().wgs84ToMerchich(latitude: y, longitude: x);
+      return LatLng(m.y, m.x);
+    }
+    return LatLng(y, x);
   }
 
   bool _requiresTerrainReturn(Map<String, dynamic> row) {

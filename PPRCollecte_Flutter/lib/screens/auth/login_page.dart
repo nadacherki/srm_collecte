@@ -10,8 +10,8 @@ import '../../data/local/database_helper.dart';
 import '../../data/remote/api_service.dart';
 import '../../services/password_hash_service.dart';
 import '../../services/offline_basemap_service.dart';
+import '../../services/affleurant_service.dart';
 import '../../services/commune_sync_service.dart';
-import '../../services/public_metrics_cache_service.dart';
 import '../../services/srm_field_option_service.dart';
 import '../../services/attribut_config_mobile_service.dart';
 import '../../services/formulaire_config_mobile_service.dart';
@@ -34,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePwd = true;
   bool _isLoading = false;
 
-  Future<String?> _refreshBasemapCatalogSilently() async {
+  Future<String?> _refreshBasemapSilently() async {
     try {
       final result =
           await OfflineBasemapService().ensureRegionalBasemapDownloaded();
@@ -50,6 +50,23 @@ class _LoginPageState extends State<LoginPage> {
       final reason = e.toString();
       debugPrint('[BASEMAP-REGIONAL] Exception téléchargement : $reason');
       return 'Carte hors ligne indisponible : $reason';
+    }
+  }
+
+  // ignore: unused_element
+  Future<String?> _refreshAffleurantsSilently() async {
+    try {
+      final service = AffleurantService();
+      await service.refreshFromServer();
+      final count = await service.countLocalFeatures();
+      if (count == 0) {
+        return 'Affleurants hors ligne telecharges mais vides.';
+      }
+      return null;
+    } catch (e) {
+      final reason = e.toString();
+      debugPrint('[AFFLEURANTS] Echec telechargement : $reason');
+      return 'Affleurants hors ligne non telecharges : $reason';
     }
   }
 
@@ -98,29 +115,6 @@ class _LoginPageState extends State<LoginPage> {
       await ReferenceOverlaySyncService().refreshLightOverlays();
     } catch (e) {
       debugPrint('[REFERENCE-OVERLAYS] Sync ignoree au login: $e');
-    }
-  }
-
-  Future<String?> _refreshPublicMetricsSilently() async {
-    try {
-      // Les vues SQL agregees (UNION sur toutes les tables EP/ASS) peuvent
-      // depasser 4s sur emulateur ou en debug. 15s laisse une marge realiste
-      // tout en restant tolerable au login. En cas d'echec, le profil
-      // declenche un refresh sans timeout a l'ouverture.
-      final snapshot = await PublicMetricsCacheService()
-          .prefetchForCurrentSession(
-              requestTimeout: const Duration(seconds: 15));
-      if (snapshot.hasAnyData) {
-        final error = snapshot.error?.trim();
-        if (error != null && error.isNotEmpty) {
-          debugPrint('[METRICS] Refresh partiel au login: $error');
-        }
-        return null;
-      }
-      return snapshot.error ?? 'Aucune métrique serveur reçue au login.';
-    } catch (e) {
-      debugPrint('[METRICS] Sync ignoree au login: $e');
-      return e.toString();
     }
   }
 
@@ -262,40 +256,18 @@ class _LoginPageState extends State<LoginPage> {
         },
       );
 
-      // Optimisation login : on parallelise tous les refreshes au lieu de
-      // les enchainer en serie (avant ~10-15s d'attente). Tout part en
-      // background -> l'agent atterrit sur la HomePage rapidement.
-      //
-      // Le basemap est un cas particulier : si deja en cache local et
-      // sha256 OK, ensureRegionalBasemapDownloaded() retourne en ~50ms;
-      // sinon il peut prendre 10-15s pour télécharger 19 Mo. On lui
-      // accorde une courte fenetre (3s) pour le cas "deja a jour", puis
-      // on bascule en background sans bloquer l'UI.
-      final basemapFuture = _refreshBasemapCatalogSilently();
-      final metricsFuture = _refreshPublicMetricsSilently();
+      // Le login reste rapide: la carte offline se prepare/telecharge en
+      // arriere-plan, et le bouton Telecharger peut reprendre si besoin.
+      unawaited(_refreshBasemapSilently());
       final mobileFormConfigFuture = _refreshMobileFormConfigSilently();
       unawaited(_refreshCommunesSilently());
       unawaited(_refreshReferenceOverlaysSilently());
 
-      String? basemapError;
       try {
-        basemapError = await basemapFuture.timeout(const Duration(seconds: 3));
-      } on TimeoutException {
-        // Le download continue en arriere-plan : le mobile affichera la
-        // carte des qu'elle est prete via _hydrateOfflineBasemapState.
-        basemapError = null;
-      } catch (_) {
-        basemapError = null;
-      }
-      final metricsError = await metricsFuture;
-      if (metricsError != null && metricsError.trim().isNotEmpty) {
-        debugPrint('[METRICS] Non chargees au login: $metricsError');
-      }
-      try {
-        await mobileFormConfigFuture.timeout(const Duration(seconds: 8));
+        await mobileFormConfigFuture.timeout(const Duration(seconds: 2));
       } on TimeoutException {
         debugPrint(
-          '[MOBILE-FORM-CONFIG] Refresh encore en cours au login; cache local conserve',
+          '[MOBILE-FORM-CONFIG] Refresh continue en arriere-plan; donnees locales conservees',
         );
       } catch (e) {
         debugPrint('[MOBILE-FORM-CONFIG] Refresh ignore au login: $e');
@@ -311,7 +283,7 @@ class _LoginPageState extends State<LoginPage> {
       // Si la carte n'a pas pu etre téléchargée, on remonte la cause exacte
       // (au lieu d'avaler silencieusement). Permet de diagnostiquer les
       // problemes reseau / endpoint indisponible / fichier serveur manquant.
-      final basemapNotice = basemapError ??
+      final basemapNotice =
           ((offlineBasemapPath == null || offlineBasemapPath.isEmpty)
               ? "Aucune carte offline active n'a encore été téléchargée."
               : null);
@@ -321,6 +293,9 @@ class _LoginPageState extends State<LoginPage> {
         offlineBasemapPath: offlineBasemapPath,
         offlineBasemapFormat: offlineBasemapFormat,
         basemapNotice: basemapNotice,
+        metricsNotice:
+            'Connexion réussie. Les indicateurs se chargent en arrière-plan ; '
+            'vous pouvez déjà utiliser la carte.',
       );
     } on TimeoutException catch (_) {
       await _loginOffline(login, password);
@@ -343,6 +318,7 @@ class _LoginPageState extends State<LoginPage> {
     String? offlineBasemapPath,
     String? offlineBasemapFormat,
     String? basemapNotice,
+    String? metricsNotice,
   }) {
     Navigator.pushReplacement(
       context,
@@ -353,6 +329,7 @@ class _LoginPageState extends State<LoginPage> {
           initialOfflineBasemapPath: offlineBasemapPath,
           initialOfflineBasemapFormat: offlineBasemapFormat,
           initialBasemapNotice: basemapNotice,
+          initialMetricsNotice: metricsNotice,
           onLogout: () {
             ApiService.resetSession();
             DatabaseHelper().clearSrmSession();

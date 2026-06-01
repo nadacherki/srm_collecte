@@ -619,7 +619,7 @@ class CollectionManager extends ChangeNotifier {
         data['id'] = _ligneCollection!.id;
         data['lineCode'] = _ligneCollection!.lineCode;
         data['points'] = _ligneCollection!.points
-            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+            .map((p) => {'x': p.longitude, 'y': p.latitude})
             .toList();
         data['gnssPoints'] =
             _ligneCollection!.gnssPoints.map((p) => p.toJson()).toList();
@@ -636,7 +636,7 @@ class CollectionManager extends ChangeNotifier {
         data['id'] = _polygonCollection!.id;
         data['entityType'] = _polygonCollection!.entityType;
         data['points'] = _polygonCollection!.points
-            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+            .map((p) => {'x': p.longitude, 'y': p.latitude})
             .toList();
         data['gnssPoints'] =
             _polygonCollection!.gnssPoints.map((p) => p.toJson()).toList();
@@ -700,10 +700,11 @@ class CollectionManager extends ChangeNotifier {
 
   /// Restaure une collecte ligne en pause depuis les données JSON
   void restoreLigneCollection(Map<String, dynamic> data) {
-    final points = (data['points'] as List)
-        .map((p) =>
-            LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
-        .toList();
+    final points = (data['points'] as List).map((p) {
+      final y = (p['y'] ?? p['lat']) as num;
+      final x = (p['x'] ?? p['lng']) as num;
+      return LatLng(y.toDouble(), x.toDouble());
+    }).toList();
     final gnssPoints = ((data['gnssPoints'] as List?) ?? const [])
         .whereType<Map>()
         .map((p) => CapturedGnssPoint.fromJson(Map<String, dynamic>.from(p)))
@@ -736,10 +737,11 @@ class CollectionManager extends ChangeNotifier {
 
   /// Restaure une collecte polygone en pause.
   void restorePolygonCollection(Map<String, dynamic> data) {
-    final points = (data['points'] as List)
-        .map((p) =>
-            LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble()))
-        .toList();
+    final points = (data['points'] as List).map((p) {
+      final y = (p['y'] ?? p['lat']) as num;
+      final x = (p['x'] ?? p['lng']) as num;
+      return LatLng(y.toDouble(), x.toDouble());
+    }).toList();
     final gnssPoints = ((data['gnssPoints'] as List?) ?? const [])
         .whereType<Map>()
         .map((p) => CapturedGnssPoint.fromJson(Map<String, dynamic>.from(p)))

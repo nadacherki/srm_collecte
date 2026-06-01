@@ -20,10 +20,19 @@ bool _isIgnorableAppError(Object error) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Fail-fast : un build release doit pointer vers un backend HTTPS de
-  // prod (jamais l'emulateur en clair). Leve une StateError sinon.
-  ApiService.validateBaseUrl();
-  DArgon2Flutter.init();
+  Object? bootstrapError;
+  StackTrace? bootstrapStack;
+
+  try {
+    // Fail-fast visible : un build release doit pointer vers un backend HTTPS
+    // de prod ou un host HTTP explicitement autorise. En cas de mauvaise
+    // configuration, on affiche une page d'erreur au lieu d'un ecran noir.
+    ApiService.validateBaseUrl();
+    DArgon2Flutter.init();
+  } catch (error, stack) {
+    bootstrapError = error;
+    bootstrapStack = stack;
+  }
 
   final previousFlutterError = FlutterError.onError;
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -44,7 +53,92 @@ void main() async {
     return false;
   };
 
+  if (bootstrapError != null) {
+    debugPrint('SRM bootstrap failed: $bootstrapError\n$bootstrapStack');
+    runApp(BootstrapErrorApp(error: bootstrapError.toString()));
+    return;
+  }
+
   runApp(const MyApp());
+}
+
+class BootstrapErrorApp extends StatelessWidget {
+  final String error;
+
+  const BootstrapErrorApp({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: const Color(0xFFF7F9FC),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Configuration release invalide',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF17202A),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'L’application ne peut pas démarrer car le backend du build '
+                      'n’est pas configuré correctement.',
+                      style: TextStyle(fontSize: 16, color: Color(0xFF34495E)),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEBEE),
+                        border: Border.all(color: const Color(0xFFFFCDD2)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        error,
+                        style: const TextStyle(
+                          color: Color(0xFFB71C1C),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Rebuilder avec tools/build_mobile_release.ps1 et fournir '
+                      'API_BASE_URL.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1B4F72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -66,6 +160,11 @@ class MyApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1B4F72),
           foregroundColor: Colors.white,
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          showCloseIcon: true,
+          closeIconColor: Colors.white,
         ),
         useMaterial3: true,
       ),

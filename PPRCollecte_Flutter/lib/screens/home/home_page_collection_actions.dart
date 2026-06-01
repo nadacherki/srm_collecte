@@ -9,6 +9,9 @@ extension _HomePageCollectionActions on _HomePageState {
       altitude: homeController.currentAltitude,
       accuracyMeters: accuracyMeters,
       sourceLabel: homeController.gpsSourceLabel,
+      fixQuality: homeController.currentFixQuality,
+      satellites: homeController.currentSatellites,
+      hdop: homeController.currentHdop,
       allowInternalSources: role == 'admin',
     );
     if (reason == null) {
@@ -26,8 +29,13 @@ extension _HomePageCollectionActions on _HomePageState {
           'altitude_available': homeController.currentAltitude != null,
           'accuracy_m': accuracyMeters,
           'source': homeController.gpsSourceLabel,
+          'fix_quality': homeController.currentFixQuality,
+          'satellites': homeController.currentSatellites,
+          'hdop': homeController.currentHdop,
           'role': role,
-          'threshold_m': CaptureLocationGuard.maxCaptureAccuracyMeters,
+          'threshold_m': role == 'admin'
+              ? CaptureLocationGuard.adminMaxAccuracyMeters
+              : CaptureLocationGuard.agentMaxAccuracyMeters,
         },
       ),
     );
@@ -236,8 +244,8 @@ extension _HomePageCollectionActions on _HomePageState {
           displayTitle: selection.titleApp,
           latitude: current.latitude,
           longitude: current.longitude,
-          altitude:
-              homeController.currentProjectedZ ?? homeController.currentAltitude,
+          altitude: homeController.currentProjectedZ ??
+              homeController.currentAltitude,
           projectedX: homeController.currentProjectedX,
           projectedY: homeController.currentProjectedY,
           agentName: widget.agentName,
@@ -481,8 +489,8 @@ extension _HomePageCollectionActions on _HomePageState {
     });
   }
 
-  void _addCurrentPointToActiveCollection() {
-    if (!_ensureGpsReadyForCapture()) return;
+  void _addCurrentPointToActiveCollection({bool requireGps = true}) {
+    if (requireGps && !_ensureGpsReadyForCapture()) return;
 
     final error = homeController.addCurrentPointToActiveCollection();
 
@@ -500,6 +508,57 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     _setStateFromPart(() {});
+  }
+
+  Future<void> _addPointOfInterestAtMerchichPointImpl(
+    MerchichPoint point, {
+    AffleurantSnapResult? snapResult,
+  }) async {
+    if (snapResult?.snapped == true) {
+      debugPrint('[AFFLEURANTS] Formulaire ouvert sur ${snapResult!.label}');
+    }
+
+    if (!mounted) return;
+    final selection = await showSrmPointSelector(context);
+    if (!mounted || selection == null) return;
+
+    if (!await _confirmCaptureInsideAssignedZones(
+      lat: point.y,
+      lng: point.x,
+    )) {
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SrmPointFormWidget(
+          metier: selection.metier,
+          entityType: selection.entityType,
+          displayTitle: selection.titleApp,
+          latitude: point.y,
+          longitude: point.x,
+          altitude: point.z ??
+              homeController.currentProjectedZ ??
+              homeController.currentAltitude,
+          projectedX: point.x,
+          projectedY: point.y,
+          agentName: widget.agentName,
+          onSaved: () {
+            if (!mounted) return;
+            Navigator.pop(context);
+            _refreshAfterNavigation();
+          },
+          onCancel: () {
+            if (!mounted) return;
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _refreshAfterNavigation();
   }
 
   Future<void> _startLigneSrmCollectionImpl() async {
@@ -911,8 +970,7 @@ extension _HomePageCollectionActions on _HomePageState {
     }
 
     final projection = ProjectionService();
-    final startProjectedPoint =
-        gnssPoints.isNotEmpty ? gnssPoints.first : null;
+    final startProjectedPoint = gnssPoints.isNotEmpty ? gnssPoints.first : null;
     final endProjectedPoint = gnssPoints.isNotEmpty ? gnssPoints.last : null;
     final startProjected = (startProjectedPoint?.projectedX != null &&
             startProjectedPoint?.projectedY != null)
@@ -1063,17 +1121,13 @@ extension _HomePageCollectionActions on _HomePageState {
     };
     if (xField.isNotEmpty) {
       data[xField] = projectedPoints.isNotEmpty
-          ? projectedPoints
-                  .map((p) => p.projectedX!)
-                  .reduce((a, b) => a + b) /
+          ? projectedPoints.map((p) => p.projectedX!).reduce((a, b) => a + b) /
               projectedPoints.length
           : centroidProjected!.x;
     }
     if (yField.isNotEmpty) {
       data[yField] = projectedPoints.isNotEmpty
-          ? projectedPoints
-                  .map((p) => p.projectedY!)
-                  .reduce((a, b) => a + b) /
+          ? projectedPoints.map((p) => p.projectedY!).reduce((a, b) => a + b) /
               projectedPoints.length
           : centroidProjected!.y;
     }

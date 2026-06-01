@@ -21,9 +21,15 @@ class SrmRowVisibilityFilter {
     final filters = <String>[];
     final args = <Object?>[];
 
+    // Comparaison directe `= 1` (au lieu de l'ancien
+    // `LOWER(CAST(COALESCE(...) AS TEXT)) IN ('1','true','t')`) pour que
+    // SQLite utilise les index `idx_<table>_synced` et
+    // `idx_<table>_downloaded` poses par DatabaseHelper Phase A. Les
+    // valeurs legacy en texte sont normalisees au boot via
+    // DatabaseHelper._normalizeSrmTruthyColumns.
     for (final column in const ['downloaded', 'synced']) {
       if (availableColumns.contains(column)) {
-        filters.add(_truthySql(column));
+        filters.add('$column = 1');
       }
     }
 
@@ -49,8 +55,4 @@ class SrmRowVisibilityFilter {
   String get rawWhereClause => where == null ? '' : ' WHERE $where';
 
   List<Object?> get rawArgs => whereArgs ?? const <Object?>[];
-
-  static String _truthySql(String column) {
-    return "LOWER(CAST(COALESCE($column, 0) AS TEXT)) IN ('1', 'true', 't')";
-  }
 }

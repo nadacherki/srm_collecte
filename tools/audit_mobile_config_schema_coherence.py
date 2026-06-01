@@ -70,6 +70,54 @@ def fetch_rows(sql: str, params: list[Any] | None = None) -> list[dict[str, Any]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
+def parse_required_checks(value: Any) -> list[dict[str, Any]]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+    else:
+        parsed = value
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in parsed if isinstance(item, dict)]
+
+
+def count_required_value_violations(
+    schema: str,
+    table: str,
+    column: str,
+    data_type: str,
+) -> int:
+    from django.db import connection
+    from psycopg2 import sql as pg_sql
+
+    normalized_type = norm_type(data_type)
+    text_like = any(
+        token in normalized_type
+        for token in ("character", "text", "uuid")
+    )
+    if text_like:
+        where_sql = pg_sql.SQL(
+            "{column} IS NULL OR btrim({column}::text) = ''"
+        ).format(column=pg_sql.Identifier(column))
+    else:
+        where_sql = pg_sql.SQL("{column} IS NULL").format(
+            column=pg_sql.Identifier(column)
+        )
+
+    query = pg_sql.SQL("SELECT count(*) FROM {schema}.{table} WHERE ").format(
+        schema=pg_sql.Identifier(schema),
+        table=pg_sql.Identifier(table),
+    ) + where_sql
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        row = cursor.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
 def collect_physical_columns(schemas: list[str]) -> dict[tuple[str, str], dict[str, dict[str, Any]]]:
     rows = fetch_rows(
         """
@@ -91,6 +139,23 @@ def collect_physical_columns(schemas: list[str]) -> dict[tuple[str, str], dict[s
                       )
                 )
             ) AS not_null_enforced,
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'name', con.conname,
+                        'validated', con.convalidated,
+                        'definition', pg_get_constraintdef(con.oid)
+                    )
+                    ORDER BY con.conname
+                )
+                FROM pg_catalog.pg_constraint con
+                WHERE con.conrelid = c.oid
+                  AND con.contype = 'c'
+                  AND (
+                    con.conname = ('srm_nn_' || substr(md5(a.attname), 1, 16))
+                    OR con.conname = ('srm_req_' || substr(md5(a.attname), 1, 16))
+                  )
+            ) AS required_checks,
             a.attnum AS ordinal_position
         FROM pg_catalog.pg_attribute a
         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
@@ -198,6 +263,7 @@ def build_audit(schemas: list[str]) -> dict[str, Any]:
         "missing_physical_tables": [],
         "type_mismatches": [],
         "nullable_mismatches": [],
+        "not_valid_required_constraints": [],
         "attributes_without_physical_column": [],
         "physical_columns_without_attribute": [],
         "choices_without_attribute": [],
@@ -268,6 +334,34 @@ def build_audit(schemas: list[str]) -> dict[str, Any]:
                     configured_nullable=configured_nullable,
                     attribute_id=attr.get("id"),
                 )
+            if configured_nullable is False and not bool_from_db(physical_row["not_null"]):
+                required_checks = parse_required_checks(
+                    physical_row.get("required_checks")
+                )
+                invalid_checks = [
+                    check for check in required_checks
+                    if bool_from_db(check.get("validated")) is False
+                ]
+                if invalid_checks:
+                    add_issue(
+                        issues["not_valid_required_constraints"],
+                        schema=key[0],
+                        table=key[1],
+                        column=column_name,
+                        attribute_id=attr.get("id"),
+                        configured_nullable=configured_nullable,
+                        physical_not_null=bool_from_db(physical_row["not_null"]),
+                        constraint_names=", ".join(
+                            clean_text(check.get("name"))
+                            for check in invalid_checks
+                        ),
+                        existing_violations=count_required_value_violations(
+                            key[0],
+                            key[1],
+                            column_name,
+                            physical_row["data_type"],
+                        ),
+                    )
 
         for column_name, attr in attr_cols.items():
             if column_name not in phys_cols:

@@ -93,6 +93,15 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   // Anomalie (existant)
   bool _hasAnomalie = false;
   String? _typeAnomalie;
+  // Gate workflow anomalie (cf. doc bureau §2 : intervention creee si
+  // anomalie=oui ET retour_terrain=oui). Valeurs : 'oui' / 'non' / null.
+  // Peut etre force par une contrainte metier (ex. Tampon Scelle) via
+  // sideEffects de _constraintEvaluation a l'enregistrement.
+  String? _retourTerrain;
+  // Gap F : verrouille le toggle anomalie a 'oui' si une intervention
+  // serveur existe deja (id_intervention > 0, hors cloture/annule).
+  // Le doc bureau §2 reserve l'annulation au bureau.
+  bool _anomalieLockedByServerIntervention = false;
 
   // Objet incomplet (nouveau)
   bool _isObjetIncomplet = false;
@@ -251,6 +260,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString() ??
           widget.existingData!['anomalie_regard']?.toString() ??
           widget.existingData!['anomalie_tamp']?.toString();
+      final retourRaw =
+          widget.existingData!['retour_terrain']?.toString().trim() ?? '';
+      _retourTerrain = _normalizeRetourTerrain(retourRaw);
+      unawaited(_checkAnomalieServerLock());
 
       // Restaurer état objet incomplet en mode édition
       _isObjetIncomplet =
@@ -453,6 +466,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
     // _hasAnomalie : pivot du workflow anomalie, n'a pas de controller texte.
     values['anomalie'] = _hasAnomalie;
+    values['retour_terrain'] = _retourTerrain;
     if (_typeAnomalie != null && _typeAnomalie!.isNotEmpty) {
       // anomalie_regard / anomalie_tamp partagent _typeAnomalie pour le rendu :
       // on l'expose dans les deux cles pour que les regles puissent matcher
@@ -814,7 +828,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   }
 
   bool _isAnomalieManagedField(String field) =>
-      _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+      _isAnomalieFlagField(field) ||
+      _isAnomalieDetailField(field) ||
+      _isRetourTerrainManagedField(field);
+
+  bool _isRetourTerrainManagedField(String field) =>
+      field.toLowerCase() == 'retour_terrain';
 
   bool _isCompteurAbonneAnomalieChoiceField(String field) =>
       _isEpCompteurAbonne && field.toLowerCase() == 'ep_anomalie';
@@ -1203,62 +1222,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     return PhotoStorageService.workflowPhotoSlotLimit;
   }
 
-  int _countFilledPhotos(
-    Map<int, String?> photoPaths,
-    int maxSlots,
-  ) {
-    var count = 0;
-    for (var slot = 1; slot <= maxSlots; slot++) {
-      final value = photoPaths[slot]?.trim() ?? '';
-      if (value.isNotEmpty) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  bool get _requiresWorkflowAnomaliePhotos =>
-      !_isEpMinimalLocationForm &&
-      !_isEpCompteurAbonne &&
-      _hasActiveAnomalie;
-
-  bool get _requiresWorkflowIncompletPhotos =>
-      !_isEpMinimalLocationForm && _isObjetIncomplet;
-
   String? _validatePhotoRequirements() {
-    if (_isLocked) return null;
-
-    if (_requiresWorkflowAnomaliePhotos) {
-      const context = _photoContextAnomalieAvant;
-      const label = 'photos anomalie';
-      final count = _countFilledPhotos(
-        _workflowPhotoMapForContext(context),
-        _workflowPhotoSlotCount(context),
-      );
-      if (count < _requiredWorkflowPhotoCount) {
-        return 'Veuillez ajouter au moins $_requiredWorkflowPhotoCount $label.';
-      }
-    }
-
-    if (_requiresWorkflowIncompletPhotos) {
-      const context = _photoContextIncompletInitial;
-      const label = 'photos objet incomplet';
-      final count = _countFilledPhotos(
-        _workflowPhotoMapForContext(context),
-        _workflowPhotoSlotCount(context),
-      );
-      if (count < _requiredWorkflowPhotoCount) {
-        return 'Veuillez ajouter au moins $_requiredWorkflowPhotoCount $label.';
-      }
-    }
-
-    final generalCount = _countFilledPhotos(_photoPaths, _maxPhotos);
-    if (generalCount < _requiredGeneralPhotoCount &&
-        !_requiresWorkflowAnomaliePhotos &&
-        !_requiresWorkflowIncompletPhotos) {
-      return 'Veuillez ajouter les $_requiredGeneralPhotoCount photos obligatoires.';
-    }
-
+    // Photos rendues optionnelles pour tous les metiers (2026-05-25).
+    // Les emplacements (slots) restent visibles dans l'UI pour permettre
+    // a l'agent de saisir des photos s'il le souhaite, mais aucun seuil
+    // minimum ne bloque l'enregistrement du formulaire.
     return null;
   }
 
@@ -1392,7 +1360,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     final synced = int.tryParse(row['synced']?.toString() ?? '') ?? 0;
 
     var score = 0;
-    if (preferredInterventionId > 0 && rowInterventionId == preferredInterventionId) {
+    if (preferredInterventionId > 0 &&
+        rowInterventionId == preferredInterventionId) {
       score += 100;
     }
     if (rowInterventionId > 0) score += 20;
@@ -1630,9 +1599,12 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       return;
     }
 
-    if (widget.existingData == null && widget.altitude == null) {
+    final hasProjectedPosition =
+        widget.projectedX != null && widget.projectedY != null;
+    if (widget.existingData == null && !hasProjectedPosition) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Veuillez activer le GPS'),
+        content: Text(
+            'Position indisponible. Touchez la carte ou reconnectez le GNSS.'),
         backgroundColor: Colors.orange,
       ));
       return;
@@ -1738,10 +1710,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             if (idProvince != null && data['id_province'] == null) {
               data['id_province'] = idProvince;
             }
-            resolvedNomCommune =
-                commune['nom_commune']?.toString().trim();
-            resolvedNomProvince =
-                commune['nom_province']?.toString().trim();
+            resolvedNomCommune = commune['nom_commune']?.toString().trim();
+            resolvedNomProvince = commune['nom_province']?.toString().trim();
             if (resolvedNomCommune?.isEmpty ?? true) resolvedNomCommune = null;
             if (resolvedNomProvince?.isEmpty ?? true) {
               resolvedNomProvince = null;
@@ -1819,7 +1789,11 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       final constraintEv = _constraintEvaluation;
       if (constraintEv != null) {
         for (final entry in constraintEv.sideEffects.entries) {
-          data[entry.key] = entry.value;
+          if (entry.key == 'retour_terrain') {
+            data[entry.key] = _normalizeRetourTerrain(entry.value?.toString());
+          } else {
+            data[entry.key] = entry.value;
+          }
         }
         // disable_and_clear : on force NULL pour les champs verrouilles-vides,
         // au cas ou un controller aurait conserve une vieille valeur ou
@@ -1993,6 +1967,50 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         normalized == 'aucune anomalie';
   }
 
+  /// Gap F : interroge la table locale pour savoir si une intervention
+  /// serveur active existe deja pour cet objet metier. Si oui, on
+  /// verrouille la dé-bascule anomalie=oui -> non cote UI.
+  Future<void> _checkAnomalieServerLock() async {
+    final data = widget.existingData;
+    if (data == null) return;
+    final tableName = (data['source_table'] ?? '').toString().trim();
+    final schemaName = (data['source_metier'] ?? '').toString().trim();
+    if (tableName.isEmpty || schemaName.isEmpty) return;
+    final idObjet = int.tryParse(
+          (data['fid'] ?? data['id'] ?? '').toString(),
+        ) ??
+        0;
+    final uuidObjet = (data['uuid'] ?? '').toString().trim();
+    try {
+      final locked = await DatabaseHelper().hasServerInterventionForObject(
+        schemaName: schemaName.toLowerCase(),
+        tableName: tableName,
+        idObjet: idObjet,
+        uuidObjet: uuidObjet,
+      );
+      if (mounted && locked != _anomalieLockedByServerIntervention) {
+        setState(() {
+          _anomalieLockedByServerIntervention = locked;
+        });
+      }
+    } catch (_) {
+      // En cas d'erreur on n'active pas le verrou (fail-open) :
+      // l'agent garde la main, le bureau peut toujours annuler ensuite.
+    }
+  }
+
+  /// Normalise une valeur brute de retour_terrain vers 'oui' / 'non' / null.
+  /// Truthy : 'oui', 'true', '1', 'yes', 't', 'o'. Tout autre non-vide -> 'non'.
+  /// Empty / null -> null (choix encore non fait par l'agent).
+  String? _normalizeRetourTerrain(String? raw) {
+    final value = (raw ?? '').trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (const {'oui', 'true', 't', '1', 'yes', 'o'}.contains(value)) {
+      return 'oui';
+    }
+    return 'non';
+  }
+
   void _applyCompteurAbonneAnomaliePayload(Map<String, dynamic> data) {
     final value = (_controllers['ep_anomalie']?.text ??
             data['ep_anomalie']?.toString() ??
@@ -2012,6 +2030,14 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     }
 
     data['anomalie'] = _hasAnomalie ? 1 : 0;
+    // Gate workflow (cf. doc bureau §2) : retour_terrain saisi par l'agent
+    // ou impose par une contrainte (sideEffects evalues plus haut dans
+    // _evaluateConstraints, qui ecrase ce data via le bloc constraintEv).
+    if (_hasAnomalie) {
+      data['retour_terrain'] = _retourTerrain;
+    } else {
+      data['retour_terrain'] = null;
+    }
 
     for (final field in const ['ep_anomalie', 'ass_anomalie']) {
       if (_hasAnomalieColumn(field)) {
@@ -2782,9 +2808,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
   Widget _buildPhotoSection() {
     if (_maxPhotos == 0) return const SizedBox.shrink();
     final hasWorkflowAnomalie = _hasActiveAnomalie && !_isEpCompteurAbonne;
-    final disabled = _isObjetIncomplet ||
-        hasWorkflowAnomalie ||
-        _isLocked;
+    final disabled = _isObjetIncomplet || hasWorkflowAnomalie || _isLocked;
     final visibleSlotCount = PhotoSlotService.visibleSlotCount(
       _photoPaths,
       _maxPhotos,
@@ -2794,8 +2818,10 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 24),
-        const Text('Photos obligatoires ($_requiredGeneralPhotoCount requises)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const Text(
+          'Photos (optionnelles, $_requiredGeneralPhotoCount emplacements)',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
         const SizedBox(height: 8),
         Text(
           'Formats autorisés: JPG, PNG, WEBP, HEIC • Taille max: ${PhotoValidationService.maxPhotoSizeLabel}',
@@ -3106,6 +3132,52 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     );
   }
 
+  /// Selecteur oui/non du `retour_terrain` (gate du workflow anomalie cf.
+  /// doc bureau §2). Affiche uniquement quand `_hasAnomalie` est actif et
+  /// que l'objet n'est pas marque incomplet. Une contrainte metier (ex.
+  /// "Tampons Scellés") peut ecraser cette valeur a l'enregistrement via
+  /// les sideEffects de `_constraintEvaluation`.
+  List<DropdownMenuItem<String>> _retourTerrainDropdownItems() {
+    final labels = <String, String>{'oui': 'Oui', 'non': 'Non'};
+    final choices =
+        _choicesByField['retour_terrain'] ?? const <SrmFieldChoice>[];
+    for (final choice in choices) {
+      final normalized = _normalizeRetourTerrain(choice.code);
+      if (normalized == null) continue;
+      final label = choice.label.trim();
+      labels[normalized] = label.isEmpty ? labels[normalized]! : label;
+    }
+    return [
+      DropdownMenuItem(value: 'oui', child: Text(labels['oui']!)),
+      DropdownMenuItem(value: 'non', child: Text(labels['non']!)),
+    ];
+  }
+
+  Widget _buildRetourTerrainField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: _retourTerrain,
+        decoration: _deco('Retour terrain requis ?').copyWith(
+          helperText: 'Oui declenche l\'intervention bureau. Non = anomalie '
+              'informative seulement.',
+          helperMaxLines: 2,
+        ),
+        hint: const Text('Selectionner'),
+        isExpanded: true,
+        items: _retourTerrainDropdownItems(),
+        onChanged: _isLocked
+            ? null
+            : (value) {
+                setState(() {
+                  _retourTerrain = value;
+                });
+                onFieldChanged();
+              },
+      ),
+    );
+  }
+
   Widget _buildAnomalieTextField(String field) {
     final controller = _controllers.putIfAbsent(
       field,
@@ -3156,7 +3228,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
     if (_isEpCompteurAbonne) {
       return const SizedBox.shrink();
     }
-    final disabled = _isObjetIncomplet || _isLocked;
+    final lockedByServer = _anomalieLockedByServerIntervention && _hasAnomalie;
+    final disabled = _isObjetIncomplet || _isLocked || lockedByServer;
     return Opacity(
       opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
       child: Column(
@@ -3175,6 +3248,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                       _hasAnomalie = v;
                       if (!v) {
                         _typeAnomalie = null;
+                        _retourTerrain = null;
                         for (final field in _anomalieDetailFields()) {
                           _controllers[field]?.clear();
                         }
@@ -3184,8 +3258,18 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                   },
             contentPadding: EdgeInsets.zero,
           ),
+          if (lockedByServer)
+            const Padding(
+              padding: EdgeInsets.only(left: 8, right: 8, bottom: 4),
+              child: Text(
+                'Anomalie deja signalee au bureau. Contactez le bureau '
+                'pour annuler.',
+                style: TextStyle(fontSize: 11, color: Color(0xFFF57C00)),
+              ),
+            ),
           if (_hasAnomalie && !_isObjetIncomplet && _hasTypeAnomalieField)
             _buildTypeAnomalieField(),
+          if (_hasAnomalie && !_isObjetIncomplet) _buildRetourTerrainField(),
           if (_hasAnomalie && !_isObjetIncomplet)
             ..._anomalieExtraDetailFields().map(_buildAnomalieTextField),
         ],
@@ -3217,7 +3301,9 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 Expanded(
                   child: Text(
                     'Les champs obligatoires sont neutralises.\n'
-                    'Les valeurs deja saisies et les photos sont conservees.',
+                    'Les valeurs deja saisies et les photos standards sont '
+                    'conservees. Les photos d\'anomalie eventuellement deja '
+                    'prises seront effacees a l\'enregistrement.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -3245,8 +3331,16 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 _detailRaisonController.clear();
               }
               // Si on active l'incomplet, on force l'anomalie à false
+              // ET on nettoie tous les states anomalie qui seraient restes
+              // en memoire (Gap I : sinon _typeAnomalie / _retourTerrain /
+              // controllers anomalie detail gardent leur valeur cachee).
               if (v) {
                 _hasAnomalie = false;
+                _typeAnomalie = null;
+                _retourTerrain = null;
+                for (final field in _anomalieDetailFields()) {
+                  _controllers[field]?.clear();
+                }
               }
             });
             _evaluateConstraints(rebuildUi: true);
@@ -3517,7 +3611,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                         _hasActiveAnomalie)
                       _buildWorkflowPhotoSection(
                         title:
-                            'Photos anomalie ($_requiredWorkflowPhotoCount requises)',
+                            'Photos anomalie (optionnelles, $_requiredWorkflowPhotoCount emplacements)',
                         photoContext: _photoContextAnomalieAvant,
                         photoPaths: _anomaliePhotoPaths,
                         color: Colors.red,
@@ -3525,7 +3619,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                     if (!_isEpMinimalLocationForm && _isObjetIncomplet)
                       _buildWorkflowPhotoSection(
                         title:
-                            'Photos objet incomplet ($_requiredWorkflowPhotoCount requises)',
+                            'Photos objet incomplet (optionnelles, $_requiredWorkflowPhotoCount emplacements)',
                         photoContext: _photoContextIncompletInitial,
                         photoPaths: _incompletPhotoPaths,
                         color: Colors.orange,

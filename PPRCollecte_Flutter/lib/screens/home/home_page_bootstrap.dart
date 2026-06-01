@@ -155,6 +155,13 @@ Future<void> _applyOfflineBasemapPackageStateImpl(
 ) async {
   final localPath = basemap?['local_path']?.toString().trim();
   final format = basemap?['format']?.toString().trim();
+  final tileSize = _asIntOrNullImpl(basemap?['tile_size']) ?? 256;
+  final originX = _asDoubleOrNullImpl(basemap?['origin_x']);
+  final originY = _asDoubleOrNullImpl(basemap?['origin_y']);
+  final resolutions =
+      _doubleListFromJsonValueImpl(basemap?['resolutions_json']);
+  final boundsMap = _mapFromJsonValueImpl(basemap?['bounds_merchich_json']);
+  final boundsMetrics = _boundsMetricsFromMapImpl(boundsMap);
 
   if (!state.mounted) return;
 
@@ -163,11 +170,63 @@ Future<void> _applyOfflineBasemapPackageStateImpl(
       state._offlineBasemapPath = localPath;
       state._offlineBasemapFormat = format;
       state._basemapUnavailableMessage = null;
-    } else if (state._offlineBasemapPath == null ||
-        state._offlineBasemapPath!.isEmpty) {
+      state._offlineBasemapTileSize = tileSize;
+      state._offlineBasemapOriginX = originX;
+      state._offlineBasemapOriginY = originY;
+      state._offlineBasemapResolutions = resolutions;
+      if (resolutions != null && resolutions.isNotEmpty) {
+        state._offlineBasemapMinZoom = 0;
+        state._offlineBasemapMaxZoom = (resolutions.length - 1).toDouble();
+        state._offlineBasemapDefaultZoom =
+            _defaultOfflineOrthoZoomImpl(state._offlineBasemapMaxZoom!);
+      }
+      if (boundsMetrics != null) {
+        state._offlineBasemapCenter = LatLng(
+          (boundsMetrics.minY + boundsMetrics.maxY) / 2,
+          (boundsMetrics.minX + boundsMetrics.maxX) / 2,
+        );
+        state._offlineBasemapProjectedBounds = Bounds<double>(
+          Point<double>(boundsMetrics.minX, boundsMetrics.minY),
+          Point<double>(boundsMetrics.maxX, boundsMetrics.maxY),
+        );
+        state._offlineBasemapBounds = null;
+      }
+    } else {
+      state._offlineBasemapPath = null;
+      state._offlineBasemapFormat = null;
+      state._offlineBasemapCenter = BasemapConstants.fallbackCenter;
+      state._offlineBasemapBounds = BasemapConstants.fallbackBounds;
+      state._offlineBasemapDefaultZoom = BasemapConstants.fallbackDefaultZoom;
+      state._offlineBasemapMinZoom = BasemapConstants.fallbackMinZoom;
+      state._offlineBasemapMaxZoom = BasemapConstants.fallbackMaxZoom;
+      state._offlineBasemapTileSize = 256;
+      state._offlineBasemapOriginX = BasemapConstants.defaultMerchichOriginX;
+      state._offlineBasemapOriginY = BasemapConstants.defaultMerchichOriginY;
+      state._offlineBasemapResolutions =
+          BasemapConstants.defaultMerchichResolutions;
+      state._offlineBasemapProjectedBounds = null;
       state._basemapUnavailableMessage = BasemapConstants.unavailableMessage;
     }
   });
+
+  if (localPath != null &&
+      localPath.isNotEmpty &&
+      state._showOfflineOrtho &&
+      state._mapController != null &&
+      state.widget.initialFocus == null &&
+      !state._isConduiteDrawingMode) {
+    final center = state._offlineBasemapCenter;
+    final zoom = state._offlineBasemapDefaultZoom;
+    if (center != null && zoom != null) {
+      state._mapController!.move(state._mapPointForActiveMap(center), zoom);
+      state._lastCameraPosition = center;
+    }
+  }
+}
+
+double _defaultOfflineOrthoZoomImpl(double nativeMaxZoom) {
+  if (nativeMaxZoom <= 0) return 0;
+  return math.max(0, nativeMaxZoom - 2).toDouble();
 }
 
 void _showInitialBasemapNoticeIfNeededImpl(_HomePageState state) {
@@ -185,6 +244,54 @@ double? _asDoubleOrNullImpl(dynamic value) {
   if (value == null) return null;
   if (value is num) return value.toDouble();
   return double.tryParse(value.toString());
+}
+
+List<double>? _doubleListFromJsonValueImpl(dynamic value) {
+  final decoded = _jsonValueImpl(value);
+  if (decoded is! List) return null;
+  final list = <double>[];
+  for (final item in decoded) {
+    final parsed = _asDoubleOrNullImpl(item);
+    if (parsed == null || parsed <= 0) return null;
+    list.add(parsed);
+  }
+  return list.isEmpty ? null : list;
+}
+
+Map<String, dynamic>? _mapFromJsonValueImpl(dynamic value) {
+  final decoded = _jsonValueImpl(value);
+  if (decoded is Map<String, dynamic>) return decoded;
+  if (decoded is Map) {
+    return decoded.map((key, value) => MapEntry(key.toString(), value));
+  }
+  return null;
+}
+
+dynamic _jsonValueImpl(dynamic value) {
+  if (value == null) return null;
+  if (value is List || value is Map) return value;
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      return jsonDecode(value);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+({double minX, double minY, double maxX, double maxY})?
+    _boundsMetricsFromMapImpl(Map<String, dynamic>? bounds) {
+  if (bounds == null) return null;
+  final minX = _asDoubleOrNullImpl(bounds['minX'] ?? bounds['min_x']);
+  final minY = _asDoubleOrNullImpl(bounds['minY'] ?? bounds['min_y']);
+  final maxX = _asDoubleOrNullImpl(bounds['maxX'] ?? bounds['max_x']);
+  final maxY = _asDoubleOrNullImpl(bounds['maxY'] ?? bounds['max_y']);
+  if (minX == null || minY == null || maxX == null || maxY == null) {
+    return null;
+  }
+  if (minX >= maxX || minY >= maxY) return null;
+  return (minX: minX, minY: minY, maxX: maxX, maxY: maxY);
 }
 
 Future<void> _loadAdminNamesOfflineImpl(_HomePageState state) async {
@@ -360,8 +467,7 @@ Future<void> _autoStartNmeaBridgeIfConfiguredImpl(_HomePageState state) async {
     final status = await bridge.getStatus();
     if (!status.mockLocationSelected) {
       debugPrint(
-          '[NMEA] Auto-connect ignore: SRM Collecte non selectionnee en position fictive');
-      return;
+          '[NMEA] Auto-connect sans position fictive Android: lecture directe du pont GNSS');
     }
 
     if (!_isNmeaBridgeDisconnectedStatus(status.status)) {
@@ -545,16 +651,12 @@ bool _applyNmeaBridgeFixToMapImpl(
       nativeLocation['bluetoothName']?.toString() ?? status.bluetoothName;
   final bluetoothAddress =
       nativeLocation['bluetoothAddress']?.toString() ?? status.bluetoothAddress;
-  final target = LatLng(
-    normalizedPosition.latitude,
-    normalizedPosition.longitude,
-  );
   final hasDirectProjectedCoordinates =
       projectedX != null && projectedY != null;
 
   state.homeController.applyNmeaBridgeLocation(
-    latitude: target.latitude,
-    longitude: target.longitude,
+    latitude: normalizedPosition.latitude,
+    longitude: normalizedPosition.longitude,
     accuracy: accuracy,
     altitude: altitude,
     projectedX: projectedX,
@@ -576,7 +678,8 @@ bool _applyNmeaBridgeFixToMapImpl(
   if (recenter) {
     state._autoCenterDisabledByUser = false;
     if (state._mapController != null) {
-      state._mapController!.move(target, 17);
+      final target = state.homeController.userPosition;
+      state._mapController!.move(state._mapPointForActiveMap(target), 17);
       state._lastCameraPosition = target;
     }
     debugPrint(
@@ -629,11 +732,9 @@ bool _applyNmeaBridgeFixToMapImpl(
     return null;
   }
 
-  final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
-  if (wgs84.latitude.abs() > 90 || wgs84.longitude.abs() > 180) {
-    return null;
-  }
-  return (latitude: wgs84.latitude, longitude: wgs84.longitude);
+  // Direct projected fixes do not need WGS inside the app. The returned
+  // placeholder only satisfies legacy GNSS method parameters.
+  return (latitude: 0.0, longitude: 0.0);
 }
 
 double? _firstDoubleValueImpl(Map<String, dynamic> data, List<String> keys) {
@@ -704,11 +805,7 @@ Future<bool> _isApiReachableForStatusImpl() async {
 }
 
 Future<bool> _isOnlineBasemapReachableImpl() async {
-  final checks = await Future.wait<bool>([
-    _canConnectSocketImpl('tile.openstreetmap.org', 443),
-    _canConnectSocketImpl('mt1.google.com', 443),
-  ]);
-  return checks.any((reachable) => reachable);
+  return OnlineBasemapService(socketProbe: _canConnectSocketImpl).isReachable();
 }
 
 Future<bool> _canConnectSocketImpl(String host, int port) async {
@@ -750,7 +847,13 @@ double _focusTargetZoomImpl(_HomePageState state) {
       : BasemapConstants.fallbackMaxZoom;
 
   if (maxZoom < 15.0) return maxZoom;
-  return maxZoom.clamp(15.0, BasemapConstants.fallbackMaxZoom).toDouble();
+  return maxZoom
+      .clamp(
+        15.0,
+        BasemapConstants.fallbackMaxZoom +
+            BasemapConstants.offlineOverzoomLevels,
+      )
+      .toDouble();
 }
 
 Future<void> _focusOnTargetImpl(
@@ -828,12 +931,17 @@ Future<void> _focusOnTargetImpl(
 
   if (state._mapController != null) {
     if (target.kind == 'point' && target.point != null) {
-      state._mapController!.move(target.point!, _focusTargetZoomImpl(state));
+      state._mapController!.move(
+        state._mapPointForActiveMap(target.point!),
+        _focusTargetZoomImpl(state),
+      );
       state._lastCameraPosition = target.point;
     } else if (target.kind == 'polyline' &&
         target.polyline != null &&
         target.polyline!.isNotEmpty) {
-      final bounds = LatLngBounds.fromPoints(target.polyline!);
+      final bounds = LatLngBounds.fromPoints(
+        target.polyline!.map(state._mapPointForActiveMap).toList(),
+      );
       state._mapController!.fitCamera(
         CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(64)),
       );
@@ -874,11 +982,11 @@ void _onMapCreatedImpl(_HomePageState state, MapController controller) {
   }
 
   if (state.userPosition != null) {
-    controller.move(state.userPosition!, 17);
+    controller.move(state._mapPointForActiveMap(state.userPosition!), 17);
     state._lastCameraPosition = state.userPosition;
   } else if (state._offlineBasemapCenter != null) {
     controller.move(
-      state._offlineBasemapCenter!,
+      state._mapPointForActiveMap(state._offlineBasemapCenter!),
       state._offlineBasemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom,
     );
     state._lastCameraPosition = state._offlineBasemapCenter;
@@ -900,7 +1008,10 @@ void _moveCameraIfNeededImpl(_HomePageState state) {
             20;
 
     if (!state._autoCenterSuspended && shouldMove) {
-      state._mapController!.move(state.userPosition!, 17);
+      state._mapController!.move(
+        state._mapPointForActiveMap(state.userPosition!),
+        17,
+      );
       state._lastCameraPosition = state.userPosition;
     }
   } catch (_) {

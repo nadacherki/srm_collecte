@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_mbtiles/flutter_map_mbtiles.dart';
+import 'package:flutter_map_pmtiles/flutter_map_pmtiles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:pmtiles/pmtiles.dart' as pmtiles;
@@ -19,26 +20,27 @@ import 'package:vector_tile/vector_tile.dart' as vt;
 import 'package:vector_tile_renderer/vector_tile_renderer.dart' as vtr;
 
 import '../../core/constants/basemap_constants.dart';
+import '../../core/map/merchich_crs.dart';
+import '../../models/merchich_point.dart';
+import '../../services/projection_service.dart';
 
+@immutable
 class MapWidget extends StatefulWidget {
-  static const String onlineOsmUrlTemplate =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  static const String onlineSatelliteUrlTemplate =
-      'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
+  static const String onlineOsmUrlTemplate = BasemapConstants.onlineUrlTemplate;
 
   final LatLng userPosition;
   final bool gpsEnabled;
   final bool useOnlineBasemap;
   final List<Marker> markers;
   final List<Polyline> polylines;
+  final List<Marker> restitutionMarkers;
+  final List<Polyline> restitutionPolylines;
   final List<Polygon> polygons;
   final Function(Object?)? onPolygonTap;
   final Function(Object?)? onPolygonLongPress;
   final Function(MapController) onMapCreated;
   final List<Marker> formMarkers;
-  final bool isSatellite;
   final Function(Object?)? onPolylineTap;
-  final ValueChanged<bool>? onMapTypeChanged;
   final VoidCallback? onUserInteraction;
   final VoidCallback? onGpsButtonPressed;
   final void Function(TapPosition, LatLng)? onMapTap;
@@ -51,10 +53,17 @@ class MapWidget extends StatefulWidget {
   final double? basemapDefaultZoom;
   final double? basemapMinZoom;
   final double? basemapMaxZoom;
+  final int? basemapTileSize;
+  final double? basemapOriginX;
+  final double? basemapOriginY;
+  final List<double>? basemapResolutions;
+  final Bounds<double>? basemapProjectedBounds;
+  final bool showOfflineOrtho;
+  final ValueChanged<bool>? onOfflineOrthoVisibilityChanged;
   final bool showMapButtons;
   final bool showLocationButton;
   final bool showZoomButtons;
-  final bool showMapTypeButton;
+  final bool showBasemapOrthoButton;
 
   const MapWidget({
     super.key,
@@ -63,14 +72,14 @@ class MapWidget extends StatefulWidget {
     required this.useOnlineBasemap,
     required this.markers,
     required this.polylines,
+    this.restitutionMarkers = const [],
+    this.restitutionPolylines = const [],
     this.polygons = const [],
     this.onPolygonTap,
     this.onPolygonLongPress,
     required this.onMapCreated,
     required this.formMarkers,
-    this.isSatellite = false,
     this.onPolylineTap,
-    this.onMapTypeChanged,
     this.onUserInteraction,
     this.onGpsButtonPressed,
     this.onMapTap,
@@ -83,10 +92,17 @@ class MapWidget extends StatefulWidget {
     this.basemapDefaultZoom,
     this.basemapMinZoom,
     this.basemapMaxZoom,
+    this.basemapTileSize,
+    this.basemapOriginX,
+    this.basemapOriginY,
+    this.basemapResolutions,
+    this.basemapProjectedBounds,
+    this.showOfflineOrtho = true,
+    this.onOfflineOrthoVisibilityChanged,
     this.showMapButtons = true,
     this.showLocationButton = true,
     this.showZoomButtons = true,
-    this.showMapTypeButton = true,
+    this.showBasemapOrthoButton = true,
   });
 
   @override
@@ -166,6 +182,9 @@ class _MapWidgetState extends State<MapWidget> {
   int _basemapLoadRequestId = 0;
   int _offlinePoiRefreshRequestId = 0;
   int _basemapLayerRevision = 0;
+  int _mapModeChangeRevision = 0;
+  LatLng? _pendingModeChangeCenter;
+  double? _pendingModeChangeZoom;
   String? _lastIconDiagnosticsKey;
   String? _lastOfflinePoiRefreshKey;
   final Map<String, bool> _offlinePoiAssetAvailabilityCache = {};
@@ -194,6 +213,12 @@ class _MapWidgetState extends State<MapWidget> {
       _loadBasemapProvider(
         widget.offlineBasemapPath,
         widget.offlineBasemapFormat,
+      );
+    }
+    if (oldWidget.useOnlineBasemap != widget.useOnlineBasemap) {
+      _preserveCameraAcrossMapModeChange(
+        oldOnlineMode: oldWidget.useOnlineBasemap,
+        newOnlineMode: widget.useOnlineBasemap,
       );
     }
   }
@@ -279,8 +304,204 @@ class _MapWidgetState extends State<MapWidget> {
         17.0,
         _mapController.camera.maxZoom ?? 17.0,
       );
-      _mapController.move(widget.userPosition, targetZoom);
+      _mapController.move(
+        _pointForMapMode(widget.userPosition, onlineMode: _usesOnlineMapCrs),
+        targetZoom,
+      );
     }
+  }
+
+  bool get _usesOnlineMapCrs => widget.useOnlineBasemap;
+
+  void _preserveCameraAcrossMapModeChange({
+    required bool oldOnlineMode,
+    required bool newOnlineMode,
+  }) {
+    if (!_controllerReady) return;
+    final modeChangeRevision = ++_mapModeChangeRevision;
+
+    final stableMerchichCenter = _pointFromMapMode(
+      _mapController.camera.center,
+      onlineMode: oldOnlineMode,
+    );
+    final targetCenter = _pointForMapMode(
+      stableMerchichCenter,
+      onlineMode: newOnlineMode,
+    );
+    final targetZoom = _zoomForMapModeChange(
+      _mapController.camera.zoom,
+      stableMerchichCenter,
+      oldOnlineMode: oldOnlineMode,
+      newOnlineMode: newOnlineMode,
+    );
+    _pendingModeChangeCenter = targetCenter;
+    _pendingModeChangeZoom = targetZoom;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controllerReady) return;
+      if (modeChangeRevision != _mapModeChangeRevision) return;
+      _mapController.move(targetCenter, targetZoom);
+      _pendingModeChangeCenter = null;
+      _pendingModeChangeZoom = null;
+      if (!newOnlineMode) {
+        _queueOfflinePoiMarkerRefresh(force: true, immediate: true);
+      }
+    });
+  }
+
+  double _clampZoomForMapMode(double zoom, {required bool onlineMode}) {
+    final minZoom = onlineMode
+        ? BasemapConstants.fallbackMinZoom
+        : (widget.basemapMinZoom ?? BasemapConstants.fallbackMinZoom);
+    final nativeMaxZoom = onlineMode
+        ? math.max(BasemapConstants.fallbackMaxZoom, 20.0)
+        : (widget.basemapMaxZoom ?? BasemapConstants.fallbackMaxZoom);
+    final maxZoom = onlineMode
+        ? nativeMaxZoom
+        : nativeMaxZoom + BasemapConstants.offlineOverzoomLevels;
+    return zoom.clamp(minZoom, maxZoom).toDouble();
+  }
+
+  double _zoomForMapModeChange(
+    double zoom,
+    LatLng stableMerchichCenter, {
+    required bool oldOnlineMode,
+    required bool newOnlineMode,
+  }) {
+    if (oldOnlineMode == newOnlineMode) {
+      return _clampZoomForMapMode(zoom, onlineMode: newOnlineMode);
+    }
+
+    final wgs84Center = _merchichCarrierToWgs84(stableMerchichCenter);
+    final latitudeRadians = wgs84Center.latitude * math.pi / 180.0;
+    final webMetersPerPixel = 156543.03392804097 *
+        math.cos(latitudeRadians).abs() /
+        math.pow(2, zoom);
+    final resolutions = widget.basemapResolutions ??
+        BasemapConstants.defaultMerchichResolutions;
+    final orthoCrs = MerchichCrs(
+      resolutions: resolutions,
+      originX: widget.basemapOriginX ?? BasemapConstants.defaultMerchichOriginX,
+      originY: widget.basemapOriginY ?? BasemapConstants.defaultMerchichOriginY,
+      bounds: widget.basemapProjectedBounds,
+    );
+
+    if (newOnlineMode) {
+      final orthoMetersPerPixel = 1 / orthoCrs.scale(zoom);
+      final targetZoom = math.log(
+            156543.03392804097 *
+                math.cos(latitudeRadians).abs() /
+                orthoMetersPerPixel,
+          ) /
+          math.ln2;
+      return _clampZoomForMapMode(targetZoom, onlineMode: true);
+    }
+
+    final targetZoom = orthoCrs.zoom(1 / webMetersPerPixel);
+    return _clampZoomForMapMode(targetZoom, onlineMode: false);
+  }
+
+  bool _looksLikeMoroccoWgs84(LatLng point) {
+    return point.latitude >= 20 &&
+        point.latitude <= 40 &&
+        point.longitude >= -20 &&
+        point.longitude <= 5;
+  }
+
+  LatLng _pointForMapMode(LatLng point, {required bool onlineMode}) {
+    if (onlineMode) {
+      if (_looksLikeMoroccoWgs84(point)) return point;
+      return _merchichCarrierToWgs84(point);
+    }
+    final merchich = _looksLikeMoroccoWgs84(point)
+        ? MerchichPoint.fromFlutterLatLng(_wgs84ToMerchichCarrier(point))
+        : MerchichPoint.fromFlutterLatLng(point);
+    return MerchichPoint.encodeFlutterLatLng(x: merchich.x, y: merchich.y);
+  }
+
+  LatLng _pointFromMapMode(LatLng point, {required bool onlineMode}) {
+    if (onlineMode) return _wgs84ToMerchichCarrier(point);
+    final merchich = MerchichPoint.fromFlutterLatLng(point);
+    return LatLng(merchich.y, merchich.x);
+  }
+
+  LatLng _merchichCarrierToWgs84(LatLng point) {
+    final merchich = MerchichPoint.fromFlutterLatLng(point);
+    final wgs84 = ProjectionService().merchichToWgs84(
+      x: merchich.x,
+      y: merchich.y,
+    );
+    return LatLng(wgs84.latitude, wgs84.longitude);
+  }
+
+  LatLng _wgs84ToMerchichCarrier(LatLng point) {
+    final merchich = ProjectionService().wgs84ToMerchich(
+      longitude: point.longitude,
+      latitude: point.latitude,
+    );
+    return LatLng(merchich.y, merchich.x);
+  }
+
+  Marker _markerForMapMode(Marker marker, {required bool onlineMode}) {
+    return Marker(
+      key: marker.key,
+      point: _pointForMapMode(marker.point, onlineMode: onlineMode),
+      width: marker.width,
+      height: marker.height,
+      alignment: marker.alignment,
+      rotate: marker.rotate,
+      child: marker.child,
+    );
+  }
+
+  Polyline _polylineForMapMode(Polyline polyline, {required bool onlineMode}) {
+    return Polyline(
+      points: polyline.points
+          .map((point) => _pointForMapMode(point, onlineMode: onlineMode))
+          .toList(),
+      strokeWidth: polyline.strokeWidth,
+      pattern: polyline.pattern,
+      color: polyline.color,
+      borderStrokeWidth: polyline.borderStrokeWidth,
+      borderColor: polyline.borderColor,
+      gradientColors: polyline.gradientColors,
+      colorsStop: polyline.colorsStop,
+      strokeCap: polyline.strokeCap,
+      strokeJoin: polyline.strokeJoin,
+      useStrokeWidthInMeter: polyline.useStrokeWidthInMeter,
+      hitValue: polyline.hitValue,
+    );
+  }
+
+  Polygon _polygonForMapMode(Polygon polygon, {required bool onlineMode}) {
+    // ignore: deprecated_member_use
+    final isFilled = polygon.isFilled;
+    return Polygon(
+      points: polygon.points
+          .map((point) => _pointForMapMode(point, onlineMode: onlineMode))
+          .toList(),
+      holePointsList: polygon.holePointsList
+          ?.map(
+            (hole) => hole
+                .map((point) => _pointForMapMode(point, onlineMode: onlineMode))
+                .toList(),
+          )
+          .toList(),
+      color: polygon.color,
+      borderStrokeWidth: polygon.borderStrokeWidth,
+      borderColor: polygon.borderColor,
+      disableHolesBorder: polygon.disableHolesBorder,
+      pattern: polygon.pattern,
+      // ignore: deprecated_member_use
+      isFilled: isFilled,
+      strokeCap: polygon.strokeCap,
+      strokeJoin: polygon.strokeJoin,
+      label: polygon.label,
+      labelStyle: polygon.labelStyle,
+      labelPlacement: polygon.labelPlacement,
+      rotateLabel: polygon.rotateLabel,
+      hitValue: polygon.hitValue,
+    );
   }
 
   String _normalizedBasemapFormat(String? rawFormat) {
@@ -352,6 +573,10 @@ class _MapWidgetState extends State<MapWidget> {
       String? vectorDetailsWarning;
       switch (normalizedFormat) {
         case 'pmtiles':
+          rasterProvider = await PmTilesTileProvider.fromSource(basemapPath);
+          _vectorSpriteNames = const {};
+          break;
+        case 'pmtiles_vector_legacy':
           vectorProvider = await PmTilesVectorTileProvider.fromSource(
             basemapPath,
           );
@@ -1492,6 +1717,7 @@ class _MapWidgetState extends State<MapWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final useOnlineMapCrs = _usesOnlineMapCrs;
     final allMarkers = [
       ...widget.markers,
       ...widget.formMarkers,
@@ -1516,38 +1742,112 @@ class _MapWidgetState extends State<MapWidget> {
           ),
         ),
     ];
+    final mapMarkers = allMarkers
+        .map(
+          (marker) => _markerForMapMode(
+            marker,
+            onlineMode: useOnlineMapCrs,
+          ),
+        )
+        .toList();
+    final mapOfflinePoiMarkers = _offlinePoiMarkers
+        .map(
+          (marker) => _markerForMapMode(
+            marker,
+            onlineMode: useOnlineMapCrs,
+          ),
+        )
+        .toList();
+    final mapRestitutionMarkers = widget.restitutionMarkers
+        .map(
+          (marker) => _markerForMapMode(
+            marker,
+            onlineMode: useOnlineMapCrs,
+          ),
+        )
+        .toList();
+    final mapPolylines = widget.polylines
+        .map(
+          (polyline) => _polylineForMapMode(
+            polyline,
+            onlineMode: useOnlineMapCrs,
+          ),
+        )
+        .toList();
+    final mapRestitutionPolylines = widget.restitutionPolylines
+        .map(
+          (polyline) => _polylineForMapMode(
+            polyline,
+            onlineMode: useOnlineMapCrs,
+          ),
+        )
+        .toList();
+    final mapPolygons = widget.polygons
+        .map(
+          (polygon) => _polygonForMapMode(
+            polygon,
+            onlineMode: useOnlineMapCrs,
+          ),
+        )
+        .toList();
 
-    final fallbackCenter =
-        widget.basemapCenter ?? BasemapConstants.fallbackCenter;
+    final fallbackCenter = useOnlineMapCrs
+        ? const LatLng(
+            BasemapConstants.fallbackCenterLatitude,
+            BasemapConstants.fallbackCenterLongitude,
+          )
+        : (widget.basemapCenter ?? BasemapConstants.fallbackCenter);
     final requestedCenterRaw =
         widget.gpsEnabled ? widget.userPosition : fallbackCenter;
+    final requestedCenter = _pointForMapMode(
+      requestedCenterRaw,
+      onlineMode: useOnlineMapCrs,
+    );
+    final showOnlineBasemap = widget.useOnlineBasemap;
+    const onlineBasemapUrlTemplate = MapWidget.onlineOsmUrlTemplate;
     final desiredInitialZoom = widget.gpsEnabled
         ? 15.0
-        : (widget.basemapDefaultZoom ?? BasemapConstants.fallbackDefaultZoom);
-    final minZoom = widget.basemapMinZoom ?? BasemapConstants.fallbackMinZoom;
-    final maxZoom = widget.basemapMaxZoom ?? BasemapConstants.fallbackMaxZoom;
-    final showOnlineBasemap = widget.useOnlineBasemap;
-    final onlineBasemapUrlTemplate = widget.isSatellite
-        ? MapWidget.onlineSatelliteUrlTemplate
-        : MapWidget.onlineOsmUrlTemplate;
-    final hasRasterBasemap = !showOnlineBasemap &&
-        _rasterTileProvider != null &&
+        : showOnlineBasemap
+            ? BasemapConstants.fallbackDefaultZoom
+            : (widget.basemapDefaultZoom ??
+                BasemapConstants.fallbackDefaultZoom);
+    final minZoom = showOnlineBasemap
+        ? BasemapConstants.fallbackMinZoom
+        : (widget.basemapMinZoom ?? BasemapConstants.fallbackMinZoom);
+    final nativeMaxZoom = showOnlineBasemap
+        ? math.max(BasemapConstants.fallbackMaxZoom, 20.0)
+        : (widget.basemapMaxZoom ?? BasemapConstants.fallbackMaxZoom);
+    final maxZoom = showOnlineBasemap
+        ? nativeMaxZoom
+        : nativeMaxZoom + BasemapConstants.offlineOverzoomLevels;
+    final hasRasterBasemap = _rasterTileProvider != null &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
-    final hasVectorBasemap = !showOnlineBasemap &&
-        _vectorTileProvider != null &&
+    final hasVectorBasemap = _vectorTileProvider != null &&
         _vectorTheme != null &&
-        _normalizedBasemapFormat(widget.offlineBasemapFormat) == 'pmtiles' &&
+        _normalizedBasemapFormat(widget.offlineBasemapFormat) ==
+            'pmtiles_vector_legacy' &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
-    // In rasterized vector mode, the provider can still serve translated tiles
-    // above its native zoom. Keep the user-facing zoom limit from the active
-    // basemap package instead of clamping to the provider's native max zoom.
+    // Allow field users to inspect the ortho beyond its native zoom. The
+    // TileLayer keeps requesting the last native level and FlutterMap scales it.
     final effectiveMaxZoom = maxZoom;
-    final initialZoom =
-        desiredInitialZoom.clamp(minZoom, effectiveMaxZoom).toDouble();
+    final offlineNativeMaxZoom = math.max(0, nativeMaxZoom.round());
+    final initialZoom = (_pendingModeChangeZoom ?? desiredInitialZoom)
+        .clamp(minZoom, effectiveMaxZoom)
+        .toDouble();
     final hasOfflineBasemap = (hasRasterBasemap || hasVectorBasemap) &&
         (widget.offlineBasemapPath?.trim().isNotEmpty ?? false);
-    final initialCenter =
-        _controllerReady ? _mapController.camera.center : requestedCenterRaw;
+    final showOfflineBasemap = !showOnlineBasemap && hasOfflineBasemap;
+    final initialCenter = _pendingModeChangeCenter ??
+        (_controllerReady ? _mapController.camera.center : requestedCenter);
+    final merchichCrs = MerchichCrs(
+      resolutions: widget.basemapResolutions ??
+          BasemapConstants.defaultMerchichResolutions,
+      originX: widget.basemapOriginX ?? BasemapConstants.defaultMerchichOriginX,
+      originY: widget.basemapOriginY ?? BasemapConstants.defaultMerchichOriginY,
+      bounds: widget.basemapProjectedBounds,
+    );
+    final mapCrs = showOnlineBasemap ? const Epsg3857() : merchichCrs;
+    final tileSize = (widget.basemapTileSize ?? 256).toDouble();
 
     final basemapMessage = showOnlineBasemap
         ? null
@@ -1561,6 +1861,7 @@ class _MapWidgetState extends State<MapWidget> {
           key: const PageStorageKey<String>('home-flutter-map'),
           mapController: _mapController,
           options: MapOptions(
+            crs: mapCrs,
             initialCenter: initialCenter,
             initialZoom: initialZoom,
             minZoom: minZoom,
@@ -1570,40 +1871,53 @@ class _MapWidgetState extends State<MapWidget> {
                 const InteractionOptions(flags: InteractiveFlag.all),
             onMapReady: _handleMapReady,
             onTap: (tapPosition, latLng) {
-              widget.onMapTap?.call(tapPosition, latLng);
+              widget.onMapTap?.call(
+                tapPosition,
+                _pointFromMapMode(latLng, onlineMode: useOnlineMapCrs),
+              );
             },
+            onLongPress: (_, __) => _onPolygonLongPress(),
             onMapEvent: (event) {
               if (event is MapEventMoveStart) {
                 widget.onUserInteraction?.call();
               } else if (event is MapEventMoveEnd) {
                 widget.onCameraIdle?.call(
-                  _mapController.camera.center,
+                  _pointFromMapMode(
+                    _mapController.camera.center,
+                    onlineMode: useOnlineMapCrs,
+                  ),
                   _mapController.camera.zoom,
                 );
-                _queueOfflinePoiMarkerRefresh();
+                if (!showOnlineBasemap) {
+                  _queueOfflinePoiMarkerRefresh();
+                }
               }
             },
           ),
           children: [
+            // Paint order is intentional: base tiles first, then restitution
+            // overlays, then collected/edited field objects in the foreground.
             if (showOnlineBasemap)
               TileLayer(
                 key: ValueKey(
-                  'online-${widget.isSatellite ? 'satellite' : 'osm'}-$_basemapLayerRevision',
+                  'online-osm-$_basemapLayerRevision',
                 ),
                 urlTemplate: onlineBasemapUrlTemplate,
                 userAgentPackageName: 'com.srm.collecte',
                 maxZoom: math.max(effectiveMaxZoom, 20),
               ),
-            if (hasRasterBasemap)
+            if (showOfflineBasemap && hasRasterBasemap)
               TileLayer(
                 key: ValueKey(
                   'offline-raster-$_loadedBasemapPath-$_basemapLayerRevision',
                 ),
                 tileProvider: _rasterTileProvider!,
+                tileSize: tileSize,
                 userAgentPackageName: 'com.example.srmcollecte',
                 maxZoom: effectiveMaxZoom,
+                maxNativeZoom: offlineNativeMaxZoom,
               ),
-            if (hasVectorBasemap)
+            if (showOfflineBasemap && hasVectorBasemap)
               vmt.VectorTileLayer(
                 key: ValueKey(
                   'offline-vector-$_loadedBasemapPath-$_basemapLayerRevision',
@@ -1619,21 +1933,30 @@ class _MapWidgetState extends State<MapWidget> {
                 maximumZoom: effectiveMaxZoom,
                 fileCacheTtl: Duration.zero,
               ),
+            if (mapOfflinePoiMarkers.isNotEmpty)
+              MarkerLayer(markers: mapOfflinePoiMarkers),
             PolylineLayer(
-              polylines: widget.polylines,
+              polylines: mapRestitutionPolylines,
+              // flutter_map culling reads geographic visibleBounds; this map
+              // carries EPSG:26191 meters through LatLng.
+              cullingMargin: null,
+            ),
+            if (mapRestitutionMarkers.isNotEmpty)
+              MarkerLayer(markers: mapRestitutionMarkers),
+            PolylineLayer(
+              polylines: mapPolylines,
+              // See restitution polyline culling note above.
+              cullingMargin: null,
               hitNotifier: _polylineHitNotifier,
             ),
-            if (widget.polygons.isNotEmpty)
-              GestureDetector(
-                onLongPress: _onPolygonLongPress,
-                child: PolygonLayer(
-                  polygons: widget.polygons,
-                  hitNotifier: _polygonHitNotifier,
-                ),
+            if (mapPolygons.isNotEmpty)
+              PolygonLayer(
+                polygons: mapPolygons,
+                // See restitution polyline culling note above.
+                polygonCulling: false,
+                hitNotifier: _polygonHitNotifier,
               ),
-            if (!showOnlineBasemap && _offlinePoiMarkers.isNotEmpty)
-              MarkerLayer(markers: _offlinePoiMarkers),
-            MarkerLayer(markers: allMarkers),
+            MarkerLayer(markers: mapMarkers),
           ],
         ),
         if (_isBasemapLoading || basemapMessage != null)
@@ -1714,11 +2037,12 @@ class _MapWidgetState extends State<MapWidget> {
             ),
           ),
         if (widget.showMapButtons &&
-            widget.showMapTypeButton &&
-            widget.onMapTypeChanged != null)
-          MapTypeToggle(
-            isSatellite: widget.isSatellite,
-            onMapTypeChanged: widget.onMapTypeChanged!,
+            widget.showBasemapOrthoButton &&
+            widget.onOfflineOrthoVisibilityChanged != null)
+          BasemapOrthoToggle(
+            isOrthoVisible: widget.showOfflineOrtho && showOfflineBasemap,
+            isAvailable: hasOfflineBasemap,
+            onChanged: widget.onOfflineOrthoVisibilityChanged,
           ),
         if (widget.showMapButtons && widget.showZoomButtons)
           Positioned(
@@ -1826,58 +2150,81 @@ class _OfflinePoiMarkerSpec {
         size = 16;
 }
 
-class MapTypeToggle extends StatelessWidget {
-  final bool isSatellite;
-  final Function(bool) onMapTypeChanged;
+class BasemapOrthoToggle extends StatelessWidget {
+  final bool isOrthoVisible;
+  final bool isAvailable;
+  final ValueChanged<bool>? onChanged;
 
-  const MapTypeToggle({
+  const BasemapOrthoToggle({
     super.key,
-    required this.isSatellite,
-    required this.onMapTypeChanged,
+    required this.isOrthoVisible,
+    required this.isAvailable,
+    this.onChanged,
   });
+
+  void _showUnavailableMessage(BuildContext context) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+          content: Text(
+            'Aucune ortho disponible pour votre zone pour le moment.',
+          ),
+        ),
+      );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tooltip = isOrthoVisible ? 'Afficher le basemap' : "Afficher l'ortho";
+    final icon = isOrthoVisible ? Icons.map : Icons.layers;
+    final color = !isAvailable && !isOrthoVisible
+        ? Colors.grey
+        : isOrthoVisible
+            ? Colors.blue
+            : Colors.green;
+
     return Positioned(
       top: 70,
       right: 10,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
+      child: Tooltip(
+        message: tooltip,
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(8),
-            onTap: () => onMapTypeChanged(!isSatellite),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isSatellite ? Icons.map : Icons.satellite,
-                    size: 24,
-                    color: isSatellite ? Colors.blue : Colors.orange,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    isSatellite ? 'Carte' : 'Satellite',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {
+                if (isOrthoVisible) {
+                  onChanged?.call(false);
+                  return;
+                }
+                if (isAvailable) {
+                  onChanged?.call(true);
+                  return;
+                }
+                _showUnavailableMessage(context);
+              },
+              child: Icon(
+                icon,
+                size: 25,
+                color: color,
               ),
             ),
           ),

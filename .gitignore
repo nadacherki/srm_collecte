@@ -65,6 +65,8 @@ backups/
 *.pbf
 *.mbtiles
 *.pmtiles
+*.tif
+*.tiff
 # ... mais on whitelist le basemap regional partage (servi au mobile).
 !API_GeoDjango/pprcollecte/media/basemaps/region.pmtiles
 

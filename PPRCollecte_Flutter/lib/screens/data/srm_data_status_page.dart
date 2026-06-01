@@ -127,7 +127,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       final x = _toDouble(coord['x']);
       final y = _toDouble(coord['y']);
       if (x != null && y != null) {
-        return _toWgs84LatLng(x: x, y: y);
+        return _toMerchichLatLng(x: x, y: y);
       }
     }
 
@@ -135,7 +135,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       final x = _toDouble(coord[0]);
       final y = _toDouble(coord[1]);
       if (x == null || y == null) return null;
-      return _toWgs84LatLng(x: x, y: y);
+      return _toMerchichLatLng(x: x, y: y);
     }
 
     return null;
@@ -158,19 +158,19 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
           final x = double.tryParse(match.group(1) ?? '');
           final y = double.tryParse(match.group(2) ?? '');
           if (x == null || y == null) return null;
-          return _toWgs84LatLng(x: x, y: y);
+          return _toMerchichLatLng(x: x, y: y);
         })
         .whereType<LatLng>()
         .toList();
   }
 
-  LatLng _toWgs84LatLng({required double x, required double y}) {
+  LatLng _toMerchichLatLng({required double x, required double y}) {
     if (x.abs() <= 180 && y.abs() <= 90) {
-      return LatLng(y, x);
+      final m = ProjectionService().wgs84ToMerchich(latitude: y, longitude: x);
+      return LatLng(m.y, m.x);
     }
 
-    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
-    return LatLng(projected.latitude, projected.longitude);
+    return LatLng(y, x);
   }
 
   Future<void> _editItem(Map<String, dynamic> item) async {
@@ -325,7 +325,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       final x = _toDouble(item['${schema}_coor_x']);
       final y = _toDouble(item['${schema}_coor_y']);
       if (x != null && y != null) {
-        return _toWgs84LatLng(x: x, y: y);
+        return _toMerchichLatLng(x: x, y: y);
       }
     }
 
@@ -366,8 +366,8 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
       final y2 = _toDouble(item[group[3]]);
       if (x1 != null && y1 != null && x2 != null && y2 != null) {
         return [
-          _toWgs84LatLng(x: x1, y: y1),
-          _toWgs84LatLng(x: x2, y: y2),
+          _toMerchichLatLng(x: x1, y: y1),
+          _toMerchichLatLng(x: x2, y: y2),
         ];
       }
     }

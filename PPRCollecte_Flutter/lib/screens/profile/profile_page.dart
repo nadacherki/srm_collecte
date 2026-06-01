@@ -16,7 +16,6 @@ class ProfilePage extends StatefulWidget {
   static const String startConduiteDrawingAsstResult =
       'start_conduite_drawing_asst';
   static const String startConduiteDrawingResult = startConduiteDrawingEpResult;
-  static const String startRegardPieceModeResult = 'start_regard_piece_mode';
 
   final String agentName;
   final VoidCallback onLogout;
@@ -52,6 +51,8 @@ class _ProfilePageState extends State<ProfilePage> {
   int _localPendingUpdates = 0;
   int _localPendingPhotos = 0;
   int _localFailedPhotos = 0;
+  int _localFailedConduites = 0;
+  int _localFailedRegardPieceLinks = 0;
   int _localPendingHistory = 0;
   int _totalPoints = 0;
   int _totalLignes = 0;
@@ -86,6 +87,8 @@ class _ProfilePageState extends State<ProfilePage> {
       _localPendingUpdates > 0 ||
       _localPendingPhotos > 0 ||
       _localFailedPhotos > 0 ||
+      _localFailedConduites > 0 ||
+      _localFailedRegardPieceLinks > 0 ||
       _localPendingHistory > 0 ||
       _preflightSkips.isNotEmpty;
 
@@ -101,6 +104,8 @@ class _ProfilePageState extends State<ProfilePage> {
         _localPendingUpdates > 0 ||
         _localPendingPhotos > 0 ||
         _localFailedPhotos > 0 ||
+        _localFailedConduites > 0 ||
+        _localFailedRegardPieceLinks > 0 ||
         _localPendingHistory > 0;
     return serverTotal == 0 && !hasLocalStock && !hasQueued;
   }
@@ -156,6 +161,8 @@ class _ProfilePageState extends State<ProfilePage> {
         _localPendingUpdates = inventory.pendingUpdatedObjects;
         _localPendingPhotos = inventory.pendingPhotos;
         _localFailedPhotos = inventory.failedPhotos;
+        _localFailedConduites = inventory.failedConduites;
+        _localFailedRegardPieceLinks = inventory.failedRegardPieceLinks;
         _localPendingHistory = inventory.pendingHistoryItems;
         _totalPoints = inventory.totalPoints;
         _totalLignes = inventory.totalLignes;
@@ -286,6 +293,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final pendingPhotos = await _db.getPendingPhotoSyncItems(limit: 10000);
     final failedPhotos = await _db.countFailedPhotoSyncItems();
+    final failedConduites = await _db.countFailedConduiteSyncItems();
+    final failedRegardPieceLinks =
+        await _db.countFailedRegardPieceLinkSyncItems();
     final pendingHistoryItems = await _db.countPendingLocalHistoryItems();
 
     return _LocalInventorySnapshot(
@@ -297,6 +307,8 @@ class _ProfilePageState extends State<ProfilePage> {
       pendingUpdatedObjects: pendingUpdatedObjects,
       pendingPhotos: pendingPhotos.length,
       failedPhotos: failedPhotos,
+      failedConduites: failedConduites,
+      failedRegardPieceLinks: failedRegardPieceLinks,
       pendingHistoryItems: pendingHistoryItems,
       totalPoints: points,
       totalLignes: lignes,
@@ -562,27 +574,6 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _startRegardPieceMode,
-              icon: const Icon(Icons.settings_input_component_outlined),
-              label: const Text(
-                'Pièces regard',
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF6A1B9A),
-                side: const BorderSide(color: Color(0xFF6A1B9A)),
-                minimumSize: const Size(0, 52),
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                textStyle: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -594,10 +585,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ? ProfilePage.startConduiteDrawingAsstResult
           : ProfilePage.startConduiteDrawingEpResult,
     );
-  }
-
-  void _startRegardPieceMode() {
-    Navigator.of(context).pop(ProfilePage.startRegardPieceModeResult);
   }
 
   /// [2] AUJOURD'HUI : focus sur le jour courant. Cards "crees aujourd'hui"
@@ -645,8 +632,8 @@ class _ProfilePageState extends State<ProfilePage> {
         if (_usesCachedMetricsAfterRefreshError)
           _buildInfoRow(
             Icons.cloud_off_outlined,
-            'Source métriques',
-            'Cache local (serveur indisponible)',
+            'État des indicateurs',
+            'Dernière mise à jour disponible affichée',
           ),
       ],
     );
@@ -768,7 +755,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildMetricsUnavailableSection() {
     return _buildSection(
-      title: 'Métriques publiques',
+      title: 'Indicateurs',
       color: const Color(0xFFF39C12),
       children: [
         _buildNoticeCard(
@@ -782,10 +769,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String _metricsUnavailableMessage() {
     if (_metricsError == null || _metricsError!.trim().isEmpty) {
-      return 'Aucune métrique serveur chargée pour cet agent. Rafraîchissez pour vérifier.';
+      return 'Les indicateurs ne sont pas encore disponibles. Vous pouvez '
+          'continuer à travailler et revenir ici dans quelques instants.';
     }
 
-    return '${_metricsError!} Aucun cache serveur n’est disponible sur ce téléphone pour cet agent.';
+    return 'Les indicateurs mettent plus de temps que prévu à arriver. '
+        'Vous pouvez continuer à travailler et réessayer plus tard.';
   }
 
   Widget _buildEmptyDashboardBanner() {
@@ -885,6 +874,22 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  /// SU-2 : message detaille pour les rejets des files auxiliaires
+  /// (conduite_sync_queue, regard_piece_link_sync_queue). Ces rejets
+  /// sont silencieux dans l'UI sinon, alors qu'ils bloquent la remontee
+  /// de donnees terrain.
+  String _buildAuxiliarySyncFailureText() {
+    final parts = <String>[];
+    if (_localFailedConduites > 0) {
+      parts.add('$_localFailedConduites conduite(s)');
+    }
+    if (_localFailedRegardPieceLinks > 0) {
+      parts.add('$_localFailedRegardPieceLinks lien(s) pièce-regard');
+    }
+    return 'Erreurs sync persistantes : ${parts.join(', ')}. '
+        'Ré-ouvrez l\'élément concerné pour relancer une tentative.';
+  }
+
   Widget _buildLocalSyncSection() {
     final total = _totalSynced + _totalUnsynced;
     final pct = total > 0 ? _totalSynced / total : 0.0;
@@ -938,6 +943,14 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
         ),
+        if (_localFailedConduites > 0 || _localFailedRegardPieceLinks > 0) ...[
+          const SizedBox(height: 12),
+          _buildNoticeCard(
+            icon: Icons.error_outline,
+            color: const Color(0xFFE74C3C),
+            text: _buildAuxiliarySyncFailureText(),
+          ),
+        ],
         if (_localPendingHistory > 0) ...[
           const SizedBox(height: 12),
           _buildNoticeCard(
@@ -1042,7 +1055,8 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildPreflightSkipEntry(Map<String, dynamic> item, Color accent) {
     final entity = (item['entity'] ?? item['table'] ?? '?').toString();
     final uuid = (item['uuid'] ?? '').toString();
-    final shortUuid = uuid.length > 8 ? uuid.substring(0, 8) : (uuid.isEmpty ? '?' : uuid);
+    final shortUuid =
+        uuid.length > 8 ? uuid.substring(0, 8) : (uuid.isEmpty ? '?' : uuid);
     final missingRaw = item['missing'];
     final missing = missingRaw is List
         ? missingRaw.map((e) => e.toString()).join(', ')
@@ -1277,7 +1291,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
 
   Widget _buildNoticeCard({
     required IconData icon,
@@ -1582,7 +1595,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final minute = local.minute.toString().padLeft(2, '0');
     return '$date à $hour:$minute';
   }
-
 }
 
 class _LocalInventorySnapshot {
@@ -1594,6 +1606,8 @@ class _LocalInventorySnapshot {
   final int pendingUpdatedObjects;
   final int pendingPhotos;
   final int failedPhotos;
+  final int failedConduites;
+  final int failedRegardPieceLinks;
   final int pendingHistoryItems;
   final int totalPoints;
   final int totalLignes;
@@ -1608,6 +1622,8 @@ class _LocalInventorySnapshot {
     required this.pendingUpdatedObjects,
     required this.pendingPhotos,
     required this.failedPhotos,
+    required this.failedConduites,
+    required this.failedRegardPieceLinks,
     required this.pendingHistoryItems,
     required this.totalPoints,
     required this.totalLignes,

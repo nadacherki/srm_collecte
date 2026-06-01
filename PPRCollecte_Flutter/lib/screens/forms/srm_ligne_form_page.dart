@@ -95,6 +95,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
   bool _hasAnomalie = false;
   String? _typeAnomalie;
+  // Gate workflow anomalie (cf. doc bureau §2). 'oui' / 'non' / null.
+  String? _retourTerrain;
+  // Gap F : verrou si une intervention serveur existe deja.
+  bool _anomalieLockedByServerIntervention = false;
   bool _isObjetIncomplet = false;
   String? _raisonIncomplet;
   bool _isSaving = false;
@@ -192,7 +196,12 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   bool _isAnomalieManagedField(String field) =>
-      _isAnomalieFlagField(field) || _isAnomalieDetailField(field);
+      _isAnomalieFlagField(field) ||
+      _isAnomalieDetailField(field) ||
+      _isRetourTerrainManagedField(field);
+
+  bool _isRetourTerrainManagedField(String field) =>
+      field.toLowerCase() == 'retour_terrain';
 
   List<String> _anomalieEvidenceFields() {
     return _anomalieDetailFields()
@@ -331,12 +340,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
 
     if (initialLinePoints.isNotEmpty) {
       final initialGnssPoints = _effectiveGnssPoints;
-      final projectedStart = initialGnssPoints.isNotEmpty
-          ? initialGnssPoints.first
-          : null;
-      final projectedEnd = initialGnssPoints.isNotEmpty
-          ? initialGnssPoints.last
-          : null;
+      final projectedStart =
+          initialGnssPoints.isNotEmpty ? initialGnssPoints.first : null;
+      final projectedEnd =
+          initialGnssPoints.isNotEmpty ? initialGnssPoints.last : null;
       if (projectedStart?.projectedX != null &&
           projectedStart?.projectedY != null &&
           projectedEnd?.projectedX != null &&
@@ -380,6 +387,10 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       _hasAnomalie = _isTruthyFlag(widget.existingData!['anomalie']) ||
           _isTruthyFlag(widget.existingData!['ep_anomalie']);
       _typeAnomalie = widget.existingData!['type_anomalie']?.toString();
+      final retourRaw =
+          widget.existingData!['retour_terrain']?.toString().trim() ?? '';
+      _retourTerrain = _normalizeRetourTerrain(retourRaw);
+      unawaited(_checkAnomalieServerLock());
       _isObjetIncomplet =
           _isTruthyFlag(widget.existingData!['objet_incomplet']);
       _raisonIncomplet = widget.existingData!['raison_incomplet']?.toString();
@@ -920,60 +931,12 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     return PhotoStorageService.workflowPhotoSlotLimit;
   }
 
-  int _countFilledPhotos(
-    Map<int, String?> photoPaths,
-    int maxSlots,
-  ) {
-    var count = 0;
-    for (var slot = 1; slot <= maxSlots; slot++) {
-      final value = photoPaths[slot]?.trim() ?? '';
-      if (value.isNotEmpty) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  bool get _requiresWorkflowAnomaliePhotos =>
-      _hasAnomalie;
-
-  bool get _requiresWorkflowIncompletPhotos =>
-      _isObjetIncomplet;
-
   String? _validatePhotoRequirements() {
     if (_isLocked) return null;
 
-    if (_requiresWorkflowAnomaliePhotos) {
-      const context = _photoContextAnomalieAvant;
-      const label = 'photos anomalie';
-      final count = _countFilledPhotos(
-        _workflowPhotoMapForContext(context),
-        _workflowPhotoSlotCount(context),
-      );
-      if (count < _requiredWorkflowPhotoCount) {
-        return 'Veuillez ajouter au moins $_requiredWorkflowPhotoCount $label.';
-      }
-    }
-
-    if (_requiresWorkflowIncompletPhotos) {
-      const context = _photoContextIncompletInitial;
-      const label = 'photos objet incomplet';
-      final count = _countFilledPhotos(
-        _workflowPhotoMapForContext(context),
-        _workflowPhotoSlotCount(context),
-      );
-      if (count < _requiredWorkflowPhotoCount) {
-        return 'Veuillez ajouter au moins $_requiredWorkflowPhotoCount $label.';
-      }
-    }
-
-    final generalCount = _countFilledPhotos(_photoPaths, _photoSlotCount);
-    if (generalCount < _requiredGeneralPhotoCount &&
-        !_requiresWorkflowAnomaliePhotos &&
-        !_requiresWorkflowIncompletPhotos) {
-      return 'Veuillez ajouter les $_requiredGeneralPhotoCount photos obligatoires.';
-    }
-
+    // Photos rendues optionnelles pour tous les metiers (2026-05-25).
+    // Les emplacements (slots) restent visibles dans l'UI, mais aucun
+    // seuil minimum ne bloque l'enregistrement de la ligne.
     return null;
   }
 
@@ -1131,7 +1094,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     final synced = int.tryParse(row['synced']?.toString() ?? '') ?? 0;
 
     var score = 0;
-    if (preferredInterventionId > 0 && rowInterventionId == preferredInterventionId) {
+    if (preferredInterventionId > 0 &&
+        rowInterventionId == preferredInterventionId) {
       score += 100;
     }
     if (rowInterventionId > 0) score += 20;
@@ -1649,8 +1613,93 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
     return _hasAnomalie ? 'Oui' : 'Non';
   }
 
+  /// Gap F : verrouille la dé-bascule anomalie quand intervention serveur
+  /// active. Fail-open en cas d'erreur.
+  Future<void> _checkAnomalieServerLock() async {
+    final data = widget.existingData;
+    if (data == null) return;
+    final tableName = (data['source_table'] ?? '').toString().trim();
+    final schemaName = (data['source_metier'] ?? '').toString().trim();
+    if (tableName.isEmpty || schemaName.isEmpty) return;
+    final idObjet = int.tryParse(
+          (data['fid'] ?? data['id'] ?? '').toString(),
+        ) ??
+        0;
+    final uuidObjet = (data['uuid'] ?? '').toString().trim();
+    try {
+      final locked = await DatabaseHelper().hasServerInterventionForObject(
+        schemaName: schemaName.toLowerCase(),
+        tableName: tableName,
+        idObjet: idObjet,
+        uuidObjet: uuidObjet,
+      );
+      if (mounted && locked != _anomalieLockedByServerIntervention) {
+        setState(() {
+          _anomalieLockedByServerIntervention = locked;
+        });
+      }
+    } catch (_) {
+      // Fail-open : l'agent garde la main.
+    }
+  }
+
+  /// Normalise une valeur brute de retour_terrain vers 'oui' / 'non' / null.
+  String? _normalizeRetourTerrain(String? raw) {
+    final value = (raw ?? '').trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (const {'oui', 'true', 't', '1', 'yes', 'o'}.contains(value)) {
+      return 'oui';
+    }
+    return 'non';
+  }
+
+  /// Selecteur oui/non du retour_terrain (gate workflow anomalie).
+  List<DropdownMenuItem<String>> _retourTerrainDropdownItems() {
+    final labels = <String, String>{'oui': 'Oui', 'non': 'Non'};
+    final choices =
+        _choicesByField['retour_terrain'] ?? const <SrmFieldChoice>[];
+    for (final choice in choices) {
+      final normalized = _normalizeRetourTerrain(choice.code);
+      if (normalized == null) continue;
+      final label = choice.label.trim();
+      labels[normalized] = label.isEmpty ? labels[normalized]! : label;
+    }
+    return [
+      DropdownMenuItem(value: 'oui', child: Text(labels['oui']!)),
+      DropdownMenuItem(value: 'non', child: Text(labels['non']!)),
+    ];
+  }
+
+  Widget _buildRetourTerrainField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: _retourTerrain,
+        decoration: const InputDecoration(
+          labelText: 'Retour terrain requis ?',
+          helperText: 'Oui declenche l\'intervention bureau. Non = anomalie '
+              'informative seulement.',
+          helperMaxLines: 2,
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        hint: const Text('Selectionner'),
+        isExpanded: true,
+        items: _retourTerrainDropdownItems(),
+        onChanged: _isLocked
+            ? null
+            : (value) {
+                setState(() => _retourTerrain = value);
+                if (widget.existingData == null) onFieldChanged();
+              },
+      ),
+    );
+  }
+
   void _applyAnomaliePayload(Map<String, dynamic> data) {
     data['anomalie'] = _hasAnomalie ? 1 : 0;
+    // Gate workflow (cf. doc bureau §2).
+    data['retour_terrain'] = _hasAnomalie ? _retourTerrain : null;
 
     for (final field in const ['ep_anomalie', 'ass_anomalie']) {
       if (_hasAnomalieColumn(field)) {
@@ -2194,7 +2243,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
       children: [
         const Divider(height: 24),
         const Text(
-          'Photos obligatoires ($_requiredGeneralPhotoCount requises)',
+          'Photos (optionnelles, $_requiredGeneralPhotoCount emplacements)',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         const SizedBox(height: 8),
@@ -2482,7 +2531,8 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
   }
 
   Widget _buildAnomalieSection() {
-    final disabled = _isObjetIncomplet || _isLocked;
+    final lockedByServer = _anomalieLockedByServerIntervention && _hasAnomalie;
+    final disabled = _isObjetIncomplet || _isLocked || lockedByServer;
     return Opacity(
       opacity: disabled ? (_isLocked ? 0.55 : 0.35) : 1.0,
       child: Column(
@@ -2502,6 +2552,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                       _hasAnomalie = v;
                       if (!v) {
                         _typeAnomalie = null;
+                        _retourTerrain = null;
                         for (final field in _anomalieDetailFields()) {
                           _controllers[field]?.clear();
                         }
@@ -2509,8 +2560,18 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                     }),
             contentPadding: EdgeInsets.zero,
           ),
+          if (lockedByServer)
+            const Padding(
+              padding: EdgeInsets.only(left: 8, right: 8, bottom: 4),
+              child: Text(
+                'Anomalie deja signalee au bureau. Contactez le bureau '
+                'pour annuler.',
+                style: TextStyle(fontSize: 11, color: Color(0xFFF57C00)),
+              ),
+            ),
           if (_hasAnomalie && !_isObjetIncomplet && _hasTypeAnomalieField)
             _buildTypeAnomalieField(),
+          if (_hasAnomalie && !_isObjetIncomplet) _buildRetourTerrainField(),
           if (_hasAnomalie && !_isObjetIncomplet)
             ..._anomalieExtraDetailFields().map(_buildAnomalieTextField),
         ],
@@ -2543,7 +2604,9 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                 Expanded(
                   child: Text(
                     'Les champs obligatoires sont neutralises.\n'
-                    'Les valeurs deja saisies et les photos sont conservees.',
+                    'Les valeurs deja saisies et les photos standards sont '
+                    'conservees. Les photos d\'anomalie eventuellement deja '
+                    'prises seront effacees a l\'enregistrement.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),
                 ),
@@ -2568,7 +2631,14 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
               _detailRaisonController.clear();
             }
             if (v) {
+              // Gap I : nettoyer aussi les states anomalie (sinon ils
+              // restent en memoire alors que la section est cachee).
               _hasAnomalie = false;
+              _typeAnomalie = null;
+              _retourTerrain = null;
+              for (final field in _anomalieDetailFields()) {
+                _controllers[field]?.clear();
+              }
             }
           }),
           contentPadding: EdgeInsets.zero,
@@ -2773,7 +2843,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                     if (_hasAnomalie)
                       _buildWorkflowPhotoSection(
                         title:
-                            'Photos anomalie ($_requiredWorkflowPhotoCount requises)',
+                            'Photos anomalie (optionnelles, $_requiredWorkflowPhotoCount emplacements)',
                         photoContext: _photoContextAnomalieAvant,
                         photoPaths: _anomaliePhotoPaths,
                         color: Colors.red,
@@ -2781,7 +2851,7 @@ class _SrmLigneFormPageState extends State<SrmLigneFormPage>
                     if (_isObjetIncomplet)
                       _buildWorkflowPhotoSection(
                         title:
-                            'Photos objet incomplet ($_requiredWorkflowPhotoCount requises)',
+                            'Photos objet incomplet (optionnelles, $_requiredWorkflowPhotoCount emplacements)',
                         photoContext: _photoContextIncompletInitial,
                         photoPaths: _incompletPhotoPaths,
                         color: Colors.orange,

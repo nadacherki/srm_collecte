@@ -29,8 +29,11 @@ class NmeaBridgeDevice {
   bool get looksLikeGnssReceiver {
     final value = '${name ?? ''} $address'.toLowerCase();
     return value.contains('gnss') ||
+        value.contains('gps') ||
+        value.contains('chc') ||
         value.contains('tersus') ||
         value.contains('oscar') ||
+        value.contains('rtk') ||
         value.contains('nmea');
   }
 }

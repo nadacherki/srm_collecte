@@ -2,42 +2,22 @@ part of 'home_page.dart';
 
 extension _HomePageAppActions on _HomePageState {
   Future<void> _performDownload() async {
-    if (isDownloading || isSyncing) return;
+    if (!_tryStartMobileJob(MobileJobType.download)) return;
+    try {
+      await _performDownloadLocked();
+    } finally {
+      _finishMobileJob(MobileJobType.download);
+      if (mounted) {
+        _setStateFromPart(() => isDownloading = false);
+      }
+    }
+  }
 
-    // Court-circuit "session deja synchro" : si un telechargement a deja
-    // reussi pendant cette session de login, on n'invoque PAS le serveur a
-    // chaque clic du bouton. Le re-check serveur ne se fait qu'au prochain
-    // login (le timestamp `srm_session.last_login` est mis a jour a chaque
-    // setCurrentUserLogin).
-    final db = DatabaseHelper();
-    final lastDownloadAt = await db.getLastDownloadTime();
-    final lastLoginAt = await db.getLastLoginAt();
+  Future<void> _performDownloadLocked() async {
+    final preflightReadiness = await MobileReadinessService().checkForSync();
     if (!mounted) return;
-    if (lastDownloadAt != null &&
-        lastLoginAt != null &&
-        lastDownloadAt.isAfter(lastLoginAt)) {
-      final local = lastDownloadAt.toLocal();
-      String pad2(int n) => n.toString().padLeft(2, '0');
-      final lastCheckLabel =
-          '${pad2(local.day)}/${pad2(local.month)}/${local.year} '
-          'à ${pad2(local.hour)}:${pad2(local.minute)}';
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Données déjà téléchargées'),
-          content: Text(
-            'Toutes les données des zones affectées à votre compte sont déjà '
-            'téléchargées pendant cette session.\n\n'
-            'Dernière vérification : $lastCheckLabel.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+    if (!preflightReadiness.isReady) {
+      await _showMobileReadinessFailure(preflightReadiness);
       return;
     }
 
@@ -68,6 +48,13 @@ extension _HomePageAppActions on _HomePageState {
       debugPrint('[_performDownload] zone refresh failed: $e');
     }
     if (!mounted) return;
+
+    final readiness = await MobileReadinessService().checkForDownload();
+    if (!mounted) return;
+    if (!readiness.isReady) {
+      await _showMobileReadinessFailure(readiness);
+      return;
+    }
 
     final affectations = await DatabaseHelper().getZoneUtilisateursLocal(
       idUser: ApiService.userId,
@@ -141,6 +128,7 @@ extension _HomePageAppActions on _HomePageState {
       _setStateFromPart(() => lastSyncResult = result);
 
       await _hydrateOfflineBasemapState();
+      await _loadAffleurants();
       await _loadReferenceOverlays();
       await _refreshAllPoints();
       await _loadDisplayedLines();
@@ -151,19 +139,27 @@ extension _HomePageAppActions on _HomePageState {
 
       final downloadedLocalCount =
           await DatabaseHelper().countDownloadedSrmRows();
+      result.localDownloadedDataCount = downloadedLocalCount;
 
       if (!mounted) return;
 
+      final bool hasOfflinePackageResult =
+          result.orthoTileCount > 0 || result.affleurantCount > 0;
+      final bool offlinePackageChanged =
+          result.orthoDownloaded || result.affleurantsDownloaded;
       final bool alreadyDownloaded = result.successCount == 0 &&
           result.failedCount == 0 &&
-          downloadedLocalCount > 0;
+          downloadedLocalCount > 0 &&
+          !offlinePackageChanged;
       final bool nothingAvailable = result.successCount == 0 &&
           result.failedCount == 0 &&
           downloadedLocalCount == 0 &&
-          result.skippedCount == 0;
+          result.skippedCount == 0 &&
+          !hasOfflinePackageResult;
       final bool fullFailure = result.failedCount > 0 &&
           result.successCount == 0 &&
-          result.skippedCount == 0;
+          result.skippedCount == 0 &&
+          !hasOfflinePackageResult;
       final bool partialFailure = result.failedCount > 0 && !fullFailure;
       final bool networkFailure = result.interrupted ||
           fullFailure &&
@@ -186,7 +182,16 @@ extension _HomePageAppActions on _HomePageState {
       );
 
       String buildDownloadSnackbarSuccess() {
-        final parts = <String>['Téléchargement : ${result.successCount} nouvelles'];
+        final parts = <String>[
+          'Téléchargement terminé',
+          '${result.localDownloadedDataCount} données',
+        ];
+        if (result.orthoTileCount > 0) {
+          parts.add('${result.orthoTileCount} tuiles ortho');
+        }
+        if (result.affleurantCount > 0) {
+          parts.add('${result.affleurantCount} affleurants');
+        }
         if (result.skippedCount > 0) {
           parts.add('${result.skippedCount} ignorées (format invalide)');
         }
@@ -206,7 +211,7 @@ extension _HomePageAppActions on _HomePageState {
                           : 'Téléchargement impossible (${result.failedCount} erreurs)'
                       : partialFailure
                           ? 'Téléchargement partiel : ${result.successCount} nouvelles, ${result.failedCount} erreurs'
-                          : result.successCount > 0
+                          : result.successCount > 0 || hasOfflinePackageResult
                               ? buildDownloadSnackbarSuccess()
                               : 'Toutes les données reçues sont ignorées (format invalide) (${result.skippedCount})';
 
@@ -220,7 +225,7 @@ extension _HomePageAppActions on _HomePageState {
                       ? Colors.red
                       : partialFailure
                           ? Colors.orange
-                          : result.successCount > 0
+                          : result.successCount > 0 || hasOfflinePackageResult
                               ? Colors.green
                               : Colors.blue;
 
@@ -345,47 +350,20 @@ extension _HomePageAppActions on _HomePageState {
   }
 
   Future<void> _performSync() async {
-    if (isSyncing || isDownloading) return;
-
-    // Court-circuit "rien a synchroniser" : on compte localement les rows
-    // `synced=0 AND downloaded=0` (plus la photo_sync_queue). Si 0, on
-    // affiche directement le dialog sans interroger le serveur. Les rows
-    // qui ont echoue au sync precedent restent `synced=0` donc seront
-    // toujours comptees ici et reessayees au prochain clic.
-    final db = DatabaseHelper();
-    final pending = await db.countPendingSync();
-    if (!mounted) return;
-    if (pending == 0) {
-      final lastSync = await db.getLastFullSyncTime();
-      if (!mounted) return;
-      String lastSyncLabel;
-      if (lastSync == null) {
-        lastSyncLabel = 'jamais';
-      } else {
-        final local = lastSync.toLocal();
-        String pad2(int n) => n.toString().padLeft(2, '0');
-        lastSyncLabel =
-            'le ${pad2(local.day)}/${pad2(local.month)}/${local.year} '
-            'à ${pad2(local.hour)}:${pad2(local.minute)}';
+    if (!_tryStartMobileJob(MobileJobType.sync)) return;
+    try {
+      await _performSyncLocked();
+    } finally {
+      _finishMobileJob(MobileJobType.sync);
+      if (mounted) {
+        _setStateFromPart(() => isSyncing = false);
       }
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Aucune donnée à synchroniser'),
-          content: Text(
-            'Toutes vos données locales ont déjà été envoyées au serveur.\n\n'
-            'Dernière synchronisation complète : $lastSyncLabel.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
     }
+  }
+
+  Future<void> _performSyncLocked() async {
+    // Meme si rien n'est en attente d'envoi, on continue : la synchronisation
+    // verifie aussi les nouveautes serveur de la zone agent.
 
     final reachable = await _refreshOnlineStatusForNetworkAction();
     if (!mounted) return;
@@ -466,10 +444,13 @@ extension _HomePageAppActions on _HomePageState {
       }
       notificationResolved = true;
 
-      if (result.successCount > 0) {
+      final completedCleanly = !result.interrupted &&
+          result.failedCount == 0 &&
+          result.warningCount == 0;
+      if (result.successCount > 0 || completedCleanly) {
         final now = DateTime.now();
         await DatabaseHelper().saveLastSyncTime(now);
-        if (result.failedCount == 0) {
+        if (completedCleanly) {
           // Marque la synchro comme COMPLETE seulement si aucune row n'a
           // echoue : permet au court-circuit du bouton Synchroniser de
           // distinguer un succes total d'un succes partiel.
@@ -530,16 +511,32 @@ extension _HomePageAppActions on _HomePageState {
   String _syncNotificationMessage(SyncResult result) {
     final displaySuccess =
         result.displaySuccessCount < 0 ? 0 : result.displaySuccessCount;
+    final received = result.postSyncReceivedCount;
+    final successParts = <String>[
+      if (displaySuccess > 0) _syncSyncedDataText(displaySuccess),
+      if (result.photoSuccessCount > 0)
+        _syncSentPhotoText(result.photoSuccessCount),
+      if (received > 0) _syncReceivedDataText(received),
+    ];
+    final successSummary = successParts.join(', ');
     if (displaySuccess == 0 &&
+        result.photoSuccessCount == 0 &&
+        received == 0 &&
         result.failedCount == 0 &&
         result.warningCount == 0) {
       return 'Aucune donnée à synchroniser';
     }
-    if (result.failedCount > 0 && displaySuccess > 0) {
-      return 'Synchronisation partielle : ${_syncSyncedDataText(displaySuccess)}, ${_syncErrorCountText(result.failedCount)}';
+    if (result.failedCount > 0 && successSummary.isNotEmpty) {
+      return 'Synchronisation partielle : $successSummary, ${_syncErrorCountText(result.failedCount)}';
     }
     if (result.failedCount > 0) {
       return 'Synchronisation échouée : ${_syncErrorCountText(result.failedCount)}';
+    }
+    if (result.warningCount > 0 && successSummary.isNotEmpty) {
+      return 'Synchronisation terminee : $successSummary, avec ${_syncWarningCountText(result.warningCount)}';
+    }
+    if (result.warningCount == 0 && successSummary.isNotEmpty) {
+      return 'Synchronisation terminee : $successSummary';
     }
     if (result.warningCount > 0) {
       return 'Synchronisation terminée avec ${_syncWarningCountText(result.warningCount)}';
@@ -785,10 +782,102 @@ extension _HomePageAppActions on _HomePageState {
       ),
     );
   }
+
+  bool _tryStartMobileJob(MobileJobType requestedJob) {
+    if (_mobileJobGuard.tryStart(requestedJob)) {
+      return true;
+    }
+
+    if (!mounted) return false;
+    final activeJob = _mobileJobGuard.activeJob;
+    final activeLabel = _mobileJobLabel(activeJob);
+    final requestedLabel = _mobileJobLabel(requestedJob);
+    final message = activeJob == requestedJob
+        ? '$activeLabel déjà en cours.'
+        : '$activeLabel en cours. Attendez la fin avant de lancer $requestedLabel.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    return false;
+  }
+
+  void _finishMobileJob(MobileJobType job) {
+    _mobileJobGuard.finish(job);
+  }
+
+  Future<void> _showMobileReadinessFailure(
+    MobileReadinessResult readiness,
+  ) async {
+    if (!mounted) return;
+    final message = readiness.blockingMessage;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+
+    final title = readiness.issues.contains(
+      MobileReadinessIssue.sessionExpired,
+    )
+        ? 'Session expirée'
+        : readiness.issues.contains(MobileReadinessIssue.mobileConfigMissing)
+            ? 'Configuration mobile absente'
+            : readiness.issues.contains(
+                MobileReadinessIssue.zoneAssignmentMissing,
+              )
+                ? 'Aucune zone affectée'
+                : 'Action impossible';
+    final details = readiness.issues.contains(
+      MobileReadinessIssue.zoneAssignmentMissing,
+    )
+        ? "Votre compte n'a aucune zone d'affectation active.\n\n"
+            "Aucune donnée terrain ne peut être téléchargée tant qu'un administrateur "
+            "ne vous a pas attribué au moins une zone via l'interface back-office."
+        : message;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(details),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _mobileJobLabel(MobileJobType? job) {
+    switch (job) {
+      case MobileJobType.download:
+        return 'Téléchargement';
+      case MobileJobType.sync:
+        return 'Synchronisation';
+      case null:
+        return 'Action';
+    }
+  }
 }
 
 String _syncSyncedDataText(int count) {
   return count == 1 ? '1 donnée synchronisée' : '$count données synchronisées';
+}
+
+String _syncSentPhotoText(int count) {
+  return count == 1 ? '1 photo envoyee' : '$count photos envoyees';
+}
+
+String _syncReceivedDataText(int count) {
+  return count == 1 ? '1 nouveaute recue' : '$count nouveautes recues';
 }
 
 String _syncUnsyncedDataText(int count) {

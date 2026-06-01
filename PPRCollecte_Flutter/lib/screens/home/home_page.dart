@@ -76,11 +76,21 @@ import '../../services/download_notification_service.dart';
 import '../../services/reference_overlay_sync_service.dart';
 import '../../services/srm_row_visibility_filter.dart';
 import '../../services/srm_status_flags.dart';
+import '../../services/mobile_job_guard.dart';
+import '../../services/mobile_readiness_service.dart';
+import '../../services/affleurant_service.dart';
+import '../../services/online_basemap_service.dart';
+import '../../services/map_preview_service.dart';
+import '../../services/regard_piece_geometry_service.dart';
 
 import '../../core/config/srm_config.dart';
 import '../../widgets/forms/srm_metier_selector.dart';
 import '../../widgets/forms/srm_point_form_widget.dart';
 import '../forms/srm_ligne_form_page.dart';
+import 'gnss_rover_setup_dialog.dart';
+import '../../core/constants/antenna_catalog.dart';
+import '../../models/affleurant_models.dart';
+import '../../models/merchich_point.dart';
 
 part 'home_page_tap_handlers.dart';
 part 'home_page_dialogs.dart';
@@ -160,6 +170,7 @@ class HomePage extends StatefulWidget {
   final String? initialOfflineBasemapPath;
   final String? initialOfflineBasemapFormat;
   final String? initialBasemapNotice;
+  final String? initialMetricsNotice;
   const HomePage({
     super.key,
     required this.onLogout,
@@ -169,6 +180,7 @@ class HomePage extends StatefulWidget {
     this.initialOfflineBasemapPath,
     this.initialOfflineBasemapFormat,
     this.initialBasemapNotice,
+    this.initialMetricsNotice,
   });
 
   @override
@@ -194,6 +206,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, dynamic>? _geometryEditPolygonItem;
   bool isSyncing = false;
   bool isDownloading = false;
+  final MobileJobGuard _mobileJobGuard = MobileJobGuard();
+  bool _startupMetricsRefreshRunning = false;
   SyncResult? lastSyncResult;
   double _progressValue = 0.0;
   String _currentOperation = "Préparation du téléchargement...";
@@ -212,7 +226,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Polygon> _displayedPolygons = [];
   List<Polygon> _referencePlanchePolygons = [];
   List<Polygon> _referenceZonePolygons = [];
-  List<Polyline> _referenceFondPlanPolylines = [];
   Map<String, List<Polygon>> _displayedSrmPolygonsByTable = {};
   Map<String, List<Polygon>> _displayedPolygonAnomalieByTable = {};
   Map<String, List<Polygon>> _displayedPolygonIncompletByTable = {};
@@ -233,7 +246,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, List<Marker>> _displayedPointsByTable = {};
   Map<String, List<Marker>> _displayedAnomalieByTable = {};
   Map<String, List<Marker>> _displayedIncompletByTable = {};
-  bool _isSatellite = false;
+  bool _showOfflineOrtho = true;
+  final AffleurantService _affleurantService = AffleurantService();
+  bool _showAffleurants = true;
+  bool _affleurantsAvailable = false;
+  List<Marker> _affleurantMarkers = [];
+  List<Polyline> _affleurantPolylines = [];
+  AffleurantSnapResult? _lastAffleurantSnap;
+  bool _mapTapFormPromptActive = false;
 
   SrmSelection? _pendingSrmLigneSelection;
   String? _pendingRegardPieceLineUuidRegard;
@@ -249,6 +269,41 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           DateTime.now().isBefore(_suspendAutoCenterUntil!));
   bool get _canUseAdminGpsTools =>
       (ApiService.userRole ?? '').trim().toLowerCase() == 'admin';
+  bool get _hasOfflineBasemap =>
+      _offlineBasemapPath?.trim().isNotEmpty ?? false;
+  bool get _shouldUseOnlineBasemap =>
+      _canUseOnlineBasemap && !(_showOfflineOrtho && _hasOfflineBasemap);
+
+  bool _looksLikeMoroccoWgs84(LatLng point) {
+    return point.latitude >= 20 &&
+        point.latitude <= 40 &&
+        point.longitude >= -20 &&
+        point.longitude <= 5;
+  }
+
+  LatLng _mapPointForActiveMap(LatLng point) {
+    if (_shouldUseOnlineBasemap) {
+      if (_looksLikeMoroccoWgs84(point)) return point;
+      final merchich = MerchichPoint.fromFlutterLatLng(point);
+      final wgs84 = ProjectionService().merchichToWgs84(
+        x: merchich.x,
+        y: merchich.y,
+      );
+      return LatLng(wgs84.latitude, wgs84.longitude);
+    }
+
+    final merchich = _looksLikeMoroccoWgs84(point)
+        ? (() {
+            final xy = ProjectionService().wgs84ToMerchich(
+              longitude: point.longitude,
+              latitude: point.latitude,
+            );
+            return MerchichPoint(x: xy.x, y: xy.y);
+          })()
+        : MerchichPoint.fromFlutterLatLng(point);
+    return MerchichPoint.encodeFlutterLatLng(x: merchich.x, y: merchich.y);
+  }
+
   String? _lastSyncTimeText;
   String? _offlineBasemapPath;
   String? _offlineBasemapFormat;
@@ -258,6 +313,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double? _offlineBasemapDefaultZoom;
   double? _offlineBasemapMinZoom;
   double? _offlineBasemapMaxZoom;
+  int? _offlineBasemapTileSize;
+  double? _offlineBasemapOriginX;
+  double? _offlineBasemapOriginY;
+  List<double>? _offlineBasemapResolutions;
+  Bounds<double>? _offlineBasemapProjectedBounds;
   late bool _isOnlineDynamic;
   late bool _canUseOnlineBasemap;
   Timer? _onlineWatchTimer;
@@ -309,7 +369,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     'srm_ep_regard_polygon': true,
     'overlay_zones': true,
     'overlay_planche': false,
-    'overlay_fond_plan': false,
   };
   String enqueteurDisplayByStatut({
     required String? enqueteurValue,
@@ -346,11 +405,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _offlineBasemapDefaultZoom = BasemapConstants.fallbackDefaultZoom;
     _offlineBasemapMinZoom = BasemapConstants.fallbackMinZoom;
     _offlineBasemapMaxZoom = BasemapConstants.fallbackMaxZoom;
+    _offlineBasemapTileSize = 256;
+    _offlineBasemapOriginX = BasemapConstants.defaultMerchichOriginX;
+    _offlineBasemapOriginY = BasemapConstants.defaultMerchichOriginY;
+    _offlineBasemapResolutions = BasemapConstants.defaultMerchichResolutions;
+    _offlineBasemapProjectedBounds = null;
     homeController = HomeController();
     //_cleanupDisplayedPoints();
     _loadDisplayedLines();
     _loadDisplayedPoints();
     _loadDisplayedSrmLines();
+    unawaited(_loadAffleurants());
     _loadDownloadedLineOverlays();
     _isOnlineDynamic = widget.isOnline;
     _canUseOnlineBasemap = widget.isOnline;
@@ -364,6 +429,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _hydrateOfflineBasemapState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showInitialBasemapNoticeIfNeeded();
+      _showInitialMetricsNoticeIfNeeded();
       _autoStartNmeaBridgeIfConfiguredImpl(this);
     });
 
@@ -382,7 +448,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (_mapController != null &&
             _lastCameraPosition == null &&
             userPosition != null) {
-          _mapController!.move(userPosition!, 17);
+          _mapController!.move(_mapPointForActiveMap(userPosition!), 17);
           _lastCameraPosition = userPosition;
         } else {
           _moveCameraIfNeeded();
@@ -434,6 +500,66 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _showInitialBasemapNoticeIfNeeded() =>
       _showInitialBasemapNoticeIfNeededImpl(this);
+
+  void _showInitialMetricsNoticeIfNeeded() {
+    final message = widget.initialMetricsNotice?.trim();
+    if (message == null || message.isEmpty || !_isOnlineDynamic) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 8),
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ),
+    );
+
+    unawaited(_refreshStartupMetricsSilently());
+  }
+
+  Future<void> _refreshStartupMetricsSilently() async {
+    if (_startupMetricsRefreshRunning) return;
+    _startupMetricsRefreshRunning = true;
+    try {
+      final snapshot = await PublicMetricsCacheService()
+          .prefetchForCurrentSession(
+              requestTimeout: const Duration(seconds: 15));
+      final error = snapshot.error?.trim();
+      if (error != null && error.isNotEmpty) {
+        debugPrint('[METRICS] Refresh post-login partiel: $error');
+      }
+      if (!snapshot.hasAnyData && error != null && error.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 5),
+            content: Text(
+              'Les indicateurs mettent plus de temps que prévu à arriver. '
+              'Vous pouvez continuer à travailler ; ils seront affichés dès '
+              'qu’ils seront prêts.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[METRICS] Refresh post-login ignore: $e');
+    } finally {
+      _startupMetricsRefreshRunning = false;
+    }
+  }
 
   void _showSrmLineDetailsSheet({
     required BuildContext context,
@@ -616,9 +742,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   List<Polyline> _getFilteredPolylines() {
     final List<Polyline> filtered = List<Polyline>.from(collectedPolylines);
-    if (_legendVisibility['overlay_fond_plan'] == true) {
-      filtered.addAll(_referenceFondPlanPolylines);
-    }
     if (_legendVisibility['lines'] == true) {
       filtered.addAll(_finishedLines);
     }
@@ -933,6 +1056,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _loadReferenceOverlays() => _loadReferenceOverlaysImpl(this);
 
+  Future<void> _loadAffleurants() => _loadAffleurantsImpl(this);
+
+  Future<void> _handleAffleurantMapTap(LatLng latLng) =>
+      _handleAffleurantMapTapImpl(this, latLng);
+
+  Future<void> _addPointOfInterestAtMerchichPoint(
+    MerchichPoint point, {
+    AffleurantSnapResult? snapResult,
+  }) =>
+      _addPointOfInterestAtMerchichPointImpl(
+        point,
+        snapResult: snapResult,
+      );
+
   Future<void> _refreshReferenceOverlaysForMapStartup() async {
     if (!_isOnlineDynamic) return;
     try {
@@ -1201,48 +1338,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
           ]
         : isConduiteMode
-        ? [
-            ..._conduiteModeMarkers,
-            if (_conduiteCurrentRegardPoint != null)
-              Marker(
-                point: _conduiteCurrentRegardPoint!,
-                width: 44,
-                height: 44,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      // Jaune vif : regard "actif" (dernier sélectionné dans
-                      // le tracé). Identification immédiate sur le terrain.
-                      color: const Color(0xFFFFEB3B).withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFFF57F17),
-                        width: 3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
+            ? [
+                ..._conduiteModeMarkers,
+                if (_conduiteCurrentRegardPoint != null)
+                  Marker(
+                    point: _conduiteCurrentRegardPoint!,
+                    width: 44,
+                    height: 44,
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          // Jaune vif : regard "actif" (dernier sélectionné dans
+                          // le tracé). Identification immédiate sur le terrain.
                           color:
-                              const Color(0xFFFFEB3B).withValues(alpha: 0.45),
-                          blurRadius: 10,
-                          spreadRadius: 2,
+                              const Color(0xFFFFEB3B).withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFF57F17),
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFFEB3B)
+                                  .withValues(alpha: 0.45),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-          ]
-        : (_getFilteredMarkers()..addAll(_focusOverlayMarkers));
+              ]
+            : (_getFilteredMarkers()..addAll(_focusOverlayMarkers));
 
     final List<Polyline> filteredPolylines = isRegardPieceMode
         ? <Polyline>[]
         : isConduiteMode
             ? List<Polyline>.from(_conduiteModePolylines)
             : (_getFilteredPolylines()..addAll(_focusOverlayPolylines));
-    final List<Polygon> filteredPolygons =
-        (isConduiteMode || isRegardPieceMode)
+    final List<Polygon> filteredPolygons = isRegardPieceMode
+        ? [
+            if (activePieceRegardNode != null)
+              _buildRegardPieceAllowedZonePolygon(activePieceRegardNode),
+          ]
+        : isConduiteMode
             ? <Polygon>[]
             : _getFilteredPolygons();
+    final List<Marker> restitutionMarkers = <Marker>[];
+    final List<Polyline> restitutionPolylines = <Polyline>[];
     if (isConduiteMode) {
       return Scaffold(
         backgroundColor: const Color(0xFFF0F8FF),
@@ -1256,14 +1400,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     MapWidget(
                       userPosition: userPosition ?? homeController.userPosition,
                       gpsEnabled: false,
-                      useOnlineBasemap: _canUseOnlineBasemap,
+                      useOnlineBasemap: _shouldUseOnlineBasemap,
                       markers: filteredMarkers,
                       polylines: filteredPolylines,
+                      restitutionMarkers: restitutionMarkers,
+                      restitutionPolylines: restitutionPolylines,
                       polygons: filteredPolygons,
                       onPolygonTap: null,
                       onMapCreated: _onMapCreated,
                       formMarkers: const [],
-                      isSatellite: _isSatellite,
                       onPolylineTap: null,
                       onMapTap: _handleConduiteMapTap,
                       onCameraIdle: null,
@@ -1275,6 +1420,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapDefaultZoom: _offlineBasemapDefaultZoom,
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
+                      basemapTileSize: _offlineBasemapTileSize,
+                      basemapOriginX: _offlineBasemapOriginX,
+                      basemapOriginY: _offlineBasemapOriginY,
+                      basemapResolutions: _offlineBasemapResolutions,
+                      basemapProjectedBounds: _offlineBasemapProjectedBounds,
+                      showOfflineOrtho: _showOfflineOrtho,
                       showMapButtons: false,
                     ),
                     if (_conduiteModeError != null)
@@ -1322,14 +1473,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     MapWidget(
                       userPosition: userPosition ?? homeController.userPosition,
                       gpsEnabled: false,
-                      useOnlineBasemap: _canUseOnlineBasemap,
+                      useOnlineBasemap: _shouldUseOnlineBasemap,
                       markers: filteredMarkers,
                       polylines: filteredPolylines,
+                      restitutionMarkers: restitutionMarkers,
+                      restitutionPolylines: restitutionPolylines,
                       polygons: filteredPolygons,
                       onPolygonTap: null,
                       onMapCreated: _onMapCreated,
                       formMarkers: const [],
-                      isSatellite: _isSatellite,
                       onPolylineTap: null,
                       onMapTap: _handleRegardPieceMapTap,
                       onCameraIdle: null,
@@ -1341,7 +1493,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapDefaultZoom: _offlineBasemapDefaultZoom,
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
-                      showMapButtons: false,
+                      basemapTileSize: _offlineBasemapTileSize,
+                      basemapOriginX: _offlineBasemapOriginX,
+                      basemapOriginY: _offlineBasemapOriginY,
+                      basemapResolutions: _offlineBasemapResolutions,
+                      basemapProjectedBounds: _offlineBasemapProjectedBounds,
+                      showOfflineOrtho: _showOfflineOrtho,
+                      showMapButtons: true,
+                      showLocationButton: false,
+                      showBasemapOrthoButton: false,
+                      showZoomButtons: true,
                     ),
                     if (_regardPieceModeError != null)
                       Positioned(
@@ -1384,6 +1545,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             color: const Color(0xFF2E7D32),
             strokeWidth: 3.0,
             pattern: const StrokePattern.solid(),
+          ),
+        );
+      }
+    }
+    if (!isConduiteMode && !isRegardPieceMode && _showAffleurants) {
+      restitutionMarkers.addAll(_affleurantMarkers);
+      restitutionPolylines.addAll(_affleurantPolylines);
+      final snap = _lastAffleurantSnap;
+      if (snap != null) {
+        restitutionMarkers.add(
+          Marker(
+            point: snap.point.toFlutterLatLng(),
+            width: 34,
+            height: 34,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: snap.snapped
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF64748B),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 6),
+                  ],
+                ),
+                child: const Icon(Icons.my_location,
+                    color: Colors.white, size: 17),
+              ),
+            ),
           ),
         );
       }
@@ -1452,7 +1643,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onLogout: _showLogoutConfirmation,
                 onStartConduiteDrawing: (metier) =>
                     _enterConduiteDrawingMode(metier),
-                onStartRegardPieceMode: _enterRegardPieceMode,
               ),
               Expanded(
                 child: Stack(
@@ -1460,20 +1650,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     MapWidget(
                       userPosition: userPosition ?? homeController.userPosition,
                       gpsEnabled: gpsEnabled,
-                      useOnlineBasemap: _canUseOnlineBasemap,
+                      useOnlineBasemap: _shouldUseOnlineBasemap,
                       markers: filteredMarkers,
                       polylines: filteredPolylines,
                       polygons: filteredPolygons,
+                      restitutionMarkers: restitutionMarkers,
+                      restitutionPolylines: restitutionPolylines,
                       onPolygonTap: _handlePolygonTap,
                       onPolygonLongPress: _handlePolygonLongPress,
                       onMapCreated: _onMapCreated,
                       formMarkers: formMarkers,
-                      isSatellite: _isSatellite,
-                      onMapTypeChanged: (value) {
-                        setState(() {
-                          _isSatellite = value;
-                        });
-                      },
                       onPolylineTap: _handlePolylineTap,
                       onCameraIdle: null,
                       offlineBasemapPath: _offlineBasemapPath,
@@ -1484,16 +1670,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapDefaultZoom: _offlineBasemapDefaultZoom,
                       basemapMinZoom: _offlineBasemapMinZoom,
                       basemapMaxZoom: _offlineBasemapMaxZoom,
+                      basemapTileSize: _offlineBasemapTileSize,
+                      basemapOriginX: _offlineBasemapOriginX,
+                      basemapOriginY: _offlineBasemapOriginY,
+                      basemapResolutions: _offlineBasemapResolutions,
+                      basemapProjectedBounds: _offlineBasemapProjectedBounds,
+                      showOfflineOrtho: _showOfflineOrtho,
+                      onOfflineOrthoVisibilityChanged: (value) {
+                        setState(() {
+                          _showOfflineOrtho = value;
+                        });
+                      },
                       showMapButtons: true,
                       // Cache le bouton GPS (et zoom) pendant DL/sync : l'app
                       // est deja bloquee logiquement, on rend l'etat visible.
                       showLocationButton:
                           !hasTraceCollection && !isDownloading && !isSyncing,
                       showZoomButtons: !hasTraceCollection,
-                      onMapTap: (_, __) {
+                      onMapTap: (tapPosition, latLng) {
                         if (_isLegendExpanded) {
                           setState(() => _isLegendExpanded = false);
                         }
+                        unawaited(
+                          _handleAffleurantMapTap(latLng),
+                        );
                       },
                       onUserInteraction: () {
                         _autoCenterDisabledByUser = true;
@@ -1502,6 +1702,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         _autoCenterDisabledByUser = false;
                       },
                     ),
+                    if (_affleurantsAvailable)
+                      Positioned(
+                        top: 70,
+                        right: 122,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(28),
+                            onTap: () {
+                              setState(() {
+                                _showAffleurants = !_showAffleurants;
+                                if (!_showAffleurants) {
+                                  _lastAffleurantSnap = null;
+                                }
+                              });
+                            },
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: _showAffleurants
+                                    ? const Color(0xFF0F766E)
+                                    : Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _showAffleurants
+                                      ? const Color(0xFF0F766E)
+                                      : const Color(0xFFCBD5E1),
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _showAffleurants
+                                    ? Icons.hub
+                                    : Icons.hub_outlined,
+                                color: _showAffleurants
+                                    ? Colors.white
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     LegendWidget(
                       initialVisibility: _legendVisibility,
                       expanded: _isLegendExpanded,
@@ -1539,6 +1788,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         ),
                       ),
 
+                    Positioned(
+                      bottom: 336,
+                      right: 16,
+                      child: Visibility(
+                        visible: !_isLegendExpanded && !hasTraceCollection,
+                        child: Tooltip(
+                          message: 'Pieces regard',
+                          child: FloatingActionButton(
+                            onPressed: (isDownloading || isSyncing)
+                                ? null
+                                : _enterRegardPieceMode,
+                            backgroundColor: (isDownloading || isSyncing)
+                                ? Colors.grey.shade400
+                                : _regardPieceModeColor,
+                            foregroundColor: Colors.white,
+                            mini: true,
+                            heroTag: 'regard_piece_button',
+                            child: const Icon(
+                              Icons.extension,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                     Positioned(
                       bottom: 280,
                       right: 16,

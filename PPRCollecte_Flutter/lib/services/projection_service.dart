@@ -3,7 +3,9 @@
 // Utilise le package proj4dart
 
 import 'package:proj4dart/proj4dart.dart';
+import 'package:latlong2/latlong.dart';
 import '../core/constants/projection_constants.dart';
+import '../models/merchich_point.dart';
 
 class ProjectionService {
   static ProjectionService? _instance;
@@ -32,6 +34,57 @@ class ProjectionService {
     final point = Point(x: longitude, y: latitude);
     final result = _wgs84.transform(_merchichNord, point);
     return (x: result.x, y: result.y);
+  }
+
+  /// GNSS adapter boundary: WGS84 input is converted once, then the rest of
+  /// the app works with EPSG:26191 meters only.
+  MerchichPoint merchichPointFromGnss({
+    required double longitude,
+    required double latitude,
+    double? ellipsoidalHeight,
+    double roverGroundOffset = 0.0,
+  }) {
+    final xy = wgs84ToMerchich(longitude: longitude, latitude: latitude);
+    final z = ellipsoidalHeight == null
+        ? null
+        : wgs84HeightToMerchich(
+              longitude: longitude,
+              latitude: latitude,
+              ellipsoidalHeight: ellipsoidalHeight,
+            ) -
+            roverGroundOffset;
+    return MerchichPoint(x: xy.x, y: xy.y, z: z);
+  }
+
+  /// FlutterMap technical carrier for Merchich-only maps:
+  /// latitude = Y/Northing, longitude = X/Easting.
+  LatLng flutterLatLngFromMerchich(MerchichPoint point) {
+    return LatLng(point.y, point.x);
+  }
+
+  MerchichPoint merchichFromFlutterLatLng(LatLng point, {double? z}) {
+    return MerchichPoint.fromFlutterLatLng(point, z: z);
+  }
+
+  /// Hauteur ellipsoïdale WGS84 → élévation Merchich Nord (datum EPSG:26191).
+  ///
+  /// Transformation de datum pure (Helmert `towgs84` + changement d'ellipsoïde
+  /// WGS84 → Clarke 1880, cf. [ProjectionConstants.merchichNordProj4]).
+  /// AUCUN modèle de géoïde : reproduit exactement la conversion BLH→NEH de
+  /// Nuwa. L'entrée doit être la hauteur ellipsoïdale (trame GGA : champ 9 +
+  /// champ 11 de séparation géoïdale), pas la hauteur orthométrique.
+  double wgs84HeightToMerchich({
+    required double longitude,
+    required double latitude,
+    required double ellipsoidalHeight,
+  }) {
+    final point = Point.withZ(
+      x: longitude,
+      y: latitude,
+      z: ellipsoidalHeight,
+    );
+    final result = _wgs84.transform(_merchichNord, point);
+    return result.z ?? ellipsoidalHeight;
   }
 
   /// Merchich Nord (X, Y) → WGS84 (lon, lat)

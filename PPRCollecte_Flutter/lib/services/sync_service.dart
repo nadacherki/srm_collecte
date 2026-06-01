@@ -11,6 +11,7 @@ import '../data/remote/api_service.dart';
 import 'attribut_config_mobile_service.dart';
 import 'formulaire_config_mobile_service.dart';
 import 'offline_basemap_service.dart';
+import 'affleurant_service.dart';
 import 'photo_reference_service.dart';
 import 'photo_validation_service.dart';
 import 'projection_service.dart';
@@ -32,6 +33,17 @@ class SyncResult {
   int zoneFeatureCount = 0;
   int anomalieCount = 0;
   int incompletCount = 0;
+  int localDownloadedDataCount = 0;
+  int postSyncDownloadedCount = 0;
+  int postSyncUpdatedCount = 0;
+  int postSyncProtectedLocalCount = 0;
+  int orthoTileCount = 0;
+  int? orthoSizeBytes;
+  bool orthoDownloaded = false;
+  bool orthoAlreadyUpToDate = false;
+  int affleurantCount = 0;
+  bool affleurantsDownloaded = false;
+  bool affleurantsAlreadyUpToDate = false;
   bool interrupted = false;
   String? interruptionMessage;
   final List<String> errors = [];
@@ -42,6 +54,8 @@ class SyncResult {
 
   int get warningCount => warnings.length;
   int get displaySuccessCount => entitySuccessCount;
+  int get postSyncReceivedCount =>
+      postSyncDownloadedCount + postSyncUpdatedCount;
 
   void stopForInterruption(String message) {
     interrupted = true;
@@ -173,9 +187,27 @@ class SyncService {
         );
         continue;
       }
-      final tableUpdatedAfter = (canResumeTable ? statusUpdatedAfter : null) ??
+      var tableUpdatedAfter = (canResumeTable ? statusUpdatedAfter : null) ??
           lastTableDownload ??
           updatedAfter;
+      var protectLocalUnsyncedDuringRepair = false;
+      if (!info.isReference && !canResumeTable) {
+        final missingPositionCount =
+            await dbHelper.countDownloadedRowsMissingMapPosition(
+          tableName: info.table,
+          metierCode: info.schema,
+        );
+        if (missingPositionCount > 0) {
+          tableUpdatedAfter = null;
+          protectLocalUnsyncedDuringRepair = true;
+          if (result.warnings.length < 100) {
+            result.warnings.add(
+              '${info.table}: reprise des positions carte manquantes '
+              '($missingPositionCount objet(s)).',
+            );
+          }
+        }
+      }
       final updatedAfterIso =
           tableUpdatedAfter?.toUtc().toIso8601String() ?? '';
       var nextPage =
@@ -272,7 +304,12 @@ class SyncService {
               info.table,
               map,
               recordHistory: false,
+              skipIfLocalUnsynced: protectLocalUnsyncedDuringRepair,
             );
+            if (upsertRes.skippedLocalUnsynced) {
+              result.skippedCount++;
+              continue;
+            }
             downloadedForTable++;
             if (upsertRes.wasInserted) {
               result.successCount++;
@@ -347,12 +384,18 @@ class SyncService {
     await _downloadTerrainInterventions(
       result: result,
       onProgress: onProgress,
-      current: tables.length + 2,
+      current: tables.length + 1,
       total: total,
       updatedAfterFallback: updatedAfter,
       nowIso: nowIso,
     );
     if (result.interrupted) {
+      return result;
+    }
+
+    final canContinueAfterAffleurants =
+        await _ensureAffleurantsForDownload(result: result);
+    if (!canContinueAfterAffleurants || result.interrupted) {
       return result;
     }
 
@@ -365,6 +408,175 @@ class SyncService {
     }
 
     return result;
+  }
+
+  Future<void> _downloadIncrementalServerChangesAfterSync({
+    required SyncResult result,
+    Function(double, String, int, int)? onProgress,
+  }) async {
+    final tables = (await _collectSrmTables())
+        .where((table) => !table.isReference)
+        .toList();
+    final total = tables.length + 1;
+
+    onProgress?.call(
+      0,
+      'Recherche des nouveautes serveur',
+      0,
+      total,
+    );
+
+    for (int index = 0; index < tables.length; index++) {
+      final current = index + 1;
+      await _downloadIncrementalTableAfterSync(
+        info: tables[index],
+        result: result,
+        onProgress: onProgress,
+        current: current,
+        total: total,
+      );
+      if (result.interrupted) {
+        return;
+      }
+    }
+
+    await _refreshTerrainInterventionsAfterSync(result);
+
+    if (result.postSyncProtectedLocalCount > 0) {
+      final count = result.postSyncProtectedLocalCount;
+      result.warnings.add(
+        count == 1
+            ? '1 donnee locale non envoyee a ete conservee sur ce mobile.'
+            : '$count donnees locales non envoyees ont ete conservees sur ce mobile.',
+      );
+    }
+
+    onProgress?.call(
+      1,
+      'Verification des nouveautes terminee',
+      total,
+      total,
+    );
+  }
+
+  Future<void> _downloadIncrementalTableAfterSync({
+    required _TableInfo info,
+    required SyncResult result,
+    required Function(double, String, int, int)? onProgress,
+    required int current,
+    required int total,
+  }) async {
+    final tableStartedAt = DateTime.now().toUtc();
+    final updatedAfter =
+        await dbHelper.getLastDownloadTimeForTable(info.table) ??
+            await dbHelper.getLastDownloadTime();
+    final nowIso = DateTime.now().toIso8601String();
+    var nextPage = 1;
+    var receivedForTable = 0;
+
+    onProgress?.call(
+      (current - 1) / total,
+      'Nouveautes ${info.geometryLabel}',
+      current - 1,
+      total,
+    );
+
+    try {
+      while (true) {
+        final pageResult = await ApiService.fetchDataPage(
+          info.endpoint,
+          updatedAfter: updatedAfter,
+          page: nextPage,
+        );
+
+        for (final item in pageResult.items) {
+          final map = _normalizeRemoteItem(item);
+          if (map == null) {
+            result.skippedCount++;
+            continue;
+          }
+
+          if (info.isReference && info.table == 'onep_db') {
+            continue;
+          }
+
+          final uuid = map['uuid']?.toString().trim() ?? '';
+          if (uuid.isEmpty) {
+            result.skippedCount++;
+            if (result.warnings.length < 100) {
+              final localId = map['id'] ?? map['id_objet'] ?? '?';
+              result.warnings.add(
+                '${info.table}: nouveaute ignoree (UUID manquant, id=$localId)',
+              );
+            }
+            continue;
+          }
+
+          map.remove('id');
+          map.remove('id_projet');
+          map.remove('id_mission');
+          map['downloaded'] = 1;
+          map['synced'] = 1;
+          map['date_sync'] = nowIso;
+
+          final upsertRes = await dbHelper.upsertDownloadedEntitySrm(
+            info.table,
+            map,
+            recordHistory: false,
+            skipIfLocalUnsynced: true,
+          );
+          if (upsertRes.skippedLocalUnsynced) {
+            result.postSyncProtectedLocalCount++;
+            continue;
+          }
+
+          receivedForTable++;
+          result.successCount++;
+          if (upsertRes.wasInserted) {
+            result.postSyncDownloadedCount++;
+          } else {
+            result.postSyncUpdatedCount++;
+            result.updatedCount++;
+          }
+        }
+
+        final followingPage = pageResult.nextPage;
+        if (followingPage == null || followingPage <= 0) {
+          break;
+        }
+        nextPage = followingPage;
+      }
+
+      await dbHelper.saveLastDownloadTimeForTable(info.table, tableStartedAt);
+      await dbHelper.saveDownloadTableStatus(
+        info.table,
+        status: 'sync_pull_completed',
+        downloadedCount: receivedForTable,
+        updatedAfter: updatedAfter?.toUtc().toIso8601String(),
+      );
+    } catch (e) {
+      if (_isNetworkInterruption(e)) {
+        result.failedCount++;
+        result.stopForInterruption(_syncInterruptedMessage);
+        onProgress?.call(
+          (current - 1) / total,
+          'Verification interrompue - connexion interrompue',
+          current - 1,
+          total,
+        );
+        return;
+      }
+      result.warnings.add(
+        'Nouveautes ${info.table} non mises a jour : ${_short(e)}',
+      );
+    }
+
+    onProgress?.call(
+      current / total,
+      'Nouveautes ${info.geometryLabel}',
+      current,
+      total,
+    );
   }
 
   Future<bool> _ensureBasemapCoverageForDownload({
@@ -383,6 +595,10 @@ class SyncService {
       final downloadResult =
           await OfflineBasemapService().ensureRegionalBasemapDownloaded();
       if (downloadResult.success) {
+        result.orthoTileCount = downloadResult.tileCount ?? 0;
+        result.orthoSizeBytes = downloadResult.sizeBytes;
+        result.orthoAlreadyUpToDate = downloadResult.alreadyUpToDate;
+        result.orthoDownloaded = !downloadResult.alreadyUpToDate;
         result.warnings.add(
           downloadResult.alreadyUpToDate
               ? 'Carte régionale offline déjà à jour.'
@@ -403,8 +619,15 @@ class SyncService {
           return false;
         }
         result.warnings.add(
-          'Carte offline non mise à jour : ${errorText.isNotEmpty ? errorText : "erreur inconnue"}',
+          'Carte offline non mise a jour : ${errorText.isNotEmpty ? errorText : "indisponible pour le moment"}',
         );
+        onProgress?.call(
+          1 / total,
+          'Carte offline indisponible, donnees continuees',
+          1,
+          total,
+        );
+        return true;
       }
     } catch (e) {
       if (_isNetworkInterruption(e)) {
@@ -419,8 +642,15 @@ class SyncService {
         return false;
       }
       result.warnings.add(
-        'Carte offline non mise à jour : ${_short(e)}',
+        'Carte offline non mise a jour : ${_short(e)}',
       );
+      onProgress?.call(
+        1 / total,
+        'Carte offline indisponible, donnees continuees',
+        1,
+        total,
+      );
+      return true;
     }
 
     onProgress?.call(
@@ -438,17 +668,49 @@ class SyncService {
     try {
       final overlayResult = await ReferenceOverlaySyncService(
         databaseHelper: dbHelper,
-      ).refreshOverlays(includeFondPlan: true);
+      ).refreshOverlays();
       result.warnings.add(
         'Couches contexte offline: '
         '${overlayResult['planches_count'] ?? 0} planches, '
-        '${overlayResult['zones_count'] ?? 0} zones, '
-        '${overlayResult['fond_plan_count'] ?? 0} objets fond plan.',
+        '${overlayResult['zones_count'] ?? 0} zones.',
       );
     } catch (e) {
       result.warnings.add(
         'Couches contexte offline non mises à jour : ${_short(e)}',
       );
+    }
+  }
+
+  Future<bool> _ensureAffleurantsForDownload({
+    required SyncResult result,
+  }) async {
+    try {
+      final service = AffleurantService(databaseHelper: dbHelper);
+      final refreshResult = await service.refreshFromServer();
+      final count = refreshResult.featureCount;
+      if (count <= 0) {
+        result.failedCount++;
+        result.errors.add(
+          'Affleurants offline obligatoires indisponibles: package vide.',
+        );
+        return false;
+      }
+      result.affleurantCount = count;
+      result.affleurantsAlreadyUpToDate = refreshResult.alreadyUpToDate;
+      result.affleurantsDownloaded = !refreshResult.alreadyUpToDate;
+      result.warnings.add('Affleurants offline: $count objets vectoriels.');
+      return true;
+    } catch (e) {
+      if (_isNetworkInterruption(e)) {
+        result.failedCount++;
+        result.stopForInterruption(_downloadInterruptedMessage);
+        return false;
+      }
+      result.failedCount++;
+      result.errors.add(
+        'Affleurants offline non mis a jour : ${_short(e)}',
+      );
+      return false;
     }
   }
 
@@ -619,10 +881,10 @@ class SyncService {
         }
 
         for (final row in rows) {
-          if (_isDownloadedRow(row)) {
-            result.skippedCount++;
-            continue;
-          }
+          // SU-5 : on ne skip plus les lignes downloaded = 1. Si elles
+          // arrivent ici, c'est qu'un edit terrain les a passees a
+          // synced = 0 (cf. getUnsyncedSrm). Le backend distingue
+          // INSERT vs UPDATE via l'UUID.
 
           final payload = Map<String, dynamic>.from(row);
           final localPhotos = _extractLocalPhotos(
@@ -680,6 +942,14 @@ class SyncService {
         }
       } catch (e) {
         result.failedCount++;
+        // SU-1 : si une coupure reseau s'est produite, on arrete la boucle
+        // outer au lieu de cascader des erreurs sur toutes les tables
+        // suivantes (qui echoueront identiquement). L'agent verra un
+        // message d'interruption clair et pourra reprendre via Synchroniser.
+        if (_isNetworkInterruption(e)) {
+          result.stopForInterruption(_syncInterruptedMessage);
+          break;
+        }
         result.errors.add('Sync ${info.table}: ${_short(e)}');
       }
 
@@ -717,8 +987,11 @@ class SyncService {
         syncSessionUuid: syncSessionUuid,
       );
     }
-    if (!result.interrupted) {
-      await _refreshTerrainInterventionsAfterSync(result);
+    if (!result.interrupted && result.failedCount == 0) {
+      await _downloadIncrementalServerChangesAfterSync(
+        result: result,
+        onProgress: onProgress,
+      );
     }
     if (syncSessionUuid != null) {
       await _verifySyncSessionLog(syncSessionUuid, result);
@@ -1161,10 +1434,8 @@ class SyncService {
     final requiredFieldNames = await _requiredFieldNamesForInfo(info);
 
     for (final row in rows) {
-      if (_isDownloadedRow(row)) {
-        result.skippedCount++;
-        continue;
-      }
+      // SU-5 : voir commentaire dans la boucle legacy plus haut. Les
+      // lignes downloaded modifiees doivent etre re-poussees au backend.
 
       try {
         final payload = Map<String, dynamic>.from(row);
@@ -1272,9 +1543,8 @@ class SyncService {
       final rows = await dbHelper.getUnsyncedSrm(info.table);
       final syncTableName = _syncManifestTableName(info.schema, info.table);
       for (final row in rows) {
-        if (_isDownloadedRow(row)) {
-          continue;
-        }
+        // SU-5 : manifeste = INSERT + UPDATE confondus. Le serveur
+        // discrimine via l'UUID, on ne filtre plus sur `downloaded`.
 
         final uuid = row['uuid']?.toString().trim() ?? '';
         if (uuid.isEmpty) {
@@ -2037,12 +2307,6 @@ class SyncService {
     return 'Points';
   }
 
-  bool _isDownloadedRow(Map<String, dynamic> row) {
-    final value = row['downloaded'];
-    if (value is int) return value == 1;
-    return value?.toString() == '1';
-  }
-
   Map<int, String> _extractLocalPhotos(
     Map<String, dynamic> payload, {
     bool strictMissing = true,
@@ -2382,7 +2646,8 @@ class SyncService {
           final lng = vertex[0];
           final lat = vertex[1];
           if (lng is num && lat is num) {
-            points.add(_toWgs84GeometryPoint(lng.toDouble(), lat.toDouble()));
+            points
+                .add(_toMerchichGeometryPoint(lng.toDouble(), lat.toDouble()));
           }
         }
       }
@@ -2397,13 +2662,13 @@ class SyncService {
     }
   }
 
-  List<double> _toWgs84GeometryPoint(double x, double y) {
+  List<double> _toMerchichGeometryPoint(double x, double y) {
     if (x.abs() <= 180 && y.abs() <= 90) {
-      return <double>[x, y];
+      final m = ProjectionService().wgs84ToMerchich(latitude: y, longitude: x);
+      return <double>[m.x, m.y];
     }
 
-    final projected = ProjectionService().merchichToWgs84(x: x, y: y);
-    return <double>[projected.longitude, projected.latitude];
+    return <double>[x, y];
   }
 
   void _normalizeRegardPayload(Map<String, dynamic> payload) {

@@ -9,6 +9,13 @@
 - Run Flutter commands with escalated sandbox permissions, because Flutter touches SDK cache/AppData outside the workspace even for `flutter analyze`.
 - If a Dart/Flutter command is interrupted, inspect and stop stale `dart`, `dartvm`, or `flutter` processes before retrying.
 
+## SRM Mobile Release Builds
+
+- Never build a release APK with plain `flutter build apk --release`; this can omit `API_BASE_URL` and cause a startup black screen before the UI loads.
+- Use `tools\build_mobile_release.ps1` for release APKs. It requires `-ApiBaseUrl` and copies the APK into `PPRCollecte_Flutter\releases`.
+- If the backend is temporarily HTTP, also pass `-CleartextAllowedHosts <host>` and ensure the same host exists in `PPRCollecte_Flutter\android\app\src\main\res\xml\network_security_config.xml`.
+- Known incident source, 2026-05-21: `ApiService.validateBaseUrl()` ran before `runApp()` in release with default `http://10.0.2.2:8000`, causing a black screen. The app now displays a bootstrap error page, but the correct prevention is still building with explicit dart-defines.
+
 ## EP/ASST Mobile Config Governance
 
 - Do not change the physical structure of schemas `ep` or `asst` for mobile form behavior unless the user explicitly approves a physical server schema change.

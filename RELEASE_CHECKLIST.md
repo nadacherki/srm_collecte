@@ -143,12 +143,10 @@ curl -s -X POST https://api.srm.ma/api/login/ \
 
 Depuis un poste avec Flutter + le keystore (étape 1) :
 
-```bash
-cd PPRCollecte_Flutter
-flutter clean && flutter pub get
-flutter build apk --release \
-  --dart-define=API_BASE_URL=https://api.srm.ma \
-  --obfuscate --split-debug-info=build/symbols
+```powershell
+tools\build_mobile_release.ps1 `
+  -ApiBaseUrl https://api.srm.ma `
+  -OutputName SRM_Collecte-release.apk
 ```
 
 - ☐ APK généré : `build/app/outputs/flutter-apk/SRM_Collecte-release.apk`

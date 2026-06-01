@@ -1,42 +1,13 @@
 part of 'home_page.dart';
 
 void _showSyncConfirmationDialogImpl(_HomePageState state) async {
-  // Court-circuit "rien a synchroniser" avant meme la confirmation : on
-  // n'a pas a demander de confirmation si aucune donnee locale n'est en
-  // attente d'envoi. Le check est local (count synced=0) donc rapide et
-  // ne necessite pas le serveur.
+  // S'il n'y a rien a envoyer, on lance quand meme la verification serveur :
+  // le bouton Synchroniser est maintenant bidirectionnel.
   final db = DatabaseHelper();
   final pending = await db.countPendingSync();
   if (!state.mounted) return;
   if (pending == 0) {
-    final lastSync = await db.getLastFullSyncTime();
-    if (!state.mounted) return;
-    String lastSyncLabel;
-    if (lastSync == null) {
-      lastSyncLabel = 'jamais';
-    } else {
-      final local = lastSync.toLocal();
-      String pad2(int n) => n.toString().padLeft(2, '0');
-      lastSyncLabel =
-          'le ${pad2(local.day)}/${pad2(local.month)}/${local.year} '
-          'à ${pad2(local.hour)}:${pad2(local.minute)}';
-    }
-    await showDialog<void>(
-      context: state.context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Aucune donnée à synchroniser'),
-        content: Text(
-          'Toutes vos données locales ont déjà été envoyées au serveur.\n\n'
-          'Dernière synchronisation complète : $lastSyncLabel.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    await state._performSync();
     return;
   }
 
@@ -277,6 +248,41 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                     ),
                   ),
                 ),
+              if (result.photoSuccessCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    _syncSentPhotoText(result.photoSuccessCount),
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (result.postSyncReceivedCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    _syncReceivedDataText(result.postSyncReceivedCount),
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (result.postSyncProtectedLocalCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    result.postSyncProtectedLocalCount == 1
+                        ? '1 donnee locale conservee en attente d envoi'
+                        : '${result.postSyncProtectedLocalCount} donnees locales conservees en attente d envoi',
+                    style: const TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               if (result.failedCount > 0)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
@@ -503,8 +509,12 @@ void _showDownloadResultImpl(
       }
 
       final hasFailures = result.failedCount > 0;
-      final fullFailure =
-          hasFailures && result.successCount == 0 && result.skippedCount == 0;
+      final hasOfflinePackageResult =
+          result.orthoTileCount > 0 || result.affleurantCount > 0;
+      final fullFailure = hasFailures &&
+          result.successCount == 0 &&
+          result.skippedCount == 0 &&
+          !hasOfflinePackageResult;
       final partialFailure = hasFailures &&
           !fullFailure &&
           !alreadyDownloaded &&
@@ -564,30 +574,42 @@ void _showDownloadResultImpl(
                 ),
                 const SizedBox(height: 8),
               ],
-              if (!nothingAvailable &&
-                  !alreadyDownloaded &&
-                  !fullFailure &&
-                  result.successCount > 0) ...[
-                Text(
-                  '${result.successCount} nouvelles données téléchargées',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+              if (!fullFailure || hasOfflinePackageResult) ...[
+                const SizedBox(height: 10),
+                const Text(
+                  'Bilan du téléchargement',
+                  style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
-                if (result.zoneFeatureCount > 0)
-                  Text('  • Zones affectées : ${result.zoneFeatureCount}'),
-                if (result.referentielCount > 0)
-                  Text('  • Référentiel ONEP : ${result.referentielCount}'),
-                if (result.anomalieCount > 0)
-                  Text('  • Anomalies terrain : ${result.anomalieCount}'),
-                if (result.incompletCount > 0)
-                  Text('  • Objets incomplets : ${result.incompletCount}'),
-              ],
-              if (!nothingAvailable &&
-                  !alreadyDownloaded &&
-                  !fullFailure &&
-                  result.updatedCount > 0)
                 Text(
-                    '${result.updatedCount} objet(s) déjà présents rafraîchi(s)'),
+                  'Données disponibles sur ce mobile : ${result.localDownloadedDataCount}',
+                ),
+                Text('Nouvelles données reçues : ${result.successCount}'),
+                if (result.updatedCount > 0)
+                  Text(
+                      'Données déjà présentes mises à jour : ${result.updatedCount}'),
+                if (result.zoneFeatureCount > 0)
+                  Text(
+                      'Données des zones affectées : ${result.zoneFeatureCount}'),
+                if (result.referentielCount > 0)
+                  Text('Référentiel ONEP : ${result.referentielCount}'),
+                if (result.anomalieCount > 0)
+                  Text('Anomalies terrain : ${result.anomalieCount}'),
+                if (result.incompletCount > 0)
+                  Text('Objets incomplets : ${result.incompletCount}'),
+                if (result.orthoTileCount > 0)
+                  Text(
+                    result.orthoAlreadyUpToDate
+                        ? 'Ortho / fond offline : ${result.orthoTileCount} tuiles déjà présentes'
+                        : 'Ortho / fond offline : ${result.orthoTileCount} tuiles téléchargées',
+                  ),
+                if (result.affleurantCount > 0)
+                  Text(
+                    result.affleurantsAlreadyUpToDate
+                        ? 'Affleurants : ${result.affleurantCount} déjà présents'
+                        : 'Affleurants : ${result.affleurantCount} téléchargés',
+                  ),
+              ],
               if (!nothingAvailable && result.skippedCount > 0)
                 Text(
                     '${result.skippedCount} données ignorées (format invalide)'),
@@ -670,11 +692,11 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
   final messenger = ScaffoldMessenger.maybeOf(hostContext);
   final initialPosition =
       state.homeController.mockPosition ?? state.homeController.userPosition;
-  final latitudeController = TextEditingController(
-    text: initialPosition.latitude.toStringAsFixed(6),
+  final xController = TextEditingController(
+    text: initialPosition.longitude.toStringAsFixed(3),
   );
-  final longitudeController = TextEditingController(
-    text: initialPosition.longitude.toStringAsFixed(6),
+  final yController = TextEditingController(
+    text: initialPosition.latitude.toStringAsFixed(3),
   );
   final initialAltitude =
       state.homeController.mockAltitude ?? state.homeController.currentAltitude;
@@ -696,7 +718,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         return AlertDialog(
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          title: const Text('Position GPS mock'),
+          title: const Text('Position mock Merchich'),
           content: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxContentHeight),
             child: SingleChildScrollView(
@@ -705,29 +727,29 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
-                    controller: latitudeController,
+                    controller: xController,
                     scrollPadding: const EdgeInsets.only(bottom: 96),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                       signed: true,
                     ),
                     decoration: const InputDecoration(
-                      labelText: 'Latitude',
-                      hintText: 'Ex: 33.573110',
+                      labelText: 'X Merchich (m)',
+                      hintText: 'Ex: 228580.000',
                       isDense: true,
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: longitudeController,
+                    controller: yController,
                     scrollPadding: const EdgeInsets.only(bottom: 96),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                       signed: true,
                     ),
                     decoration: const InputDecoration(
-                      labelText: 'Longitude',
-                      hintText: 'Ex: -7.589843',
+                      labelText: 'Y Merchich (m)',
+                      hintText: 'Ex: 118670.000',
                       isDense: true,
                     ),
                   ),
@@ -780,11 +802,11 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
               onPressed: () {
                 Navigator.of(dialogContext).pop({
                   'action': 'apply',
-                  'lat': double.tryParse(
-                    latitudeController.text.trim().replaceAll(',', '.'),
+                  'x': double.tryParse(
+                    xController.text.trim().replaceAll(',', '.'),
                   ),
-                  'lon': double.tryParse(
-                    longitudeController.text.trim().replaceAll(',', '.'),
+                  'y': double.tryParse(
+                    yController.text.trim().replaceAll(',', '.'),
                   ),
                   'altitude': double.tryParse(
                     altitudeController.text.trim().replaceAll(',', '.'),
@@ -826,8 +848,8 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
           messenger?.showSnackBar(
             SnackBar(
               content: Text(
-                'GNSS externe lu: ${position.latitude.toStringAsFixed(6)}, '
-                '${position.longitude.toStringAsFixed(6)}',
+                'GNSS externe lu: X=${position.longitude.toStringAsFixed(3)}, '
+                'Y=${position.latitude.toStringAsFixed(3)}',
               ),
               backgroundColor: Colors.teal,
             ),
@@ -872,7 +894,10 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
 
       final gnssPosition = LatLng(lat, lon);
       if (state._mapController != null) {
-        state._mapController!.move(gnssPosition, 17);
+        state._mapController!.move(
+          state._mapPointForActiveMap(gnssPosition),
+          17,
+        );
         state._lastCameraPosition = gnssPosition;
       }
 
@@ -900,7 +925,10 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         if (!state.mounted) return;
         final restoredPosition = state.homeController.userPosition;
         if (state._mapController != null) {
-          state._mapController!.move(restoredPosition, 17);
+          state._mapController!.move(
+            state._mapPointForActiveMap(restoredPosition),
+            17,
+          );
           state._lastCameraPosition = restoredPosition;
         }
         messenger?.showSnackBar(
@@ -913,14 +941,14 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
       return;
     }
 
-    final lat = result['lat'] as double?;
-    final lon = result['lon'] as double?;
+    final x = result['x'] as double?;
+    final y = result['y'] as double?;
     final altitude = result['altitude'] as double?;
 
-    if (lat == null || lon == null || altitude == null) {
+    if (x == null || y == null || altitude == null) {
       messenger?.showSnackBar(
         const SnackBar(
-          content: Text('Latitude, longitude ou Z invalide'),
+          content: Text('X, Y ou Z invalide'),
           backgroundColor: Colors.red,
         ),
       );
@@ -930,20 +958,26 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!state.mounted) return;
       try {
-        state.homeController.setMockPosition(
-          latitude: lat,
-          longitude: lon,
+        state.homeController.setMockMerchichPosition(
+          x: x,
+          y: y,
           altitude: altitude,
         );
-        final mockPosition = LatLng(lat, lon);
+        final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
+        final mockPosition = state._shouldUseOnlineBasemap
+            ? LatLng(wgs84.latitude, wgs84.longitude)
+            : LatLng(y, x);
         if (state._mapController != null) {
-          state._mapController!.move(mockPosition, 17);
+          state._mapController!.move(
+            state._mapPointForActiveMap(mockPosition),
+            17,
+          );
           state._lastCameraPosition = mockPosition;
         }
         messenger?.showSnackBar(
           SnackBar(
             content: Text(
-              'Mock GPS applique: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}, Z=${altitude.toStringAsFixed(3)} m',
+              'Mock GPS applique: X=${x.toStringAsFixed(3)}, Y=${y.toStringAsFixed(3)}, Z=${altitude.toStringAsFixed(3)} m',
             ),
             backgroundColor: Colors.teal,
           ),
@@ -958,8 +992,8 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
       }
     });
   } finally {
-    latitudeController.dispose();
-    longitudeController.dispose();
+    xController.dispose();
+    yController.dispose();
     altitudeController.dispose();
   }
 }
@@ -1036,7 +1070,7 @@ Future<void> _showNmeaBridgeDialog(
             }
 
             return AlertDialog(
-              title: const Text('Pont NMEA Oscar'),
+              title: const Text('Pont NMEA GNSS'),
               content: SizedBox(
                 width: double.maxFinite,
                 child: SingleChildScrollView(
@@ -1044,15 +1078,53 @@ Future<void> _showNmeaBridgeDialog(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.settings_input_antenna,
+                          color: Colors.indigo,
+                        ),
+                        title: const Text('Configurer antenne rover'),
+                        subtitle: Builder(
+                          builder: (_) {
+                            final c = state.homeController.currentRoverConfig;
+                            final method = switch (c.surveyType) {
+                              AntennaSurveyType.vertical => 'Vertical',
+                              AntennaSurveyType.slant => 'Slant',
+                              AntennaSurveyType.phaseCenter => 'Phase Ctr',
+                            };
+                            return Text(
+                              '${c.antenna.displayName} : '
+                              '${c.heightMeters.toStringAsFixed(3)} m '
+                              '($method) / ${c.verticalAdjustment.displayName}',
+                              style: const TextStyle(fontSize: 11.5),
+                            );
+                          },
+                        ),
+                        trailing: const Icon(Icons.chevron_right, size: 18),
+                        onTap: () async {
+                          await GnssRoverSetupDialog.show(
+                            dialogContext,
+                            homeController: state.homeController,
+                          );
+                          setDialogState(() {});
+                        },
+                      ),
+                      const Divider(height: 16),
                       Text(
-                        status.mockLocationSelected
-                            ? 'SRM Collecte est selectionnee comme app de position fictive.'
-                            : 'Selectionnez SRM Collecte comme app de position fictive Android.',
+                        state._canUseAdminGpsTools
+                            ? (status.mockLocationSelected
+                                ? 'SRM Collecte est selectionnee comme app de position fictive.'
+                                : 'Selectionnez SRM Collecte comme app de position fictive Android.')
+                            : 'Lecture directe du recepteur GNSS. La position fictive Android est reservee aux administrateurs.',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: status.mockLocationSelected
-                              ? Colors.green.shade700
-                              : Colors.orange.shade800,
+                          color: state._canUseAdminGpsTools
+                              ? (status.mockLocationSelected
+                                  ? Colors.green.shade700
+                                  : Colors.orange.shade800)
+                              : Colors.indigo.shade700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1137,10 +1209,11 @@ Future<void> _showNmeaBridgeDialog(
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => bridge.openMockLocationSettings(),
-                  child: const Text('Options mock'),
-                ),
+                if (state._canUseAdminGpsTools)
+                  TextButton(
+                    onPressed: () => bridge.openMockLocationSettings(),
+                    child: const Text('Options mock'),
+                  ),
                 TextButton(
                   onPressed: () => bridge.openBluetoothSettings(),
                   child: const Text('Bluetooth'),
@@ -1227,7 +1300,7 @@ String _friendlyNmeaBridgeError(Object error) {
     return 'Sélectionnez SRM Collecte dans Options développeur > Application de position fictive.';
   }
   if (message.contains('BLUETOOTH') || message.contains('Bluetooth')) {
-    return 'Autorisez Bluetooth et appairez Oscar dans les paramètres Android.';
+    return 'Autorisez Bluetooth et appairez le recepteur GNSS dans les paramètres Android.';
   }
   return message;
 }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../data/local/database_helper.dart';
 import 'projection_service.dart';
 import 'srm_row_visibility_filter.dart';
 import 'srm_status_flags.dart';
+import 'map_preview_service.dart';
 import 'formulaire_config_mobile_service.dart';
 import '../widgets/common/custom_marker_icons.dart';
 import '../data/remote/api_service.dart';
@@ -221,7 +223,8 @@ class DisplayedPointsService {
     required Map<String, Map<String, dynamic>> incompletIndex,
   }) {
     final row = Map<String, dynamic>.from(rawRow);
-    final id = _toInt(row['id']) ?? _toInt(row['fid']) ?? _toInt(row['id_objet']);
+    final id =
+        _toInt(row['id']) ?? _toInt(row['fid']) ?? _toInt(row['id_objet']);
     final uuid = row['uuid']?.toString().trim() ??
         row['uuid_objet']?.toString().trim() ??
         '';
@@ -416,34 +419,90 @@ class DisplayedPointsService {
     required String tableName,
   }) {
     final schema = SrmConfig.getMetierConfig(metier)?['schema']?.toString();
-    final isRegard = _isRegardTable(tableName);
+    final projectedPoint = _extractLatLngFromProjectedFields(row, schema);
+    final geometryPoint = _extractLatLngFromGeometry(row);
+    final gpsPoint = _extractLatLngFromGps(row);
 
-    if (isRegard && schema != null && schema.isNotEmpty) {
-      final x = _toDouble(row['${schema}_coor_x']);
-      final y = _toDouble(row['${schema}_coor_y']);
-
-      if (x != null && y != null) {
-        final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
-        return LatLng(wgs84.latitude, wgs84.longitude);
-      }
+    if (_isCleanDownloadedServerRow(row)) {
+      return geometryPoint ?? projectedPoint ?? gpsPoint;
     }
 
-    final latitude = _toDouble(row['latitude_gps']);
-    final longitude = _toDouble(row['longitude_gps']);
+    return projectedPoint ?? geometryPoint ?? gpsPoint;
+  }
 
-    if (latitude != null && longitude != null) {
-      return LatLng(latitude, longitude);
-    }
-
+  LatLng? _extractLatLngFromProjectedFields(
+    Map<String, dynamic> row,
+    String? schema,
+  ) {
     if (schema == null || schema.isEmpty) return null;
 
     final x = _toDouble(row['${schema}_coor_x']);
     final y = _toDouble(row['${schema}_coor_y']);
-
     if (x == null || y == null) return null;
 
-    final wgs84 = ProjectionService().merchichToWgs84(x: x, y: y);
-    return LatLng(wgs84.latitude, wgs84.longitude);
+    return LatLng(y, x);
+  }
+
+  LatLng? _extractLatLngFromGps(Map<String, dynamic> row) {
+    final latitude = _toDouble(row['latitude_gps']);
+    final longitude = _toDouble(row['longitude_gps']);
+    if (latitude == null || longitude == null) return null;
+
+    if (_looksLikeWgs84(latitude: latitude, longitude: longitude)) {
+      final m = ProjectionService().wgs84ToMerchich(
+        latitude: latitude,
+        longitude: longitude,
+      );
+      return LatLng(m.y, m.x);
+    }
+    return LatLng(latitude, longitude);
+  }
+
+  LatLng? _extractLatLngFromGeometry(Map<String, dynamic> row) {
+    final raw = row['geometry_geojson'] ?? row['geom'] ?? row['geometry'];
+    if (raw == null) return null;
+
+    dynamic geometry = raw;
+    if (raw is String) {
+      final text = raw.trim();
+      if (text.isEmpty || text.toLowerCase() == 'null') return null;
+      try {
+        geometry = jsonDecode(text);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (geometry is! Map) return null;
+    final map = Map<String, dynamic>.from(geometry);
+    if ((map['type'] ?? '').toString().toLowerCase() == 'feature') {
+      return _extractLatLngFromGeometry({
+        'geometry_geojson': map['geometry'],
+      });
+    }
+
+    final pair = _firstCoordinatePair(map['coordinates']);
+    if (pair == null) return null;
+
+    final x = _toDouble(pair[0]);
+    final y = _toDouble(pair[1]);
+    if (x == null || y == null) return null;
+
+    return LatLng(y, x);
+  }
+
+  List<dynamic>? _firstCoordinatePair(dynamic coordinates) {
+    if (coordinates is! List || coordinates.isEmpty) return null;
+    if (coordinates.length >= 2 &&
+        _toDouble(coordinates[0]) != null &&
+        _toDouble(coordinates[1]) != null) {
+      return coordinates;
+    }
+    for (final item in coordinates) {
+      final pair = _firstCoordinatePair(item);
+      if (pair != null) return pair;
+    }
+    return null;
   }
 
   bool _isRegardTable(String tableName) {
@@ -459,6 +518,29 @@ class DisplayedPointsService {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString());
+  }
+
+  bool _looksLikeWgs84({
+    required double latitude,
+    required double longitude,
+  }) {
+    return latitude.abs() <= 90 && longitude.abs() <= 180;
+  }
+
+  bool _isCleanDownloadedServerRow(Map<String, dynamic> row) {
+    return _isTruthy(row['downloaded']) && _isTruthy(row['synced']);
+  }
+
+  bool _isTruthy(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final text = value.toString().trim().toLowerCase();
+    return text == '1' ||
+        text == 'true' ||
+        text == 't' ||
+        text == 'yes' ||
+        text == 'oui';
   }
 
   int? _toInt(dynamic value) {
@@ -501,15 +583,7 @@ class DisplayedPointsService {
   }
 
   String _resolvePointName(Map<String, dynamic> point, String fallback) {
-    for (final key in ['nom', 'name', 'libelle', 'ep_num', 'uuid']) {
-      final value = point[key]?.toString().trim();
-
-      if (value != null && value.isNotEmpty) {
-        return value;
-      }
-    }
-
-    return fallback;
+    return MapPreviewService.displayName(point, fallback: fallback);
   }
 }
 

@@ -84,7 +84,6 @@ class _LegendWidgetState extends State<LegendWidget> {
     _visibility = Map<String, bool>.from(widget.initialVisibility);
     _visibility.putIfAbsent('overlay_zones', () => true);
     _visibility.putIfAbsent('overlay_planche', () => false);
-    _visibility.putIfAbsent('overlay_fond_plan', () => false);
     for (final m in SrmConfig.getMetiers()) {
       _metierExpanded[m] = false;
       if (!_visibility.containsKey(_mk(m))) _visibility[_mk(m)] = true;
@@ -591,12 +590,6 @@ class _LegendWidgetState extends State<LegendWidget> {
             label: 'Planches',
             color: const Color(0xFF455A64),
             icon: Icons.grid_on,
-          ),
-          _buildReferenceOverlayRow(
-            keyName: 'overlay_fond_plan',
-            label: 'Fond plan',
-            color: const Color(0xFF616161),
-            icon: Icons.polyline,
           ),
         ],
       ),

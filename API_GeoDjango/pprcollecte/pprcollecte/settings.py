@@ -46,12 +46,12 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "False").strip().lower() in {
 }
 
 # ALLOWED_HOSTS : whitelist explicite. Plus de fallback ['*'].
-# En dev sans variable definie -> localhost uniquement.
+# En dev sans variable definie -> localhost + emulateur + IP LAN de test.
 _allowed_hosts_env = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = (
     [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()]
     if _allowed_hosts_env
-    else ["127.0.0.1", "localhost", "10.0.2.2"]
+    else ["127.0.0.1", "localhost", "10.0.2.2", "192.168.10.153", "192.168.10.148"]
 )
 
 # Garde-fou : refuse de booter en prod avec la SECRET_KEY de dev.
@@ -237,11 +237,14 @@ STORAGES = {
     },
 }
 
-# Basemap regional unique : un seul fichier .pmtiles vectoriel OSM-like
-# couvrant toute la zone d'intervention (Oriental). Le mobile telecharge
-# ce fichier en un seul GET au login puis le rejoue offline.
+# Basemap regional unique : un seul fichier .pmtiles EPSG:26191 avec sidecar
+# JSON de grille. Le mobile telecharge ce fichier en un seul GET puis le
+# rejoue offline.
 BASEMAP_REGIONAL_PMTILES_PATH = os.environ.get(
     "BASEMAP_REGIONAL_PMTILES_PATH", ""
+).strip()
+BASEMAP_REGIONAL_OUTPUT_PATH = os.environ.get(
+    "BASEMAP_REGIONAL_OUTPUT_PATH", ""
 ).strip()
 BASEMAP_REGIONAL_NAME = (
     os.environ.get("BASEMAP_REGIONAL_NAME", "SRM Oriental").strip()
@@ -254,6 +257,26 @@ BASEMAP_REGIONAL_ATTRIBUTION = (
     ).strip()
     or "© Protomaps © OpenStreetMap contributors"
 )
+BASEMAP_AUTO_PREPARE = os.environ.get(
+    "BASEMAP_AUTO_PREPARE", "true"
+).strip().lower() not in {"0", "false", "no", "off"}
+BASEMAP_MERCHICH_SOURCE_PATH = os.environ.get(
+    "BASEMAP_MERCHICH_SOURCE_PATH", ""
+).strip()
+BASEMAP_BUILD_SOURCE_PATH = os.environ.get(
+    "BASEMAP_BUILD_SOURCE_PATH", ""
+).strip()
+BASEMAP_BUILD_SOURCE_DIR = os.environ.get(
+    "BASEMAP_BUILD_SOURCE_DIR", ""
+).strip()
+BASEMAP_SCRIPT_PYTHON = os.environ.get("BASEMAP_SCRIPT_PYTHON", "").strip()
+BASEMAP_PMTILES_CLI_PATH = os.environ.get(
+    "BASEMAP_PMTILES_CLI_PATH", ""
+).strip()
+BASEMAP_TILE_SIZE = int(os.environ.get("BASEMAP_TILE_SIZE", "512"))
+BASEMAP_TILE_FORMAT = os.environ.get("BASEMAP_TILE_FORMAT", "webp").strip().lower()
+BASEMAP_TILE_QUALITY = int(os.environ.get("BASEMAP_TILE_QUALITY", "90"))
+
 REGARD_MIROIR_SQUARE_SIZE_METERS = float(
     os.environ.get("REGARD_MIROIR_SQUARE_SIZE_METERS", "4.0")
 )

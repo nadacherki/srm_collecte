@@ -1,0 +1,2126 @@
+{
+  "generated_at": "2026-06-01T13:28:08",
+  "schemas": [
+    "ep",
+    "asst"
+  ],
+  "summary": {
+    "form_tables": 61,
+    "physical_tables_checked": 61,
+    "attributes_checked": 2909,
+    "choices_checked": 928,
+    "missing_physical_tables": 0,
+    "type_mismatches": 0,
+    "nullable_mismatches": 0,
+    "not_valid_required_constraints": 209,
+    "attributes_without_physical_column": 0,
+    "physical_columns_without_attribute": 0,
+    "choices_without_attribute": 0,
+    "choices_without_physical_column": 0,
+    "choice_attribute_link_mismatches": 0,
+    "choice_default_mismatches": 0
+  },
+  "issues": {
+    "missing_physical_tables": [],
+    "type_mismatches": [],
+    "nullable_mismatches": [],
+    "not_valid_required_constraints": [
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "ASS_CONF_PLAN",
+        "attribute_id": 3546,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a663eebf09212843",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "ASS_DIAM",
+        "attribute_id": 3534,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6910f0af0789c30c",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "ASS_LONG_R",
+        "attribute_id": 3539,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8e91f4090027fd38",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "ASS_MAT",
+        "attribute_id": 3535,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1105062c8ceafc34",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "ASS_REGARD_FAC",
+        "attribute_id": 3540,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_7fa400d9e8fccff7",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "ASS_TYPE_RESEAU",
+        "attribute_id": 3536,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2fda582855a33011",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_BRANCHEMENT",
+        "column": "EMPLACEMENT",
+        "attribute_id": 3537,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_159b8accf7b07cd9",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_CONF_PLAN",
+        "attribute_id": 3706,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a663eebf09212843",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_DATE_INSERTION",
+        "attribute_id": 3687,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8940c55a9b08cbe5",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_DIAM",
+        "attribute_id": 3679,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6910f0af0789c30c",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_LONG_R",
+        "attribute_id": 3696,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8e91f4090027fd38",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_MAT",
+        "attribute_id": 3680,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1105062c8ceafc34",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_PROF_AMONT",
+        "attribute_id": 3697,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_7a667b0d5d839d3b",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_PROF_AVAL",
+        "attribute_id": 3698,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ba898acc72ba2ac4",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_SECTION",
+        "attribute_id": 3681,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_f4ec70c443eb1351",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "ASS_TYPE_RESEAU",
+        "attribute_id": 3682,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2fda582855a33011",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "EMPLACEMENT",
+        "attribute_id": 3685,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_159b8accf7b07cd9",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_COLLECTEUR",
+        "column": "MATERIAU",
+        "attribute_id": 3723,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_211426826e8b83a3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_CHUTE",
+        "attribute_id": 4251,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d8486a1ffe244111",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_CONF_PLAN",
+        "attribute_id": 4271,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a663eebf09212843",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_DEPOT",
+        "attribute_id": 4272,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_aaa0eccbd437d47a",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_ECHLONS",
+        "attribute_id": 4250,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_02b012f9971f4f27",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_FONCTION_REGARD",
+        "attribute_id": 4252,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_56c0f62103a65290",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_PHOTO",
+        "attribute_id": 4277,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_502802859b7a4248",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_PROFONDEUR",
+        "attribute_id": 4268,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d26655d09221b248",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_SECTION",
+        "attribute_id": 4247,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_f4ec70c443eb1351",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_TAMPON",
+        "attribute_id": 4249,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_31caa38b0404e201",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_TYPE",
+        "attribute_id": 4246,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_531151f63f311f7c",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ASS_TYPE_RESEAU",
+        "attribute_id": 4253,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2fda582855a33011",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "EMPLACEMENT",
+        "attribute_id": 4248,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_159b8accf7b07cd9",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_REGARD",
+        "column": "ZSURF",
+        "attribute_id": 4265,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_63d7c2f29636dd91",
+        "existing_violations": 4
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_CONF_PLAN",
+        "attribute_id": 4418,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a663eebf09212843",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_DATE_INSERTION",
+        "attribute_id": 4406,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8940c55a9b08cbe5",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_DIMENSION",
+        "attribute_id": 4404,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_13a7aa88a6e53b6d",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_NB_COMPA",
+        "attribute_id": 4403,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_e40108d652674d40",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_NOM",
+        "attribute_id": 4399,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8696c527e09ad847",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_PHOTO",
+        "attribute_id": 4424,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_502802859b7a4248",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ASS_VOLUME",
+        "attribute_id": 4405,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2e4ecb397aacf825",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "RADIER",
+        "attribute_id": 4412,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d3701d7c06041d54",
+        "existing_violations": 0
+      },
+      {
+        "schema": "asst",
+        "table": "ASS_STA_EPUR",
+        "column": "ZSURF",
+        "attribute_id": 4411,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_63d7c2f29636dd91",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "conduite_terrain",
+        "column": "ep_diam",
+        "attribute_id": 17,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "conduite_terrain",
+        "column": "ep_mat",
+        "attribute_id": 18,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5f0fd8cf54fd1f82",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bache",
+        "column": "emplacement",
+        "attribute_id": 1678,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bache",
+        "column": "ep_capacite",
+        "attribute_id": 121,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_74e47095999dad73",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bache",
+        "column": "ep_conf_plan",
+        "attribute_id": 128,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bache",
+        "column": "ep_prof",
+        "attribute_id": 122,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1255df8cd9a55517",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bache",
+        "column": "ep_ref_rue",
+        "attribute_id": 123,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_af41a9e77b0e3e82",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bache",
+        "column": "ep_section",
+        "attribute_id": 120,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_46a8ddfe9cb6b0a5",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "compt_g",
+        "attribute_id": 42,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_003e238982c6b1aa",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "conform",
+        "attribute_id": 34,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_15d8d6673c820eee",
+        "existing_violations": 76
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "diam_brts",
+        "attribute_id": 847,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_0cc7f49672bb374e",
+        "existing_violations": 125
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "diam_comp",
+        "attribute_id": 836,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_843072940b984b99",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "ep_conf_plan",
+        "attribute_id": 39,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "ep_etat",
+        "attribute_id": 845,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_79fdcb521bb1ca80",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "ep_fonct",
+        "attribute_id": 35,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_bd0a544f9165e97b",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "ep_ref_rue",
+        "attribute_id": 33,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_af41a9e77b0e3e82",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "ep_service",
+        "attribute_id": 43,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b238ab3f8802f93d",
+        "existing_violations": 267
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "ep_type_bf",
+        "attribute_id": 844,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1f055f7f547dba20",
+        "existing_violations": 3
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "mat_brts",
+        "attribute_id": 848,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6cddb036dc253343",
+        "existing_violations": 267
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "nb_robinets",
+        "attribute_id": 41,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_cf001232de8fe4c4",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "statut",
+        "attribute_id": 846,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d099aae5c339fa40",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bf",
+        "column": "vanne",
+        "attribute_id": 36,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_4963c81120e6e803",
+        "existing_violations": 75
+      },
+      {
+        "schema": "ep",
+        "table": "ep_bouche_arro",
+        "column": "ep_conf_plan",
+        "attribute_id": 135,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_branchement",
+        "column": "ep_conf_plan",
+        "attribute_id": 69,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_branchement",
+        "column": "ep_diam",
+        "attribute_id": 63,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_branchement",
+        "column": "ep_mat",
+        "attribute_id": 1716,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5f0fd8cf54fd1f82",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_branchement",
+        "column": "ep_type",
+        "attribute_id": 62,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "abon",
+        "attribute_id": 46,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_02fde227fdc7b3aa",
+        "existing_violations": 718
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "adresse",
+        "attribute_id": 49,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_4bef6bece607e237",
+        "existing_violations": 715
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "ancien_ref_sap",
+        "attribute_id": 59,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d5ca9878f00c3ec0",
+        "existing_violations": 715
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "ancienne_police",
+        "attribute_id": 61,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_59f100c54eef6520",
+        "existing_violations": 715
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "diametre",
+        "attribute_id": 55,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_be46010c9818dd87",
+        "existing_violations": 233
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "ep_conf_plan",
+        "attribute_id": 57,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 2156
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "etat_abonnement",
+        "attribute_id": 53,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_e0fb9d14788889bd",
+        "existing_violations": 715
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "id_geo",
+        "attribute_id": 60,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_116f5d0a0856a13f",
+        "existing_violations": 715
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "nom",
+        "attribute_id": 48,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_aee37c30f5d091a4",
+        "existing_violations": 644
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "num_contrat",
+        "attribute_id": 51,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_03f82ea0e39bf8df",
+        "existing_violations": 642
+      },
+      {
+        "schema": "ep",
+        "table": "ep_brc_pt",
+        "column": "type_cpt",
+        "attribute_id": 54,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_7ff46fde2d3bb873",
+        "existing_violations": 2158
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "emplacement",
+        "attribute_id": 1683,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 38
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "ep_calibre",
+        "attribute_id": 88,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_e8d49c72862ac394",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "ep_conf_plan",
+        "attribute_id": 97,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "ep_modele",
+        "attribute_id": 87,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2c17f0121384b0ae",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "ep_n_serie",
+        "attribute_id": 93,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_fc7b524b64b8ce7f",
+        "existing_violations": 35
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "ep_ref_regard",
+        "attribute_id": 90,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d406add43c0ab4ef",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_compteur_i",
+        "column": "ep_type",
+        "attribute_id": 1763,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_cone_reduc",
+        "column": "emplacement",
+        "attribute_id": 1688,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 54
+      },
+      {
+        "schema": "ep",
+        "table": "ep_cone_reduc",
+        "column": "ep_conf_plan",
+        "attribute_id": 103,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_cone_reduc",
+        "column": "ep_diam_in",
+        "attribute_id": 1765,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8962282713900819",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_cone_reduc",
+        "column": "ep_diam_out",
+        "attribute_id": 1766,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5085f2b5d851ab23",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_conf_plan",
+        "attribute_id": 118,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_date_for",
+        "attribute_id": 108,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_dba605a54d9d4930",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_debit_equip",
+        "attribute_id": 112,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a640ce7b614e8eae",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_debit_fo",
+        "attribute_id": 114,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_f469141346876188",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_diam",
+        "attribute_id": 117,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_etat_s",
+        "attribute_id": 110,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_fca5852a04882fe5",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_hmt",
+        "attribute_id": 111,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_c49ce0900c7029c0",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_ire_forage",
+        "attribute_id": 106,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b7c4208aac9c59ab",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_nom",
+        "attribute_id": 105,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b22511839b9b557c",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_pompe_puissance",
+        "attribute_id": 113,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b27363a837569dff",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_profond",
+        "attribute_id": 109,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2a9fd99a4192f0a9",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_forage",
+        "column": "ep_type",
+        "attribute_id": 107,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "conform",
+        "attribute_id": 147,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_15d8d6673c820eee",
+        "existing_violations": 19
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "diamcond",
+        "attribute_id": 146,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_f00d44f641f23b01",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "diametre",
+        "attribute_id": 145,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_be46010c9818dd87",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "dispo",
+        "attribute_id": 148,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6e0b39336bfa1045",
+        "existing_violations": 19
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "emplacement",
+        "attribute_id": 1693,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "ep_conf_plan",
+        "attribute_id": 153,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "ep_etat",
+        "attribute_id": 139,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_79fdcb521bb1ca80",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "ep_ref_regard",
+        "attribute_id": 155,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d406add43c0ab4ef",
+        "existing_violations": 19
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "ep_type",
+        "attribute_id": 137,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "marque",
+        "attribute_id": 144,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_949740fcae1ae698",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "statut",
+        "attribute_id": 142,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d099aae5c339fa40",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "type",
+        "attribute_id": 143,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_599dcce2998a6b40",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_hydrant",
+        "column": "vanne",
+        "attribute_id": 149,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_4963c81120e6e803",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_noeud",
+        "column": "ep_conf_plan",
+        "attribute_id": 160,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 227
+      },
+      {
+        "schema": "ep",
+        "table": "ep_obturateur",
+        "column": "ep_conf_plan",
+        "attribute_id": 164,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_obturateur",
+        "column": "ep_diam",
+        "attribute_id": 1768,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_conf_plan",
+        "attribute_id": 174,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_etat_s",
+        "attribute_id": 171,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_fca5852a04882fe5",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_hmt",
+        "attribute_id": 170,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_c49ce0900c7029c0",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_pompe_debit_fo",
+        "attribute_id": 169,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5bcb229af6414e5a",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_pompe_modele",
+        "attribute_id": 166,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_13188a9366089bac",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_pompe_puissance",
+        "attribute_id": 168,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b27363a837569dff",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_pompe_ref",
+        "attribute_id": 167,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_7a59cc8d2ef98794",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_pompe",
+        "column": "ep_statut",
+        "attribute_id": 1412,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_dc20ca73ac72f796",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_puit",
+        "column": "ep_conf_plan",
+        "attribute_id": 178,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reduc_pres",
+        "column": "emplacement",
+        "attribute_id": 1698,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reduc_pres",
+        "column": "ep_classe_tampon",
+        "attribute_id": 182,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_dadfb7c5cdb0678f",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reduc_pres",
+        "column": "ep_conf_plan",
+        "attribute_id": 189,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reduc_pres",
+        "column": "ep_diam",
+        "attribute_id": 181,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reduc_pres",
+        "column": "ep_marque",
+        "attribute_id": 180,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_90befa185cac4d45",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "echelon",
+        "attribute_id": 12,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_71579009f1de0b9e",
+        "existing_violations": 59
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "emplacement",
+        "attribute_id": 1701,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "ep_agent",
+        "attribute_id": 1473,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_nn_8884bbcc54df019e",
+        "existing_violations": 10
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "ep_conf_plan",
+        "attribute_id": 10,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "ep_profondeur",
+        "attribute_id": 16,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d7e18f1829c67bbf",
+        "existing_violations": 80
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "ep_ref_rue",
+        "attribute_id": 3,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_af41a9e77b0e3e82",
+        "existing_violations": 3
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "ep_tampon",
+        "attribute_id": 5,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6d7635f7bedb68ec",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "existence_s",
+        "attribute_id": 841,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ee72116e03b1ead2",
+        "existing_violations": 3
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "generatrice_supp",
+        "attribute_id": 3093,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_nn_bab851c546748e18",
+        "existing_violations": 101
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "largeur",
+        "attribute_id": 840,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_02c6f47decde3ed4",
+        "existing_violations": 1442
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "longueur",
+        "attribute_id": 839,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a4f237aac8427fb3",
+        "existing_violations": 1442
+      },
+      {
+        "schema": "ep",
+        "table": "ep_regard_point",
+        "column": "type_regard",
+        "attribute_id": 842,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_c35dc7b065e664dc",
+        "existing_violations": 1441
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_capacite",
+        "attribute_id": 205,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_74e47095999dad73",
+        "existing_violations": 32
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_conf_plan",
+        "attribute_id": 208,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 19
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_date_constr",
+        "attribute_id": 196,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_740d39c8b489dcef",
+        "existing_violations": 32
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_date_rehab",
+        "attribute_id": 197,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_29c53df7fc17e27b",
+        "existing_violations": 32
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_diam_in",
+        "attribute_id": 202,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8962282713900819",
+        "existing_violations": 31
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_diam_out",
+        "attribute_id": 203,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5085f2b5d851ab23",
+        "existing_violations": 31
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_etat_s",
+        "attribute_id": 194,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_fca5852a04882fe5",
+        "existing_violations": 19
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_forme",
+        "attribute_id": 193,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1b4a43319dacc5a5",
+        "existing_violations": 20
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_hr",
+        "attribute_id": 204,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_de023a319c5d384d",
+        "existing_violations": 31
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_nom",
+        "attribute_id": 191,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b22511839b9b557c",
+        "existing_violations": 30
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_ref_rue",
+        "attribute_id": 195,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_af41a9e77b0e3e82",
+        "existing_violations": 19
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_surf_clot",
+        "attribute_id": 199,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5e4f5288869cdbbe",
+        "existing_violations": 32
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_type",
+        "attribute_id": 192,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 21
+      },
+      {
+        "schema": "ep",
+        "table": "ep_reservoir",
+        "column": "ep_type_cap",
+        "attribute_id": 198,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_0243e84f421007b6",
+        "existing_violations": 32
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_conf_plan",
+        "attribute_id": 229,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_etat_s",
+        "attribute_id": 220,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_fca5852a04882fe5",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_hmt",
+        "attribute_id": 216,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_c49ce0900c7029c0",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_nom",
+        "attribute_id": 211,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b22511839b9b557c",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_pompe_debit_fo",
+        "attribute_id": 215,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5bcb229af6414e5a",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_pompe_puissance",
+        "attribute_id": 214,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b27363a837569dff",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_st_demineralisation",
+        "column": "ep_pompe_ref",
+        "attribute_id": 213,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_7a59cc8d2ef98794",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "ep_conf_plan",
+        "attribute_id": 239,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 4
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "ep_debit_global",
+        "attribute_id": 238,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1777764c8038e3a7",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "ep_etat_s",
+        "attribute_id": 232,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_fca5852a04882fe5",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "ep_nom",
+        "attribute_id": 231,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_b22511839b9b557c",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "ep_nombre_de_groupe",
+        "attribute_id": 237,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_0491791635dc0084",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "ep_res_deserv",
+        "attribute_id": 233,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_1b368ae78de86de1",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_station_pompage",
+        "column": "puissance_installee",
+        "attribute_id": 236,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5f2bf18b3d82a38f",
+        "existing_violations": 5
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "ep_classe_conduite",
+        "attribute_id": 23,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_44ebc192da17f8cc",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "ep_conf_plan",
+        "attribute_id": 28,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 72
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "ep_diam",
+        "attribute_id": 837,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "ep_mat",
+        "attribute_id": 843,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_5f0fd8cf54fd1f82",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "ep_profondeur",
+        "attribute_id": 22,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d7e18f1829c67bbf",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "ep_ref_rue",
+        "attribute_id": 24,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_af41a9e77b0e3e82",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "nom_obstac",
+        "attribute_id": 30,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8c4eff3fbc825c08",
+        "existing_violations": 2
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "type_prot",
+        "attribute_id": 31,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_7739f58725ebb84f",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_traversee",
+        "column": "type_traver",
+        "attribute_id": 19,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_c2c4fbfceade6fe5",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "emplacement",
+        "attribute_id": 1705,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_conf_plan",
+        "attribute_id": 254,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_diam",
+        "attribute_id": 243,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_etat",
+        "attribute_id": 248,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_79fdcb521bb1ca80",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_manoeuvre",
+        "attribute_id": 246,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_a66044fded3e1319",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_marque",
+        "attribute_id": 255,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_90befa185cac4d45",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_ref_regard",
+        "attribute_id": 244,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d406add43c0ab4ef",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_sectionnement",
+        "attribute_id": 250,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_cc9ec6f55453d97c",
+        "existing_violations": 1
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_sens_ferm",
+        "attribute_id": 245,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_0033baa5679a4261",
+        "existing_violations": 511
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vanne",
+        "column": "ep_type",
+        "attribute_id": 241,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "emplacement",
+        "attribute_id": 1708,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 173
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_conf_plan",
+        "attribute_id": 274,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_diam",
+        "attribute_id": 1772,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_etat",
+        "attribute_id": 271,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_79fdcb521bb1ca80",
+        "existing_violations": 442
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_marque",
+        "attribute_id": 276,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_90befa185cac4d45",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_modele",
+        "attribute_id": 268,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2c17f0121384b0ae",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_ref_regard",
+        "attribute_id": 269,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d406add43c0ab4ef",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_ventouse",
+        "column": "ep_type",
+        "attribute_id": 1771,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 12
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "emplacement",
+        "attribute_id": 1711,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_ccc1f9f50bf6f51b",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_conf_plan",
+        "attribute_id": 264,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_6ffcd68d98ecb4df",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_diam",
+        "attribute_id": 1770,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_421b2a713aa2a7e3",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_etat",
+        "attribute_id": 261,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_79fdcb521bb1ca80",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_marque",
+        "attribute_id": 266,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_90befa185cac4d45",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_modele",
+        "attribute_id": 257,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_2c17f0121384b0ae",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_point_vid",
+        "attribute_id": 258,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_24f1d53964637693",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_ref_regard",
+        "attribute_id": 259,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_d406add43c0ab4ef",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_sectionnement",
+        "attribute_id": 267,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_cc9ec6f55453d97c",
+        "existing_violations": 356
+      },
+      {
+        "schema": "ep",
+        "table": "ep_vidange",
+        "column": "ep_type",
+        "attribute_id": 256,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_8b57dcc48771402d",
+        "existing_violations": 0
+      },
+      {
+        "schema": "ep",
+        "table": "voie",
+        "column": "type",
+        "attribute_id": 1773,
+        "configured_nullable": false,
+        "physical_not_null": false,
+        "constraint_names": "srm_req_599dcce2998a6b40",
+        "existing_violations": 0
+      }
+    ],
+    "attributes_without_physical_column": [],
+    "physical_columns_without_attribute": [],
+    "choices_without_attribute": [],
+    "choices_without_physical_column": [],
+    "choice_attribute_link_mismatches": [],
+    "choice_default_mismatches": []
+  }
+}

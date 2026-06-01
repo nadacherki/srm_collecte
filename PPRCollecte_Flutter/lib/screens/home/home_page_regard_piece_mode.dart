@@ -5,7 +5,8 @@ part of 'home_page.dart';
 //
 //  Permet a l'agent de :
 //    1. Choisir un regard du jour (marker carte).
-//    2. Taper sur la carte pour positionner une piece de regard.
+//    2. Taper dans le carre miroir du regard, ou son buffer terrain, pour
+//       positionner une piece de regard.
 //    3. Choisir le type de piece dans un selecteur restreint a :
 //         vanne, vanne_de_vidange, ventouse, cone_de_reduction,
 //         compteur_reseau, reducteur_de_pression, obturateur, pompe,
@@ -18,6 +19,10 @@ part of 'home_page.dart';
 //  La conduite_terrain (ligne) n'est pas encore activee depuis ce mode pour
 //  le MVP : un message renvoie l'agent vers le flot "Ligne" existant.
 // ─────────────────────────────────────────────────────────────────────────────
+
+const double _regardPieceTapBufferMeters =
+    RegardPieceGeometryService.defaultTapBufferMeters;
+const Color _regardPieceModeColor = Color(0xFF6A1B9A);
 
 Future<void> _enterRegardPieceModeImpl(_HomePageState state) async {
   final now = DateTime.now();
@@ -129,13 +134,30 @@ Future<void> _handleRegardPieceMapTapImpl(
 
   final regardNode = state._regardPieceRegardNodesById[selectedNodeId];
   if (regardNode == null) return;
-  final regardUuid =
-      regardNode.row['uuid']?.toString().trim() ?? '';
+  final regardUuid = regardNode.row['uuid']?.toString().trim() ?? '';
   if (regardUuid.isEmpty) {
     state._setStateFromPart(() {
       state._regardPieceModeError =
           'Le regard parent n\'a pas d\'UUID local : impossible de créer le lien.';
     });
+    return;
+  }
+
+  if (!_isRegardPieceTapInsideAllowedZone(regardNode, latLng)) {
+    final message = 'Touchez dans le regard sélectionné ou dans la zone '
+        'de tolérance '
+        '(${_regardPieceTapBufferMeters.toStringAsFixed(0)} m).';
+    state._setStateFromPart(() {
+      state._regardPieceModeError = message;
+      state._regardPieceStatusText =
+          'Position hors zone : gardez la pièce autour du regard parent.';
+    });
+    ScaffoldMessenger.of(state.context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange,
+      ),
+    );
     return;
   }
 
@@ -154,8 +176,9 @@ Future<void> _handleRegardPieceMapTapImpl(
     return;
   }
 
-
   if (!state.mounted) return;
+  final targetX = latLng.longitude;
+  final targetY = latLng.latitude;
   await Navigator.push(
     state.context,
     MaterialPageRoute(
@@ -167,8 +190,8 @@ Future<void> _handleRegardPieceMapTapImpl(
         longitude: latLng.longitude,
         altitude: state.homeController.currentProjectedZ ??
             state.homeController.currentAltitude,
-        projectedX: state.homeController.currentProjectedX,
-        projectedY: state.homeController.currentProjectedY,
+        projectedX: targetX,
+        projectedY: targetY,
         agentName: state.widget.agentName,
         onSaved: () {
           if (!state.mounted) return;
@@ -196,6 +219,24 @@ Future<void> _handleRegardPieceMapTapImpl(
             );
           } catch (e) {
             debugPrint('[REGARD_PIECE] enqueue link failed: $e');
+            // P1 / RP-1 : notifier l'agent. Sans ça, la piece est saisie
+            // comme objet metier mais le lien parent-regard manque ; la
+            // piece sera traitee comme orpheline cote bureau. Le lien
+            // pourra etre re-cree manuellement en re-ouvrant la piece
+            // dans le mode Pieces regard (idempotent UUID).
+            if (state.mounted) {
+              ScaffoldMessenger.of(state.context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Pièce enregistrée, mais le lien avec le regard parent '
+                    "n'a pas pu être mémorisé. Re-ouvrez la pièce dans le "
+                    'mode Pièces regard pour réessayer.',
+                  ),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 8),
+                ),
+              );
+            }
           }
         },
       ),
@@ -265,6 +306,9 @@ Future<void> _startRegardPieceLineCollectionImpl(
       gnssPoint: CapturedGnssPoint(
         latitude: firstTargetPoint.latitude,
         longitude: firstTargetPoint.longitude,
+        projectedX: firstTargetPoint.longitude,
+        projectedY: firstTargetPoint.latitude,
+        projectedZ: state.homeController.currentProjectedZ,
       ),
     );
     state._ligneRedoPoints.clear();
@@ -291,6 +335,35 @@ Future<void> _startRegardPieceLineCollectionImpl(
       ),
     );
   }
+}
+
+List<LatLng> _buildRegardPieceAllowedZone(LatLng center) {
+  return RegardPieceGeometryService.buildAllowedZone(
+    center: center,
+    mirrorSquareSizeMeters: _regardMiroirLocalSquareSizeMeters,
+    tapBufferMeters: _regardPieceTapBufferMeters,
+  );
+}
+
+Polygon _buildRegardPieceAllowedZonePolygon(_ConduiteRegardNode node) {
+  return Polygon(
+    points: _buildRegardPieceAllowedZone(node.point),
+    color: _regardPieceModeColor.withValues(alpha: 0.10),
+    borderColor: _regardPieceModeColor.withValues(alpha: 0.85),
+    borderStrokeWidth: 2.0,
+  );
+}
+
+bool _isRegardPieceTapInsideAllowedZone(
+  _ConduiteRegardNode node,
+  LatLng tapPoint,
+) {
+  return RegardPieceGeometryService.containsTap(
+    center: node.point,
+    tapPoint: tapPoint,
+    mirrorSquareSizeMeters: _regardMiroirLocalSquareSizeMeters,
+    tapBufferMeters: _regardPieceTapBufferMeters,
+  );
 }
 
 CapturedGnssPoint _regardPieceGnssFromRegardNode(_ConduiteRegardNode node) {
@@ -323,7 +396,8 @@ double? _regardPieceRowDouble(
   for (final key in keys) {
     final value = row[key];
     if (value is num) return value.toDouble();
-    final parsed = double.tryParse(value?.toString().replaceAll(',', '.') ?? '');
+    final parsed =
+        double.tryParse(value?.toString().replaceAll(',', '.') ?? '');
     if (parsed != null) return parsed;
   }
   return null;
@@ -337,7 +411,7 @@ Widget _buildRegardPieceModeHeaderImpl(_HomePageState state) {
   final selectedLabel =
       selectedNode == null ? '—' : _labelForConduiteNode(selectedNode);
   return Container(
-    color: const Color(0xFF6A1B9A),
+    color: _regardPieceModeColor,
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

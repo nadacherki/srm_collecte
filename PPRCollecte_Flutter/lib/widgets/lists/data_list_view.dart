@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 import '../../screens/home/home_page.dart'; // Pour MapFocusTarget + HomePage
 import '../../services/form_lock_service.dart';
+import '../../services/map_preview_service.dart';
+import '../../services/srm_status_flags.dart';
 
 class DataListView extends StatefulWidget {
   final List<Map<String, dynamic>> data;
@@ -362,12 +364,11 @@ class _DataListViewState extends State<DataListView> {
     final hasModification =
         item['updated_at'] != null && item['updated_at'] != item['created_at'];
     final isLine = widget.entityType == "Lignes";
-    final titleText = (item['display_title']?.toString().trim().isNotEmpty ??
-            false)
-        ? item['display_title'].toString()
-        : isLine
-            ? 'Ligne - ${(item['line_type'] ?? item['type'] ?? '-')} (#${item['id'] ?? '-'})'
-            : (item['nom'] ?? item['line_code'] ?? 'Sans nom').toString();
+    final isSynced = SrmStatusFlags.isTruthy(item['synced']);
+    final isDownloaded = SrmStatusFlags.isTruthy(item['downloaded']);
+    final titleText = isLine
+        ? 'Ligne - ${MapPreviewService.displayName(item, fallback: widget.entityType)}'
+        : MapPreviewService.displayName(item, fallback: widget.entityType);
     return Card(
       elevation: 0.8, // au lieu de default / gros shadow
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -380,8 +381,10 @@ class _DataListViewState extends State<DataListView> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (item['line_code'] != null) Text('Code: ${item['line_code']}'),
-            if (item['type'] != null) Text('Type: ${item['type']}'),
+            if (MapPreviewService.isUsefulValue(item['line_code']))
+              Text('Code: ${item['line_code']}'),
+            if (MapPreviewService.isUsefulValue(item['type']))
+              Text('Type: ${item['type']}'),
 
             if (item['created_at'] != null)
               Text('Cr\u00E9\u00E9 : ${_formatDate(item['created_at'])}'),
@@ -393,14 +396,10 @@ class _DataListViewState extends State<DataListView> {
                     color: Colors.green, fontWeight: FontWeight.bold),
               ),
 
-            // (Optionnel) tu peux supprimer cette ligne si tu ne veux plus afficher l'id
-            if (item['commune_id'] != null)
-              Text('Commune ID: ${item['commune_id']}'),
-
-            item['synced'] == 1
+            isSynced
                 ? const Text('Statut : Synchronis\u00E9',
                     style: TextStyle(color: Colors.green))
-                : item['downloaded'] == 1
+                : isDownloaded
                     ? const Text('Statut : T\u00E9l\u00E9charg\u00E9',
                         style: TextStyle(color: Colors.blue))
                     : const Text('Statut : Non synchronis\u00E9',
@@ -433,7 +432,7 @@ class _DataListViewState extends State<DataListView> {
                 },
               ),
             if (widget.onEdit != null) ...[
-              if (FormLockService.isEditable(item))
+              if (FormLockService.isDraftEditable(item))
                 IconButton(
                   icon: const Icon(Icons.edit, color: Colors.blue),
                   tooltip: 'Modifier',
@@ -441,7 +440,7 @@ class _DataListViewState extends State<DataListView> {
                 )
               else
                 Tooltip(
-                  message: FormLockService.lockReason(item),
+                  message: FormLockService.draftEditBlockReason(item),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8),
                     child: Icon(
@@ -498,6 +497,7 @@ class _DataListViewState extends State<DataListView> {
     bool isHidden(String key) {
       final k = key.toLowerCase();
       if (hiddenKeys.contains(key)) return true;
+      if (MapPreviewService.isTechnicalField(key)) return true;
       if (k.contains('password') || k.contains('token')) return true;
       if (k.endsWith('_json')) return true;
       return false;
@@ -554,8 +554,10 @@ class _DataListViewState extends State<DataListView> {
       return 'Général';
     }
 
-    final entries =
-        item.entries.where((e) => e.value != null && !isHidden(e.key)).toList();
+    final entries = item.entries
+        .where(
+            (e) => !isHidden(e.key) && MapPreviewService.isUsefulValue(e.value))
+        .toList();
 
     const order = {
       'Général': 0,
@@ -587,15 +589,18 @@ class _DataListViewState extends State<DataListView> {
 
     // ✅ Injecter region/prefecture/commune (3 lignes) dans Administration
     // ✅ Injecter region/prefecture/commune SEULEMENT si downloaded ou synced
-    final isDownloaded = item['downloaded'] == 1;
-    final isSynced = item['synced'] == 1;
+    final isDownloaded = SrmStatusFlags.isTruthy(item['downloaded']);
+    final isSynced = SrmStatusFlags.isTruthy(item['synced']);
     if (isDownloaded || isSynced) {
-      grouped.putIfAbsent('Administration', () => []);
-      grouped['Administration']!.insertAll(0, [
+      final adminEntries = [
         MapEntry('__region__', item['region_name'] ?? ''),
         MapEntry('__prefecture__', item['prefecture_name'] ?? ''),
         MapEntry('__commune__', item['commune_name'] ?? ''),
-      ]);
+      ].where((e) => MapPreviewService.isUsefulValue(e.value)).toList();
+      if (adminEntries.isNotEmpty) {
+        grouped.putIfAbsent('Administration', () => []);
+        grouped['Administration']!.insertAll(0, adminEntries);
+      }
     }
 
     Widget rowItem(String label, String value) {
@@ -663,7 +668,7 @@ class _DataListViewState extends State<DataListView> {
 
                   return Column(
                     children: [
-                      rowItem(label, value.isEmpty ? '----' : value),
+                      rowItem(label, value),
                       Divider(height: 1, color: Colors.grey[300]),
                     ],
                   );
@@ -716,7 +721,17 @@ class _DataListViewState extends State<DataListView> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        ...grouped.entries.map((g) => section(g.key, g.value)),
+                        if (grouped.isEmpty && !_hasIntersection(item))
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              'Aucun d\u00e9tail compl\u00e9mentaire \u00e0 afficher.',
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        else
+                          ...grouped.entries
+                              .map((g) => section(g.key, g.value)),
                         //  SECTION INTERSECTION (conditionnelle)
                         if (_hasIntersection(item)) ...[
                           const Divider(),

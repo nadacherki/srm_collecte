@@ -133,6 +133,7 @@ class MainActivity: FlutterActivity() {
                     result.success(mapOf("status" to bridgeStatus))
                 }
                 "getStatus" -> result.success(statusPayload())
+                "getAndroidMockLocationStatus" -> result.success(androidMockLocationStatus())
                 else -> result.notImplemented()
             }
         }
@@ -312,11 +313,11 @@ class MainActivity: FlutterActivity() {
         projectedZ: Double? = null,
         coordinateSource: String? = null,
     ): Map<String, Any?> {
-        ensureMockProviders()
-
         val safeAccuracy = accuracy.takeIf { it > 0f } ?: 1.0f
         val now = System.currentTimeMillis()
         val source = "nmea_bridge"
+        val canInjectAndroidMock = isMockLocationSelected()
+        val mockInjectedAt = if (canInjectAndroidMock) now else null
         val location = Location(LocationManager.GPS_PROVIDER).apply {
             this.latitude = latitude
             this.longitude = longitude
@@ -333,16 +334,29 @@ class MainActivity: FlutterActivity() {
                 speedAccuracyMetersPerSecond = safeAccuracy
                 bearingAccuracyDegrees = 1.0f
             }
+            extras = android.os.Bundle().apply {
+                putString("source", source)
+                if (projectedX != null) putDouble("x", projectedX)
+                if (projectedY != null) putDouble("y", projectedY)
+                if (projectedZ != null) putDouble("z", projectedZ)
+                if (coordinateSource != null) putString("coordinateSource", coordinateSource)
+                if (mockInjectedAt != null) putLong("mockInjectedAt", mockInjectedAt)
+            }
         }
 
-        mockProviders.forEach { provider ->
-            locationManager.setTestProviderLocation(
-                provider,
-                copyLocationForProvider(location, provider),
-            )
+        if (canInjectAndroidMock) {
+            ensureMockProviders()
+            mockProviders.forEach { provider ->
+                locationManager.setTestProviderLocation(
+                    provider,
+                    copyLocationForProvider(location, provider),
+                )
+            }
+            bridgeStatus = "mock_location_pushed"
+        } else {
+            bridgeStatus = "nmea_fix_received"
         }
 
-        bridgeStatus = "mock_location_pushed"
         lastNmea = nmea ?: lastNmea
         lastLocationPayload = mapOf(
             "source" to source,
@@ -357,7 +371,8 @@ class MainActivity: FlutterActivity() {
             "bearing" to bearing?.toDouble(),
             "time" to now,
             "nmeaReceivedAt" to now,
-            "mockInjectedAt" to now,
+            "mockInjectedAt" to mockInjectedAt,
+            "androidMockInjected" to canInjectAndroidMock,
             "nmea" to nmea,
             "fixQuality" to fixQuality,
             "satellites" to satellites,
@@ -499,6 +514,137 @@ class MainActivity: FlutterActivity() {
         )
     }
 
+    private fun androidMockLocationStatus(): Map<String, Any?> {
+        val providers = listOf(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER,
+        )
+        val locations = mutableListOf<Location>()
+        for (provider in providers) {
+            try {
+                locationManager.getLastKnownLocation(provider)?.let { locations.add(it) }
+            } catch (e: SecurityException) {
+                return mapOf(
+                    "available" to false,
+                    "isMock" to false,
+                    "hasProjectedXyz" to false,
+                    "error" to "permission_location_absente",
+                )
+            } catch (_: Exception) {
+                // Ignore provider-specific failures.
+            }
+        }
+
+        val location = locations.maxWithOrNull(
+            compareBy<Location> { if (isMockLocation(it)) 1 else 0 }
+                .thenBy { it.time }
+        ) ?: return mapOf(
+            "available" to false,
+            "isMock" to false,
+            "hasProjectedXyz" to false,
+        )
+
+        val extras = bundleToSafeMap(location.extras)
+        val projectedX = firstDoubleFromExtras(
+            extras,
+            setOf(
+                "x", "easting", "east", "coordx", "coorx", "merchichx",
+                "projectedx", "gridx", "localx", "projectedeasting",
+            )
+        )
+        val projectedY = firstDoubleFromExtras(
+            extras,
+            setOf(
+                "y", "northing", "north", "coordy", "coory", "merhichy",
+                "merchichy", "projectedy", "gridy", "localy",
+                "projectednorthing",
+            )
+        )
+        val extraZ = firstDoubleFromExtras(
+            extras,
+            setOf(
+                "z", "altitude", "height", "h", "coordz", "coorz",
+                "merchichz", "projectedz", "gridz", "localz",
+                "orthometricheight", "orthometricz",
+            )
+        )
+        val projectedZ = extraZ ?: if (projectedX != null &&
+            projectedY != null &&
+            location.hasAltitude()
+        ) {
+            location.altitude
+        } else {
+            null
+        }
+        val isMock = isMockLocation(location)
+        val hasProjectedXyz = isMock &&
+            projectedX != null &&
+            projectedY != null &&
+            projectedZ != null
+
+        return mapOf(
+            "available" to true,
+            "isMock" to isMock,
+            "hasProjectedXyz" to hasProjectedXyz,
+            "provider" to location.provider,
+            "latitude" to location.latitude,
+            "longitude" to location.longitude,
+            "altitude" to if (location.hasAltitude()) location.altitude else null,
+            "accuracy" to if (location.hasAccuracy()) location.accuracy.toDouble() else null,
+            "time" to location.time,
+            "extras" to extras,
+            "extraKeys" to extras.keys.toList().sorted(),
+            "projectedX" to projectedX,
+            "projectedY" to projectedY,
+            "projectedZ" to projectedZ,
+            "projectedZSource" to if (extraZ != null) "extras" else if (projectedZ != null) "location_altitude" else null,
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isMockLocation(location: Location): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            location.isMock
+        } else {
+            location.isFromMockProvider
+        }
+    }
+
+    private fun bundleToSafeMap(bundle: android.os.Bundle?): Map<String, Any?> {
+        if (bundle == null) return emptyMap()
+        val result = mutableMapOf<String, Any?>()
+        for (key in bundle.keySet()) {
+            val value = bundle.get(key)
+            result[key] = when (value) {
+                null -> null
+                is Number -> value.toDouble()
+                is Boolean -> value
+                is String -> value
+                else -> value.toString()
+            }
+        }
+        return result
+    }
+
+    private fun firstDoubleFromExtras(
+        extras: Map<String, Any?>,
+        aliases: Set<String>,
+    ): Double? {
+        for ((key, value) in extras) {
+            if (normalizeExtraKey(key) !in aliases) continue
+            when (value) {
+                is Number -> return value.toDouble()
+                is String -> value.replace(',', '.').toDoubleOrNull()?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun normalizeExtraKey(key: String): String {
+        return key.lowercase(Locale.US).filter { it.isLetterOrDigit() }
+    }
+
     private data class ParsedNmeaLocation(
         val latitude: Double?,
         val longitude: Double?,
@@ -612,7 +758,14 @@ class MainActivity: FlutterActivity() {
         val longitude = parseNmeaCoordinate(parts[4], parts[5], isLatitude = false)
             ?: return null
         val hdop = parts[8].toFloatOrNull()
-        val altitude = parts[9].toDoubleOrNull()
+        // Champ 9 = hauteur orthometrique H (geoide interne du recepteur).
+        // Champ 11 = separation geoidale N. Hauteur ellipsoidale WGS84 = H + N.
+        // N absent/nul quand aucun geoide n'est configure : la somme reste juste.
+        // L'app convertit ensuite cette hauteur ellipsoidale en elevation
+        // Merchich (datum) via proj4dart, cf. ProjectionService.
+        val orthometricHeight = parts[9].toDoubleOrNull()
+        val geoidSeparation = parts.getOrNull(11)?.toDoubleOrNull()
+        val altitude = orthometricHeight?.let { it + (geoidSeparation ?: 0.0) }
         return ParsedNmeaLocation(
             latitude = latitude,
             longitude = longitude,
