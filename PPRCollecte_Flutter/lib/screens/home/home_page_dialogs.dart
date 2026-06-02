@@ -968,6 +968,8 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     final action = (result['action'] ?? '').toString();
 
     if (action == 'nmea_bridge') {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!state.mounted) return;
       await _showNmeaBridgeDialog(state, messenger);
       return;
     }
@@ -1271,16 +1273,6 @@ Future<void> _showNmeaBridgeDialog(
   String? loadError;
   var isLoadingDevices = false;
   var didScheduleInitialLoad = false;
-
-  try {
-    status = await bridge.getStatus();
-    final preferred = await bridge.getPreferredBluetoothDevice();
-    if (preferred != null) {
-      devices = [preferred];
-    }
-  } catch (e) {
-    loadError = _friendlyNmeaBridgeError(e);
-  }
 
   try {
     if (!state.mounted) return;
