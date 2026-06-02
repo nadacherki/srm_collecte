@@ -275,8 +275,8 @@ void _showSyncResultImpl(_HomePageState state, SyncResult result) {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     result.postSyncProtectedLocalCount == 1
-                        ? '1 donnee locale conservee en attente d envoi'
-                        : '${result.postSyncProtectedLocalCount} donnees locales conservees en attente d envoi',
+                        ? '1 donnée locale conservée en attente d\'envoi'
+                        : '${result.postSyncProtectedLocalCount} données locales conservées en attente d\'envoi',
                     style: const TextStyle(
                       color: Colors.orange,
                       fontWeight: FontWeight.w600,
@@ -864,7 +864,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
                                   'action': 'clear',
                                 }),
                                 icon: const Icon(Icons.my_location, size: 17),
-                                label: const Text('Revenir au GPS reel'),
+                                label: const Text('Revenir au GPS réel'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFFEF4444),
                                   side: const BorderSide(
@@ -968,10 +968,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     final action = (result['action'] ?? '').toString();
 
     if (action == 'nmea_bridge') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!state.mounted) return;
-        unawaited(_showNmeaBridgeDialog(state, messenger));
-      });
+      await _showNmeaBridgeDialog(state, messenger);
       return;
     }
 
@@ -1005,8 +1002,8 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
           messenger?.showSnackBar(
             SnackBar(
               content: const Text(
-                'Pont NMEA actif mais aucun fix GNSS externe recu. '
-                'Aucune position telephone utilisee.',
+                'Pont NMEA actif mais aucun fix GNSS externe reçu. '
+                'Aucune position téléphone utilisée.',
               ),
               backgroundColor: Colors.orange.shade800,
             ),
@@ -1073,7 +1070,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         }
         messenger?.showSnackBar(
           const SnackBar(
-            content: Text('Mock GPS desactive'),
+            content: Text('Mock GPS désactivé'),
             backgroundColor: Colors.blueGrey,
           ),
         );
@@ -1117,7 +1114,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         messenger?.showSnackBar(
           SnackBar(
             content: Text(
-              'Mock GPS applique: X=${x.toStringAsFixed(3)}, Y=${y.toStringAsFixed(3)}, Z=${altitude.toStringAsFixed(3)} m',
+              'Mock GPS appliqué : X=${x.toStringAsFixed(3)}, Y=${y.toStringAsFixed(3)}, Z=${altitude.toStringAsFixed(3)} m',
             ),
             backgroundColor: Colors.teal,
           ),
@@ -1340,9 +1337,9 @@ Future<void> _showNmeaBridgeDialog(
                 : const Color(0xFF1976D2);
             final statusText = state._canUseAdminGpsTools
                 ? (status.mockLocationSelected
-                    ? 'SRM Collecte est selectionnee comme app de position fictive.'
-                    : 'Selectionnez SRM Collecte comme app de position fictive Android.')
-                : 'Lecture directe du recepteur GNSS. La position fictive Android est reservee aux administrateurs.';
+                    ? 'SRM Collecte est sélectionnée comme app de position fictive.'
+                    : 'Sélectionnez SRM Collecte comme app de position fictive Android.')
+                : 'Lecture directe du récepteur GNSS. La position fictive Android est réservée aux administrateurs.';
 
             return Dialog(
               insetPadding:
@@ -1542,7 +1539,7 @@ Future<void> _showNmeaBridgeDialog(
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
-                                          'Etat du pont : ${status.status}',
+                                          'État du pont : ${status.status}',
                                           style: const TextStyle(
                                             fontSize: 12.5,
                                             fontWeight: FontWeight.w800,
@@ -1583,7 +1580,7 @@ Future<void> _showNmeaBridgeDialog(
                             ],
                             const SizedBox(height: 16),
                             const Text(
-                              'Appareils Bluetooth appaires',
+                              'Appareils Bluetooth appairés',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
@@ -1603,7 +1600,7 @@ Future<void> _showNmeaBridgeDialog(
                                   ),
                                 ),
                                 child: const Text(
-                                  'Chargement automatique des appareils appaires en cours.',
+                                  'Chargement automatique des appareils appairés en cours.',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     height: 1.3,
@@ -1683,7 +1680,7 @@ Future<void> _showNmeaBridgeDialog(
                                         messenger?.showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              'Connexion pont NMEA lancee vers ${device.label}',
+                                              'Connexion pont NMEA lancée vers ${device.label}',
                                             ),
                                             backgroundColor: Colors.teal,
                                           ),
@@ -1757,7 +1754,7 @@ Future<void> _showNmeaBridgeDialog(
                                 ),
                                 _nmeaSmallActionButton(
                                   icon: Icons.refresh,
-                                  label: 'Verifier',
+                                  label: 'Vérifier',
                                   onPressed: isLoadingDevices
                                       ? null
                                       : () =>
@@ -1765,7 +1762,7 @@ Future<void> _showNmeaBridgeDialog(
                                 ),
                                 _nmeaSmallActionButton(
                                   icon: Icons.link_off,
-                                  label: 'Deconnecter',
+                                  label: 'Déconnecter',
                                   danger: true,
                                   onPressed: () async {
                                     try {
@@ -1773,7 +1770,7 @@ Future<void> _showNmeaBridgeDialog(
                                       messenger?.showSnackBar(
                                         const SnackBar(
                                           content:
-                                              Text('Pont NMEA deconnecte.'),
+                                              Text('Pont NMEA déconnecté.'),
                                           backgroundColor: Colors.blueGrey,
                                         ),
                                       );
@@ -1837,7 +1834,7 @@ Future<void> _showNmeaBridgeDialog(
                                     messenger?.showSnackBar(
                                       SnackBar(
                                         content:
-                                            Text('NMEA injecte: $lat, $lon'),
+                                            Text('NMEA injecté : $lat, $lon'),
                                         backgroundColor: Colors.teal,
                                       ),
                                     );
@@ -1900,7 +1897,7 @@ String _friendlyNmeaBridgeError(Object error) {
     return 'Sélectionnez SRM Collecte dans Options développeur > Application de position fictive.';
   }
   if (message.contains('BLUETOOTH') || message.contains('Bluetooth')) {
-    return 'Autorisez Bluetooth et appairez le recepteur GNSS dans les paramètres Android.';
+    return 'Autorisez Bluetooth et appairez le récepteur GNSS dans les paramètres Android.';
   }
   return message;
 }

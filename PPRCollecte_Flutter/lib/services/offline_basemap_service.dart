@@ -253,7 +253,7 @@ class OfflineBasemapService {
         tileCount: tileCount,
         sizeBytes: remoteSize,
         localPath: localFile.path,
-        userMessage: 'Carte offline deja a jour.',
+        userMessage: 'Carte offline déjà à jour.',
       );
     }
 
@@ -275,7 +275,7 @@ class OfflineBasemapService {
       return OfflineBasemapDownloadResult(
         success: false,
         errorMessage: message,
-        userMessage: 'Impossible de telecharger la carte offline.',
+        userMessage: 'Impossible de télécharger la carte offline.',
       );
     }
 
@@ -319,7 +319,7 @@ class OfflineBasemapService {
       tileCount: tileCount,
       sizeBytes: remoteSize,
       localPath: targetFile.path,
-      userMessage: 'Carte offline telechargee.',
+      userMessage: 'Carte offline téléchargée.',
     );
   }
 
@@ -511,7 +511,7 @@ class OfflineBasemapService {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (value.isEmpty) {
-      return 'Impossible de telecharger la carte offline.';
+      return 'Impossible de télécharger la carte offline.';
     }
     return value.length > 180 ? value.substring(0, 180) : value;
   }

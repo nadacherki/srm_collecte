@@ -51,10 +51,10 @@ class CaptureLocationGuard {
   }) {
     final normalizedSource = _normalizeSourceLabel(sourceLabel ?? '');
     if (normalizedSource.contains('deconnect')) {
-      return 'Connexion GNSS externe perdue. Reconnectez le recepteur.';
+      return 'Connexion GNSS externe perdue. Reconnectez le récepteur.';
     }
     if (normalizedSource.contains('expir')) {
-      return 'Fix GNSS expire. Attendez un nouveau fix du recepteur.';
+      return 'Fix GNSS expiré. Attendez un nouveau fix du récepteur.';
     }
     if (normalizedSource.contains('attente fix')) {
       return 'GNSS externe connecte, en attente de fix.';

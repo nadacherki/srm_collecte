@@ -69,7 +69,7 @@ extension _HomePageCollectionActions on _HomePageState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Impossible de finaliser le polygone pour le moment. Reessayez apres avoir ajoute des points.',
+            'Impossible de finaliser le polygone pour le moment. Réessayez après avoir ajouté des points.',
           ),
           backgroundColor: Colors.red,
         ),

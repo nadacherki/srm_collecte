@@ -125,7 +125,7 @@ class HomeController extends ChangeNotifier {
   }) {
     if (!_canUseInternalGpsSources) {
       throw StateError(
-        'Mock interne reserve aux administrateurs. Utilisez le recepteur GNSS externe.',
+        'Mock interne réservé aux administrateurs. Utilisez le récepteur GNSS externe.',
       );
     }
     if (latitude.abs() > 90 || longitude.abs() > 180) {
@@ -170,7 +170,7 @@ class HomeController extends ChangeNotifier {
   }) {
     if (!_canUseInternalGpsSources) {
       throw StateError(
-        'Mock interne reserve aux administrateurs. Utilisez le recepteur GNSS externe.',
+        'Mock interne réservé aux administrateurs. Utilisez le récepteur GNSS externe.',
       );
     }
     if (!x.isFinite || !y.isFinite || !altitude.isFinite) {

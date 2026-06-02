@@ -599,7 +599,7 @@ class _AnomalyTreatmentPageState extends State<AnomalyTreatmentPage> {
       ..['geometry_type'] = ref.geometryType;
     final target = _buildMapFocusTarget(editable, ref);
     if (target == null) {
-      _showMessage('Aucune geometrie exploitable pour cet objet.');
+      _showMessage('Aucune géométrie exploitable pour cet objet.');
       return;
     }
 

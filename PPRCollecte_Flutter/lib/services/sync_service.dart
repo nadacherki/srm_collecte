@@ -446,8 +446,8 @@ class SyncService {
       final count = result.postSyncProtectedLocalCount;
       result.warnings.add(
         count == 1
-            ? '1 donnee locale non envoyee a ete conservee sur ce mobile.'
-            : '$count donnees locales non envoyees ont ete conservees sur ce mobile.',
+            ? '1 donnée locale non envoyée a été conservée sur ce mobile.'
+            : '$count données locales non envoyées ont été conservées sur ce mobile.',
       );
     }
 
@@ -808,13 +808,13 @@ class SyncService {
     await _saveSyncSessionState(
       status: 'starting',
       result: result,
-      message: 'Preparation du journal de synchronisation',
+      message: 'Préparation du journal de synchronisation',
     );
 
     try {
       onProgress?.call(
         0,
-        'Preparation du journal de synchronisation',
+        'Préparation du journal de synchronisation',
         0,
         total,
       );
@@ -1130,7 +1130,7 @@ class SyncService {
       );
     } catch (e) {
       result.warnings.add(
-        'Rafraichissement anomalies apres synchro impossible: ${_short(e)}',
+        'Rafraîchissement anomalies après synchro impossible : ${_short(e)}',
       );
     }
   }

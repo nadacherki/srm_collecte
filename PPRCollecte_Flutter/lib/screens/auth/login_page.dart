@@ -60,13 +60,13 @@ class _LoginPageState extends State<LoginPage> {
       await service.refreshFromServer();
       final count = await service.countLocalFeatures();
       if (count == 0) {
-        return 'Affleurants hors ligne telecharges mais vides.';
+        return 'Affleurants hors ligne téléchargés mais vides.';
       }
       return null;
     } catch (e) {
       final reason = e.toString();
       debugPrint('[AFFLEURANTS] Echec telechargement : $reason');
-      return 'Affleurants hors ligne non telecharges : $reason';
+      return 'Affleurants hors ligne non téléchargés : $reason';
     }
   }
 

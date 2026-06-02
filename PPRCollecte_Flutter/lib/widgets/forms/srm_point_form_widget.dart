@@ -535,8 +535,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
         title: const Text('Configuration indisponible'),
         content: const Text(
           "La configuration de ce formulaire n'a pas pu etre recuperee.\n\n"
-          "Si c'est votre premier lancement, connectez-vous au reseau du "
-          "serveur puis reconnectez-vous a l'application pour synchroniser "
+          "Si c'est votre premier lancement, connectez-vous au réseau du "
+          "serveur puis reconnectez-vous à l'application pour synchroniser "
           "la configuration.",
         ),
         actions: [
@@ -3262,7 +3262,7 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
             const Padding(
               padding: EdgeInsets.only(left: 8, right: 8, bottom: 4),
               child: Text(
-                'Anomalie deja signalee au bureau. Contactez le bureau '
+                'Anomalie déjà signalée au bureau. Contactez le bureau '
                 'pour annuler.',
                 style: TextStyle(fontSize: 11, color: Color(0xFFF57C00)),
               ),
@@ -3301,8 +3301,8 @@ class _SrmPointFormWidgetState extends State<SrmPointFormWidget>
                 Expanded(
                   child: Text(
                     'Les champs obligatoires sont neutralises.\n'
-                    'Les valeurs deja saisies et les photos standards sont '
-                    'conservees. Les photos d\'anomalie eventuellement deja '
+                    'Les valeurs déjà saisies et les photos standards sont '
+                    'conservées. Les photos d\'anomalie éventuellement déjà '
                     'prises seront effacees a l\'enregistrement.',
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),

@@ -104,7 +104,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
     // les formules Tersus (ou vice-versa), ce qui produirait un Z faux.
     if (antenna.brand != _selectedBrand) {
       setState(() {
-        _error = 'Modele d\'antenne incompatible avec la marque selectionnee.';
+        _error = 'Modèle d\'antenne incompatible avec la marque sélectionnée.';
       });
       return;
     }
@@ -115,7 +115,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
         antenna.r0 > 0 &&
         height <= antenna.r0) {
       setState(() {
-        _error = 'Slant : hauteur doit etre > ${antenna.r0.toStringAsFixed(3)} m '
+        _error = 'Slant : la hauteur doit être > ${antenna.r0.toStringAsFixed(3)} m '
             '(rayon de l\'antenne).';
       });
       return;
@@ -144,7 +144,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
       );
       if (a == null || b == null || c == null) {
         setState(() {
-          _error = 'Plan incline : coefficients a, b, c invalides.';
+          _error = 'Plan incliné : coefficients a, b, c invalides.';
         });
         return;
       }
@@ -181,9 +181,9 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
       case AntennaSurveyType.vertical:
         return 'Vertical (canne droite)';
       case AntennaSurveyType.slant:
-        return 'Slant (ruban incline vers repere)';
+        return 'Slant (ruban incliné vers repère)';
       case AntennaSurveyType.phaseCenter:
-        return 'Phase Center (hauteur deja au centre de phase)';
+        return 'Phase Center (hauteur déjà au centre de phase)';
     }
   }
 
@@ -210,6 +210,10 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             'Phase Center = H.'
         : 'Tersus : Vertical = H brut ; Pole / Phase Center = H + AntCenter ; '
             'Slant = |sqrt(H² - R²) + AntCenter - AntBottomHeight|.';
+    final formulaHintText = formulaHint
+        .replaceAll('Â²', '²')
+        .replaceAll('Pole /', 'Pôle /');
+
     InputDecoration fieldDecoration(String label, {String? hint}) {
       return InputDecoration(
         labelText: label,
@@ -288,7 +292,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                   ),
                   SizedBox(height: 3),
                   Text(
-                    'Modele, hauteur et ajustement vertical',
+                    'Modèle, hauteur et ajustement vertical',
                     style: TextStyle(
                       color: Color(0xFFE0F2FE),
                       fontSize: 12,
@@ -328,7 +332,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                   const SizedBox(width: 9),
                   Expanded(
                     child: Text(
-                      'Z sol = elevation Merchich(h_ellip - A_apc) + ajustement. $formulaHint',
+                      'Z sol = élévation Merchich (h_ellip - A_apc) + ajustement. $formulaHintText',
                       style: const TextStyle(
                         fontSize: 11.5,
                         height: 1.35,
@@ -374,7 +378,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             DropdownButtonFormField<String>(
               initialValue: _selectedAntennaKey,
               isExpanded: true,
-              decoration: fieldDecoration('Modele d\'antenne'),
+              decoration: fieldDecoration('Modèle d\'antenne'),
               items: antennas
                   .map(
                     (a) => DropdownMenuItem<String>(
@@ -398,7 +402,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             DropdownButtonFormField<AntennaSurveyType>(
               initialValue: _surveyType,
               isExpanded: true,
-              decoration: fieldDecoration('Methode de mesure'),
+              decoration: fieldDecoration('Méthode de mesure'),
               items: AntennaSurveyType.values
                   .map(
                     (t) => DropdownMenuItem<AntennaSurveyType>(
@@ -440,8 +444,8 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Applique apres la conversion Merchich. Sert a caler un offset '
-              'constant (PCO antenne, ecart geoide local non modelise...).',
+              'Applique après la conversion Merchich. Sert à caler un offset '
+              'constant (PCO antenne, écart géoïde local non modélisé...).',
               style: TextStyle(fontSize: 11.5, color: Colors.black54),
             ),
             const SizedBox(height: 8),
@@ -460,7 +464,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                 ),
                 DropdownMenuItem(
                   value: _AdjustmentKind.plane,
-                  child: Text('Plan incline (a*X + b*Y + c)'),
+                  child: Text('Plan incliné (a*X + b*Y + c)'),
                 ),
               ],
               onChanged: _saving
@@ -493,7 +497,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
               const SizedBox(height: 8),
               const Text(
                 'H_ajuste = H + a*X + b*Y + c (X, Y en m Merchich). '
-                'Calibration multi-points : outil prevu en Phase 3.1.',
+                'Calibration multi-points : outil prévu en Phase 3.1.',
                 style: TextStyle(fontSize: 11, color: Colors.black45),
               ),
               const SizedBox(height: 6),

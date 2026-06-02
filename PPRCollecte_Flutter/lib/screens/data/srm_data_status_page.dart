@@ -425,7 +425,7 @@ class _SrmDataStatusPageState extends State<SrmDataStatusPage> {
     if (target == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Aucune geometrie exploitable pour cet objet'),
+          content: Text('Aucune géométrie exploitable pour cet objet'),
           backgroundColor: Colors.orange,
         ),
       );

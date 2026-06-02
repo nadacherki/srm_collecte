@@ -904,7 +904,7 @@ class ApiService {
     } on TimeoutException {
       throw Exception('Timeout statut sync');
     } on SocketException {
-      throw Exception('Erreur reseau statut sync');
+      throw Exception('Erreur réseau statut sync');
     } on FormatException {
       throw Exception('Reponse statut sync invalide');
     }
