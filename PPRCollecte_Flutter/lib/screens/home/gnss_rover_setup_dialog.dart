@@ -444,7 +444,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Applique après la conversion Merchich. Sert à caler un offset '
+              'Appliqué après la conversion Merchich. Sert à caler un offset '
               'constant (PCO antenne, écart géoïde local non modélisé...).',
               style: TextStyle(fontSize: 11.5, color: Colors.black54),
             ),
