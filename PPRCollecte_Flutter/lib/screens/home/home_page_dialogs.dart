@@ -704,8 +704,7 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
     text: (initialAltitude ?? 0.0).toStringAsFixed(3),
   );
 
-  try {
-    final result = await showDialog<Map<String, dynamic>>(
+  final result = await showDialog<Map<String, dynamic>>(
       context: hostContext,
       builder: (dialogContext) {
         final media = MediaQuery.of(dialogContext);
@@ -713,109 +712,250 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
             media.viewInsets.vertical -
             media.padding.vertical;
         final maxContentHeight =
-            (availableHeight * 0.48).clamp(170.0, 320.0).toDouble();
+            (availableHeight * 0.62).clamp(330.0, 520.0).toDouble();
 
-        return AlertDialog(
+        return Dialog(
           insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          title: const Text('Position mock Merchich'),
-          content: ConstrainedBox(
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxContentHeight),
-            child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: xController,
-                    scrollPadding: const EdgeInsets.only(bottom: 96),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xFF1976D2),
+                          Color(0xFF42A5F5),
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'X Merchich (m)',
-                      hintText: 'Ex: 228580.000',
-                      isDense: true,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.32),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.edit_location_alt,
+                            color: Colors.white,
+                            size: 23,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Position mock Merchich',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Coordonnées terrain et source GNSS',
+                                style: TextStyle(
+                                  color: Color(0xE6FFFFFF),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: yController,
-                    scrollPadding: const EdgeInsets.only(bottom: 96),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Y Merchich (m)',
-                      hintText: 'Ex: 118670.000',
-                      isDense: true,
+                  Flexible(
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _mockCoordinateField(
+                            controller: xController,
+                            icon: Icons.east,
+                            label: 'X Merchich (m)',
+                            hint: 'Ex: 228580.000',
+                            scrollBottom: 96,
+                          ),
+                          const SizedBox(height: 12),
+                          _mockCoordinateField(
+                            controller: yController,
+                            icon: Icons.north,
+                            label: 'Y Merchich (m)',
+                            hint: 'Ex: 118670.000',
+                            scrollBottom: 96,
+                          ),
+                          const SizedBox(height: 12),
+                          _mockCoordinateField(
+                            controller: altitudeController,
+                            icon: Icons.height,
+                            label: 'Z / altitude (m)',
+                            hint: 'Ex: 500.000',
+                            scrollBottom: 120,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _mockSecondaryButton(
+                                  icon: Icons.gps_fixed,
+                                  label: 'Lire GPS/GNSS',
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop({
+                                    'action': 'read_gnss',
+                                  }),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _mockSecondaryButton(
+                                  icon: Icons.settings_input_antenna,
+                                  label: 'Pont NMEA',
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop({
+                                    'action': 'nmea_bridge',
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (state.homeController.isMockLocationEnabled) ...[
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop({
+                                  'action': 'clear',
+                                }),
+                                icon: const Icon(Icons.my_location, size: 17),
+                                label: const Text('Revenir au GPS reel'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFEF4444),
+                                  side: const BorderSide(
+                                    color: Color(0xFFFCA5A5),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  textStyle: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: altitudeController,
-                    scrollPadding: const EdgeInsets.only(bottom: 120),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      border: Border(
+                        top: BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Z / altitude (m)',
-                      hintText: 'Ex: 500.000',
-                      isDense: true,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF64748B),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            child: const Text('Annuler'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop({
+                                'action': 'apply',
+                                'x': double.tryParse(
+                                  xController.text.trim().replaceAll(',', '.'),
+                                ),
+                                'y': double.tryParse(
+                                  yController.text.trim().replaceAll(',', '.'),
+                                ),
+                                'altitude': double.tryParse(
+                                  altitudeController.text
+                                      .trim()
+                                      .replaceAll(',', '.'),
+                                ),
+                              });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1976D2),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            child: const Text('Appliquer'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          actions: [
-            TextButton.icon(
-              onPressed: () => Navigator.of(dialogContext).pop({
-                'action': 'read_gnss',
-              }),
-              icon: const Icon(Icons.gps_fixed, size: 18),
-              label: const Text('Lire GPS/GNSS'),
-            ),
-            TextButton.icon(
-              onPressed: () => Navigator.of(dialogContext).pop({
-                'action': 'nmea_bridge',
-              }),
-              icon: const Icon(Icons.settings_input_antenna, size: 18),
-              label: const Text('Pont NMEA'),
-            ),
-            if (state.homeController.isMockLocationEnabled)
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop({
-                  'action': 'clear',
-                }),
-                child: const Text('Revenir au GPS reel'),
-              ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop({
-                  'action': 'apply',
-                  'x': double.tryParse(
-                    xController.text.trim().replaceAll(',', '.'),
-                  ),
-                  'y': double.tryParse(
-                    yController.text.trim().replaceAll(',', '.'),
-                  ),
-                  'altitude': double.tryParse(
-                    altitudeController.text.trim().replaceAll(',', '.'),
-                  ),
-                });
-              },
-              child: const Text('Appliquer'),
-            ),
-          ],
         );
       },
     );
@@ -991,11 +1131,129 @@ Future<void> _showMockLocationDialogSafeImpl(_HomePageState state) async {
         );
       }
     });
-  } finally {
-    xController.dispose();
-    yController.dispose();
-    altitudeController.dispose();
-  }
+}
+
+Widget _mockCoordinateField({
+  required TextEditingController controller,
+  required IconData icon,
+  required String label,
+  required String hint,
+  required double scrollBottom,
+}) {
+  return TextField(
+    controller: controller,
+    scrollPadding: EdgeInsets.only(bottom: scrollBottom),
+    keyboardType: const TextInputType.numberWithOptions(
+      decimal: true,
+      signed: true,
+    ),
+    style: const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w800,
+      color: Color(0xFF0F172A),
+    ),
+    decoration: InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Container(
+        width: 42,
+        margin: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0F2FE),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: const Color(0xFF0284C7), size: 19),
+      ),
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      isDense: true,
+      labelStyle: const TextStyle(
+        color: Color(0xFF475569),
+        fontSize: 12.5,
+        fontWeight: FontWeight.w700,
+      ),
+      hintStyle: const TextStyle(
+        color: Color(0xFF94A3B8),
+        fontSize: 12,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.6),
+      ),
+    ),
+  );
+}
+
+Widget _mockSecondaryButton({
+  required IconData icon,
+  required String label,
+  required VoidCallback onPressed,
+}) {
+  return OutlinedButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 17),
+    label: Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    ),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF1976D2),
+      backgroundColor: const Color(0xFFEFF6FF),
+      side: const BorderSide(color: Color(0xFFBFDBFE)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      textStyle: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
+}
+
+Widget _nmeaSmallActionButton({
+  required IconData icon,
+  required String label,
+  required VoidCallback? onPressed,
+  bool danger = false,
+}) {
+  final foreground = danger ? const Color(0xFFDC2626) : const Color(0xFF1976D2);
+  final background = danger ? const Color(0xFFFEF2F2) : const Color(0xFFEFF6FF);
+  final border = danger ? const Color(0xFFFCA5A5) : const Color(0xFFBFDBFE);
+
+  return SizedBox(
+    width: 142,
+    child: OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 17),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: foreground,
+        disabledForegroundColor: const Color(0xFF94A3B8),
+        backgroundColor: background,
+        side: BorderSide(color: border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    ),
+  );
 }
 
 Future<void> _showNmeaBridgeDialog(
@@ -1069,212 +1327,554 @@ Future<void> _showNmeaBridgeDialog(
               });
             }
 
-            return AlertDialog(
-              title: const Text('Pont NMEA GNSS'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.settings_input_antenna,
-                          color: Colors.indigo,
-                        ),
-                        title: const Text('Configurer antenne rover'),
-                        subtitle: Builder(
-                          builder: (_) {
-                            final c = state.homeController.currentRoverConfig;
-                            final method = switch (c.surveyType) {
-                              AntennaSurveyType.vertical => 'Vertical',
-                              AntennaSurveyType.slant => 'Slant',
-                              AntennaSurveyType.phaseCenter => 'Phase Ctr',
-                            };
-                            return Text(
-                              '${c.antenna.displayName} : '
-                              '${c.heightMeters.toStringAsFixed(3)} m '
-                              '($method) / ${c.verticalAdjustment.displayName}',
-                              style: const TextStyle(fontSize: 11.5),
-                            );
-                          },
-                        ),
-                        trailing: const Icon(Icons.chevron_right, size: 18),
-                        onTap: () async {
-                          await GnssRoverSetupDialog.show(
-                            dialogContext,
-                            homeController: state.homeController,
-                          );
-                          setDialogState(() {});
-                        },
-                      ),
-                      const Divider(height: 16),
-                      Text(
-                        state._canUseAdminGpsTools
-                            ? (status.mockLocationSelected
-                                ? 'SRM Collecte est selectionnee comme app de position fictive.'
-                                : 'Selectionnez SRM Collecte comme app de position fictive Android.')
-                            : 'Lecture directe du recepteur GNSS. La position fictive Android est reservee aux administrateurs.',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: state._canUseAdminGpsTools
-                              ? (status.mockLocationSelected
-                                  ? Colors.green.shade700
-                                  : Colors.orange.shade800)
-                              : Colors.indigo.shade700,
+            final c = state.homeController.currentRoverConfig;
+            final method = switch (c.surveyType) {
+              AntennaSurveyType.vertical => 'Vertical',
+              AntennaSurveyType.slant => 'Slant',
+              AntennaSurveyType.phaseCenter => 'Phase Ctr',
+            };
+            final statusColor = state._canUseAdminGpsTools
+                ? (status.mockLocationSelected
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFF59E0B))
+                : const Color(0xFF1976D2);
+            final statusText = state._canUseAdminGpsTools
+                ? (status.mockLocationSelected
+                    ? 'SRM Collecte est selectionnee comme app de position fictive.'
+                    : 'Selectionnez SRM Collecte comme app de position fictive Android.')
+                : 'Lecture directe du recepteur GNSS. La position fictive Android est reservee aux administrateurs.';
+
+            return Dialog(
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Color(0xFF1976D2),
+                            Color(0xFF42A5F5),
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text('Etat du pont : ${status.status}'),
-                      if (isLoadingDevices) ...[
-                        const SizedBox(height: 8),
-                        const LinearProgressIndicator(),
-                      ],
-                      if (loadError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          loadError ?? '',
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Appareils Bluetooth appaires',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.32),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.settings_input_antenna,
+                              color: Colors.white,
+                              size: 23,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Pont NMEA GNSS',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Bluetooth, rover et test manuel',
+                                  style: TextStyle(
+                                    color: Color(0xE6FFFFFF),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            style: IconButton.styleFrom(
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: 0.14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      if (devices.isEmpty)
-                        const Text(
-                          'Chargement automatique des appareils appaires en cours.',
-                        )
-                      else
-                        ...devices.map(
-                          (device) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.bluetooth),
-                            title: Text(_nmeaDeviceTitle(device)),
-                            subtitle: Text(device.address),
-                            onTap: () async {
-                              try {
-                                await bridge
-                                    .savePreferredBluetoothDevice(device);
-                                await bridge.connectBluetooth(device.address);
-                                state.homeController.markNmeaBridgePending(
-                                  deviceLabel: device.label,
-                                );
-                                _startNmeaBridgeWatchImpl(state);
-                                unawaited(
-                                  _centerOnNmeaFirstFixImpl(state, bridge),
-                                );
-                                if (dialogContext.mounted) {
-                                  Navigator.of(dialogContext).pop();
-                                }
-                                messenger?.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Connexion pont NMEA lancee vers ${device.label}',
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () async {
+                                  await GnssRoverSetupDialog.show(
+                                    dialogContext,
+                                    homeController: state.homeController,
+                                  );
+                                  setDialogState(() {});
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(13),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
                                     ),
-                                    backgroundColor: Colors.teal,
                                   ),
-                                );
-                              } catch (e) {
-                                messenger?.showSnackBar(
-                                  SnackBar(
-                                    content: Text(_friendlyNmeaBridgeError(e)),
-                                    backgroundColor: Colors.red,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE0F2FE),
+                                          borderRadius:
+                                              BorderRadius.circular(13),
+                                        ),
+                                        child: const Icon(
+                                          Icons.satellite_alt,
+                                          color: Color(0xFF0284C7),
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Configurer antenne rover',
+                                              style: TextStyle(
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              '${c.antenna.displayName} : '
+                                              '${c.heightMeters.toStringAsFixed(3)} m '
+                                              '($method) / ${c.verticalAdjustment.displayName}',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                height: 1.25,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.chevron_right,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              }
-                            },
-                          ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.24),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    statusText,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      height: 1.28,
+                                      fontWeight: FontWeight.w800,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.info_outline,
+                                        size: 16,
+                                        color: Color(0xFF475569),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Etat du pont : ${status.status}',
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isLoadingDevices) ...[
+                              const SizedBox(height: 10),
+                              const LinearProgressIndicator(),
+                            ],
+                            if (loadError != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(11),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(13),
+                                  border: Border.all(
+                                    color: const Color(0xFFFCA5A5),
+                                  ),
+                                ),
+                                child: Text(
+                                  loadError ?? '',
+                                  style: const TextStyle(
+                                    color: Color(0xFFB91C1C),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Appareils Bluetooth appaires',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (devices.isEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Chargement automatique des appareils appaires en cours.',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    height: 1.3,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            else
+                              ...devices.map(
+                                (device) => Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    leading: Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEFF6FF),
+                                        borderRadius: BorderRadius.circular(11),
+                                      ),
+                                      child: const Icon(
+                                        Icons.bluetooth,
+                                        color: Color(0xFF1976D2),
+                                        size: 19,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      _nmeaDeviceTitle(device),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF0F172A),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      device.address,
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.chevron_right,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                    onTap: () async {
+                                      try {
+                                        await bridge
+                                            .savePreferredBluetoothDevice(
+                                                device);
+                                        await bridge
+                                            .connectBluetooth(device.address);
+                                        state.homeController
+                                            .markNmeaBridgePending(
+                                          deviceLabel: device.label,
+                                        );
+                                        _startNmeaBridgeWatchImpl(state);
+                                        unawaited(
+                                          _centerOnNmeaFirstFixImpl(
+                                              state, bridge),
+                                        );
+                                        if (dialogContext.mounted) {
+                                          Navigator.of(dialogContext).pop();
+                                        }
+                                        messenger?.showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Connexion pont NMEA lancee vers ${device.label}',
+                                            ),
+                                            backgroundColor: Colors.teal,
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        messenger?.showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                                _friendlyNmeaBridgeError(e)),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            if (state._canUseAdminGpsTools) ...[
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: nmeaController,
+                                minLines: 2,
+                                maxLines: 4,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF0F172A),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Test manuel NMEA GGA/RMC',
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  alignLabelWithHint: true,
+                                  labelStyle: const TextStyle(
+                                    color: Color(0xFF475569),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF38BDF8),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                if (state._canUseAdminGpsTools)
+                                  _nmeaSmallActionButton(
+                                    icon: Icons.tune,
+                                    label: 'Options mock',
+                                    onPressed: () =>
+                                        bridge.openMockLocationSettings(),
+                                  ),
+                                _nmeaSmallActionButton(
+                                  icon: Icons.bluetooth,
+                                  label: 'Bluetooth',
+                                  onPressed: () =>
+                                      bridge.openBluetoothSettings(),
+                                ),
+                                _nmeaSmallActionButton(
+                                  icon: Icons.refresh,
+                                  label: 'Verifier',
+                                  onPressed: isLoadingDevices
+                                      ? null
+                                      : () =>
+                                          unawaited(loadBluetoothDevices()),
+                                ),
+                                _nmeaSmallActionButton(
+                                  icon: Icons.link_off,
+                                  label: 'Deconnecter',
+                                  danger: true,
+                                  onPressed: () async {
+                                    try {
+                                      await bridge.disconnectBluetooth();
+                                      messenger?.showSnackBar(
+                                        const SnackBar(
+                                          content:
+                                              Text('Pont NMEA deconnecte.'),
+                                          backgroundColor: Colors.blueGrey,
+                                        ),
+                                      );
+                                    } catch (_) {
+                                      // Ignore disconnect errors.
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      if (state._canUseAdminGpsTools) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: nmeaController,
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: 'Test manuel NMEA GGA/RMC',
-                            border: OutlineInputBorder(),
-                          ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE2E8F0)),
                         ),
-                      ],
-                    ],
-                  ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF64748B),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              child: const Text('Fermer'),
+                            ),
+                          ),
+                          if (state._canUseAdminGpsTools) ...[
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  try {
+                                    final pushed = await bridge
+                                        .pushNmea(nmeaController.text);
+                                    final currentStatus =
+                                        await bridge.getStatus();
+                                    _applyNmeaBridgeFixToMapImpl(
+                                        state, currentStatus);
+                                    final lat = pushed['latitude'];
+                                    final lon = pushed['longitude'];
+                                    if (dialogContext.mounted) {
+                                      Navigator.of(dialogContext).pop();
+                                    }
+                                    messenger?.showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text('NMEA injecte: $lat, $lon'),
+                                        backgroundColor: Colors.teal,
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    messenger?.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            _friendlyNmeaBridgeError(e)),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1976D2),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                child: const Text('Injecter'),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                if (state._canUseAdminGpsTools)
-                  TextButton(
-                    onPressed: () => bridge.openMockLocationSettings(),
-                    child: const Text('Options mock'),
-                  ),
-                TextButton(
-                  onPressed: () => bridge.openBluetoothSettings(),
-                  child: const Text('Bluetooth'),
-                ),
-                TextButton(
-                  onPressed: isLoadingDevices
-                      ? null
-                      : () => unawaited(loadBluetoothDevices()),
-                  child: const Text('Verifier'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    try {
-                      await bridge.disconnectBluetooth();
-                      messenger?.showSnackBar(
-                        const SnackBar(
-                          content: Text('Pont NMEA deconnecte.'),
-                          backgroundColor: Colors.blueGrey,
-                        ),
-                      );
-                    } catch (_) {
-                      // Ignore disconnect errors.
-                    }
-                  },
-                  child: const Text('Deconnecter'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Fermer'),
-                ),
-                if (state._canUseAdminGpsTools)
-                  ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        final pushed =
-                            await bridge.pushNmea(nmeaController.text);
-                        final currentStatus = await bridge.getStatus();
-                        _applyNmeaBridgeFixToMapImpl(state, currentStatus);
-                        final lat = pushed['latitude'];
-                        final lon = pushed['longitude'];
-                        if (dialogContext.mounted) {
-                          Navigator.of(dialogContext).pop();
-                        }
-                        messenger?.showSnackBar(
-                          SnackBar(
-                            content: Text('NMEA injecte: $lat, $lon'),
-                            backgroundColor: Colors.teal,
-                          ),
-                        );
-                      } catch (e) {
-                        messenger?.showSnackBar(
-                          SnackBar(
-                            content: Text(_friendlyNmeaBridgeError(e)),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
-                    child: const Text('Injecter'),
-                  ),
-              ],
             );
           },
         );

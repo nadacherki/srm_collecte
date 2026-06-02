@@ -201,30 +201,150 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
   @override
   Widget build(BuildContext context) {
     final antennas = AntennaCatalog.sortedForBrand(_selectedBrand);
+    const primaryBlue = Color(0xFF1976D2);
+    const skyBlue = Color(0xFF42A5F5);
+    const border = Color(0xFFE2E8F0);
+    const muted = Color(0xFF64748B);
     final formulaHint = _selectedBrand == GnssBrand.chcnav
         ? 'CHCNAV : Vertical = H + DH ; Slant = sqrt(H² - R0²) - H0 + DH ; '
             'Phase Center = H.'
         : 'Tersus : Vertical = H brut ; Pole / Phase Center = H + AntCenter ; '
             'Slant = |sqrt(H² - R²) + AntCenter - AntBottomHeight|.';
+    InputDecoration fieldDecoration(String label, {String? hint}) {
+      return InputDecoration(
+        labelText: label,
+        hintText: hint,
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white,
+        labelStyle: const TextStyle(
+          color: muted,
+          fontWeight: FontWeight.w700,
+        ),
+        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: skyBlue, width: 1.6),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: border),
+        ),
+      );
+    }
+
     return AlertDialog(
-      title: const Text('Configuration antenne rover'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: const Color(0xFFF1F5F9),
+      titlePadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+      title: Container(
+        padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          gradient: LinearGradient(
+            colors: [primaryBlue, skyBlue],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.28),
+                ),
+              ),
+              child: const Icon(
+                Icons.satellite_alt,
+                color: Colors.white,
+                size: 23,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Configuration antenne rover',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Modele, hauteur et ajustement vertical',
+                    style: TextStyle(
+                      color: Color(0xFFE0F2FE),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: _saving ? null : () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Z sol = elevation Merchich(h_ellip - A_apc) + ajustement. $formulaHint',
-              style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: primaryBlue,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'Z sol = elevation Merchich(h_ellip - A_apc) + ajustement. $formulaHint',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        height: 1.35,
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<GnssBrand>(
               initialValue: _selectedBrand,
-              decoration: const InputDecoration(
-                labelText: 'Marque du rover',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              isExpanded: true,
+              decoration: fieldDecoration('Marque du rover'),
               items: const [
                 DropdownMenuItem(
                   value: GnssBrand.chcnav,
@@ -253,11 +373,8 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _selectedAntennaKey,
-              decoration: const InputDecoration(
-                labelText: 'Modele d\'antenne',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              isExpanded: true,
+              decoration: fieldDecoration('Modele d\'antenne'),
               items: antennas
                   .map(
                     (a) => DropdownMenuItem<String>(
@@ -280,11 +397,8 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             const SizedBox(height: 12),
             DropdownButtonFormField<AntennaSurveyType>(
               initialValue: _surveyType,
-              decoration: const InputDecoration(
-                labelText: 'Methode de mesure',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              isExpanded: true,
+              decoration: fieldDecoration('Methode de mesure'),
               items: AntennaSurveyType.values
                   .map(
                     (t) => DropdownMenuItem<AntennaSurveyType>(
@@ -315,12 +429,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
-              decoration: InputDecoration(
-                labelText: _heightLabel(),
-                hintText: 'Ex : 1.000',
-                isDense: true,
-                border: const OutlineInputBorder(),
-              ),
+              decoration: fieldDecoration(_heightLabel(), hint: 'Ex : 1.000'),
             ),
             const SizedBox(height: 16),
             const Divider(height: 1),
@@ -338,11 +447,8 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
             const SizedBox(height: 8),
             DropdownButtonFormField<_AdjustmentKind>(
               initialValue: _adjustmentKind,
-              decoration: const InputDecoration(
-                labelText: 'Type d\'ajustement',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              isExpanded: true,
+              decoration: fieldDecoration('Type d\'ajustement'),
               items: const [
                 DropdownMenuItem(
                   value: _AdjustmentKind.none,
@@ -377,11 +483,9 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\-]')),
                 ],
-                decoration: const InputDecoration(
-                  labelText: 'Offset constante (m)',
-                  hintText: 'Ex : 0.190 ou -0.050',
-                  isDense: true,
-                  border: OutlineInputBorder(),
+                decoration: fieldDecoration(
+                  'Offset constante (m)',
+                  hint: 'Ex : 0.190 ou -0.050',
                 ),
               ),
             ],
@@ -408,12 +512,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                           RegExp(r'[0-9.,eE+\-]'),
                         ),
                       ],
-                      decoration: const InputDecoration(
-                        labelText: 'a',
-                        hintText: 'Ex : 1.2e-6',
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: fieldDecoration('a', hint: 'Ex : 1.2e-6'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -430,12 +529,7 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                           RegExp(r'[0-9.,eE+\-]'),
                         ),
                       ],
-                      decoration: const InputDecoration(
-                        labelText: 'b',
-                        hintText: 'Ex : -8.4e-7',
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: fieldDecoration('b', hint: 'Ex : -8.4e-7'),
                     ),
                   ),
                 ],
@@ -451,19 +545,26 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\-]')),
                 ],
-                decoration: const InputDecoration(
-                  labelText: 'c (m)',
-                  hintText: 'Ex : 0.250',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
+                decoration: fieldDecoration('c (m)', hint: 'Ex : 0.250'),
               ),
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: const TextStyle(color: Colors.red, fontSize: 12),
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Color(0xFFB91C1C),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ],
@@ -472,15 +573,42 @@ class _GnssRoverSetupDialogState extends State<GnssRoverSetupDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(
+            foregroundColor: muted,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           child: const Text('Annuler'),
         ),
-        FilledButton(
+        ElevatedButton(
           onPressed: _saving ? null : _save,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryBlue,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           child: _saving
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Text('Enregistrer'),
         ),

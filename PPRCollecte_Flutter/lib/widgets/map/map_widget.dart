@@ -48,6 +48,7 @@ class MapWidget extends StatefulWidget {
   final String? offlineBasemapPath;
   final String? offlineBasemapFormat;
   final String? basemapUnavailableMessage;
+  final bool showBasemapStatusBanner;
   final LatLng? basemapCenter;
   final LatLngBounds? basemapBounds;
   final double? basemapDefaultZoom;
@@ -87,6 +88,7 @@ class MapWidget extends StatefulWidget {
     this.offlineBasemapPath,
     this.offlineBasemapFormat,
     this.basemapUnavailableMessage,
+    this.showBasemapStatusBanner = true,
     this.basemapCenter,
     this.basemapBounds,
     this.basemapDefaultZoom,
@@ -1959,7 +1961,10 @@ class _MapWidgetState extends State<MapWidget> {
             MarkerLayer(markers: mapMarkers),
           ],
         ),
-        if (_isBasemapLoading || basemapMessage != null)
+        if (_isBasemapLoading ||
+            (basemapMessage != null &&
+                (widget.showBasemapStatusBanner ||
+                    _basemapLoadError != null)))
           Positioned(
             top: 8,
             left: 12,

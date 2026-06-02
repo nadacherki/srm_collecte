@@ -1628,6 +1628,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     final hasTraceCollection = homeController.ligneCollection != null ||
         homeController.polygonCollection != null;
+    final mapTopNotice = !_shouldUseOnlineBasemap &&
+            !_hasOfflineBasemap &&
+            (_basemapUnavailableMessage?.trim().isNotEmpty ?? false)
+        ? _basemapUnavailableMessage!.trim()
+        : null;
 
     return Scaffold(
       backgroundColor: const Color(
@@ -1675,6 +1680,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       basemapOriginY: _offlineBasemapOriginY,
                       basemapResolutions: _offlineBasemapResolutions,
                       basemapProjectedBounds: _offlineBasemapProjectedBounds,
+                      showBasemapStatusBanner: false,
                       showOfflineOrtho: _showOfflineOrtho,
                       onOfflineOrthoVisibilityChanged: (value) {
                         setState(() {
@@ -1766,6 +1772,51 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         setState(() => _isLegendExpanded = expanded);
                       },
                     ),
+                    if (mapTopNotice != null)
+                      Positioned(
+                        top: 8,
+                        left: 12,
+                        right: 70,
+                        child: IgnorePointer(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.96),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.map_outlined,
+                                  color: Colors.orange,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    mapTopNotice,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     if (isSyncing)
                       BackdropFilter(
                         filter: ImageFilter.blur(
